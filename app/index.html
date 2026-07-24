@@ -1,0 +1,3359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="color-scheme" content="dark">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#000000">
+<title>ISOLATION</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════ RETRO SPACE CONSOLE — DESIGN TOKENS ═══════════════
+   amber CRT glow + scanlines (ref: retro space UI set)
+   blueprint grid + hot planet accents (ref: blue grid room)        */
+:root{
+  --void:#000000;
+  --screen:#07050a;
+  --panel:#100b18;
+  --panel-2:#150e20;
+  --plush:#1b1226;
+  --line:#3a2414;
+  --line-amber:rgba(255,150,60,.28);
+  --line-soft:#221728;
+  --grid:#3d6bff;
+  --starlight:#ffe9cf;
+  --dim:#c9a37c;
+  --faint:#7d6552;
+  --amber:#ffb057;
+  --amber-hot:#ff7a1f;
+  --red:#ff3b2f;
+  --pink:#ff4b6e;
+  --violet:#8f7bff;
+  --teal:#7fd8ff;
+  --gold:#ffd98a;
+  --ice:#e8f1ff;
+  --r-lg:26px;
+  --r-md:16px;
+  --r-sm:10px;
+  --safe-t:env(safe-area-inset-top, 0px);
+  --safe-b:env(safe-area-inset-bottom, 0px);
+  --dock-h:118px;
+  --glow-a:0 0 12px rgba(255,150,60,.55), 0 0 34px rgba(255,110,20,.3);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;background:#000}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,select{font:inherit;color:inherit}
+body{
+  background:var(--void);
+  color:var(--starlight);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  font-weight:300;
+  line-height:1.5;
+  min-height:100vh;
+  overflow:hidden;
+  position:fixed;inset:0;
+  touch-action:manipulation;
+}
+/* console bezel — the whole app lives inside a warm-rimmed screen */
+
+/* ── canvas layers ── */
+canvas.sky-layer{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;display:block;touch-action:none}
+#cvNebula{z-index:0;background:#000}
+#cvWorld{z-index:1;touch-action:none}
+#grain{
+  display:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+#skyDim{
+  position:fixed;inset:0;z-index:2;pointer-events:none;
+  background:radial-gradient(120% 100% at 50% 0%, rgba(0,0,0,.7), rgba(0,0,0,.94));
+  opacity:0;transition:opacity .45s ease;
+}
+body[data-tab]:not([data-tab="sky"]) #skyDim{opacity:1}
+
+/* ═══════════════ SKY CHROME ═══════════════ */
+#skyChrome{position:fixed;inset:0;z-index:3;pointer-events:none;
+  opacity:1;transition:opacity .4s}
+body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
+.wordmark{
+  position:fixed;top:calc(var(--safe-t) + 16px);left:20px;
+  font-family:'Audiowide',sans-serif;font-size:13px;letter-spacing:.5em;
+  color:var(--amber);pointer-events:none;
+  text-shadow:var(--glow-a);
+}
+.wordmark em{font-style:normal;color:var(--red);text-shadow:0 0 12px rgba(255,59,47,.7)}
+#hudToggle{
+  position:fixed;top:calc(var(--safe-t) + 10px);right:16px;pointer-events:auto;
+  font-size:10px;letter-spacing:.3em;color:var(--faint);
+  font-family:'Audiowide',sans-serif;
+  padding:9px 14px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(11,8,18,.7);backdrop-filter:blur(8px);
+  transition:color .3s,border-color .3s,text-shadow .3s;
+}
+#hudToggle.on{color:var(--amber);border-color:var(--line-amber);text-shadow:var(--glow-a)}
+#shareSky{
+  position:fixed;top:calc(var(--safe-t) + 10px);right:88px;pointer-events:auto;
+  font-size:10px;letter-spacing:.3em;color:var(--faint);
+  font-family:'Audiowide',sans-serif;
+  padding:9px 14px;border-radius:999px;border:1px solid var(--line);
+  background:rgba(11,8,18,.7);backdrop-filter:blur(8px);
+}
+#shareSky:active{color:var(--amber);border-color:var(--line-amber)}
+#hud{
+  position:fixed;top:calc(var(--safe-t) + 52px);right:16px;pointer-events:none;
+  text-align:right;font-size:11px;letter-spacing:.14em;color:var(--dim);
+  background:rgba(8,5,12,.78);backdrop-filter:blur(10px);
+  border:1px solid var(--line-amber);border-radius:var(--r-md);
+  padding:11px 14px;line-height:1.9;max-width:220px;
+  box-shadow:inset 0 0 24px rgba(255,110,20,.05);
+  opacity:0;transform:translateY(-6px);transition:opacity .35s,transform .35s;
+}
+#hud.show{opacity:1;transform:none}
+#hud b{color:var(--amber);font-weight:500;text-shadow:0 0 10px rgba(255,150,60,.5)}
+#hud .h-acc{color:var(--red)}
+#starLabel{
+  position:fixed;z-index:4;pointer-events:none;white-space:nowrap;
+  font-family:'Audiowide',sans-serif;
+  font-size:10.5px;letter-spacing:.22em;color:var(--amber);
+  text-shadow:var(--glow-a), 0 2px 8px rgba(0,0,0,.9);
+  opacity:0;transition:opacity .4s;transform:translate(-50%,-140%);
+}
+#starLabel.show{opacity:1}
+#starLabel .la{color:var(--dim);letter-spacing:.16em}
+#voidInvite{
+  position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:auto;max-width:300px;
+  transition:opacity .8s;
+}
+#voidInvite.gone{opacity:0;pointer-events:none}
+#voidInvite h2{font-family:'Audiowide',sans-serif;font-weight:400;
+  font-size:17px;color:var(--amber);letter-spacing:.14em;margin-bottom:12px;
+  text-transform:uppercase;text-shadow:var(--glow-a)}
+#voidInvite p{font-size:12.5px;color:var(--dim);letter-spacing:.06em;margin-bottom:20px}
+#ceremonyBanner{
+  position:fixed;left:50%;bottom:calc(var(--dock-h) + var(--safe-b) + 26px);
+  transform:translate(-50%,10px);z-index:5;pointer-events:none;text-align:center;
+  opacity:0;transition:opacity .8s,transform .8s;
+}
+#ceremonyBanner.show{opacity:1;transform:translate(-50%,0)}
+#ceremonyBanner .cb-tag{font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.5em;color:var(--red);margin-bottom:6px;
+  text-shadow:0 0 12px rgba(255,59,47,.6)}
+#ceremonyBanner .cb-name{font-family:'Audiowide',sans-serif;
+  font-size:17px;letter-spacing:.18em;color:var(--amber);text-shadow:var(--glow-a)}
+
+/* ═══════════════ PANELS ═══════════════ */
+.panel{
+  position:fixed;inset:0;z-index:6;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:calc(var(--safe-t) + 20px) 16px calc(var(--dock-h) + var(--safe-b) + 24px);
+  display:none;
+}
+.panel.active{display:block;animation:panelIn .35s ease}
+@keyframes panelIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.p-head{margin:4px 2px 18px}
+.p-eyebrow{font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.44em;color:var(--red);
+  text-transform:uppercase;margin-bottom:8px;text-shadow:0 0 10px rgba(255,59,47,.45)}
+.p-eyebrow::before{content:"■ ";color:var(--red)}
+.p-head h1{font-family:'Audiowide',sans-serif;font-weight:400;font-size:26px;
+  letter-spacing:.12em;line-height:1.15;text-transform:uppercase;
+  color:var(--amber);text-shadow:var(--glow-a)}
+.p-head h1 em{font-style:normal;color:var(--ice);text-shadow:0 0 14px rgba(200,220,255,.6)}
+.p-sub{color:var(--dim);font-size:12.5px;margin-top:8px;max-width:44ch}
+
+/* console cards — black slab, amber rim, blueprint grid */
+.card{
+  border:1px solid var(--line-amber);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,var(--panel),#0a0710);
+  box-shadow:inset 0 0 30px rgba(255,110,20,.04), 0 8px 30px rgba(0,0,0,.5);
+  padding:16px;margin-top:14px;position:relative;overflow:hidden;
+}
+.card h3{font-family:'Audiowide',sans-serif;font-weight:400;font-size:13px;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--amber);
+  margin-bottom:6px;text-shadow:0 0 12px rgba(255,150,60,.4)}
+.card .c-note{color:var(--faint);font-size:12px}
+
+/* buttons — dot-matrix pills; hot = striped glowing orb-bar */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 18px;border-radius:999px;
+  font-family:'Audiowide',sans-serif;font-size:10px;letter-spacing:.2em;
+  border:1px solid var(--line);color:var(--dim);background:var(--panel-2);
+  transition:transform .15s, box-shadow .2s, color .2s, border-color .2s;
+  min-height:44px;
+}
+.btn:active{transform:scale(.96)}
+.btn:not(.hot):not(.danger):active{color:var(--amber);border-color:var(--line-amber)}
+.btn.hot{
+  color:#200800;font-weight:400;border:none;
+  background:linear-gradient(180deg,#ffc172,#ff7a1f 55%,#e03d17);
+  box-shadow:0 0 18px rgba(255,122,31,.55), 0 0 48px rgba(255,122,31,.25),
+    inset 0 1px 0 rgba(255,240,210,.6);
+  text-shadow:none;
+}
+.btn.ghost{background:transparent}
+.btn.small{padding:7px 13px;min-height:36px;font-size:9px}
+.btn.danger{color:var(--red);border-color:rgba(255,59,47,.4);
+  text-shadow:0 0 10px rgba(255,59,47,.4)}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+
+/* ── LIBRARY grid ── */
+#libGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+@media(min-width:560px){#libGrid{grid-template-columns:repeat(3,1fr)}}
+.alb{
+  border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden;
+  background:var(--panel);text-align:left;transition:transform .15s,border-color .2s;
+  display:flex;flex-direction:column;
+}
+.alb:active{transform:scale(.97)}
+.alb .art{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--plush)}
+.alb .meta{padding:10px 11px 12px}
+.alb .a-t{font-size:13px;font-weight:400;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.alb .a-a{font-size:11.5px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.alb .a-x{font-family:'Audiowide',sans-serif;font-size:8px;color:var(--faint);letter-spacing:.16em;margin-top:6px}
+.alb.playing{border-color:var(--amber);box-shadow:0 0 20px rgba(255,122,31,.3), inset 0 0 20px rgba(255,122,31,.06)}
+.mockchip{position:absolute;top:8px;left:8px;font-family:'Audiowide',sans-serif;
+  font-size:8px;letter-spacing:.2em;color:#200800;
+  background:var(--amber);padding:3px 8px;border-radius:999px;
+  box-shadow:0 0 12px rgba(255,150,60,.6)}
+.albwrap{position:relative}
+
+/* ── PLAYLISTS ── */
+.pl-row{
+  display:flex;align-items:center;gap:14px;width:100%;text-align:left;
+  padding:15px 4px;border-top:1px dashed var(--line-soft);min-height:56px;
+}
+.pl-row:first-child{border-top:none}
+.pl-glyph{flex-shrink:0;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  background:radial-gradient(circle at 34% 30%, #2a1a34, #120b1c);
+  border:1px solid var(--line-amber);
+  color:var(--amber);font-size:15px;text-shadow:0 0 10px rgba(255,150,60,.6)}
+.pl-name{font-size:15px}
+.pl-count{font-family:'Audiowide',sans-serif;font-size:8.5px;color:var(--faint);letter-spacing:.18em}
+.pl-spacer{margin-left:auto;color:var(--faint)}
+#newPlRow{display:flex;gap:10px;margin-top:14px}
+#newPlName{
+  flex:1;background:var(--screen);border:1px solid var(--line);border-radius:999px;
+  padding:11px 16px;color:var(--starlight);font-size:13px;outline:none;min-height:44px;
+}
+#newPlName:focus{border-color:var(--amber);box-shadow:0 0 14px rgba(255,150,60,.25)}
+#newPlName::placeholder{color:var(--faint)}
+
+/* track rows */
+.trk{display:flex;align-items:center;gap:12px;padding:11px 2px;border-top:1px dashed var(--line-soft);min-height:50px}
+.trk .t-no{width:22px;flex-shrink:0;font-family:'Audiowide',sans-serif;font-size:9px;color:var(--faint);text-align:right}
+.trk .t-main{flex:1;min-width:0}
+.trk .t-title{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk .t-sub{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trk.playing .t-title{color:var(--amber);text-shadow:0 0 10px rgba(255,150,60,.45)}
+.trk .t-btn{flex-shrink:0;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
+  color:var(--faint);border:1px solid var(--line-soft);font-size:14px}
+.trk .t-btn:active{color:var(--amber);border-color:var(--line-amber)}
+.trk input.t-edit{
+  width:100%;background:var(--screen);border:1px solid var(--amber);border-radius:8px;
+  padding:5px 8px;font-size:13px;color:var(--starlight);outline:none;
+  box-shadow:0 0 12px rgba(255,150,60,.25);
+}
+
+/* ── LOG ── */
+.log-e{display:flex;gap:13px;padding:13px 2px;border-top:1px dashed var(--line-soft)}
+.log-e:first-child{border-top:none}
+.log-g{flex-shrink:0;width:26px;text-align:center;font-size:15px}
+.log-t{font-size:13px}
+.log-when{font-family:'Audiowide',sans-serif;font-size:8px;color:var(--faint);letter-spacing:.14em;margin-top:3px}
+.g-amber{color:var(--amber);text-shadow:0 0 10px rgba(255,150,60,.5)}
+.g-pink{color:var(--pink);text-shadow:0 0 10px rgba(255,75,110,.5)}
+.g-violet{color:var(--violet);text-shadow:0 0 10px rgba(143,123,255,.5)}
+.g-teal{color:var(--teal);text-shadow:0 0 10px rgba(127,216,255,.5)}
+.g-gold{color:var(--gold);text-shadow:0 0 10px rgba(255,217,138,.5)}
+.g-dim{color:var(--faint)}
+
+/* ── SETTINGS ── */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:13px 2px;border-top:1px dashed var(--line-soft);min-height:52px}
+.set-row:first-of-type{border-top:none}
+.set-l{font-size:13.5px}
+.set-d{font-size:11px;color:var(--faint);margin-top:1px}
+.tgl{width:52px;height:30px;border-radius:999px;background:var(--screen);border:1px solid var(--line);
+  position:relative;flex-shrink:0;transition:background .25s,border-color .25s,box-shadow .25s}
+.tgl::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:var(--faint);transition:transform .25s,background .25s,box-shadow .25s}
+.tgl.on{background:#2a1206;border-color:var(--amber);box-shadow:0 0 14px rgba(255,122,31,.3)}
+.tgl.on::after{transform:translateX(22px);
+  background:var(--amber-hot);
+  box-shadow:0 0 14px rgba(255,122,31,.8)}
+/* EQ */
+#eqPresets{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+.eqp{font-family:'Audiowide',sans-serif;font-size:8.5px;letter-spacing:.18em;padding:8px 13px;border-radius:999px;
+  border:1px solid var(--line);color:var(--dim);min-height:36px}
+.eqp.on{color:#fff;border-color:var(--red);
+  background:linear-gradient(180deg,#ff5240,#c81f12);
+  box-shadow:0 0 16px rgba(255,59,47,.5);text-shadow:0 1px 2px rgba(0,0,0,.4)}
+#eqBands{display:flex;gap:6px;justify-content:space-between;margin-top:14px;padding:0 2px}
+.band{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1}
+.band input[type=range]{
+  writing-mode:vertical-lr;direction:rtl;appearance:none;-webkit-appearance:slider-vertical;
+  width:26px;height:110px;background:transparent;
+}
+.band .b-f{font-family:'Audiowide',sans-serif;font-size:7px;color:var(--faint);letter-spacing:.06em}
+.band .b-v{font-family:'Audiowide',sans-serif;font-size:8px;color:var(--amber);min-height:12px;
+  text-shadow:0 0 8px rgba(255,150,60,.5)}
+/* storage — segmented tick bar, red under pressure */
+#storBar{height:12px;border-radius:999px;background:var(--screen);border:1px solid var(--line);
+  overflow:hidden;margin-top:10px}
+#storFill{height:100%;width:0%;border-radius:999px;transition:width .6s;
+  background:linear-gradient(90deg,var(--amber),var(--amber-hot));
+  box-shadow:0 0 14px rgba(255,122,31,.5)}
+#storFill.warn{
+  background:linear-gradient(90deg,#ff5240,var(--red));
+  box-shadow:0 0 14px rgba(255,59,47,.6)}
+#storText{font-family:'Audiowide',sans-serif;font-size:8.5px;color:var(--faint);margin-top:8px;letter-spacing:.12em}
+#storWarn{font-size:11.5px;color:var(--red);margin-top:6px;display:none;text-shadow:0 0 10px rgba(255,59,47,.4)}
+
+/* ═══════════════ TRANSPORT + DOCK ═══════════════ */
+#dockWrap{position:fixed;left:0;right:0;bottom:0;z-index:20;
+  padding:0 14px calc(var(--safe-b) + 12px);pointer-events:none}
+#playerBar{
+  pointer-events:auto;display:none;align-items:center;gap:11px;
+  border:1px solid var(--line-amber);border-radius:var(--r-md);
+  background:linear-gradient(180deg,rgba(18,11,26,.95),rgba(8,5,12,.97));
+  backdrop-filter:blur(14px);padding:10px 11px 9px;margin-bottom:9px;
+  box-shadow:0 -8px 40px rgba(0,0,0,.6), 0 0 24px rgba(255,110,20,.08),
+    inset 0 0 24px rgba(255,110,20,.04);
+}
+#playerBar.show{display:flex}
+#pbArt{width:44px;height:44px;border-radius:9px;object-fit:cover;background:var(--plush);flex-shrink:0;
+  border:1px solid var(--line-soft)}
+#pbMain{flex:1;min-width:0}
+#pbTitle{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pbArtist{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pb-btn{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;
+  color:var(--dim);font-size:16px;flex-shrink:0}
+.pb-btn:active{color:var(--amber)}
+#pbPlay{
+  width:46px;height:46px;color:#200800;font-size:17px;
+  background:radial-gradient(circle at 36% 30%, #ffd08a, #ff7a1f 55%, #d43414);
+  box-shadow:0 0 18px rgba(255,122,31,.65), 0 0 44px rgba(255,122,31,.25),
+    inset 0 1px 0 rgba(255,240,210,.6);
+}
+#pbSeek{position:absolute;left:12px;right:12px;top:-2px;height:4px;border-radius:999px;
+  background:rgba(255,233,207,.1);overflow:hidden}
+#pbSeekFill{height:100%;width:0%;
+  background:linear-gradient(90deg,var(--red),var(--amber-hot));
+  box-shadow:0 0 10px rgba(255,90,30,.7)}
+#playerBar{position:relative}
+
+/* dock — black console strip with glowing readouts */
+#dock{
+  pointer-events:auto;display:flex;
+  border:1px solid var(--line-amber);border-radius:var(--r-lg);
+  background:linear-gradient(180deg,rgba(16,10,22,.96),rgba(6,4,9,.98));
+  backdrop-filter:blur(16px);padding:7px;
+  box-shadow:0 -10px 46px rgba(0,0,0,.6), 0 0 28px rgba(255,110,20,.1),
+    inset 0 0 30px rgba(255,110,20,.04);
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 2px 7px;border-radius:var(--r-md);min-height:52px;
+  color:var(--faint);transition:color .25s, background .25s, text-shadow .25s;
+}
+.tab .tg{font-size:15px;line-height:1}
+.tab .tl{font-family:'Audiowide',sans-serif;font-size:7.5px;letter-spacing:.26em}
+.tab.on{color:var(--red);
+  background:rgba(255,59,47,.09);
+  text-shadow:0 0 12px rgba(255,59,47,.55);
+  box-shadow:inset 0 0 0 1px rgba(255,59,47,.35)}
+
+/* ═══════════════ SHEETS + MODALS ═══════════════ */
+.sheet{
+  position:fixed;inset:0;z-index:30;display:none;flex-direction:column;
+  background:rgba(4,3,7,.78);backdrop-filter:blur(6px);
+}
+.sheet.open{display:flex}
+.sheet-body{
+  margin-top:auto;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  border-radius:28px 28px 0 0;border:1px solid var(--line-amber);border-bottom:none;
+  background:linear-gradient(180deg,var(--panel-2),#070510 60%);
+  box-shadow:0 -10px 60px rgba(0,0,0,.7), inset 0 0 40px rgba(255,110,20,.04);
+  padding:14px 18px calc(var(--safe-b) + 26px);
+  animation:sheetUp .35s cubic-bezier(.2,.8,.25,1);
+}
+@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+.grab{width:42px;height:4px;border-radius:999px;background:var(--line);margin:0 auto 14px}
+.sheet-body{position:relative}
+.sheet-close{
+  position:absolute;top:12px;right:14px;width:36px;height:36px;z-index:3;
+  display:flex;align-items:center;justify-content:center;border-radius:50%;
+  background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--dim);cursor:pointer;
+}
+.sheet-close svg{width:15px;height:15px}
+.sheet-close:active{color:var(--amber);border-color:var(--line-amber)}
+/* inline icon inside buttons + notes */
+.bi{display:inline-flex;vertical-align:-2.5px;margin-right:7px}
+.bi svg{width:13px;height:13px}
+/* empty-state + list glyphs as SVG */
+.e-g svg{width:30px;height:30px;display:block;margin:0 auto}
+.pl-spacer svg{width:14px;height:14px;display:block}
+#volRow .vg{display:inline-flex;color:var(--dim)}
+#volRow .vg svg{width:17px;height:17px}
+#starLabel .l-hint{font-size:8.5px;letter-spacing:.3em;color:var(--dim);margin-top:5px;text-align:center}
+#starLabel.show{pointer-events:auto;cursor:pointer}
+.sheet h2{font-family:'Audiowide',sans-serif;font-weight:400;font-size:16px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--amber);
+  text-shadow:0 0 14px rgba(255,150,60,.4)}
+.sheet .s-sub{color:var(--dim);font-size:12px;margin-top:4px}
+#nowArt{width:min(72vw,300px);aspect-ratio:1;border-radius:var(--r-lg);object-fit:cover;
+  display:block;margin:16px auto;background:var(--plush);
+  border:1px solid var(--line-amber);
+  box-shadow:0 16px 60px rgba(0,0,0,.7), 0 0 44px rgba(255,110,20,.16)}
+#nowTitle{font-family:'Audiowide',sans-serif;font-weight:400;font-size:16px;
+  letter-spacing:.1em;text-align:center;line-height:1.4;color:var(--starlight)}
+#nowArtist{text-align:center;color:var(--dim);font-size:11px;letter-spacing:.18em;margin-top:6px;
+  font-family:'Audiowide',sans-serif}
+#nowSeekWrap{margin:20px 4px 4px}
+/* segmented tick seek — straight off the console */
+input[type=range].hseek{appearance:none;-webkit-appearance:none;width:100%;height:30px;background:transparent}
+input[type=range].hseek::-webkit-slider-runnable-track{height:6px;border-radius:999px;
+  background:rgba(255,176,87,.18)}
+input[type=range].hseek::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
+  margin-top:-7px;
+  background:radial-gradient(circle at 36% 30%, #ffd08a, #ff7a1f 60%, #d43414);
+  box-shadow:0 0 14px rgba(255,122,31,.75);border:1px solid #2a1004}
+#nowTimes{display:flex;justify-content:space-between;font-family:'Audiowide',sans-serif;
+  font-size:8.5px;color:var(--faint);letter-spacing:.14em;margin-top:2px}
+#nowCtrls{display:flex;align-items:center;justify-content:center;gap:24px;margin:16px 0 8px}
+#nowCtrls .pb-btn{width:52px;height:52px;font-size:20px;color:var(--dim)}
+#nowPlay{width:68px;height:68px;border-radius:50%;font-size:24px;color:#200800;display:grid;place-items:center;
+  background:radial-gradient(circle at 36% 30%, #ffd08a, #ff7a1f 55%, #d43414);
+  box-shadow:0 0 22px rgba(255,122,31,.7), 0 0 60px rgba(255,122,31,.3),
+    inset 0 1px 0 rgba(255,240,210,.6);
+  outline:1px dashed rgba(255,176,87,.45);outline-offset:7px;
+}
+#volRow{display:flex;align-items:center;gap:12px;margin:16px 6px 4px;color:var(--faint);font-size:13px}
+/* album sheet */
+#albArtBig{width:120px;height:120px;border-radius:var(--r-md);object-fit:cover;background:var(--plush);flex-shrink:0;
+  border:1px solid var(--line-amber);box-shadow:0 10px 34px rgba(0,0,0,.6), 0 0 20px rgba(255,110,20,.12)}
+.alb-head{display:flex;gap:15px;align-items:flex-start;margin-top:6px}
+.alb-head .ah-meta{min-width:0}
+.alb-head h2{font-size:14px;line-height:1.35}
+.field{margin-top:12px}
+/* library search — a console readout line */
+#libSearch{position:relative;margin-top:14px}
+#libSearch .ls-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--faint);display:flex;pointer-events:none}
+#libSearch .ls-ico svg{width:14px;height:14px}
+#libSearch input{width:100%;background:var(--screen);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:11px 42px 11px 38px;color:var(--starlight);font-size:13px;letter-spacing:.08em;outline:none;min-height:44px;
+  -webkit-appearance:none;appearance:none}
+#libSearch input::placeholder{font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.28em;color:var(--faint)}
+#libSearch input:focus{border-color:var(--amber);box-shadow:0 0 14px rgba(255,150,60,.25)}
+#libSearch input::-webkit-search-cancel-button{display:none}
+#libSearchClr{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;color:var(--dim);border-radius:50%}
+#libSearchClr svg{width:13px;height:13px}
+.field label{display:block;font-family:'Audiowide',sans-serif;font-size:8px;letter-spacing:.32em;
+  color:var(--faint);text-transform:uppercase;margin-bottom:6px}
+.field input{width:100%;background:var(--screen);border:1px solid var(--line);border-radius:var(--r-sm);
+  padding:11px 13px;color:var(--starlight);font-size:14px;outline:none;min-height:44px}
+.field input:focus{border-color:var(--amber);box-shadow:0 0 14px rgba(255,150,60,.25)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  padding:14px 4px;border-top:1px dashed var(--line-soft);font-size:14px;min-height:52px}
+.pick-row:first-of-type{border-top:none}
+
+/* toasts — readout chips */
+#toasts{position:fixed;left:50%;top:calc(var(--safe-t) + 14px);transform:translateX(-50%);
+  z-index:50;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:max-content;max-width:92vw}
+.toast{
+  font-size:11.5px;letter-spacing:.08em;color:var(--starlight);
+  background:rgba(14,9,20,.96);border:1px solid var(--line-amber);border-radius:999px;
+  padding:10px 18px;backdrop-filter:blur(10px);
+  box-shadow:0 8px 30px rgba(0,0,0,.6), 0 0 18px rgba(255,110,20,.12);
+  animation:toastIn .3s ease;max-width:92vw;text-align:center;
+}
+.toast.gold{border-color:rgba(255,176,87,.6);color:var(--amber);text-shadow:0 0 10px rgba(255,150,60,.4)}
+@keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.toast.out{opacity:0;transition:opacity .4s}
+
+.hairline{border:none;border-top:1px dashed var(--line-soft);margin:14px 0}
+.empty{text-align:center;padding:44px 20px;color:var(--faint);font-size:13px}
+.empty .e-g{font-size:26px;margin-bottom:10px;color:var(--line);text-shadow:0 0 14px rgba(255,110,20,.2)}
+.empty i{font-style:normal;font-family:'Audiowide',sans-serif;font-size:11px;letter-spacing:.14em;color:var(--dim)}
+::-webkit-scrollbar{width:0;height:0}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:8px}
+
+.tab .tg svg{width:17px;height:17px;display:block}
+.pb-btn svg{width:18px;height:18px;display:block}
+#pbPlay svg{width:20px;height:20px}
+#nowPlay svg{width:26px;height:26px}
+.pl-glyph svg{width:19px;height:19px;display:block}
+.t-btn svg{width:15px;height:15px;display:block}
+.log-g svg{width:16px;height:16px;display:inline-block;vertical-align:-3px}
+/* transmissions from outside */
+#recsGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}
+.rec{display:block;border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden;
+  background:var(--panel);text-decoration:none;color:inherit;position:relative}
+.rec:active{transform:scale(.97)}
+.rec img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--plush)}
+.rec .r-m{padding:9px 10px 11px}
+.rec .r-t{font-size:12.5px;line-height:1.3}
+.rec .r-a{font-size:11px;color:var(--dim);margin-top:2px}
+.rec .r-tag{position:absolute;top:8px;left:8px;font-family:'Audiowide',sans-serif;font-size:7.5px;
+  letter-spacing:.18em;color:#fff;background:var(--red);padding:3px 7px;border-radius:3px;
+  box-shadow:0 0 12px rgba(255,59,47,.5)}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* ═══════ DATA-BOARD PASS — sharp rectangles, readout headers, red dials ═══════ */
+:root{--r-lg:0;--r-md:0;--r-sm:0}
+.btn,.eqp,#newPlName,.toast{border-radius:0}
+.btn{border-color:#2c2c35;color:#c8ccd6;background:#101017}
+.btn.hot{background:var(--red);box-shadow:0 0 16px rgba(255,59,47,.35);color:#fff;text-shadow:none}
+.btn.hot:active{background:#d92b20}
+.btn.danger{border-color:rgba(255,59,47,.5)}
+.card{border-color:#26262e;background:#0c0c12;box-shadow:none;margin-top:12px}
+.card h3{color:var(--ice);text-shadow:none;font-size:11px;letter-spacing:.26em}
+.card h3::before{content:"\25A0  ";color:var(--red)}
+.c-note{color:#5d6068}
+.p-head{border-bottom:1px solid #23232b;padding-bottom:12px;margin-bottom:12px}
+.p-head h1{color:#fff;text-shadow:none;font-size:21px;letter-spacing:.18em}
+.p-head h1 em{color:var(--red);text-shadow:none}
+.p-eyebrow{color:#5d6068;text-shadow:none}
+.p-sub{display:none}
+#libSub{display:block;font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.22em;
+  color:#8a8f9a;text-transform:uppercase;margin-top:8px}
+.sheet-body{border-radius:0;border-color:#26262e;background:#0c0c12}
+.sheet h2{color:#fff;text-shadow:none}
+.s-sub{font-family:'Audiowide',sans-serif;font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;color:#8a8f9a}
+.grab{width:56px;height:2px;background:#2c2c35;border-radius:0}
+.alb,.rec{border-radius:0;border-color:#26262e}
+#pbArt,#albArtBig,#nowArt,.pl-glyph,.field input,.trk .t-btn,.trk input.t-edit{border-radius:0}
+.mockchip,.rec .r-tag{border-radius:0}
+.hairline{border-top:1px solid #23232b}
+.pl-row,.trk,.log-e,.set-row,.pick-row{border-top:1px solid #1d1d24}
+.pl-row:first-child,.log-e:first-child,.set-row:first-of-type,.pick-row:first-of-type{border-top:none}
+#dock,#playerBar{border-radius:0;border-color:#26262e;background:rgba(9,9,13,.97);box-shadow:0 -10px 46px rgba(0,0,0,.6)}
+.tab{border-radius:0}
+.tab.on{background:rgba(255,59,47,.06);box-shadow:inset 0 -2px 0 var(--red)}
+#pbSeek,#storBar{border-radius:0}
+#storBar{border-color:#26262e}
+#pbSeekFill{background:var(--red);box-shadow:0 0 8px rgba(255,59,47,.6)}
+#storFill{background:var(--red);box-shadow:none;border-radius:0}
+#storFill.warn{background:var(--amber-hot)}
+/* the one curve that stays: the red dial, like the donut gauges */
+#pbPlay{background:radial-gradient(circle at 36% 32%, #ff6a5e, #ff3b2f 58%, #b71c12);
+  box-shadow:0 0 18px rgba(255,59,47,.5);color:#fff}
+#nowPlay{background:radial-gradient(circle at 36% 32%, #ff6a5e, #ff3b2f 58%, #b71c12);
+  box-shadow:0 0 22px rgba(255,59,47,.55);color:#fff;outline:1px solid #2c2c35;outline-offset:6px}
+input[type=range].hseek::-webkit-slider-runnable-track{border-radius:0;background:rgba(255,255,255,.1)}
+input[type=range].hseek::-webkit-slider-thumb{background:radial-gradient(circle at 36% 32%, #ff6a5e, #ff3b2f 60%, #b71c12);
+  box-shadow:0 0 12px rgba(255,59,47,.6);border-color:#1a0503}
+.tgl{border-radius:2px;border-color:#2c2c35}
+.tgl::after{border-radius:1px}
+.tgl.on{background:#26060a;border-color:var(--red);box-shadow:none}
+.tgl.on::after{background:var(--red);box-shadow:0 0 10px rgba(255,59,47,.7)}
+.eqp{border:1px solid #2c2c35}
+.eqp.on{box-shadow:0 0 14px rgba(255,59,47,.45)}
+.band .b-v{color:#ff8d85;text-shadow:none}
+.field label{color:#5d6068}
+.field input{background:#0a0a10;border-color:#26262e}
+.field input:focus{border-color:var(--red);box-shadow:none}
+#newPlName{background:#0a0a10;border-color:#26262e}
+#newPlName:focus{border-color:var(--red);box-shadow:none}
+.toast{border-color:#2c2c35;background:rgba(12,12,18,.97)}
+.toast.gold{border-color:rgba(255,59,47,.5);color:#ff8d85;text-shadow:none}
+.alb .a-x,.pl-count,.log-when,#storText,#nowTimes{color:#5d6068}
+.trk.playing .t-title{color:#ff8d85;text-shadow:none}
+.alb.playing{border-color:var(--red);box-shadow:0 0 16px rgba(255,59,47,.22)}
+.mockchip{background:var(--red);color:#fff;box-shadow:none}
+.empty i{color:#8a8f9a}
+.empty .e-g{color:#26262e;text-shadow:none}
+
+/* ═══════ Y2K CHROME PASS — holographic colorways for all type + controls ═══════ */
+:root{
+  --chrome:#eef0f8;--lav:#b9b2e8;--lav-dim:#8d86b8;--mute:#6b6790;
+  --holo-c:#c39dff;
+}
+body{color:var(--chrome)}
+.wordmark{color:var(--chrome);text-shadow:0 0 14px rgba(160,170,255,.45)}
+.wordmark em{color:transparent;background:linear-gradient(120deg,#8be9ff,#c39dff,#ffd0a8);
+  -webkit-background-clip:text;background-clip:text;text-shadow:none}
+#hudToggle{color:var(--mute);border-color:#2c2a44;background:rgba(16,14,28,.7)}
+#shareSky{color:var(--mute);border-color:#2c2a44;background:rgba(16,14,28,.7)}
+#shareSky:active{color:var(--lav);border-color:rgba(185,178,232,.45)}
+#hudToggle.on{color:var(--lav);border-color:rgba(185,178,232,.45);text-shadow:0 0 12px rgba(160,150,255,.5)}
+#hud{border-color:#2c2a44;color:var(--lav-dim);background:rgba(10,9,18,.8)}
+#hud b{color:var(--chrome);text-shadow:0 0 10px rgba(180,180,255,.5)}
+#hud .h-acc{color:#f2a6e3}
+#starLabel{color:var(--lav);text-shadow:0 0 16px rgba(160,150,255,.55),0 2px 8px rgba(0,0,0,.9)}
+#starLabel .la{color:var(--lav-dim)}
+#voidInvite h2{color:var(--chrome);text-shadow:0 0 16px rgba(170,170,255,.4)}
+#voidInvite p{color:var(--lav-dim)}
+#ceremonyBanner .cb-tag{color:#8be9ff;text-shadow:0 0 12px rgba(139,233,255,.5)}
+#ceremonyBanner .cb-name{color:var(--chrome);text-shadow:0 0 18px rgba(180,170,255,.5)}
+.p-eyebrow{color:var(--mute)}.p-eyebrow::before{color:var(--holo-c)}
+.p-head{border-bottom-color:#26243c}
+.p-head h1{color:var(--chrome)}
+.p-head h1 em{color:transparent;background:linear-gradient(120deg,#8be9ff,#c39dff,#ffd0a8);
+  -webkit-background-clip:text;background-clip:text}
+#libSub,.s-sub{color:var(--lav-dim)}
+.card{border-color:#26243c;background:#0d0c16}
+.card h3{color:var(--chrome)}.card h3::before{color:var(--holo-c)}
+.c-note{color:var(--mute)}
+.btn{border-color:#34305a;color:#cfcbe8;background:rgba(151,140,255,.07)}
+.btn:not(.hot):not(.danger):active{color:var(--lav);border-color:var(--lav)}
+.btn.hot{color:#141026;box-shadow:0 0 18px rgba(150,150,255,.4);
+  background:linear-gradient(120deg,#8be9ff,#8fb0ff 30%,#c39dff 60%,#f2a6e3 85%,#ffd0a8)}
+.btn.hot:active{background:linear-gradient(120deg,#7cd6ee,#7d9ff2 30%,#b18bf2 60%,#e293d3 85%,#f2bf96)}
+.btn.danger{color:#ff9edb;border-color:rgba(242,166,227,.5);text-shadow:none}
+.tab{color:#565377}
+.tab.on{color:var(--lav);background:rgba(151,140,255,.08);
+  box-shadow:inset 0 -2px 0 var(--holo-c);text-shadow:0 0 12px rgba(170,160,255,.55)}
+#dock,#playerBar{border-color:#26243c}
+#pbTitle{color:var(--chrome)}#pbArtist{color:var(--lav-dim)}
+.pb-btn{color:var(--lav-dim)}.pb-btn:active{color:var(--lav)}
+#pbPlay,#nowPlay{color:#141026;box-shadow:0 0 20px rgba(150,160,255,.5);
+  background:linear-gradient(135deg,#8be9ff,#8fb0ff 30%,#c39dff 60%,#f2a6e3 85%,#ffd0a8)}
+#nowPlay{outline-color:#34305a}
+#pbSeekFill{background:linear-gradient(90deg,#8be9ff,#c39dff,#f2a6e3);box-shadow:0 0 8px rgba(170,160,255,.6)}
+input[type=range].hseek::-webkit-slider-runnable-track{background:rgba(200,200,240,.12)}
+input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
+  background:radial-gradient(circle at 36% 32%,#dfe6ff,#b7a6ff 55%,#7f6ad6);
+  box-shadow:0 0 12px rgba(170,160,255,.7)}
+#nowTitle{color:var(--chrome)}#nowArtist{color:var(--lav-dim)}#nowTimes{color:var(--mute)}
+.sheet-body{border-color:#26243c;background:#0d0c16}
+.sheet h2{color:var(--chrome)}
+.trk .t-title{color:#dfe0ee}
+.trk.playing .t-title{color:var(--holo-c);text-shadow:0 0 10px rgba(195,157,255,.5)}
+.trk .t-btn{color:var(--mute);border-color:#26243c}
+.trk .t-btn:active{color:var(--lav);border-color:#34305a}
+.trk input.t-edit{border-color:var(--holo-c);color:var(--chrome)}
+.alb,.rec{border-color:#26243c}
+.alb.playing{border-color:var(--holo-c);box-shadow:0 0 16px rgba(195,157,255,.3)}
+.alb .a-t{color:#dfe0ee}.alb .a-a{color:var(--lav-dim)}.alb .a-x{color:var(--mute)}
+.mockchip{background:linear-gradient(120deg,#8fb0ff,#c39dff,#f2a6e3);color:#141026;box-shadow:0 0 10px rgba(170,160,255,.5)}
+.rec .r-tag{background:linear-gradient(120deg,#8be9ff,#c39dff,#f2a6e3);color:#141026;box-shadow:0 0 12px rgba(170,160,255,.5)}
+.rec .r-t{color:#dfe0ee}.rec .r-a{color:var(--lav-dim)}
+.pl-glyph{color:var(--lav);border-color:#34305a;background:rgba(151,140,255,.06);text-shadow:none}
+.pl-name{color:#dfe0ee}.pl-count,.pl-spacer{color:var(--mute)}
+.log-t{color:#dfe0ee}.log-when{color:var(--mute)}
+.g-amber{color:#8be9ff;text-shadow:0 0 10px rgba(139,233,255,.5)}
+.g-pink{color:#f2a6e3;text-shadow:0 0 10px rgba(242,166,227,.5)}
+.g-violet{color:#c39dff;text-shadow:0 0 10px rgba(195,157,255,.5)}
+.g-teal{color:#8fb0ff;text-shadow:0 0 10px rgba(143,176,255,.5)}
+.g-gold{color:#ffd0a8;text-shadow:0 0 10px rgba(255,208,168,.5)}
+.g-dim{color:var(--mute)}
+.set-l{color:#dfe0ee}.set-d{color:var(--mute)}
+.tgl{border-color:#34305a}
+.tgl.on{background:#191536;border-color:var(--holo-c)}
+.tgl.on::after{background:linear-gradient(135deg,#8fb0ff,#c39dff);box-shadow:0 0 10px rgba(195,157,255,.7)}
+.eqp{border-color:#34305a;color:var(--lav-dim)}
+.eqp.on{color:#141026;border-color:transparent;box-shadow:0 0 14px rgba(170,160,255,.5);
+  background:linear-gradient(120deg,#8be9ff,#c39dff,#f2a6e3)}
+.band .b-v{color:var(--lav);text-shadow:none}.band .b-f{color:var(--mute)}
+#storBar{border-color:#26243c}
+#storFill{background:linear-gradient(90deg,#8be9ff,#8fb0ff,#c39dff)}
+#storFill.warn{background:linear-gradient(90deg,#f2a6e3,#ffd0a8)}
+#storText{color:var(--mute)}#storWarn{color:#f2a6e3;text-shadow:none}
+.field label{color:var(--mute)}
+.field input{color:var(--chrome);border-color:#26243c}
+.field input:focus{border-color:var(--holo-c)}
+#newPlName{color:var(--chrome);border-color:#26243c}
+#newPlName:focus{border-color:var(--holo-c)}
+#newPlName::placeholder{color:var(--mute)}
+.toast{color:var(--chrome);border-color:#34305a}
+.toast.gold{border-color:rgba(195,157,255,.55);color:var(--lav);text-shadow:none}
+.hairline{border-top-color:#26243c}
+.pl-row,.trk,.log-e,.set-row,.pick-row{border-top-color:#1c1a2e}
+.empty i{color:var(--lav-dim)}.empty .e-g{color:#26243c}
+:focus-visible{outline-color:var(--holo-c)}
+</style>
+</head>
+<body data-tab="sky">
+
+<!-- ═══ sky canvas layers ═══ -->
+<canvas id="cvNebula" class="sky-layer"></canvas>
+<canvas id="cvWorld" class="sky-layer"></canvas>
+<div id="skyDim"></div>
+<div id="grain"></div>
+
+<!-- ═══ sky chrome ═══ -->
+<div id="skyChrome">
+  <div id="hud" role="status">
+    <div><b id="hudAlbums">0</b> albums adrift</div>
+    <div>next constellation <b id="hudCst">0/20</b></div>
+    <div>next planet <b id="hudPlanet">0/100</b></div>
+    <div id="hudNow" class="h-acc" style="display:none"></div>
+  </div>
+  <div id="starLabel"></div>
+  <div id="voidInvite">
+    <h2>The void is listening.</h2>
+    <p>Every album you bring becomes a star. Twenty stars knit a constellation. A hundred wake a planet.</p>
+    <button class="btn hot" id="inviteImport">LIGHT THE FIRST STAR</button>
+    <div style="margin-top:12px"><button class="btn small ghost" id="inviteGuide">WHERE DO I FIND MUSIC?</button></div>
+  </div>
+  <button id="shareSky" style="display:none" aria-label="Share a picture of your sky">SHARE SKY</button>
+  <div id="ceremonyBanner">
+    <div class="cb-tag" id="cbTag"></div>
+    <div class="cb-name" id="cbName"></div>
+  </div>
+</div>
+
+<!-- ═══ LIBRARY ═══ -->
+<div class="panel" id="panel-library" role="region" aria-label="Library">
+  <div class="p-head">
+    <div class="p-eyebrow">Census of stars</div>
+    <h1>Li<em>b</em>rary</h1>
+    <div class="p-sub" id="libSub">Every album here is a star in the sky.</div>
+  </div>
+  <div class="btnrow">
+    <button class="btn hot" id="btnImport"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span>IMPORT ALBUMS</button>
+    <button class="btn" id="btnImportFolder" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/></svg></span>IMPORT FOLDER</button>
+  </div>
+  <div id="libSearch">
+    <span class="ls-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>
+    <input type="search" id="libSearchIn" placeholder="SEARCH ARTIST OR ALBUM" aria-label="Search library by artist or album" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+    <button id="libSearchClr" aria-label="Clear search" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="libGrid"></div>
+  <div id="libNoMatch" class="empty" style="display:none">
+    <div class="e-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></div>
+    <i>Nothing in the catalog answers to that.</i><br>Try fewer words, or another spelling.
+  </div>
+  <div id="libEmpty" class="empty" style="display:none">
+    <div class="e-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></div>
+    <i>Nothing catalogued yet.</i><br>Import albums above &#8212; Bandcamp .zip downloads work as-is.<br>
+    <div class="btnrow" style="justify-content:center"><button class="btn small ghost" id="emptyGuide">HOW TO START COLLECTING</button></div>
+  </div>
+  <div class="card" id="recsCard">
+    <h3>Transmissions from outside</h3>
+    <div class="c-note">Artists orbiting near your taste that aren't in your sky yet. Each one links to Bandcamp &#8212; if it lands, buy the files and bring them home. Seeded from your imported artists; needs a network signal.</div>
+    <div class="btnrow"><button class="btn hot small" id="btnRecs">SCAN THE OUTSIDE</button></div>
+    <div id="recsGrid"></div>
+    <div id="recsNote" class="c-note" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ═══ PLAYLISTS ═══ -->
+<div class="panel" id="panel-playlists" role="region" aria-label="Playlists">
+  <div class="p-head">
+    <div class="p-eyebrow">Charted routes</div>
+    <h1>Pla<em>y</em>lists</h1>
+    <div class="p-sub">Sequences you draw between the stars.</div>
+  </div>
+  <div class="card">
+    <div id="newPlRow">
+      <input id="newPlName" placeholder="Name a new playlist&#8230;" aria-label="New playlist name">
+      <button class="btn hot small" id="btnNewPl">CREATE</button>
+    </div>
+  </div>
+  <div class="card" id="plListCard"><div id="plList"></div></div>
+</div>
+
+<!-- ═══ LOG ═══ -->
+<div class="panel" id="panel-log" role="region" aria-label="Log">
+  <div class="p-head">
+    <div class="p-eyebrow">Observatory record</div>
+    <h1>L<em>o</em>g</h1>
+    <div class="p-sub">Everything the sky has done while you watched.</div>
+  </div>
+  <div class="card"><div id="logList"></div></div>
+</div>
+
+<!-- ═══ SETTINGS ═══ -->
+<div class="panel" id="panel-settings" role="region" aria-label="Settings">
+  <div class="p-head">
+    <div class="p-eyebrow">Instrument panel</div>
+    <h1>Se<em>t</em>tings</h1>
+  </div>
+
+  <div class="card">
+    <h3>Equalizer</h3>
+    <div class="c-note">Ten bands, &#177;12&#8201;dB. The sky hears whatever you shape here.</div>
+    <div id="eqPresets"></div>
+    <div id="eqBands"></div>
+  </div>
+
+  <div class="card">
+    <h3>Sky</h3>
+    <div class="set-row">
+      <div><div class="set-l">Heads-up display</div><div class="set-d">Census chip over the sky</div></div>
+      <button class="tgl" id="tglHud" role="switch" aria-checked="false" aria-label="Heads-up display"></button>
+    </div>
+    <div class="set-row">
+      <div><div class="set-l">Spectrum feeds the sky</div><div class="set-d">Star glow and nebula breath follow the music</div></div>
+      <button class="tgl on" id="tglFft" role="switch" aria-checked="true" aria-label="Spectrum reactivity"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Storage</h3>
+    <div class="c-note">Audio lives on this device only &#8212; nothing is uploaded anywhere.</div>
+    <div id="storBar"><div id="storFill"></div></div>
+    <div id="storText">measuring&#8230;</div>
+    <div id="persistText" class="c-note" style="margin-top:8px"></div>
+    <div id="storWarn"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 4L22 20H2Z"/><path d="M12 10v4.5"/><path d="M12 17.4v.2"/></svg></span>Storage is getting tight. iOS may evict data &#8212; consider trimming the library.</div>
+  </div>
+
+  <div class="card">
+    <h3>Mock stars</h3>
+    <div class="c-note">Silent placeholder albums for tuning the sky before real music arrives.</div>
+    <div class="btnrow">
+      <button class="btn small" id="mock1">+1</button>
+      <button class="btn small" id="mock20">+20</button>
+      <button class="btn small" id="mock100">FILL TO 100</button>
+      <button class="btn small ghost" id="mockClear">REMOVE MOCKS</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Backup</h3>
+    <div class="c-note">Your collection exists only on this device. Export it somewhere safe &#8212; restoring is just importing the backup zip through IMPORT ALBUMS.</div>
+    <div class="btnrow">
+      <button class="btn hot small" id="btnExportAll">FULL BACKUP (.ZIP)</button>
+      <button class="btn small" id="btnExportCat">CATALOG ONLY (.JSON)</button>
+    </div>
+    <div class="c-note" id="backupNote" style="margin-top:8px;display:none"></div>
+  </div>
+
+  <div class="card">
+    <h3>Data</h3>
+    <div class="set-row">
+      <div><div class="set-l">Erase everything</div><div class="set-d">Albums, audio, playlists, log &#8212; the sky goes dark</div></div>
+      <button class="btn small danger" id="btnWipe">ERASE</button>
+    </div>
+  </div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+</div>
+
+<!-- ═══ transport + dock ═══ -->
+<div id="dockWrap">
+  <div id="playerBar">
+    <div id="pbSeek"><div id="pbSeekFill"></div></div>
+    <img id="pbArt" alt="" >
+    <button id="pbMain" aria-label="Open now playing">
+      <div id="pbTitle">&#8212;</div>
+      <div id="pbArtist">&#8212;</div>
+    </button>
+    <button class="pb-btn" id="pbPrev" aria-label="Previous track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 5v14"/><path d="M19 5l-9 7 9 7Z"/></svg></button>
+    <button class="pb-btn" id="pbPlay" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></button>
+    <button class="pb-btn" id="pbNext" aria-label="Next track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M17 5v14"/><path d="M5 5l9 7-9 7Z"/></svg></button>
+  </div>
+  <nav id="dock" aria-label="Tabs">
+    <button class="tab on" data-go="sky"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span><span class="tl">SKY</span></button>
+    <button class="tab" data-go="library"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6.6" height="6.6"/><rect x="13.4" y="4" width="6.6" height="6.6"/><rect x="4" y="13.4" width="6.6" height="6.6"/><rect x="13.4" y="13.4" width="6.6" height="6.6" fill="currentColor" stroke="none"/></svg></span><span class="tl">LIBRARY</span></button>
+    <button class="tab" data-go="playlists"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="17" r="2.6"/><path d="M9.6 17V6.2L19 4.4v10.4"/><circle cx="16.4" cy="14.8" r="2.6"/></svg></span><span class="tl">LISTS</span></button>
+    <button class="tab" data-go="log"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M5 6l4.5 5L5 16"/><path d="M12 17h7"/><path d="M12 7h7" opacity=".35"/></svg></span><span class="tl">LOG</span></button>
+    <button class="tab" data-go="settings"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 12V4a8 8 0 0 1 8 8Z" fill="currentColor" stroke="none"/></svg></span><span class="tl">SET</span></button>
+  </nav>
+</div>
+
+<!-- ═══ now playing sheet ═══ -->
+<div class="sheet" id="sheetNow" aria-modal="true" role="dialog" aria-label="Now playing">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <img id="nowArt" alt="Album art">
+    <div id="nowTitle">&#8212;</div>
+    <div id="nowArtist">&#8212;</div>
+    <div id="nowSeekWrap">
+      <input type="range" class="hseek" id="nowSeek" min="0" max="1000" value="0" aria-label="Seek">
+      <div id="nowTimes"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
+    </div>
+    <div id="nowCtrls">
+      <button class="pb-btn" id="nowPrev" aria-label="Previous track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 5v14"/><path d="M19 5l-9 7 9 7Z"/></svg></button>
+      <button id="nowPlay" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></button>
+      <button class="pb-btn" id="nowNext" aria-label="Next track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M17 5v14"/><path d="M5 5l9 7-9 7Z"/></svg></button>
+    </div>
+    <div id="volRow">
+      <span class="vg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4Z"/></svg></span>
+      <input type="range" class="hseek" id="volSlider" min="0" max="100" value="90" aria-label="Volume">
+      <span class="vg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4Z"/><path d="M16.5 9a5 5 0 0 1 0 6"/><path d="M18.8 6.6a8.4 8.4 0 0 1 0 10.8" opacity=".55"/></svg></span>
+    </div>
+    <div class="btnrow" style="justify-content:center">
+      <button class="btn small ghost" id="nowShuffle">SHUFFLE</button>
+      <button class="btn small ghost" id="nowRepeat">REPEAT&#8201;&#183;&#8201;OFF</button>
+      <button class="btn small ghost" id="nowClose">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ album sheet ═══ -->
+<div class="sheet" id="sheetAlbum" aria-modal="true" role="dialog" aria-label="Album">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="alb-head">
+      <img id="albArtBig" alt="Album art">
+      <div class="ah-meta">
+        <h2 id="albTitle"></h2>
+        <div class="s-sub" id="albSub"></div>
+        <div class="btnrow">
+          <button class="btn hot small" id="albPlay"><span class="bi"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></span>PLAY</button>
+          <button class="btn small" id="albEdit">EDIT TAGS</button>
+        </div>
+      </div>
+    </div>
+    <div id="albEditor" style="display:none">
+      <div class="field"><label for="efTitle">Title</label><input id="efTitle"></div>
+      <div class="field"><label for="efArtist">Artist</label><input id="efArtist"></div>
+      <div class="fgrid">
+        <div class="field"><label for="efYear">Year</label><input id="efYear" inputmode="numeric"></div>
+        <div class="field"><label for="efGenre">Genre</label><input id="efGenre"></div>
+      </div>
+      <div class="btnrow">
+        <button class="btn small" id="efLookup"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>FIND METADATA</button>
+        <button class="btn hot small" id="efSave">SAVE TAGS</button>
+        <button class="btn small ghost" id="efCancel">CANCEL</button>
+      </div>
+      <div class="c-note" style="margin-top:8px">Edits live in the catalog only &#8212; source files are never touched. FIND METADATA consults the archive for this album's title, artist, year, genre and art.</div>
+    </div>
+    <hr class="hairline">
+    <div id="albTracks"></div>
+    <div class="btnrow">
+      <button class="btn small" id="albToPl"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg></span>ADD ALBUM TO PLAYLIST</button>
+      <button class="btn small danger" id="albDelete">DELETE ALBUM</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ playlist detail sheet ═══ -->
+<div class="sheet" id="sheetPl" aria-modal="true" role="dialog" aria-label="Playlist">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="plTitle"></h2>
+    <div class="s-sub" id="plSub"></div>
+    <div class="btnrow">
+      <button class="btn hot small" id="plPlay"><span class="bi"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></span>PLAY ALL</button>
+      <button class="btn small danger" id="plDelete">DELETE PLAYLIST</button>
+    </div>
+    <hr class="hairline">
+    <div id="plTracks"></div>
+  </div>
+</div>
+
+<!-- ═══ picker sheet (choose playlist) ═══ -->
+<div class="sheet" id="sheetPick" aria-modal="true" role="dialog" aria-label="Choose playlist">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2>Add to playlist</h2>
+    <div id="pickList" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- ═══ planet era sheet ═══ -->
+<div class="sheet" id="sheetPlanet" aria-modal="true" role="dialog" aria-label="Planet">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="pnTitle"></h2>
+    <div class="s-sub" id="pnSub"></div>
+    <div class="btnrow">
+      <button class="btn hot small" id="pnPlay"><span class="bi"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></span>PLAY THE ERA</button>
+      <button class="btn small" id="pnSave"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg></span>SAVE AS PLAYLIST</button>
+    </div>
+    <div class="c-note" id="pnNote" style="margin-top:8px"></div>
+    <hr class="hairline">
+    <div id="pnTracks"></div>
+  </div>
+</div>
+
+<!-- ═══ collector's guide sheet — the on-ramp ═══ -->
+<div class="sheet" id="sheetGuide" aria-modal="true" role="dialog" aria-label="How to start collecting">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2>Start a collection</h2>
+    <div class="s-sub">Owning music again, in three moves</div>
+    <div class="card">
+      <h3>1 &#183; Buy the files</h3>
+      <div class="c-note">Bandcamp sells DRM-free downloads and pays artists directly &#8212; most albums cost less than two coffees, and they're yours forever. Qobuz and 7digital work too. Downloads arrive as a <b>.zip</b>: import it here exactly as it is, no unpacking needed.</div>
+      <div class="btnrow"><a class="btn hot small" href="https://bandcamp.com/discover" target="_blank" rel="noopener" style="text-decoration:none">OPEN BANDCAMP</a></div>
+    </div>
+    <div class="card">
+      <h3>2 &#183; Raid what you already own</h3>
+      <div class="c-note">Old CDs rip to MP3 or FLAC with free tools (fre:ac, Exact Audio Copy). Files sitting on an old laptop or drive can be dropped into iCloud/Files and imported from there. Every one becomes a star.</div>
+    </div>
+    <div class="card">
+      <h3>3 &#183; Keep it safe</h3>
+      <div class="c-note">Everything stays on this device &#8212; nothing is uploaded, tracked, or shared. Settings has a one-tap full backup; stash it in your files or cloud drive and your sky can always be re-lit by importing it back.</div>
+    </div>
+    <div class="btnrow" style="justify-content:center">
+      <button class="btn hot small" id="guideImport">IMPORT MUSIC NOW</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+<input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.flac,.aac,.wav,.ogg,.opus,.zip,application/zip" multiple style="display:none">
+
+<script>
+"use strict";
+/* install the offline shell when served from a real origin */
+if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
+  addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+/* ════════════════════════════════════════════════════════════════
+   ISOLATION — a music library that composes itself as a night sky.
+   Single file. Phone-first. The sky commands the view, never you.
+   ════════════════════════════════════════════════════════════════ */
+
+/* ───────── utils ───────── */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function mulberry(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtT=s=>{if(!isFinite(s))return"0:00";s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+const PALETTE=["#ffb057","#ff4b2e","#e8f1ff","#4d7cff","#ffd98a"];
+
+/* ── abstract broadcast icons — thin white geometry, red when live ── */
+const ICO={
+sky:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg>',
+lib:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6.6" height="6.6"/><rect x="13.4" y="4" width="6.6" height="6.6"/><rect x="4" y="13.4" width="6.6" height="6.6"/><rect x="13.4" y="13.4" width="6.6" height="6.6" fill="currentColor" stroke="none"/></svg>',
+note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="17" r="2.6"/><path d="M9.6 17V6.2L19 4.4v10.4"/><circle cx="16.4" cy="14.8" r="2.6"/></svg>',
+log:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M5 6l4.5 5L5 16"/><path d="M12 17h7"/><path d="M12 7h7" opacity=".35"/></svg>',
+set:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 12V4a8 8 0 0 1 8 8Z" fill="currentColor" stroke="none"/></svg>',
+prev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 5v14"/><path d="M19 5l-9 7 9 7Z"/></svg>',
+next:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M17 5v14"/><path d="M5 5l9 7-9 7Z"/></svg>',
+play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg>',
+pause:'<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="5" width="3.6" height="14"/><rect x="13.9" y="5" width="3.6" height="14"/></svg>',
+edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M14.5 5.5l4 4L8 20H4v-4Z"/></svg>',
+plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg>',
+x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+planet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="5.5"/><ellipse cx="12" cy="12" rx="10" ry="3.2" transform="rotate(-18 12 12)" opacity=".7"/></svg>',
+folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/></svg>',
+warn:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 4L22 20H2Z"/><path d="M12 10v4.5"/><path d="M12 17.4v.2"/></svg>',
+chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+volLo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4Z"/></svg>',
+volHi:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4Z"/><path d="M16.5 9a5 5 0 0 1 0 6"/><path d="M18.8 6.6a8.4 8.4 0 0 1 0 10.8" opacity=".55"/></svg>',
+search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg>',
+};
+const ICOLOG={"\u2726":ICO.sky,"\u2727":ICO.sky,"\u266A":ICO.note,"\u25CD":ICO.planet};
+
+
+function toast(msg,gold){
+  const t=document.createElement("div");t.className="toast"+(gold?" gold":"");t.textContent=msg;
+  $("#toasts").appendChild(t);
+  setTimeout(()=>{t.classList.add("out");setTimeout(()=>t.remove(),450)},gold?3400:2400);
+}
+
+/* ───────── IndexedDB ───────── */
+let db=null, memoryDB={albums:new Map(),tracks:new Map(),playlists:new Map(),kv:new Map()};
+function openDB(){
+  return new Promise(res=>{
+    if(!window.indexedDB){toast("No IndexedDB — this session won't persist");return res(null)}
+    const rq=indexedDB.open("isolation-db",1);
+    rq.onupgradeneeded=e=>{
+      const d=e.target.result;
+      d.createObjectStore("albums",{keyPath:"id"});
+      d.createObjectStore("tracks",{keyPath:"id"}).createIndex("albumId","albumId");
+      d.createObjectStore("playlists",{keyPath:"id"});
+      d.createObjectStore("kv",{keyPath:"k"});
+    };
+    rq.onsuccess=e=>res(e.target.result);
+    rq.onerror=()=>{toast("Storage unavailable — session only");res(null)};
+  });
+}
+function dbPut(store,val){
+  if(!db){memoryDB[store].set(val.id||val.k,val);return Promise.resolve()}
+  return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).put(val);tx.oncomplete=res;tx.onerror=rej});
+}
+function dbDel(store,key){
+  if(!db){memoryDB[store].delete(key);return Promise.resolve()}
+  return new Promise((res,rej)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).delete(key);tx.oncomplete=res;tx.onerror=rej});
+}
+function dbAll(store){
+  if(!db)return Promise.resolve([...memoryDB[store].values()]);
+  return new Promise((res,rej)=>{const rq=db.transaction(store).objectStore(store).getAll();rq.onsuccess=()=>res(rq.result);rq.onerror=rej});
+}
+function dbGet(store,key){
+  if(!db)return Promise.resolve(memoryDB[store].get(key));
+  return new Promise((res,rej)=>{const rq=db.transaction(store).objectStore(store).get(key);rq.onsuccess=()=>res(rq.result);rq.onerror=rej});
+}
+function dbClearAll(){
+  if(!db){Object.values(memoryDB).forEach(m=>m.clear());return Promise.resolve()}
+  return Promise.all(["albums","tracks","playlists","kv"].map(s=>new Promise((res,rej)=>{
+    const tx=db.transaction(s,"readwrite");tx.objectStore(s).clear();tx.oncomplete=res;tx.onerror=rej})));
+}
+const kvSet=(k,v)=>dbPut("kv",{k,v});
+const kvGet=async k=>{const r=await dbGet("kv",k);return r?r.v:undefined};
+
+/* ───────── state ───────── */
+const state={
+  albums:[],           // {id,seq,title,artist,year,genre,trackCount,art:Blob|null,mock}
+  tracks:new Map(),    // albumId -> [{id,albumId,idx,title,artist,blob|null}]
+  playlists:[],        // {id,name,items:[{albumId,trackId}]}
+  log:[],              // {t,g,cls,text}
+  settings:{hud:false,fft:true,volume:.9,eqPreset:"FLAT",eqGains:new Array(10).fill(0),repeat:"off"},
+  queue:[],qIndex:-1,  // playback queue of {albumId,trackId}
+  playingAlbumId:null,
+  selectedAlbumId:null,
+};
+const albumById=id=>state.albums.find(a=>a.id===id);
+const trackById=(albumId,trackId)=>(state.tracks.get(albumId)||[]).find(t=>t.id===trackId);
+const artURLs=new Map();
+function artURL(album){
+  if(!album||!album.art)return null;
+  if(!artURLs.has(album.id))artURLs.set(album.id,URL.createObjectURL(album.art));
+  return artURLs.get(album.id);
+}
+async function addLog(g,cls,text){
+  const e={t:Date.now(),g,cls,text};
+  state.log.unshift(e);
+  if(state.log.length>400)state.log.length=400;
+  await kvSet("log",state.log);
+  if(document.body.dataset.tab==="log")renderLog();
+}
+
+/* ════════════════════════════════════════════════════════════════
+   METADATA PARSERS — ID3v2 (MP3) → M4A atoms → FLAC Vorbis
+   Source files are read once at import; art extracted along the way.
+   ════════════════════════════════════════════════════════════════ */
+function latin1(bytes){let s="";for(let i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);return s}
+function decodeText(enc,bytes){
+  try{
+    if(enc===0)return latin1(bytes).replace(/\0+$/,"");
+    if(enc===1)return new TextDecoder(bytes[0]===0xFE?"utf-16be":"utf-16le").decode(bytes[0]===0xFF||bytes[0]===0xFE?bytes.subarray(2):bytes).replace(/\0+$/,"");
+    if(enc===2)return new TextDecoder("utf-16be").decode(bytes).replace(/\0+$/,"");
+    return new TextDecoder("utf-8").decode(bytes).replace(/\0+$/,"");
+  }catch(e){return latin1(bytes).replace(/\0+$/,"")}
+}
+function syncsafe(dv,off){return((dv.getUint8(off)&0x7f)<<21)|((dv.getUint8(off+1)&0x7f)<<14)|((dv.getUint8(off+2)&0x7f)<<7)|(dv.getUint8(off+3)&0x7f)}
+
+function parseID3(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  if(buf.byteLength<10||latin1(u8.subarray(0,3))!=="ID3")return null;
+  const ver=dv.getUint8(3), flags=dv.getUint8(5);
+  let off=10, end=Math.min(buf.byteLength,10+syncsafe(dv,6));
+  if(flags&0x40){ // extended header
+    off+= ver===4? syncsafe(dv,10) : dv.getUint32(10)+4;
+  }
+  const out={};
+  while(off+10<=end){
+    const id=latin1(u8.subarray(off,off+4));
+    if(!/^[A-Z0-9]{4}$/.test(id))break;
+    let sz= ver===4? syncsafe(dv,off+4) : dv.getUint32(off+4);
+    if(ver===3&&sz>end-off-10&&syncsafe(dv,off+4)<=end-off-10)sz=syncsafe(dv,off+4);
+    off+=10;
+    if(sz<=0||off+sz>end)break;
+    const data=u8.subarray(off,off+sz);
+    if(id==="APIC"&&!out.art){
+      try{
+        const enc=data[0];let p=1;
+        while(p<data.length&&data[p]!==0)p++; // mime
+        const mime=latin1(data.subarray(1,p))||"image/jpeg";p++;
+        p++; // picture type
+        if(enc===1||enc===2){while(p+1<data.length&&!(data[p]===0&&data[p+1]===0))p+=2;p+=2}
+        else{while(p<data.length&&data[p]!==0)p++;p++}
+        if(p<data.length)out.art=new Blob([data.slice(p)],{type:mime});
+      }catch(e){}
+    }else if(id[0]==="T"&&data.length>1){
+      const txt=decodeText(data[0],data.subarray(1)).split("\0")[0].trim();
+      if(txt){
+        if(id==="TIT2")out.title=txt;
+        else if(id==="TPE1")out.artist=txt;
+        else if(id==="TPE2")out.albumArtist=txt;
+        else if(id==="TALB")out.album=txt;
+        else if(id==="TDRC"||id==="TYER")out.year=(txt.match(/\d{4}/)||[""])[0];
+        else if(id==="TCON")out.genre=txt.replace(/^\(\d+\)/,"").trim();
+        else if(id==="TRCK")out.track=parseInt(txt)||undefined;
+      }
+    }
+    off+=sz;
+  }
+  return out;
+}
+
+function parseMP4(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  const name=o=>latin1(u8.subarray(o+4,o+8));
+  function find(start,end,want){
+    let o=start;
+    while(o+8<=end){
+      let sz=dv.getUint32(o);
+      if(sz===1){sz=Number(dv.getBigUint64(o+8))} // 64-bit box
+      if(sz<8)break;
+      if(name(o)===want)return[o,Math.min(o+sz,end)];
+      o+=sz;
+    }
+    return null;
+  }
+  if(buf.byteLength<12)return null;
+  const ft=find(0,buf.byteLength,"ftyp");if(!ft)return null;
+  const moov=find(0,buf.byteLength,"moov");if(!moov)return null;
+  const udta=find(moov[0]+8,moov[1],"udta");if(!udta)return null;
+  const meta=find(udta[0]+8,udta[1],"meta");if(!meta)return null;
+  const ilst=find(meta[0]+12,meta[1],"ilst");if(!ilst)return null; // meta has 4-byte version
+  const out={};
+  let o=ilst[0]+8;
+  const GENRES=["Blues","Classic Rock","Country","Dance","Disco","Funk","Grunge","Hip-Hop","Jazz","Metal","New Age","Oldies","Other","Pop","R&B","Rap","Reggae","Rock","Techno","Industrial","Alternative","Ska","Death Metal","Pranks","Soundtrack","Euro-Techno","Ambient","Trip-Hop","Vocal","Jazz+Funk","Fusion","Trance","Classical","Instrumental","Acid","House","Game","Sound Clip","Gospel","Noise","Alt. Rock","Bass","Soul","Punk","Space","Meditative","Instrumental Pop","Instrumental Rock","Ethnic","Gothic","Darkwave","Techno-Industrial","Electronic","Pop-Folk","Eurodance","Dream","Southern Rock","Comedy","Cult","Gangsta Rap","Top 40","Christian Rap","Pop/Funk","Jungle","Native American","Cabaret","New Wave","Psychedelic","Rave"];
+  while(o+8<=ilst[1]){
+    const sz=dv.getUint32(o);if(sz<8)break;
+    const nm=name(o);
+    const d=find(o+8,o+sz,"data");
+    if(d){
+      const type=dv.getUint32(d[0]+8)&0xffffff;
+      const pay=u8.subarray(d[0]+16,d[1]);
+      const txt=()=>{try{return new TextDecoder("utf-8").decode(pay).trim()}catch(e){return latin1(pay)}};
+      if(nm==="\u00A9nam")out.title=txt();
+      else if(nm==="\u00A9ART")out.artist=txt();
+      else if(nm==="aART")out.albumArtist=txt();
+      else if(nm==="\u00A9alb")out.album=txt();
+      else if(nm==="\u00A9day")out.year=(txt().match(/\d{4}/)||[""])[0];
+      else if(nm==="\u00A9gen")out.genre=txt();
+      else if(nm==="gnre"&&pay.length>=2){const g=(pay[0]<<8|pay[1])-1;if(GENRES[g])out.genre=GENRES[g]}
+      else if(nm==="trkn"&&pay.length>=4)out.track=(pay[2]<<8)|pay[3];
+      else if(nm==="covr"&&!out.art)out.art=new Blob([pay.slice()],{type:type===14?"image/png":"image/jpeg"});
+    }
+    o+=sz;
+  }
+  return out;
+}
+
+function parseFLAC(buf){
+  const dv=new DataView(buf), u8=new Uint8Array(buf);
+  if(buf.byteLength<8||latin1(u8.subarray(0,4))!=="fLaC")return null;
+  const out={};let o=4,last=false;
+  while(!last&&o+4<=buf.byteLength){
+    const h=dv.getUint8(o);last=!!(h&0x80);
+    const type=h&0x7f;
+    const len=(dv.getUint8(o+1)<<16)|(dv.getUint8(o+2)<<8)|dv.getUint8(o+3);
+    o+=4;
+    if(o+len>buf.byteLength)break;
+    if(type===4){ // VORBIS_COMMENT — little-endian
+      let p=o;
+      const vlen=dv.getUint32(p,true);p+=4+vlen;
+      const n=dv.getUint32(p,true);p+=4;
+      for(let i=0;i<n&&p+4<=o+len;i++){
+        const cl=dv.getUint32(p,true);p+=4;
+        const c=new TextDecoder("utf-8").decode(u8.subarray(p,p+cl));p+=cl;
+        const eq=c.indexOf("=");if(eq<0)continue;
+        const k=c.slice(0,eq).toUpperCase(),v=c.slice(eq+1).trim();
+        if(!v)continue;
+        if(k==="TITLE")out.title=v;
+        else if(k==="ARTIST"&&!out.artist)out.artist=v;
+        else if(k==="ALBUMARTIST")out.albumArtist=v;
+        else if(k==="ALBUM")out.album=v;
+        else if(k==="DATE"||k==="YEAR")out.year=(v.match(/\d{4}/)||[""])[0];
+        else if(k==="GENRE")out.genre=v;
+        else if(k==="TRACKNUMBER")out.track=parseInt(v)||undefined;
+      }
+    }else if(type===6&&!out.art){ // PICTURE — big-endian
+      let p=o+4;
+      const ml=dv.getUint32(p);p+=4;
+      const mime=latin1(u8.subarray(p,p+ml))||"image/jpeg";p+=ml;
+      const dl=dv.getUint32(p);p+=4+dl;
+      p+=16;
+      const il=dv.getUint32(p);p+=4;
+      if(p+il<=o+len)out.art=new Blob([u8.slice(p,p+il)],{type:mime});
+    }
+    o+=len;
+  }
+  return out;
+}
+
+function parseMeta(buf,fileName){
+  let m=null;
+  try{m=parseID3(buf)}catch(e){}
+  if(!m){try{m=parseMP4(buf)}catch(e){}}
+  if(!m){try{m=parseFLAC(buf)}catch(e){}}
+  m=m||{};
+  if(!m.title||!m.artist){
+    // mine the filename: "07 - Artist - Title.mp3", "Artist - Title.flac", "03 Title.m4a"
+    const base=fileName.replace(/\.[^.]+$/,"");
+    const tn=base.match(/^(\d{1,3})[\s\-_.]+/);
+    if(tn&&!m.track)m.track=parseInt(tn[1])||undefined;
+    const clean=base.replace(/^\d{1,3}[\s\-_.]+/,"").replace(/[_]+/g," ").trim();
+    const parts=clean.split(/\s+-\s+/);
+    if(parts.length>=2){
+      if(!m.artist)m.artist=parts[0].trim();
+      if(!m.title)m.title=parts.slice(1).join(" - ").trim();
+    }else if(!m.title)m.title=clean||fileName;
+  }
+  return m;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MOCK STARS — silent albums that let the sky be tuned for weeks
+   before a single real file is parsed. Art is conjured on a canvas.
+   ════════════════════════════════════════════════════════════════ */
+const MOCK_A=["Neon","Velvet","Static","Hollow","Patient","Amber","Glass","Feral","Midnight","Slow","Electric","Paper","Copper","Silent","Violet","Orbital","Tidal","Plush","Wire","Dust"];
+const MOCK_B=["Vespers","Choir","Meridian","Cathedral","Signal","Garden","Machine","Lagoon","Frequencies","Bloom","Corridor","Atlas","Sermon","Antenna","Mirage","Loom","Parade","Reverie","Census","Halo"];
+const MOCK_ART1=["The","Saint","Doctor","Madame","Brother","Cosmonaut","Professor","Sister"];
+const MOCK_ART2=["Static","Vesper","Holloway","Antenna","Meridian","Lumen","Cassette","Orbit","Velour","Prism"];
+const MOCK_GENRES=["Ambient","Dream Pop","Space Rock","Synthwave","Post-Punk","Downtempo","Kosmische","Shoegaze"];
+function mockArtBlob(seed){
+  return new Promise(res=>{
+    const r=mulberry(seed), c=document.createElement("canvas");c.width=c.height=512;
+    const x=c.getContext("2d");
+    const c1=PALETTE[Math.floor(r()*PALETTE.length)], c2=PALETTE[Math.floor(r()*PALETTE.length)];
+    const g=x.createLinearGradient(0,0,512,512);
+    g.addColorStop(0,"#0d0812");g.addColorStop(1,"#1a0f1e");
+    x.fillStyle=g;x.fillRect(0,0,512,512);
+    // nebula blooms
+    for(let i=0;i<3;i++){
+      const gx=r()*512,gy=r()*512,gr=120+r()*220;
+      const rg=x.createRadialGradient(gx,gy,0,gx,gy,gr);
+      rg.addColorStop(0,(i?c2:c1)+"55");rg.addColorStop(1,"transparent");
+      x.fillStyle=rg;x.fillRect(0,0,512,512);
+    }
+    // orbit arc
+    x.strokeStyle=c1;x.globalAlpha=.7;x.lineWidth=3;
+    x.beginPath();x.ellipse(256,256,150+r()*70,50+r()*40,r()*Math.PI,0,Math.PI*2);x.stroke();
+    x.globalAlpha=1;
+    // body
+    x.fillStyle=c2;x.beginPath();x.arc(256,256,46+r()*30,0,Math.PI*2);x.fill();
+    const tg=x.createRadialGradient(226,226,10,256,256,90);
+    tg.addColorStop(0,"rgba(255,255,255,.35)");tg.addColorStop(.6,"transparent");tg.addColorStop(1,"rgba(0,0,0,.5)");
+    x.fillStyle=tg;x.beginPath();x.arc(256,256,46+r()*30,0,Math.PI*2);x.fill();
+    // dust
+    x.fillStyle="#ffe9cf";
+    for(let i=0;i<90;i++){x.globalAlpha=r()*.8;x.fillRect(r()*512,r()*512,1.5,1.5)}
+    x.globalAlpha=1;
+    c.toBlob(b=>res(b),"image/png");
+  });
+}
+async function makeMockAlbums(n){
+  const made=[];
+  for(let i=0;i<n;i++){
+    const seed=(Date.now()+i*7919)>>>0, r=mulberry(seed);
+    const title=MOCK_A[Math.floor(r()*MOCK_A.length)]+" "+MOCK_B[Math.floor(r()*MOCK_B.length)];
+    const artist=MOCK_ART1[Math.floor(r()*MOCK_ART1.length)]+" "+MOCK_ART2[Math.floor(r()*MOCK_ART2.length)];
+    const trackCount=6+Math.floor(r()*7);
+    const alb={id:uid()+i,seq:nextSeq(),title,artist,
+      year:String(1969+Math.floor(r()*57)),genre:MOCK_GENRES[Math.floor(r()*MOCK_GENRES.length)],
+      trackCount,art:await mockArtBlob(seed),mock:true};
+    const trks=[];
+    for(let t=0;t<trackCount;t++){
+      trks.push({id:alb.id+"-t"+t,albumId:alb.id,idx:t+1,
+        title:MOCK_A[Math.floor(r()*MOCK_A.length)]+" "+MOCK_B[Math.floor(r()*MOCK_B.length)],
+        artist,blob:null});
+    }
+    state.albums.push(alb);state.tracks.set(alb.id,trks);
+    await dbPut("albums",alb);
+    for(const t of trks)await dbPut("tracks",t);
+    made.push(alb);
+  }
+  return made;
+}
+let seqCounter=0;
+function nextSeq(){return ++seqCounter}
+/* every install draws its own sky: one random seed, minted on first
+   launch, twists star placement, constellation names, planet faces and
+   dustfields — two people with identical libraries see different skies */
+let skySeed=0;
+
+/* ════════════════════════════════════════════════════════════════
+   ZIP — read and write, no libraries. Reading understands stored and
+   deflated entries (DecompressionStream, Safari 16.4+), which covers
+   Bandcamp downloads. Writing emits stored-only zips for backups —
+   audio is already compressed; recompressing buys nothing.
+   ════════════════════════════════════════════════════════════════ */
+const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return t})();
+function crc32(u8){let c=~0;for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&0xff]^(c>>>8);return(~c)>>>0}
+async function unzip(file){
+  const buf=await file.arrayBuffer();
+  const dv=new DataView(buf),u8=new Uint8Array(buf);
+  let eo=-1; // end-of-central-directory, scanned back past any zip comment
+  for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-22-65558);i--){
+    if(dv.getUint32(i,true)===0x06054b50){eo=i;break}
+  }
+  if(eo<0)throw new Error("not a zip file");
+  const count=dv.getUint16(eo+10,true);
+  let off=dv.getUint32(eo+16,true);
+  const raw=[];
+  for(let i=0;i<count&&off+46<=buf.byteLength;i++){
+    if(dv.getUint32(off,true)!==0x02014b50)break;
+    const method=dv.getUint16(off+10,true);
+    const csize=dv.getUint32(off+20,true);
+    const nlen=dv.getUint16(off+28,true),xlen=dv.getUint16(off+30,true),clen=dv.getUint16(off+32,true);
+    const lho=dv.getUint32(off+42,true);
+    const flags=dv.getUint16(off+8,true);
+    const name=new TextDecoder(flags&0x800?"utf-8":"windows-1252").decode(u8.subarray(off+46,off+46+nlen));
+    off+=46+nlen+xlen+clen;
+    if(name.endsWith("/")||name.includes("__MACOSX"))continue;
+    raw.push({name,method,csize,lho});
+  }
+  const entries=[];
+  for(const it of raw){
+    const lnlen=dv.getUint16(it.lho+26,true),lxlen=dv.getUint16(it.lho+28,true);
+    const start=it.lho+30+lnlen+lxlen;
+    const data=u8.subarray(start,start+it.csize);
+    let blob=null;
+    if(it.method===0)blob=new Blob([data.slice()]);
+    else if(it.method===8&&window.DecompressionStream){
+      try{blob=await new Response(new Blob([data.slice()]).stream()
+        .pipeThrough(new DecompressionStream("deflate-raw"))).blob()}catch(e){}
+    }
+    if(blob)entries.push({name:it.name,blob});
+  }
+  return entries;
+}
+function zipWrite(files){ // files: [{name:string,u8:Uint8Array}] → Blob
+  const enc=new TextEncoder(),parts=[],central=[];let off=0;
+  for(const f of files){
+    const n=enc.encode(f.name),crc=crc32(f.u8),sz=f.u8.length;
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);
+    lh.setUint16(26,n.length,true);
+    parts.push(lh.buffer,n,f.u8);
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);
+    ch.setUint16(28,n.length,true);ch.setUint32(42,off,true);
+    central.push(ch.buffer,n);
+    off+=30+n.length+sz;
+  }
+  let cd=0;central.forEach(p=>cd+=p.byteLength);
+  const eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true);
+  eo.setUint16(8,files.length,true);eo.setUint16(10,files.length,true);
+  eo.setUint32(12,cd,true);eo.setUint32(16,off,true);
+  return new Blob([...parts,...central,eo.buffer],{type:"application/zip"});
+}
+function downloadBlob(blob,name){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=name;
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   IMPORT — phone-first. iOS Safari has no folder handles, so the
+   baseline is a plain multi-file picker with audio stored as Blobs.
+   Bandcamp .zip downloads import whole. Desktop Chrome gets a
+   folder picker as the upgrade path.
+   ════════════════════════════════════════════════════════════════ */
+const fileInput=$("#fileInput");
+$("#btnImport").addEventListener("click",()=>fileInput.click());
+$("#inviteImport").addEventListener("click",()=>fileInput.click());
+if(window.showDirectoryPicker){
+  $("#btnImportFolder").style.display="";
+  $("#btnImportFolder").addEventListener("click",async()=>{
+    try{
+      const dir=await showDirectoryPicker();
+      const files=[];
+      async function walk(d,path){
+        for await(const [nm,h] of d.entries()){
+          if(h.kind==="file"&&/\.(mp3|m4a|aac|flac|wav|ogg)$/i.test(nm)){
+            const f=await h.getFile();
+            Object.defineProperty(f,"webkitRelativePath",{value:path+"/"+nm});
+            files.push(f);
+          }else if(h.kind==="directory")await walk(h,path+"/"+nm);
+        }
+      }
+      await walk(dir,dir.name);
+      if(files.length)await importFiles(files);
+      else toast("No audio files found in that folder");
+    }catch(e){/* user cancelled */}
+  });
+}
+fileInput.addEventListener("change",async()=>{
+  const files=[...fileInput.files];
+  fileInput.value="";
+  if(files.length)await importFiles(files);
+});
+
+/* forgiving album-name normalizer — variant tags must never split one album */
+function normAlbum(s){
+  return String(s||"").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[\(\[\{][^\)\]\}]*?(deluxe|remaster|remastered|edition|expanded|bonus|anniversary|version|explicit|clean|disc|disk|cd|vol|mono|stereo)[^\)\]\}]*?[\)\]\}]/gi," ")
+    .replace(/\b(disc|disk|cd)\s*\d+\b/gi," ")
+    .replace(/[^\p{L}\p{N}]+/gu," ")
+    .replace(/\s+/g," ").trim();
+}
+
+const AUD_RE=/\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i, IMG_RE=/\.(jpe?g|png|gif|webp)$/i;
+/* zips unpack in place; loose images ride along as candidate album art;
+   a zip carrying isolation-backup.json is a restore, not an import */
+async function expandInputFiles(files){
+  const audio=[],images=[];let backup=null;
+  for(const f of files){
+    if(/\.zip$/i.test(f.name)){
+      let entries;
+      try{entries=await unzip(f)}catch(e){toast(`Couldn't open ${f.name} \u2014 ${e.message}`);continue}
+      const bj=entries.find(x=>x.name.split("/").pop()==="isolation-backup.json");
+      if(bj){backup={json:bj,entries};continue}
+      const base=f.name.replace(/\.zip$/i,"");
+      for(const en of entries){
+        const nm=en.name.split("/").pop();
+        if(!nm||nm.startsWith("."))continue;
+        const path=base+"/"+en.name;
+        if(AUD_RE.test(nm)){
+          const file=new File([en.blob],nm,{type:"audio/mpeg"});
+          Object.defineProperty(file,"webkitRelativePath",{value:path});
+          audio.push(file);
+        }else if(IMG_RE.test(nm))images.push({path,blob:en.blob});
+      }
+    }else if(AUD_RE.test(f.name))audio.push(f);
+    else if(IMG_RE.test(f.name))images.push({path:f.webkitRelativePath||f.name,blob:f});
+  }
+  return{audio,images,backup};
+}
+/* best cover image for a folder: cover/front/folder beats anything else,
+   then the largest file wins */
+function folderArt(images,folder){
+  if(!folder)return null;
+  const dir=folder.toLowerCase();
+  const c=images.filter(im=>{
+    const segs=im.path.toLowerCase().split("/");
+    return segs.length>1&&segs[segs.length-2]===dir;
+  });
+  if(!c.length)return null;
+  c.sort((a,b)=>{
+    const pref=p=>/cover|front|folder|album/i.test(p.split("/").pop())?1:0;
+    return pref(b.path)-pref(a.path)||(b.blob.size||0)-(a.blob.size||0);
+  });
+  return c[0].blob;
+}
+async function importFiles(rawFiles){
+  toast(`Reading ${rawFiles.length} file${rawFiles.length>1?"s":""}\u2026`);
+  const {audio:files,images,backup}=await expandInputFiles(rawFiles);
+  if(backup){await restoreBackup(backup);return}
+  if(!files.length){toast("No audio found in that selection");return}
+  const items=[];let parsed=0;
+  for(const f of files){
+    let meta={};
+    try{meta=parseMeta(await f.arrayBuffer(),f.name)}catch(e){meta={title:f.name.replace(/\.[^.]+$/,"")}}
+    const folder=(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||"";
+    items.push({file:f,meta,folder});
+    if(++parsed%8===0)await new Promise(r=>setTimeout(r,0)); // breathe
+  }
+  /* ── grouping, generously: normalized tag → folder → ride along ── */
+  const groups=new Map();
+  const put=(k,it)=>{if(!groups.has(k))groups.set(k,[]);groups.get(k).push(it)};
+  for(const it of items){
+    const nk=normAlbum(it.meta.album);
+    put(nk?"alb:"+nk : it.folder?"dir:"+it.folder.toLowerCase() : "", it);
+  }
+  // fold near-duplicate names into each other ("x" joins "x special edition")
+  let again=true;
+  while(again){
+    again=false;
+    const keys=[...groups.keys()].filter(k=>k.startsWith("alb:"));
+    scan:
+    for(const a of keys)for(const b of keys){
+      if(a===b)continue;
+      const na=a.slice(4);
+      if(na.length>=4&&b.slice(4).includes(na)){
+        groups.get(b).push(...groups.get(a));groups.delete(a);again=true;break scan;
+      }
+    }
+  }
+  // untagged files join a tagged group that lives in the same folder
+  for(const k of [...groups.keys()].filter(k=>k.startsWith("dir:"))){
+    const dir=k.slice(4);
+    for(const ak of [...groups.keys()].filter(x=>x.startsWith("alb:"))){
+      const g=groups.get(ak);
+      if(g.filter(x=>(x.folder||"").toLowerCase()===dir).length>=g.length*.5){
+        g.push(...groups.get(k));groups.delete(k);break;
+      }
+    }
+  }
+  // tagless, folderless stragglers ride with the biggest group of the batch
+  if(groups.has("")&&groups.size>1){
+    const strays=groups.get("");groups.delete("");
+    let big=null;groups.forEach(g=>{if(!big||g.length>big.length)big=g});
+    big.push(...strays);
+  }
+  const before=state.albums.length;
+  const newAlbums=[];
+  for(const g of groups.values()){
+    g.sort((a,b)=>(a.meta.track||999)-(b.meta.track||999)||a.file.name.localeCompare(b.file.name));
+    // majority vote on every album-level field
+    const most=f=>{const c={};g.forEach(it=>{const v=it.meta[f];if(v)c[v]=(c[v]||0)+1});
+      const top=Object.entries(c).sort((x,y)=>y[1]-x[1])[0];return top?top[0]:""};
+    const withDir=g.find(it=>it.folder);
+    let title=most("album"), dirArtist="", dirYear="";
+    if(!title&&withDir){
+      // mine the folder name: "Artist - Album (1997)", "Album [2004]", plain "Album"
+      const f=withDir.folder;
+      const ym=f.match(/[\(\[](\d{4})[\)\]]/);if(ym)dirYear=ym[1];
+      const cf=f.replace(/[\(\[]\d{4}[\)\]]/g,"").replace(/[_]+/g," ").trim();
+      const pp=cf.split(/\s+-\s+/);
+      if(pp.length>=2){dirArtist=pp[0].trim();title=pp.slice(1).join(" - ").trim()}
+      else title=cf;
+    }
+    const artist=most("albumArtist")||most("artist")||dirArtist||"Unknown Artist";
+    title=title||"Untitled Transmission";
+    const first=g.find(it=>it.meta.art);
+    const alb={
+      id:uid(),seq:nextSeq(),title,artist,
+      year:most("year")||dirYear,genre:most("genre"),
+      trackCount:g.length,
+      art:first?first.meta.art:(withDir?folderArt(images,withDir.folder):null),
+      mock:false
+    };
+    const trks=g.map((it,i)=>({
+      id:alb.id+"-t"+i,albumId:alb.id,idx:it.meta.track||i+1,
+      title:it.meta.title,artist:it.meta.artist||artist,blob:it.file
+    }));
+    state.albums.push(alb);state.tracks.set(alb.id,trks);
+    try{
+      await dbPut("albums",alb);
+      for(const t of trks)await dbPut("tracks",t);
+    }catch(e){toast("Storage refused some data — check quota in Settings")}
+    newAlbums.push(alb);
+    await addLog("\u2726","g-amber",`${alb.title} — ${alb.artist} entered the sky (${trks.length} tracks)`);
+  }
+  await kvSet("seq",seqCounter);
+  onAlbumsAdded(newAlbums,before);
+  renderLibrary();updateStorage();
+  toast(`${newAlbums.length} album${newAlbums.length>1?"s":""} catalogued — ${newAlbums.length} new star${newAlbums.length>1?"s":""}`,true);
+  requestPersist(); // a real collection exists now — ask the OS to protect it
+  enrichAlbums(newAlbums); // fill missing tags from the archive in the background
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PERSISTENCE + BACKUP — the collector's contract: stars don't just
+   go out. Persistent storage is requested the moment real music
+   arrives; the full backup writes every album, artwork, playlist and
+   play count into one zip that restores by simply importing it.
+   ════════════════════════════════════════════════════════════════ */
+async function requestPersist(){
+  try{
+    if(!navigator.storage||!navigator.storage.persist)return;
+    if(!(await navigator.storage.persisted()))await navigator.storage.persist();
+    updatePersistUI();
+  }catch(e){}
+}
+async function updatePersistUI(){
+  const el=$("#persistText");if(!el)return;
+  try{
+    if(!navigator.storage||!navigator.storage.persisted){el.textContent="";return}
+    const p=await navigator.storage.persisted();
+    el.textContent=p
+      ?"● Protected storage granted — the OS has agreed not to evict this library."
+      :"○ Best-effort storage — the OS could evict data under extreme pressure. Keep a backup.";
+  }catch(e){el.textContent=""}
+}
+function extOf(blob,fallback){
+  const n=(blob&&blob.name)||"";
+  const m=n.match(/\.[a-z0-9]+$/i);
+  return m?m[0].toLowerCase():fallback;
+}
+async function exportBackup(){
+  const real=state.albums.filter(a=>!a.mock);
+  if(!real.length){toast("Nothing real to back up yet");return}
+  const note=$("#backupNote");note.style.display="";note.textContent="Packing the sky…";
+  try{
+    const files=[];
+    const cat={v:1,exported:Date.now(),skySeed,
+      albums:[],playlists:state.playlists,log:state.log,plays:playCounts};
+    for(const a of real){
+      const rec={id:a.id,title:a.title,artist:a.artist,year:a.year,genre:a.genre,
+        trackCount:a.trackCount,artFile:null,tracks:[]};
+      if(a.art){
+        rec.artFile=`art/${a.id}${(a.art.type||"").includes("png")?".png":".jpg"}`;
+        files.push({name:rec.artFile,u8:new Uint8Array(await a.art.arrayBuffer())});
+      }
+      for(const t of(state.tracks.get(a.id)||[])){
+        let file=null;
+        if(t.blob){
+          file=`audio/${t.id}${extOf(t.blob,".mp3")}`;
+          files.push({name:file,u8:new Uint8Array(await t.blob.arrayBuffer())});
+        }
+        rec.tracks.push({id:t.id,idx:t.idx,title:t.title,artist:t.artist,file});
+      }
+      cat.albums.push(rec);
+      note.textContent=`Packing ${cat.albums.length}/${real.length} albums…`;
+      await new Promise(r=>setTimeout(r,0));
+    }
+    files.unshift({name:"isolation-backup.json",u8:new TextEncoder().encode(JSON.stringify(cat))});
+    const blob=zipWrite(files);
+    const name="isolation-backup-"+new Date().toISOString().slice(0,10)+".zip";
+    downloadBlob(blob,name);
+    note.textContent=`Backup written — ${fmtBytes(blob.size)}. Move it somewhere safe.`;
+    await addLog("✦","g-teal",`The sky was pressed into a backup — ${real.length} albums, ${fmtBytes(blob.size)}`);
+  }catch(e){
+    note.textContent="Backup failed — likely out of memory. Try freeing space or exporting the catalog only.";
+  }
+}
+function exportCatalog(){
+  const cat={v:1,exported:Date.now(),skySeed,
+    albums:state.albums.filter(a=>!a.mock).map(a=>({
+      id:a.id,title:a.title,artist:a.artist,year:a.year,genre:a.genre,trackCount:a.trackCount,
+      tracks:(state.tracks.get(a.id)||[]).map(t=>({idx:t.idx,title:t.title,artist:t.artist}))})),
+    playlists:state.playlists,plays:playCounts,log:state.log};
+  downloadBlob(new Blob([JSON.stringify(cat,null,1)],{type:"application/json"}),
+    "isolation-catalog-"+new Date().toISOString().slice(0,10)+".json");
+  toast("Catalog exported — tags, playlists and history (no audio)");
+}
+async function restoreBackup(b){
+  let cat;
+  try{cat=JSON.parse(await b.json.blob.text())}catch(e){toast("Backup file is unreadable");return}
+  const byName=new Map(b.entries.map(e=>[e.name,e.blob]));
+  const before=state.albums.length,newAlbums=[];
+  toast("Restoring from backup…");
+  for(const rec of cat.albums||[]){
+    if(albumById(rec.id))continue; // already here — merge, never duplicate
+    const alb={id:rec.id,seq:nextSeq(),title:rec.title,artist:rec.artist,
+      year:rec.year||"",genre:rec.genre||"",trackCount:(rec.tracks||[]).length,
+      art:rec.artFile?byName.get(rec.artFile)||null:null,mock:false};
+    const trks=(rec.tracks||[]).map(t=>({id:t.id,albumId:rec.id,idx:t.idx,
+      title:t.title,artist:t.artist,blob:t.file?byName.get(t.file)||null:null}));
+    state.albums.push(alb);state.tracks.set(alb.id,trks);
+    try{
+      await dbPut("albums",alb);
+      for(const t of trks)await dbPut("tracks",t);
+    }catch(e){toast("Storage refused some data — check quota in Settings")}
+    newAlbums.push(alb);
+  }
+  for(const pl of cat.playlists||[]){
+    if(!state.playlists.find(p=>p.id===pl.id)){state.playlists.push(pl);await dbPut("playlists",pl)}
+  }
+  for(const k in cat.plays||{})playCounts[k]=Math.max(playCounts[k]||0,cat.plays[k]);
+  await kvSet("plays",playCounts);
+  await kvSet("seq",seqCounter);
+  onAlbumsAdded(newAlbums,before);
+  renderLibrary();renderPlaylists();updateStorage();
+  requestPersist();
+  await addLog("✦","g-gold",`A backup re-lit the sky — ${newAlbums.length} albums returned`);
+  toast(newAlbums.length?`Restored ${newAlbums.length} album${newAlbums.length>1?"s":""} from backup`:"Backup matched what's already here — nothing to add",true);
+}
+$("#btnExportAll").addEventListener("click",exportBackup);
+$("#btnExportCat").addEventListener("click",exportCatalog);
+
+/* ════════════════════════════════════════════════════════════════
+   THE ARCHIVE — online metadata enrichment. After import, any album
+   missing a title, artist, genre, year or art is looked up against
+   the iTunes Search API (CORS, keyless), falling back to Deezer's
+   JSONP API. Tag-derived values are never overwritten — the archive
+   only fills gaps. Everything degrades gracefully offline.
+   ════════════════════════════════════════════════════════════════ */
+function tokSim(a,b){
+  a=normAlbum(a);b=normAlbum(b);
+  if(!a||!b)return 0;
+  if(a===b)return 1;
+  if(a.includes(b)||b.includes(a))return .85;
+  const A=new Set(a.split(" ")),B=new Set(b.split(" "));
+  let hit=0;A.forEach(t=>{if(B.has(t))hit++});
+  return hit/Math.max(A.size,B.size);
+}
+function pickBest(cands,title,artist,loose){
+  const tOK=title&&title!=="Untitled Transmission";
+  const aOK=artist&&artist!=="Unknown Artist";
+  let best=null,bs=0;
+  for(const c of cands){
+    if(!c.title)continue;
+    const s=(tOK?tokSim(title,c.title)*2:0)+(aOK?tokSim(artist,c.artist||"")*1.2:0);
+    if(s>bs){bs=s;best=c}
+  }
+  // strict for silent auto-fill; loose for the user-initiated lookup
+  const need=loose?.35:(tOK&&aOK?1.4:tOK?1.1:1.0);
+  return bs>=need?best:null;
+}
+async function lookupAlbum(title,artist,loose){
+  const term=[
+    artist&&artist!=="Unknown Artist"?artist:"",
+    title&&title!=="Untitled Transmission"?title:""
+  ].join(" ").trim();
+  if(!term)return null;
+  // iTunes first — rich fields: genre, release year, big art
+  try{
+    const r=await fetch("https://itunes.apple.com/search?media=music&entity=album&limit=6&term="+encodeURIComponent(term));
+    const j=await r.json();
+    const cands=(j.results||[]).map(x=>({
+      title:x.collectionName,artist:x.artistName,
+      genre:x.primaryGenreName||"",year:(x.releaseDate||"").slice(0,4),
+      artUrl:(x.artworkUrl100||"").replace(/100x100/,"600x600")
+    }));
+    const best=pickBest(cands,title,artist,loose);
+    if(best)return best;
+  }catch(e){}
+  // Deezer fallback (JSONP — no CORS needed)
+  try{
+    const j=await jsonp("https://api.deezer.com/search/album?q="+encodeURIComponent(term)+"&limit=6");
+    const cands=(j&&j.data||[]).map(x=>({
+      title:x.title,artist:x.artist&&x.artist.name||"",
+      genre:"",year:"",artUrl:x.cover_big||x.cover_medium||""
+    }));
+    return pickBest(cands,title,artist,loose);
+  }catch(e){}
+  return null;
+}
+async function fetchArtBlob(url){
+  if(!url)return null;
+  try{
+    const b=await(await fetch(url)).blob();
+    if(b&&b.size&&/^image\//.test(b.type||"image/jpeg"))return b;
+  }catch(e){}
+  return null;
+}
+function needsEnrich(a){
+  return !a.mock&&(!a.genre||!a.year||!a.art
+    ||a.artist==="Unknown Artist"||a.title==="Untitled Transmission");
+}
+async function enrichAlbums(albums){
+  const targets=(albums||[]).filter(needsEnrich);
+  if(!targets.length||navigator.onLine===false)return;
+  toast("Consulting the archive for missing tags\u2026");
+  let filled=0;
+  for(const a of targets){
+    try{
+      const m=await lookupAlbum(a.title,a.artist,false);
+      if(!m)continue;
+      let touched=false;
+      if(a.title==="Untitled Transmission"&&m.title){a.title=m.title;touched=true}
+      if(a.artist==="Unknown Artist"&&m.artist){a.artist=m.artist;touched=true}
+      if(!a.genre&&m.genre){a.genre=m.genre;touched=true}
+      if(!a.year&&m.year){a.year=m.year;touched=true}
+      if(!a.art&&m.artUrl){
+        const b=await fetchArtBlob(m.artUrl);
+        if(b){a.art=b;artURLs.delete(a.id);touched=true}
+      }
+      if(touched){await dbPut("albums",a);filled++}
+    }catch(e){/* one album failing shouldn't stop the sweep */}
+  }
+  if(filled){
+    renderLibrary();sky.rebuild();
+    await addLog("\u2726","g-teal",`The archive filled in tags for ${filled} album${filled>1?"s":""}`);
+    toast(`Archive filled tags for ${filled} album${filled>1?"s":""}`,true);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   AUDIO ENGINE — <audio> → 10× BiquadFilter (peaking, ±12 dB)
+   → analyser → gain → out. The analyser feeds the sky.
+   ════════════════════════════════════════════════════════════════ */
+const audio=new Audio();
+audio.preload="auto";
+let actx=null,eqNodes=[],analyser=null,gainNode=null,fftBuf=null,curURL=null;
+const EQ_FREQS=[31,62,125,250,500,1000,2000,4000,8000,16000];
+const EQ_PRESETS={
+  "FLAT":        [0,0,0,0,0,0,0,0,0,0],
+  "BASS RITUAL": [9,8,6,3,0,-1,0,0,1,2],
+  "VOCAL CULT":  [-2,-1,0,2,4,5,4,2,0,-1],
+  "AIRWAVE":     [0,0,0,0,0,1,2,4,6,7],
+  "TUNNEL":      [5,4,1,-3,-5,-5,-3,0,3,4],
+};
+function ensureAudioGraph(){
+  if(actx)return;
+  try{
+    actx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=actx.createMediaElementSource(audio);
+    let node=src;
+    eqNodes=EQ_FREQS.map((f,i)=>{
+      const b=actx.createBiquadFilter();
+      b.type= i===0?"lowshelf": i===EQ_FREQS.length-1?"highshelf":"peaking";
+      b.frequency.value=f;b.Q.value=1.0;
+      b.gain.value=state.settings.eqGains[i]||0;
+      node.connect(b);node=b;return b;
+    });
+    analyser=actx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.78;
+    fftBuf=new Uint8Array(analyser.frequencyBinCount);
+    gainNode=actx.createGain();gainNode.gain.value=state.settings.volume;
+    node.connect(analyser);analyser.connect(gainNode);gainNode.connect(actx.destination);
+  }catch(e){/* graph optional — plain playback still works */}
+}
+function applyEQ(){
+  if(!eqNodes.length)return;
+  state.settings.eqGains.forEach((g,i)=>{eqNodes[i].gain.value=g});
+}
+function setVolume(v){
+  state.settings.volume=v;
+  if(gainNode)gainNode.gain.value=v;else audio.volume=v;
+  saveSettings();
+}
+
+function playQueue(items,startIdx=0){
+  state.queue=items;state.qIndex=clamp(startIdx,0,items.length-1);
+  playCurrent(true);
+}
+/* listening history — a light tally per track, kept in kv (not on the
+   track records, so audio blobs are never rewritten just to count) */
+let playCounts={};
+let playsFlushTO=null;
+function bumpPlays(trkId){
+  playCounts[trkId]=(playCounts[trkId]||0)+1;
+  clearTimeout(playsFlushTO);
+  playsFlushTO=setTimeout(()=>kvSet("plays",playCounts),800);
+}
+async function playCurrent(autoplay){
+  const q=state.queue[state.qIndex];
+  if(!q)return;
+  const alb=albumById(q.albumId), trk=trackById(q.albumId,q.trackId);
+  if(!alb||!trk)return;
+  bumpPlays(trk.id);
+  if(!trk.blob){
+    state.playingAlbumId=alb.id;
+    updatePlayerUI(alb,trk,false);
+    sky.focusAlbum(alb.id);
+    toast("Mock star — it glows, but it has no audio yet");
+    return;
+  }
+  ensureAudioGraph();
+  if(actx&&actx.state==="suspended")actx.resume();
+  if(curURL)URL.revokeObjectURL(curURL);
+  curURL=URL.createObjectURL(trk.blob);
+  audio.src=curURL;
+  state.playingAlbumId=alb.id;
+  updatePlayerUI(alb,trk,true);
+  sky.focusAlbum(alb.id);
+  await kvSet("lastPlayed",{albumId:alb.id,trackId:trk.id,qIndex:state.qIndex,
+    queue:state.queue});
+  if(autoplay){try{await audio.play()}catch(e){/* gesture needed */}}
+  if("mediaSession" in navigator){
+    const art=artURL(alb);
+    navigator.mediaSession.metadata=new MediaMetadata({
+      title:trk.title,artist:trk.artist||alb.artist,album:alb.title,
+      artwork:art?[{src:art,sizes:"512x512"}]:[]
+    });
+    navigator.mediaSession.setActionHandler("previoustrack",prevTrack);
+    navigator.mediaSession.setActionHandler("nexttrack",nextTrack);
+  }
+}
+function nextTrack(){
+  if(state.qIndex<state.queue.length-1){state.qIndex++;playCurrent(true)}
+  else if(state.settings.repeat==="all"&&state.queue.length){state.qIndex=0;playCurrent(true)}
+  else audio.pause();
+}
+function prevTrack(){
+  if(audio.currentTime>3){audio.currentTime=0;return}
+  if(state.qIndex>0){state.qIndex--;playCurrent(true)}else audio.currentTime=0;
+}
+function togglePlay(){
+  const q=state.queue[state.qIndex];
+  if(!q)return;
+  const trk=q&&trackById(q.albumId,q.trackId);
+  if(trk&&!trk.blob){toast("Mock star — no audio to play");return}
+  ensureAudioGraph();
+  if(actx&&actx.state==="suspended")actx.resume();
+  if(audio.paused)audio.play().catch(()=>{});else audio.pause();
+}
+audio.addEventListener("ended",()=>{
+  if(state.settings.repeat==="one"){audio.currentTime=0;audio.play().catch(()=>{});return}
+  nextTrack();
+});
+audio.addEventListener("play",()=>syncPlayGlyphs(true));
+audio.addEventListener("pause",()=>syncPlayGlyphs(false));
+audio.addEventListener("timeupdate",()=>{
+  const p=audio.duration?audio.currentTime/audio.duration:0;
+  $("#pbSeekFill").style.width=(p*100)+"%";
+  if($("#sheetNow").classList.contains("open")&&!seekHeld){
+    $("#nowSeek").value=Math.round(p*1000);
+    $("#tCur").textContent=fmtT(audio.currentTime);
+    $("#tDur").textContent=fmtT(audio.duration);
+  }
+});
+function syncPlayGlyphs(playing){
+  $("#pbPlay").innerHTML=playing?ICO.pause:ICO.play;
+  $("#nowPlay").innerHTML=playing?ICO.pause:ICO.play;
+}
+function updatePlayerUI(alb,trk){
+  $("#playerBar").classList.add("show");
+  const art=artURL(alb);
+  $("#pbArt").src=art||"";
+  $("#pbTitle").textContent=trk.title;
+  $("#pbArtist").textContent=(trk.artist||alb.artist)+" \u2014 "+alb.title;
+  $("#nowArt").src=art||"";
+  $("#nowTitle").textContent=trk.title;
+  $("#nowArtist").textContent=(trk.artist||alb.artist).toUpperCase()+" \u2014 "+alb.title.toUpperCase();
+  $("#hudNow").style.display="";
+  $("#hudNow").textContent="\u266A "+trk.title;
+  renderLibrary(); // playing ring on the grid
+}
+
+/* transport wiring */
+$("#pbPlay").addEventListener("click",togglePlay);
+$("#pbPrev").addEventListener("click",prevTrack);
+$("#pbNext").addEventListener("click",nextTrack);
+$("#nowPlay").addEventListener("click",togglePlay);
+$("#nowPrev").addEventListener("click",prevTrack);
+$("#nowNext").addEventListener("click",nextTrack);
+$("#pbMain").addEventListener("click",()=>openSheet("sheetNow"));
+$("#pbArt").addEventListener("click",()=>openSheet("sheetNow"));
+$("#nowClose").addEventListener("click",()=>closeSheet("sheetNow"));
+let seekHeld=false;
+$("#nowSeek").addEventListener("input",()=>{seekHeld=true;
+  if(audio.duration)$("#tCur").textContent=fmtT($("#nowSeek").value/1000*audio.duration)});
+$("#nowSeek").addEventListener("change",()=>{
+  if(audio.duration)audio.currentTime=$("#nowSeek").value/1000*audio.duration;
+  seekHeld=false;
+});
+$("#volSlider").addEventListener("input",e=>setVolume(e.target.value/100));
+/* shuffle + repeat — the queue bends, the library never does */
+$("#nowShuffle").addEventListener("click",()=>{
+  if(state.queue.length<3){toast("Not enough in the queue to shuffle");return}
+  const cur=state.queue[state.qIndex];
+  const rest=state.queue.filter((_,i)=>i!==state.qIndex);
+  for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]]}
+  state.queue=[cur,...rest];state.qIndex=0;
+  toast("Queue shuffled — current track leads");
+});
+const REPEATS=["off","all","one"];
+function syncRepeatUI(){
+  const r=state.settings.repeat||"off";
+  $("#nowRepeat").textContent="REPEAT · "+r.toUpperCase();
+  $("#nowRepeat").classList.toggle("hot",r!=="off");
+}
+$("#nowRepeat").addEventListener("click",()=>{
+  state.settings.repeat=REPEATS[(REPEATS.indexOf(state.settings.repeat||"off")+1)%3];
+  saveSettings();syncRepeatUI();
+});
+
+/* ════════════════════════════════════════════════════════════════
+   THE SKY — self-composing. No camera controls exist anywhere.
+   The view is a window ledge; the sky arranges itself inside it.
+   Layering strategy: nebula+dust prerendered to sprites on their own
+   canvas (cheap composites), the world of stars/planets on a second.
+   ════════════════════════════════════════════════════════════════ */
+const sky=(()=>{
+  const cvN=$("#cvNebula"),cvW=$("#cvWorld");
+  const xN=cvN.getContext("2d"),xW=cvW.getContext("2d");
+  let W=0,H=0,DPR=1;
+  const cam={cx:0,cy:0,s:1, tcx:0,tcy:0,ts:1};
+  let manual=false; // true while the user is flying the camera
+  let stars=[];            // computed from state.albums
+  let planets=[];
+  let cstMeta=[];          // per-constellation: name, formedAt, lineProg
+  let ceremonyTarget=null; // {cx,cy,s,until}
+  let bass=0,mids=0;
+  const births=new Map();  // albumId -> birth timestamp (for materialization)
+  let selected=null;
+
+  /* prerendered sprites */
+  let sprGlow={},sprNebula=[],dustA=null,dustB=null;
+  function makeGlowSprite(color){
+    const c=document.createElement("canvas");c.width=c.height=64;
+    const x=c.getContext("2d");
+    const g=x.createRadialGradient(32,32,0,32,32,32);
+    g.addColorStop(0,color+"cc");g.addColorStop(.35,color+"44");g.addColorStop(1,"transparent");
+    x.fillStyle=g;x.fillRect(0,0,64,64);
+    return c;
+  }
+  function makeNebula(color,r){
+    const c=document.createElement("canvas");c.width=c.height=r*2;
+    const x=c.getContext("2d");
+    const g=x.createRadialGradient(r,r,0,r,r,r);
+    g.addColorStop(0,color+"30");g.addColorStop(.55,color+"14");g.addColorStop(1,"transparent");
+    x.fillStyle=g;x.fillRect(0,0,r*2,r*2);
+    return c;
+  }
+  function makeDust(seed,count,size){
+    const c=document.createElement("canvas");c.width=c.height=size;
+    const x=c.getContext("2d"),r=mulberry(seed);
+    for(let i=0;i<count;i++){
+      x.globalAlpha=.3+r()*.6;
+      x.fillStyle=r()<.9?"#ffffff":"#ffcf9e";
+      const s=r()*1.5+.5;
+      x.fillRect(r()*size,r()*size,s,s);
+    }
+    return c;
+  }
+  function buildSprites(){
+    PALETTE.forEach(p=>sprGlow[p]=makeGlowSprite(p));
+    sprGlow["#f4eedb"]=makeGlowSprite("#f4eedb");
+    sprNebula=[];
+    const dense=Math.min(devicePixelRatio,2)>1&&Math.min(innerWidth,innerHeight)>380;
+    dustA=makeDust(11+(skySeed&1023),dense?140:90,512);
+    dustB=makeDust(37+(skySeed>>>10&1023),dense?90:60,512);
+  }
+
+  function resize(){
+    DPR=Math.min(devicePixelRatio||1,3);
+    W=innerWidth;H=innerHeight;
+    [cvN,cvW].forEach(c=>{c.width=W*DPR;c.height=H*DPR;
+      c.getContext("2d").setTransform(DPR,0,0,DPR,0,0)});
+  }
+  addEventListener("resize",resize);
+
+  /* iOS Safari can leave the layout viewport shrunken after the keyboard
+     closes or the page restores — the dock floats mid-screen and the sky
+     only fills part of the display. Kick the viewport back to full size
+     whenever focus leaves a field or the visual viewport settles. */
+  function viewportKick(){scrollTo(0,0);resize();computeHome()}
+  if(window.visualViewport){
+    visualViewport.addEventListener("resize",()=>{
+      const f=document.activeElement;
+      if(!f||!/^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName))setTimeout(viewportKick,60);
+    });
+  }
+  addEventListener("focusout",()=>setTimeout(viewportKick,140));
+  addEventListener("pageshow",()=>setTimeout(viewportKick,60));
+  addEventListener("orientationchange",()=>setTimeout(viewportKick,320));
+
+  /* ── deterministic placement: constellations spiral out on a
+        golden-angle phyllotaxis; members cluster around each core ── */
+  function rebuild(){
+    const albs=[...state.albums].sort((a,b)=>a.seq-b.seq);
+    const spin=(skySeed%628)/100; // this install's twist on the spiral
+    stars=albs.map((a,i)=>{
+      const c=Math.floor(i/20);
+      const ang=c*2.39996+0.9+spin, rad=c===0?0:320*Math.sqrt(c);
+      const cx=Math.cos(ang)*rad, cy=Math.sin(ang)*rad*.78;
+      const r=mulberry(hashStr(skySeed+":"+a.id));
+      const sr=26+r()*128, sa=r()*Math.PI*2;
+      return{
+        album:a, cst:c, i,
+        x:cx+Math.cos(sa)*sr, y:cy+Math.sin(sa)*sr*.85,
+        col:PALETTE[hashStr(skySeed+a.id+"c")%PALETTE.length],
+        rad:1.6+r()*1.8, tw:r()*Math.PI*2, twf:.4+r()*.9,
+      };
+    });
+    // constellations
+    const nC=Math.floor(stars.length/20);
+    cstMeta=cstMeta.slice(0,nC);
+    for(let c=0;c<nC;c++){
+      if(!cstMeta[c]){
+        cstMeta[c]={name:"CST-"+String(c+1).padStart(2,"0"),
+          epithet:(MOCK_A[hashStr("e"+c+skySeed)%MOCK_A.length]+" "+MOCK_B[hashStr("f"+c+skySeed)%MOCK_B.length]).toUpperCase(),
+          lineProg:1};
+      }
+      const members=stars.filter(s=>s.cst===c);
+      // spine: 7 anchor stars swept left→right; branches connect the rest
+      const sorted=[...members].sort((a,b)=>a.x-b.x);
+      const spine=sorted.filter((_,i)=>i%3===0);
+      if(spine[spine.length-1]!==sorted[sorted.length-1])spine.push(sorted[sorted.length-1]);
+      cstMeta[c].spine=spine;
+      cstMeta[c].branches=sorted.filter(s=>!spine.includes(s)).map(s=>{
+        let best=spine[0],bd=1e9;
+        spine.forEach(p=>{const d=(p.x-s.x)**2+(p.y-s.y)**2;if(d<bd){bd=d;best=p}});
+        return[s,best];
+      });
+      const bx=members.reduce((n,s)=>n+s.x,0)/members.length;
+      const by=members.reduce((n,s)=>n+s.y,0)/members.length;
+      cstMeta[c].cx=bx;cstMeta[c].cy=by;
+    }
+    // planets — one wakes per hundred albums
+    const nP=Math.floor(stars.length/100);
+    const oldN=planets.length;
+    planets=[];
+    for(let p=0;p<nP;p++){
+      const ang=p*2.1+2.6+(skySeed%628)/100, rad=560*Math.sqrt(p+1);
+      planets.push({
+        x:Math.cos(ang)*rad, y:Math.sin(ang)*rad*.7,
+        type:(p+skySeed)%5, r:30+((hashStr("p"+p+skySeed)%12)), phase:hashStr("q"+p+skySeed)%628/100,
+        born:p<oldN?(planets[p]&&planets[p].born||0):performance.now()
+      });
+    }
+    computeHome();
+    updateHUD();
+  }
+
+  /* self-composing framing: fit everything that exists, with margin */
+  function computeHome(){
+    if(manual)return; // the user has the stick — don't yank the frame
+    if(!stars.length){cam.tcx=0;cam.tcy=0;cam.ts=1;return}
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    stars.forEach(s=>{x0=Math.min(x0,s.x);y0=Math.min(y0,s.y);x1=Math.max(x1,s.x);y1=Math.max(y1,s.y)});
+    planets.forEach(p=>{x0=Math.min(x0,p.x-p.r*2);y0=Math.min(y0,p.y-p.r*2);x1=Math.max(x1,p.x+p.r*2);y1=Math.max(y1,p.y+p.r*2)});
+    const pad=90;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
+    let cx=(x0+x1)/2, cy=(y0+y1)/2;
+    let s=Math.min(W/(x1-x0),(H-170)/(y1-y0));
+    s=clamp(s,.14,2.2);
+    // focus follows the music — ease the playing star into frame
+    if(state.playingAlbumId){
+      const ps=stars.find(st=>st.album.id===state.playingAlbumId);
+      if(ps){cx=lerp(cx,ps.x,.55);cy=lerp(cy,ps.y,.55);s=clamp(s*1.5,.2,2.6)}
+    }
+    cam.tcx=cx;cam.tcy=cy;cam.ts=s;
+  }
+
+  function focusAlbum(id){computeHome();updateHUD()}
+
+  /* ceremonies */
+  function materialize(albums){
+    const t=performance.now();
+    albums.forEach((a,i)=>births.set(a.id,t+i*260));
+  }
+  function ceremonyConstellation(c){
+    const m=cstMeta[c];if(!m)return;
+    m.lineProg=0;
+    ceremonyTarget={cx:m.cx,cy:m.cy,s:clamp(Math.min(W,H)/460,.4,2),until:performance.now()+5200};
+    banner("CONSTELLATION FORMED",m.name+" \u00B7 \u201C"+m.epithet+"\u201D");
+    addLog("\u2726","g-gold",`${m.name} “${m.epithet}” knit itself together — twenty stars in accord`);
+  }
+  function ceremonyPlanet(p){
+    const pl=planets[p];if(!pl)return;
+    pl.born=performance.now();
+    ceremonyTarget={cx:pl.x,cy:pl.y,s:clamp(Math.min(W,H)/(pl.r*14),.4,2.4),until:performance.now()+5200};
+    banner("A PLANET WAKES",PLANET_KINDS[pl.type].name.toUpperCase());
+    addLog("\u25CD","g-violet",`One hundred albums — ${PLANET_KINDS[pl.type].name} woke at the rim of the sky`);
+  }
+  let bannerTO=null;
+  function banner(tag,name){
+    $("#cbTag").textContent=tag;$("#cbName").textContent=name;
+    $("#ceremonyBanner").classList.add("show");
+    clearTimeout(bannerTO);
+    bannerTO=setTimeout(()=>$("#ceremonyBanner").classList.remove("show"),4600);
+  }
+
+  /* ── touch: tap, pan, pinch — the sky is fully navigable ──
+        The canvas claims every gesture (touch-action:none), so pinching
+        the sky zooms the SKY — never the page, which is what was
+        breaking the layout. Drag pans. Pinch zooms around the fingers.
+        Double-tap on empty space hands the frame back to the sky.
+        Hit-testing happens in SCREEN space on the frame the finger
+        lifts, with a thumb-sized target. A first tap selects and
+        labels; a second tap on the same star opens its album.       */
+  cvW.style.pointerEvents="auto";
+  ["gesturestart","gesturechange","gestureend"].forEach(ev=>
+    cvW.addEventListener(ev,e=>e.preventDefault())); // Safari page-pinch, off
+  const pts=new Map();
+  let tapStart=null,gestured=false,pinch0=null,lastEmptyTap=null;
+  function setManual(){
+    manual=true;
+    cam.tcx=cam.cx;cam.tcy=cam.cy;cam.ts=cam.s; // easing target = here
+  }
+  cvW.addEventListener("pointerdown",e=>{
+    if(document.body.dataset.tab!=="sky")return;
+    try{cvW.setPointerCapture(e.pointerId)}catch(err){}
+    pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size===1){
+      tapStart={x:e.clientX,y:e.clientY,t:performance.now()};
+      gestured=false;
+    }else if(pts.size===2){
+      const [a,b]=[...pts.values()];
+      pinch0={d:Math.hypot(a.x-b.x,a.y-b.y)||1,s:cam.s};
+      const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      pinch0.wx=(mx-W/2)/cam.s+cam.cx;
+      pinch0.wy=(my-H/2)/cam.s+cam.cy;
+      gestured=true;
+    }
+  });
+  cvW.addEventListener("pointermove",e=>{
+    if(!pts.has(e.pointerId))return;
+    const p=pts.get(e.pointerId);
+    const dx=e.clientX-p.x, dy=e.clientY-p.y;
+    p.x=e.clientX;p.y=e.clientY;
+    if(pts.size===1){
+      if(!gestured&&tapStart&&Math.hypot(e.clientX-tapStart.x,e.clientY-tapStart.y)>10)gestured=true;
+      if(gestured){ // pan
+        cam.cx-=dx/cam.s; cam.cy-=dy/cam.s;
+        setManual();
+      }
+    }else if(pts.size===2&&pinch0){
+      const [a,b]=[...pts.values()];
+      const d=Math.hypot(a.x-b.x,a.y-b.y)||1;
+      const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      cam.s=clamp(pinch0.s*d/pinch0.d,.08,6);
+      // keep the pinched point of the sky pinned under the fingers
+      cam.cx=pinch0.wx-(mx-W/2)/cam.s;
+      cam.cy=pinch0.wy-(my-H/2)/cam.s;
+      setManual();
+    }
+  });
+  function endPointer(e){
+    if(!pts.has(e.pointerId))return;
+    pts.delete(e.pointerId);
+    if(pts.size<2)pinch0=null;
+    if(pts.size>0)return; // wait for the last finger
+    if(document.body.dataset.tab!=="sky"||!tapStart)return;
+    const moved=Math.hypot(e.clientX-tapStart.x,e.clientY-tapStart.y);
+    const held=performance.now()-tapStart.t;
+    const wasGesture=gestured;
+    tapStart=null;gestured=false;
+    if(wasGesture||moved>12||held>600)return; // a pan/pinch/hold, not a tap
+    const rect=cvW.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    // planets first — each is a doorway to its era's top-played songs
+    for(let i=0;i<planets.length;i++){
+      const p=planets[i];
+      const sx=(p.x-cam.cx)*cam.s+W/2, sy=(p.y-cam.cy)*cam.s+H/2;
+      const pr=Math.max(30,p.r*cam.s+10);
+      if((sx-px)**2+(sy-py)**2<pr*pr){
+        lastEmptyTap=null;
+        openPlanet(i,PLANET_KINDS[p.type].name);
+        return;
+      }
+    }
+    let best=null,bd=1e9;
+    stars.forEach(s=>{
+      const sx=(s.x-cam.cx)*cam.s+W/2, sy=(s.y-cam.cy)*cam.s+H/2;
+      const d=(sx-px)**2+(sy-py)**2;
+      if(d<bd){bd=d;best=s}
+    });
+    const hitR=38; // generous screen-pixel target for touch
+    if(best&&bd<hitR*hitR){
+      lastEmptyTap=null;
+      if(selected===best){ // second tap opens the album's info
+        openAlbum(best.album.id);
+      }else{
+        selected=best;
+        showLabel(best);
+      }
+    }else{
+      selected=null;$("#starLabel").classList.remove("show");
+      const now=performance.now();
+      if(lastEmptyTap&&now-lastEmptyTap.t<340
+        &&Math.hypot(px-lastEmptyTap.x,py-lastEmptyTap.y)<40){
+        manual=false;computeHome(); // double-tap: the sky composes itself again
+        lastEmptyTap=null;
+      }else lastEmptyTap={x:px,y:py,t:now};
+    }
+  }
+  cvW.addEventListener("pointerup",endPointer);
+  cvW.addEventListener("pointercancel",e=>{
+    pts.delete(e.pointerId);
+    if(pts.size<2)pinch0=null;
+    if(!pts.size){tapStart=null;gestured=false}
+  });
+  cvW.addEventListener("wheel",e=>{
+    if(document.body.dataset.tab!=="sky")return;
+    e.preventDefault();
+    const rect=cvW.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const wx=(px-W/2)/cam.s+cam.cx, wy=(py-H/2)/cam.s+cam.cy;
+    cam.s=clamp(cam.s*Math.exp(-e.deltaY*.0016),.08,6);
+    cam.cx=wx-(px-W/2)/cam.s; cam.cy=wy-(py-H/2)/cam.s;
+    setManual();
+  },{passive:false});
+  function showLabel(s){
+    const el=$("#starLabel");
+    el.innerHTML="&#10216;"+esc(s.album.title.toUpperCase())+"<span class='la'> \u2014 "+esc(s.album.artist.toUpperCase())+"</span>&#10217;"
+      +"<div class='l-hint'>TAP AGAIN FOR ALBUM</div>";
+    el.classList.add("show");
+  }
+  $("#starLabel").addEventListener("click",()=>{
+    if(selected)openAlbum(selected.album.id);
+  });
+
+  /* ── planets: five textured worlds, prerendered, rotating for real ──
+        the texture strip scrolls behind a clipped disk; shading, rings,
+        atmosphere and moons are composited live on top.               */
+  const PLANET_KINDS=[
+    {name:"a rust world",     atmo:"rgba(255,150,90,.4)"},
+    {name:"a ringed giant",   atmo:"rgba(255,190,120,.35)"},
+    {name:"an ice world",     atmo:"rgba(170,205,255,.45)"},
+    {name:"a volcanic world", atmo:"rgba(255,90,46,.4)"},
+    {name:"an ocean world",   atmo:"rgba(140,200,255,.45)"},
+  ];
+  function makePlanetTex(seed,type){
+    const TW=720,TH=360,c=document.createElement("canvas");c.width=TW;c.height=TH;
+    const x=c.getContext("2d"),r=mulberry(seed);
+    const wrap=f=>{f(0);f(-TW);f(TW)}; // triple-draw for seamless scroll
+    const base=(c1,c2,c3)=>{const g=x.createLinearGradient(0,0,0,TH);
+      g.addColorStop(0,c1);g.addColorStop(.5,c2);g.addColorStop(1,c3||c1);
+      x.fillStyle=g;x.fillRect(0,0,TW,TH)};
+    const band=(y,h,col,a)=>{ // wobbling latitude band, integer cycles so it wraps
+      const k1=1+((r()*3)|0),k2=1+((r()*3)|0),p1=r()*6.283,p2=r()*6.283,a1=4+r()*16,a2=4+r()*16;
+      x.globalAlpha=a;x.fillStyle=col;x.beginPath();
+      x.moveTo(0,y+Math.sin(p1)*a1);
+      for(let i=0;i<=48;i++){const t=i/48;x.lineTo(t*TW,y+Math.sin(t*6.283*k1+p1)*a1)}
+      for(let i=48;i>=0;i--){const t=i/48;x.lineTo(t*TW,y+h+Math.sin(t*6.283*k2+p2)*a2)}
+      x.closePath();x.fill();x.globalAlpha=1;
+    };
+    const blob=(cx,cy,rad,col,a,sq)=>{wrap(dx=>{
+      x.globalAlpha=a;x.fillStyle=col;x.beginPath();
+      x.ellipse(cx+dx,cy,rad*(1.1+r()*.9),rad*(sq||(.5+r()*.5)),r()*3.14,0,6.283);
+      x.fill()});x.globalAlpha=1};
+    const crater=(cx,cy,cr,dark,lite)=>{wrap(dx=>{
+      x.globalAlpha=.55;x.fillStyle=dark;x.beginPath();x.arc(cx+dx,cy,cr,0,6.283);x.fill();
+      x.globalAlpha=.5;x.strokeStyle=lite;x.lineWidth=1.2;
+      x.beginPath();x.arc(cx+dx,cy,cr,Math.PI*1.05,Math.PI*1.95);x.stroke()});x.globalAlpha=1};
+    const cap=a=>{x.globalAlpha=a;x.fillStyle="#f8f4ec";
+      x.beginPath();x.ellipse(TW/2,-8,TW*.7,TH*.14,0,0,6.283);x.fill();
+      x.beginPath();x.ellipse(TW/2,TH+8,TW*.7,TH*.12,0,0,6.283);x.fill();x.globalAlpha=1};
+
+    if(type===0){ // rust world — the reference planet
+      base("#d0824a","#b4602f","#8a4423");
+      for(let i=0;i<8;i++)band(r()*TH,14+r()*40,["#c97347","#a04e26","#dc9558","#8a3f20"][i%4],.22+r()*.25);
+      for(let i=0;i<9;i++)blob(r()*TW,TH*.2+r()*TH*.6,18+r()*52,"#5e2a16",.22+r()*.2);
+      for(let i=0;i<10;i++)crater(r()*TW,TH*.15+r()*TH*.7,4+r()*10,"#4a2012","#e8b98a");
+      cap(.85);
+    }else if(type===1){ // banded giant
+      base("#e0b078","#c9884c","#a45c33");
+      let y=0;
+      while(y<TH){const h=16+r()*34;
+        band(y,h,["#e8c39a","#c98a4e","#a45c33","#e2a76f","#93502c"][(r()*5)|0],.5+r()*.35);y+=h*.7}
+      blob(TW*r(),TH*(.55+r()*.2),26+r()*14,"#f0764a",.9,.55);
+      blob(TW*r(),TH*(.3+r()*.2),16+r()*10,"#ffd9a8",.7,.5);
+    }else if(type===2){ // ice world
+      base("#e9f2ff","#bcd4f5","#9dbbe8");
+      for(let i=0;i<6;i++)band(r()*TH,10+r()*30,"#ffffff",.18+r()*.15);
+      x.strokeStyle="#6f8fc4";
+      for(let i=0;i<13;i++){ // fracture lines
+        x.globalAlpha=.3+r()*.3;x.lineWidth=.8+r()*.9;
+        wrap(dx=>{x.beginPath();let px=r()*TW+dx,py=r()*TH;x.moveTo(px,py);
+          for(let s2=0;s2<5;s2++){px+=(r()-.3)*60;py+=(r()-.5)*44;x.lineTo(px,py)}x.stroke()});
+      }
+      x.globalAlpha=1;
+      for(let i=0;i<6;i++)crater(r()*TW,TH*.2+r()*TH*.6,3+r()*8,"#8aa8d6","#ffffff");
+      cap(.9);
+    }else if(type===3){ // volcanic world
+      base("#2b1e28","#20161f","#181019");
+      for(let i=0;i<8;i++)blob(r()*TW,r()*TH,24+r()*60,"#3c2430",.4+r()*.3);
+      x.save();x.shadowColor="#ff5a2e";x.shadowBlur=9;
+      for(let i=0;i<15;i++){ // lava fissures
+        x.globalAlpha=.75+r()*.25;x.strokeStyle=r()<.5?"#ff5a2e":"#ff8a3e";x.lineWidth=1+r()*1.2;
+        wrap(dx=>{x.beginPath();let px=r()*TW+dx,py=r()*TH;x.moveTo(px,py);
+          for(let s2=0;s2<4;s2++){px+=(r()-.4)*46;py+=(r()-.5)*30;x.lineTo(px,py)}x.stroke()});
+      }
+      for(let i=0;i<10;i++)wrap(dx=>{x.globalAlpha=.9;x.fillStyle="#ffb257";
+        x.beginPath();x.arc(r()*TW+dx,r()*TH,1.2+r()*2.4,0,6.283);x.fill()});
+      x.restore();x.globalAlpha=1;
+    }else{ // ocean world
+      base("#3a7cb0","#2e6ea0","#1c4a74");
+      for(let i=0;i<6;i++){ // landmasses = clustered blobs
+        const cx=r()*TW,cy=TH*.2+r()*TH*.6,col=r()<.6?"#5f8a4e":"#8a7a4e";
+        for(let s2=0;s2<3;s2++)blob(cx+(r()-.5)*70,cy+(r()-.5)*50,16+r()*34,col,.95,.6);
+      }
+      for(let i=0;i<9;i++)band(r()*TH,5+r()*11,"#ffffff",.14+r()*.14); // cloud streaks
+      cap(.7);
+    }
+    return c;
+  }
+  function ringsHalf(x2,r,rot,front){
+    const wob=Math.sin(rot*.6)*.06;
+    x2.strokeStyle=front?"rgba(232,195,150,.95)":"rgba(232,195,150,.7)";
+    for(let i=0;i<3;i++){
+      x2.lineWidth=1.6-i*.4;x2.globalAlpha=(front?.95:.7)-i*.18;
+      x2.beginPath();
+      x2.ellipse(0,0,r*(1.55+i*.22),r*(.42+i*.07),.5+wob,
+        front?-.03:Math.PI*.97, front?Math.PI*.97:Math.PI*1.98);
+      x2.stroke();
+    }
+    x2.globalAlpha=1;
+  }
+  function drawPlanet(x2,p,t){
+    if(!p.tex)p.tex=makePlanetTex(hashStr("ptex"+p.type+"_"+Math.round(p.x*7)),p.type);
+    const age=clamp((t-p.born)/1800,0,1);
+    const scale=REDUCED?1:(age<1?1-Math.pow(1-age,3):1);
+    const rot=REDUCED?p.phase:t/16000+p.phase;
+    const R=p.r;
+    x2.save();x2.translate(p.x,p.y);x2.scale(scale,scale);
+    if(age<1&&!REDUCED){
+      x2.strokeStyle="rgba(195,157,255,"+(1-age)*.7+")";
+      x2.lineWidth=1.5;x2.beginPath();x2.arc(0,0,R*(1+age*2.2),0,Math.PI*2);x2.stroke();
+    }
+    if(p.type===1)ringsHalf(x2,R,rot,false);
+    // the textured disk — strip scrolls, disk clips
+    x2.save();
+    x2.beginPath();x2.arc(0,0,R,0,Math.PI*2);x2.clip();
+    const DW=R*6.4;
+    let off=(rot*R*1.6)%DW;if(off<0)off+=DW;
+    for(let k=-1;k<=1;k++)x2.drawImage(p.tex,-off+k*DW-0,-R,DW,R*2);
+    // limb darkening + soft sunlit highlight
+    const lg=x2.createRadialGradient(-R*.38,-R*.38,R*.12,0,0,R*1.02);
+    lg.addColorStop(0,"rgba(255,255,255,.12)");lg.addColorStop(.55,"rgba(0,0,0,0)");
+    lg.addColorStop(.85,"rgba(0,0,0,.34)");lg.addColorStop(1,"rgba(0,0,0,.62)");
+    x2.fillStyle=lg;x2.fillRect(-R,-R,R*2,R*2);
+    // terminator — night creeps over one shoulder
+    const tg=x2.createRadialGradient(-R*.5,-R*.4,R*.1,0,0,R*1.05);
+    tg.addColorStop(0,"rgba(0,0,0,0)");tg.addColorStop(.72,"rgba(0,0,0,0)");tg.addColorStop(1,"rgba(0,0,0,.72)");
+    x2.fillStyle=tg;x2.fillRect(-R,-R,R*2,R*2);
+    x2.restore();
+    // thin atmosphere rim
+    x2.strokeStyle=PLANET_KINDS[p.type].atmo;x2.lineWidth=1.3;
+    x2.beginPath();x2.arc(0,0,R+.9,0,Math.PI*2);x2.stroke();
+    if(p.type===1)ringsHalf(x2,R,rot,true);
+    // thin orbit rings, then the moons riding them
+    x2.strokeStyle="rgba(225,232,245,.22)";x2.lineWidth=.7;
+    for(let m=0;m<(p.type===1?1:2);m++){
+      x2.beginPath();x2.ellipse(0,0,R*(1.7+m*.5),R*(.5+m*.2),0,0,Math.PI*2);x2.stroke();
+    }
+    for(let m=0;m<(p.type===1?1:2);m++){
+      const ma=rot*8*(1.6+m*.7)+m*2.4;
+      const mx=Math.cos(ma)*R*(1.7+m*.5), my=Math.sin(ma)*R*(.5+m*.2);
+      const front=Math.sin(ma)>0;
+      if(front){x2.fillStyle="#d8dee9";x2.beginPath();x2.arc(mx,my,2.4,0,Math.PI*2);x2.fill()}
+      else{x2.fillStyle="rgba(170,178,196,.4)";x2.beginPath();x2.arc(mx,my,2,0,Math.PI*2);x2.fill()}
+    }
+    x2.restore();
+  }
+
+  /* ── main loop ── */
+  let last=0;
+  function frame(t){
+    requestAnimationFrame(frame);
+    const dt=Math.min(33,t-last);last=t;
+    const onSky=document.body.dataset.tab==="sky";
+    // fft — the universe pulses with the bass
+    if(state.settings.fft&&analyser&&!audio.paused){
+      analyser.getByteFrequencyData(fftBuf);
+      let b=0;for(let i=1;i<9;i++)b+=fftBuf[i];b/=8*255;
+      let m=0;for(let i=20;i<48;i++)m+=fftBuf[i];m/=28*255;
+      bass=lerp(bass,b,.25);mids=lerp(mids,m,.2);
+    }else{bass=lerp(bass,0,.05);mids=lerp(mids,0,.05)}
+
+    /* jet black, painted opaque — a real window, whatever hosts us */
+    xN.fillStyle="#000";xN.fillRect(0,0,W,H);
+    // parallax dust — two tiled sheets adrift, no ground, no horizon
+    const d1=REDUCED?0:t*.0035, d2=REDUCED?0:t*.0016;
+    tile(xN,dustA,(-cam.cx*.05-d1),( -cam.cy*.05-d1*.6),.8);
+    tile(xN,dustB,(-cam.cx*.11+d2),( -cam.cy*.11),1);
+
+    /* camera easing — nothing snaps; everything settles */
+    let target={cx:cam.tcx,cy:cam.tcy,s:cam.ts};
+    if(ceremonyTarget){
+      if(t<ceremonyTarget.until)target=ceremonyTarget;
+      else{
+        ceremonyTarget=null;
+        if(manual){cam.tcx=cam.cx;cam.tcy=cam.cy;cam.ts=cam.s} // stay where the ceremony left us
+      }
+    }
+    const k=REDUCED?1:(ceremonyTarget?.028:.045);
+    cam.cx=lerp(cam.cx,target.cx,k);
+    cam.cy=lerp(cam.cy,target.cy,k);
+    cam.s=lerp(cam.s,target.s,k);
+
+    /* world layer */
+    xW.clearRect(0,0,W,H);
+    xW.save();
+    xW.translate(W/2,H/2);xW.scale(cam.s,cam.s);xW.translate(-cam.cx,-cam.cy);
+
+    // constellation lines — bright spine, dimmer branches, gentle pulse
+    // names reveal only when the camera closes in: past a zoom threshold,
+    // only the constellation nearest the center of the frame carries its
+    // name, and it cross-fades away as you migrate toward another.
+    const nameZoom=clamp((cam.s-.45)/.3,0,1);
+    let nearestCst=-1,ncd=1e18;
+    cstMeta.forEach((m,ci)=>{
+      const d=(m.cx-cam.cx)**2+(m.cy-cam.cy)**2;
+      if(d<ncd){ncd=d;nearestCst=ci}
+    });
+    cstMeta.forEach((m,ci)=>{
+      if(!m.spine||m.spine.length<2)return;
+      if(m.lineProg<1)m.lineProg=Math.min(1,m.lineProg+dt/2600);
+      const pulse=REDUCED?.8:(.62+Math.sin(t/1600+ci)*.22+bass*.3);
+      const hue=PALETTE[ci%PALETTE.length];
+      xW.lineWidth=1.1/cam.s;
+      const segs=m.spine.length-1, upTo=m.lineProg*segs;
+      xW.strokeStyle=hue;xW.globalAlpha=pulse;
+      xW.beginPath();
+      for(let i=0;i<Math.floor(upTo);i++){
+        xW.moveTo(m.spine[i].x,m.spine[i].y);xW.lineTo(m.spine[i+1].x,m.spine[i+1].y);
+      }
+      const fi=Math.floor(upTo);
+      if(fi<segs){const f=upTo-fi,a=m.spine[fi],b=m.spine[fi+1];
+        xW.moveTo(a.x,a.y);xW.lineTo(lerp(a.x,b.x,f),lerp(a.y,b.y,f));}
+      xW.stroke();
+      if(m.lineProg>.6){
+        xW.globalAlpha=pulse*.34;xW.lineWidth=.7/cam.s;
+        xW.beginPath();
+        m.branches.forEach(([a,b])=>{xW.moveTo(a.x,a.y);xW.lineTo(b.x,b.y)});
+        xW.stroke();
+      }
+      xW.globalAlpha=1;
+      // name — eased alpha toward its target: fully formed, zoomed in,
+      // and this is the constellation the camera is nearest
+      const want=(m.lineProg>.85&&ci===nearestCst)?nameZoom:0;
+      m.nameA=lerp(m.nameA||0,want,REDUCED?1:.06);
+      if(m.nameA>.02){
+        xW.globalAlpha=m.nameA*.9;
+        xW.font=`${9.5/cam.s}px 'Audiowide','Space Grotesk',sans-serif`;
+        xW.textAlign="center";
+        xW.fillStyle="rgba(196,186,255,.85)";
+        const label=m.name+"  \u00B7  "+m.epithet;
+        xW.save();xW.translate(m.cx,m.cy+150);
+        let cxx=-label.length*3.2/cam.s;
+        for(const ch of label){xW.fillText(ch,cxx,0);cxx+=7.6/cam.s} // letterspacing
+        xW.restore();
+        xW.globalAlpha=1;
+      }
+    });
+    // forming hint — faint thread through the incomplete constellation
+    const incomplete=stars.filter(s=>s.cst===cstMeta.length);
+    if(incomplete.length>1){
+      xW.strokeStyle="rgba(157,146,196,.16)";xW.lineWidth=.7/cam.s;
+      xW.setLineDash([3/cam.s,5/cam.s]);
+      xW.beginPath();
+      incomplete.forEach((s,i)=>{i?xW.lineTo(s.x,s.y):xW.moveTo(s.x,s.y)});
+      xW.stroke();xW.setLineDash([]);
+    }
+
+    // planets
+    planets.forEach(p=>drawPlanet(xW,p,t));
+
+    // stars — materialization ceremony, twinkle, spectrum glow
+    const glowMul=1+bass*1.1+mids*.35;
+    stars.forEach(s=>{
+      let a=1,scale=1;
+      const b=births.get(s.album.id);
+      if(b!==undefined){
+        const age=(t-b)/1600;
+        if(age<0)return;
+        if(age<1&&!REDUCED){
+          a=age;scale=.3+age*.7*(1+Math.sin(age*Math.PI)*.5);
+          xW.strokeStyle=s.col;xW.globalAlpha=(1-age)*.8;
+          xW.lineWidth=1/cam.s;
+          xW.beginPath();xW.arc(s.x,s.y,(6+age*30)/cam.s,0,Math.PI*2);xW.stroke();
+          xW.globalAlpha=1;
+        }else births.delete(s.album.id);
+      }
+      const tw=REDUCED?1:(0.78+Math.sin(t/700*s.twf+s.tw)*.22);
+      const playing=s.album.id===state.playingAlbumId;
+      const sel=selected===s;
+      const gr=s.rad*(4+(playing?5:0))*glowMul*scale/Math.sqrt(cam.s);
+      const spr=sprGlow[playing?"#f4eedb":s.col]||sprGlow[s.col];
+      xW.globalAlpha=a*tw*(playing?.9:.4)*(0.75+bass*.4);
+      xW.drawImage(spr,s.x-gr,s.y-gr,gr*2,gr*2);
+      xW.globalAlpha=a;
+      xW.fillStyle=playing?"#fff6e0":s.col;
+      xW.beginPath();xW.arc(s.x,s.y,s.rad*tw*scale/Math.sqrt(cam.s)+(playing?.8:0),0,Math.PI*2);xW.fill();
+      if(sel){
+        xW.strokeStyle="#c39dff";xW.lineWidth=1/cam.s;
+        xW.setLineDash([2/cam.s,3/cam.s]);
+        xW.beginPath();xW.arc(s.x,s.y,10/cam.s,0,Math.PI*2);xW.stroke();
+        xW.setLineDash([]);
+      }
+      xW.globalAlpha=1;
+    });
+    xW.restore();
+
+    // keep the tapped-star label pinned to its star
+    if(selected&&onSky){
+      const sx=(selected.x-cam.cx)*cam.s+W/2, sy=(selected.y-cam.cy)*cam.s+H/2;
+      const el=$("#starLabel");el.style.left=sx+"px";el.style.top=sy+"px";
+    }
+  }
+  function tile(x2,spr,ox,oy,alpha){
+    const s=spr.width;
+    ox=((ox%s)+s)%s;oy=((oy%s)+s)%s;
+    x2.globalAlpha=alpha;
+    for(let ix=-1;ix<=Math.ceil(W/s);ix++)
+      for(let iy=-1;iy<=Math.ceil(H/s);iy++)
+        x2.drawImage(spr,ix*s-ox,iy*s-oy);
+    x2.globalAlpha=1;
+  }
+
+  function updateHUD(){
+    const n=state.albums.length;
+    $("#hudAlbums").textContent=n;
+    $("#hudCst").textContent=(n%20)+"/20"+(Math.floor(n/20)?" \u00B7 "+Math.floor(n/20)+" formed":"");
+    $("#hudPlanet").textContent=(n%100)+"/100";
+    $("#voidInvite").classList.toggle("gone",n>0);
+    $("#libSub").textContent=n?`${n} album${n>1?"s":""} \u00B7 ${Math.floor(n/20)} constellation${Math.floor(n/20)!==1?"s":""} \u00B7 ${Math.floor(n/100)} planet${Math.floor(n/100)!==1?"s":""}`:"Every album here is a star in the sky.";
+  }
+
+  function init(){resize();buildSprites();rebuild();requestAnimationFrame(frame)}
+  return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,
+    clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
+})();
+
+/* new albums arrived — materialize, and hold ceremonies at thresholds.
+   The first days of a collection get their own small rites: a convert
+   with two albums must feel the sky answering, not wait weeks for 20. */
+const MILESTONES=[
+  [1,"FIRST LIGHT","ONE STAR BURNS IN THE VOID"],
+  [3,"A SKY BEGINS","THREE STARS · THE DARK HAS A SHAPE"],
+  [5,"FIVE STARS STRONG","THE VOID IS LOSING"],
+  [10,"TEN STARS","HALFWAY TO A CONSTELLATION"],
+];
+function onAlbumsAdded(newAlbums,countBefore){
+  sky.rebuild();
+  sky.materialize(newAlbums);
+  const after=state.albums.length;
+  const cstBefore=Math.floor(countBefore/20), cstAfter=Math.floor(after/20);
+  const plBefore=Math.floor(countBefore/100), plAfter=Math.floor(after/100);
+  let delay=Math.min(newAlbums.length,20)*260+900;
+  const mile=MILESTONES.filter(([n])=>countBefore<n&&after>=n).pop();
+  if(mile&&cstAfter===cstBefore){ // constellation/planet rites outrank these
+    setTimeout(()=>{
+      sky.banner(mile[1],mile[2]);
+      addLog("✦","g-gold",mile[1].charAt(0)+mile[1].slice(1).toLowerCase()+" — "+after+" album"+(after>1?"s":"")+" in the sky");
+    },delay);
+    delay+=5000;
+  }
+  for(let c=cstBefore;c<cstAfter;c++){
+    setTimeout(()=>sky.ceremonyConstellation(c),delay);delay+=5600;
+  }
+  for(let p=plBefore;p<plAfter;p++){
+    setTimeout(()=>sky.ceremonyPlanet(p),delay);delay+=5600;
+  }
+  $("#shareSky").style.display=after?"":"none";
+}
+
+/* ════════════════════════════════════════════════════════════════
+   VIEWS — library grid, playlists, log, settings, sheets
+   ════════════════════════════════════════════════════════════════ */
+function switchTab(name){
+  document.body.dataset.tab=name;
+  $$(".tab").forEach(b=>b.classList.toggle("on",b.dataset.go===name));
+  $$(".panel").forEach(p=>p.classList.toggle("active",p.id==="panel-"+name));
+  if(name!=="sky")sky.clearSelection();
+  if(name==="library")renderLibrary();
+  if(name==="playlists")renderPlaylists();
+  if(name==="log")renderLog();
+  if(name==="settings"){renderEQ();updateStorage()}
+}
+$$(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.go)));
+
+/* Sheets always offer a way home: an ✕ button, a tap on the dimmed
+   backdrop, the Escape key, and the phone's back gesture all close the
+   topmost sheet and return to the space beneath it. */
+const sheetStack=[];
+function openSheet(id){
+  $("#"+id).classList.add("open");
+  sheetStack.push(id);
+  try{history.pushState({sheetDepth:sheetStack.length},"")}catch(e){}
+}
+function closeSheet(id){
+  const el=$("#"+id);
+  if(!el||!el.classList.contains("open"))return;
+  el.classList.remove("open");
+  const i=sheetStack.lastIndexOf(id);
+  if(i>=0)sheetStack.splice(i,1);
+  if(history.state&&history.state.sheetDepth>sheetStack.length){
+    try{history.back()}catch(e){}
+  }
+}
+addEventListener("popstate",()=>{
+  const depth=(history.state&&history.state.sheetDepth)||0;
+  while(sheetStack.length>depth){
+    const id=sheetStack.pop();
+    const el=$("#"+id);if(el)el.classList.remove("open");
+  }
+});
+$$(".sheet").forEach(sh=>sh.addEventListener("click",e=>{if(e.target===sh)closeSheet(sh.id)}));
+$$(".sheet-close").forEach(b=>b.addEventListener("click",()=>closeSheet(b.closest(".sheet").id)));
+addEventListener("keydown",e=>{
+  if(e.key!=="Escape"||!sheetStack.length)return;
+  closeSheet(sheetStack[sheetStack.length-1]);
+});
+
+/* ── LIBRARY ── */
+/* ── library search — filter by artist or album, forgiving of case,
+      accents, and word order ("dark floyd" finds Pink Floyd's album) ── */
+let libQuery="";
+const foldSearch=s=>(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+function libMatches(a){
+  if(!libQuery)return true;
+  const hay=foldSearch(a.title+" "+a.artist);
+  return libQuery.split(/\s+/).every(tok=>hay.includes(tok));
+}
+{
+  const inp=$("#libSearchIn"),clr=$("#libSearchClr");
+  let debounceTO=null;
+  inp.addEventListener("input",()=>{
+    clearTimeout(debounceTO);
+    debounceTO=setTimeout(()=>{
+      libQuery=foldSearch(inp.value.trim());
+      clr.style.display=inp.value?"":"none";
+      renderLibrary();
+    },120);
+  });
+  clr.addEventListener("click",()=>{
+    inp.value="";libQuery="";clr.style.display="none";
+    renderLibrary();inp.focus();
+  });
+  inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()}); // dismiss keyboard
+}
+function renderLibrary(){
+  const g=$("#libGrid");
+  const all=[...state.albums].sort((a,b)=>a.seq-b.seq);
+  const albs=all.filter(libMatches);
+  $("#libSearch").style.display=all.length?"":"none";
+  $("#libEmpty").style.display=all.length?"none":"";
+  $("#libNoMatch").style.display=(all.length&&!albs.length)?"":"none";
+  if(libQuery)$("#libSub").textContent=`${albs.length} of ${all.length} album${all.length>1?"s":""} answer`;
+  else{const n=all.length;
+    $("#libSub").textContent=n?`${n} album${n>1?"s":""} \u00B7 ${Math.floor(n/20)} constellation${Math.floor(n/20)!==1?"s":""} \u00B7 ${Math.floor(n/100)} planet${Math.floor(n/100)!==1?"s":""}`:"Every album here is a star in the sky.";}
+  g.innerHTML=albs.map(a=>{
+    const art=artURL(a);
+    return`<div class="albwrap">
+      <button class="alb${a.id===state.playingAlbumId?" playing":""}" data-alb="${a.id}" aria-label="${esc(a.title)} by ${esc(a.artist)}">
+        ${art?`<img class="art" src="${art}" alt="" loading="lazy">`:`<div class="art"></div>`}
+        <div class="meta">
+          <div class="a-t">${esc(a.title)}</div>
+          <div class="a-a">${esc(a.artist)}</div>
+          <div class="a-x">${esc(a.year||"\u2014")} \u00B7 ${esc(a.genre||"UNSORTED")} \u00B7 ${a.trackCount} TRK</div>
+        </div>
+      </button>
+      ${a.mock?'<div class="mockchip">MOCK</div>':""}
+    </div>`;
+  }).join("");
+  g.querySelectorAll("[data-alb]").forEach(b=>b.addEventListener("click",()=>openAlbum(b.dataset.alb)));
+}
+
+/* ── album sheet + tag editor ── */
+let sheetAlbumId=null;
+function openAlbum(id){
+  const a=albumById(id);if(!a)return;
+  sheetAlbumId=id;
+  $("#albEditor").style.display="none";
+  $("#albArtBig").src=artURL(a)||"";
+  $("#albTitle").textContent=a.title;
+  renderAlbumSub(a);
+  renderAlbumTracks(a);
+  openSheet("sheetAlbum");
+}
+function renderAlbumSub(a){
+  $("#albSub").textContent=`${a.artist} \u00B7 ${a.year||"\u2014"} \u00B7 ${a.genre||"unsorted"}${a.mock?" \u00B7 mock":""}`;
+}
+function renderAlbumTracks(a){
+  const trks=(state.tracks.get(a.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
+  const q=state.queue[state.qIndex];
+  $("#albTracks").innerHTML=trks.map(t=>`
+    <div class="trk${q&&q.trackId===t.id?" playing":""}" data-trk="${t.id}">
+      <div class="t-no">${t.idx}</div>
+      <button class="t-main" data-play="${t.id}" style="text-align:left" aria-label="Play ${esc(t.title)}">
+        <div class="t-title">${esc(t.title)}</div>
+        <div class="t-sub">${esc(t.artist||a.artist)}</div>
+      </button>
+      <button class="t-btn" data-rename="${t.id}" aria-label="Rename track">${ICO.edit}</button>
+      <button class="t-btn" data-pl="${t.id}" aria-label="Add track to playlist">${ICO.plus}</button>
+    </div>`).join("");
+  $("#albTracks").querySelectorAll("[data-play]").forEach(b=>b.addEventListener("click",()=>{
+    const idx=trks.findIndex(t=>t.id===b.dataset.play);
+    playQueue(trks.map(t=>({albumId:a.id,trackId:t.id})),idx);
+    renderAlbumTracks(a);
+  }));
+  $("#albTracks").querySelectorAll("[data-pl]").forEach(b=>b.addEventListener("click",()=>
+    pickPlaylist([{albumId:a.id,trackId:b.dataset.pl}])));
+  $("#albTracks").querySelectorAll("[data-rename]").forEach(b=>b.addEventListener("click",()=>{
+    const t=trackById(a.id,b.dataset.rename);if(!t)return;
+    const row=b.closest(".trk"), main=row.querySelector(".t-main");
+    main.innerHTML=`<input class="t-edit" value="${esc(t.title)}" aria-label="Track title">`;
+    const inp=main.querySelector("input");inp.focus();inp.select();
+    const commit=async()=>{
+      const v=inp.value.trim();
+      if(v&&v!==t.title){t.title=v;await dbPut("tracks",t);toast("Track renamed — file untouched")}
+      renderAlbumTracks(a);
+    };
+    inp.addEventListener("blur",commit);
+    inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()});
+  }));
+}
+$("#albPlay").addEventListener("click",()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  const trks=(state.tracks.get(a.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
+  playQueue(trks.map(t=>({albumId:a.id,trackId:t.id})),0);
+  closeSheet("sheetAlbum");switchTab("sky");
+});
+$("#albEdit").addEventListener("click",()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  $("#efTitle").value=a.title;$("#efArtist").value=a.artist;
+  $("#efYear").value=a.year||"";$("#efGenre").value=a.genre||"";
+  $("#albEditor").style.display="";
+});
+$("#efCancel").addEventListener("click",()=>$("#albEditor").style.display="none");
+$("#efLookup").addEventListener("click",async()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  const btn=$("#efLookup");
+  btn.disabled=true;const old=btn.innerHTML;btn.textContent="SEARCHING\u2026";
+  const m=await lookupAlbum($("#efTitle").value.trim()||a.title,$("#efArtist").value.trim()||a.artist,true);
+  btn.disabled=false;btn.innerHTML=old;
+  if(!m){toast("The archive returned nothing — refine the title or artist and try again");return}
+  if(m.title)$("#efTitle").value=m.title;
+  if(m.artist)$("#efArtist").value=m.artist;
+  if(m.year)$("#efYear").value=m.year;
+  if(m.genre)$("#efGenre").value=m.genre;
+  if(!a.art&&m.artUrl){
+    const b=await fetchArtBlob(m.artUrl);
+    if(b){a.art=b;artURLs.delete(a.id);await dbPut("albums",a);
+      $("#albArtBig").src=artURL(a)||"";renderLibrary()}
+  }
+  toast("Archive match found — review the fields, then SAVE TAGS");
+});
+$("#efSave").addEventListener("click",async()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  a.title=$("#efTitle").value.trim()||a.title;
+  a.artist=$("#efArtist").value.trim()||a.artist;
+  a.year=$("#efYear").value.trim();
+  a.genre=$("#efGenre").value.trim();
+  await dbPut("albums",a);
+  $("#albTitle").textContent=a.title;renderAlbumSub(a);
+  $("#albEditor").style.display="none";
+  renderLibrary();sky.rebuild();
+  toast("Tags saved to the catalog — source files untouched");
+});
+$("#albDelete").addEventListener("click",async()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  if(!confirm(`Delete “${a.title}”? Its star goes out and its audio leaves this browser.`))return;
+  const trks=state.tracks.get(a.id)||[];
+  for(const t of trks)await dbDel("tracks",t.id);
+  await dbDel("albums",a.id);
+  state.tracks.delete(a.id);
+  state.albums=state.albums.filter(x=>x.id!==a.id);
+  // scrub from playlists
+  for(const pl of state.playlists){
+    const n=pl.items.length;
+    pl.items=pl.items.filter(it=>it.albumId!==a.id);
+    if(pl.items.length!==n)await dbPut("playlists",pl);
+  }
+  if(state.playingAlbumId===a.id){audio.pause();state.playingAlbumId=null;$("#playerBar").classList.remove("show")}
+  closeSheet("sheetAlbum");
+  sky.rebuild();renderLibrary();updateStorage();
+  await addLog("\u2727","g-dim",`${a.title} left the catalog — its star went dark`);
+  toast("Album deleted");
+});
+
+/* ── PLAYLISTS ── */
+function renderPlaylists(){
+  const list=$("#plList");
+  if(!state.playlists.length){
+    list.innerHTML=`<div class="empty"><div class="e-g">${ICO.note}</div><i>No routes charted yet.</i><br>Name a playlist above, then add tracks from any album.</div>`;
+    return;
+  }
+  list.innerHTML=state.playlists.map(p=>`
+    <button class="pl-row" data-pl="${p.id}">
+      <div class="pl-glyph">${ICO.note}</div>
+      <div><div class="pl-name">${esc(p.name)}</div>
+      <div class="pl-count">${p.items.length} TRACK${p.items.length!==1?"S":""}</div></div>
+      <div class="pl-spacer">${ICO.chev}</div>
+    </button>`).join("");
+  list.querySelectorAll("[data-pl]").forEach(b=>b.addEventListener("click",()=>openPlaylist(b.dataset.pl)));
+}
+$("#btnNewPl").addEventListener("click",async()=>{
+  const name=$("#newPlName").value.trim();
+  if(!name){toast("Give the playlist a name first");return}
+  const pl={id:uid(),name,items:[]};
+  state.playlists.push(pl);
+  await dbPut("playlists",pl);
+  $("#newPlName").value="";
+  renderPlaylists();
+  await addLog("\u266A","g-pink",`Playlist “${name}” charted`);
+});
+$("#newPlName").addEventListener("keydown",e=>{if(e.key==="Enter")$("#btnNewPl").click()});
+
+let sheetPlId=null;
+function openPlaylist(id){
+  const p=state.playlists.find(x=>x.id===id);if(!p)return;
+  sheetPlId=id;
+  $("#plTitle").textContent=p.name;
+  renderPlSheet(p);
+  openSheet("sheetPl");
+}
+function renderPlSheet(p){
+  $("#plSub").textContent=`${p.items.length} track${p.items.length!==1?"s":""}`;
+  $("#plTracks").innerHTML=p.items.length?p.items.map((it,i)=>{
+    const a=albumById(it.albumId), t=a&&trackById(it.albumId,it.trackId);
+    if(!t)return"";
+    return`<div class="trk">
+      <div class="t-no">${i+1}</div>
+      <button class="t-main" data-i="${i}" style="text-align:left" aria-label="Play ${esc(t.title)}">
+        <div class="t-title">${esc(t.title)}</div>
+        <div class="t-sub">${esc(a.artist)} \u2014 ${esc(a.title)}</div>
+      </button>
+      <button class="t-btn" data-rm="${i}" aria-label="Remove from playlist">${ICO.x}</button>
+    </div>`;
+  }).join(""):`<div class="empty"><i>Empty route.</i><br>Add tracks from any album's + button.</div>`;
+  $("#plTracks").querySelectorAll("[data-i]").forEach(b=>b.addEventListener("click",()=>{
+    playQueue(p.items.slice(),+b.dataset.i);closeSheet("sheetPl");switchTab("sky");
+  }));
+  $("#plTracks").querySelectorAll("[data-rm]").forEach(b=>b.addEventListener("click",async()=>{
+    p.items.splice(+b.dataset.rm,1);
+    await dbPut("playlists",p);
+    renderPlSheet(p);renderPlaylists();
+  }));
+}
+$("#plPlay").addEventListener("click",()=>{
+  const p=state.playlists.find(x=>x.id===sheetPlId);
+  if(!p||!p.items.length){toast("This route has no tracks yet");return}
+  playQueue(p.items.slice(),0);closeSheet("sheetPl");switchTab("sky");
+});
+$("#plDelete").addEventListener("click",async()=>{
+  const p=state.playlists.find(x=>x.id===sheetPlId);if(!p)return;
+  if(!confirm(`Delete playlist “${p.name}”? Tracks stay in the library.`))return;
+  state.playlists=state.playlists.filter(x=>x.id!==p.id);
+  await dbDel("playlists",p.id);
+  closeSheet("sheetPl");renderPlaylists();
+  toast("Playlist deleted");
+});
+$("#albToPl").addEventListener("click",()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  const trks=(state.tracks.get(a.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
+  pickPlaylist(trks.map(t=>({albumId:a.id,trackId:t.id})));
+});
+function pickPlaylist(items){
+  const list=$("#pickList");
+  if(!state.playlists.length){
+    list.innerHTML=`<div class="empty"><i>No playlists yet.</i><br>Create one in the LISTS tab first.</div>`;
+  }else{
+    list.innerHTML=state.playlists.map(p=>`
+      <button class="pick-row" data-pick="${p.id}">
+        <div class="pl-glyph">${ICO.note}</div>${esc(p.name)}
+        <span class="pl-spacer">${p.items.length}</span>
+      </button>`).join("");
+    list.querySelectorAll("[data-pick]").forEach(b=>b.addEventListener("click",async()=>{
+      const p=state.playlists.find(x=>x.id===b.dataset.pick);
+      p.items.push(...items);
+      await dbPut("playlists",p);
+      closeSheet("sheetPick");
+      toast(`${items.length} track${items.length>1?"s":""} added to “${p.name}”`);
+      renderPlaylists();
+    }));
+  }
+  openSheet("sheetPick");
+}
+
+/* ── PLANETS — each planet remembers its era ──
+   Planet N wakes when the library crosses N×100 albums; it presides over
+   the hundred that raised it (seq N×100+1 … (N+1)×100). Tapping it opens
+   that era's chart: the most-played songs from the stretch of time in
+   which those hundred albums arrived. Before any listening history
+   exists, it offers a survey of the era instead. */
+const ROMAN=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
+function planetEraAlbums(p){
+  const lo=p*100+1,hi=(p+1)*100;
+  return state.albums.filter(a=>a.seq>=lo&&a.seq<=hi).sort((a,b)=>a.seq-b.seq);
+}
+function planetTopTracks(p,limit=30){
+  const albs=planetEraAlbums(p);
+  const all=[];
+  albs.forEach(a=>(state.tracks.get(a.id)||[]).forEach(t=>all.push({a,t,n:playCounts[t.id]||0})));
+  const played=all.filter(x=>x.n>0)
+    .sort((x,y)=>y.n-x.n||x.a.seq-y.a.seq||x.t.idx-y.t.idx)
+    .slice(0,limit);
+  if(played.length)return{items:played,charted:true};
+  // no listening history yet — survey the era: each album's opening track
+  return{items:albs.slice(0,limit).map(a=>{
+    const t=(state.tracks.get(a.id)||[])[0];
+    return t?{a,t,n:0}:null;
+  }).filter(Boolean),charted:false};
+}
+let sheetPlanetIdx=null,sheetPlanetItems=[];
+function openPlanet(i,kindName){
+  sheetPlanetIdx=i;
+  const {items,charted}=planetTopTracks(i);
+  sheetPlanetItems=items;
+  const lo=i*100+1,hi=(i+1)*100;
+  $("#pnTitle").textContent="ERA "+(ROMAN[i]||i+1)+" \u2014 "+(kindName||"a planet").toUpperCase();
+  $("#pnSub").textContent=`Albums ${lo}\u2013${hi} \u00B7 the hundred that woke this world`;
+  $("#pnNote").textContent=charted
+    ?"The songs this era kept returning to, most-played first."
+    :"No listening history from this era yet \u2014 a survey of its albums instead. Play through the era and this chart will write itself.";
+  $("#pnTracks").innerHTML=items.length?items.map((x,idx)=>`
+    <div class="trk">
+      <div class="t-no">${idx+1}</div>
+      <button class="t-main" data-pn="${idx}" style="text-align:left" aria-label="Play ${esc(x.t.title)}">
+        <div class="t-title">${esc(x.t.title)}</div>
+        <div class="t-sub">${esc(x.t.artist||x.a.artist)} \u2014 ${esc(x.a.title)}</div>
+      </button>
+      ${x.n?`<div class="t-no" style="width:auto;padding:0 4px" aria-label="${x.n} plays">\u00D7${x.n}</div>`:""}
+    </div>`).join("")
+    :`<div class="empty"><i>This era is silent.</i><br>Its albums have left the catalog.</div>`;
+  $("#pnTracks").querySelectorAll("[data-pn]").forEach(b=>b.addEventListener("click",()=>{
+    playQueue(sheetPlanetItems.map(x=>({albumId:x.a.id,trackId:x.t.id})),+b.dataset.pn);
+    closeSheet("sheetPlanet");switchTab("sky");
+  }));
+  openSheet("sheetPlanet");
+}
+$("#pnPlay").addEventListener("click",()=>{
+  if(!sheetPlanetItems.length){toast("This era has nothing to play");return}
+  playQueue(sheetPlanetItems.map(x=>({albumId:x.a.id,trackId:x.t.id})),0);
+  closeSheet("sheetPlanet");switchTab("sky");
+});
+$("#pnSave").addEventListener("click",async()=>{
+  if(!sheetPlanetItems.length){toast("This era has nothing to save");return}
+  const name="ERA "+(ROMAN[sheetPlanetIdx]||sheetPlanetIdx+1)+" \u00B7 TOP PLAYED";
+  const pl={id:uid(),name,items:sheetPlanetItems.map(x=>({albumId:x.a.id,trackId:x.t.id}))};
+  state.playlists.push(pl);
+  await dbPut("playlists",pl);
+  renderPlaylists();
+  await addLog("\u266A","g-violet",`The planet pressed its era into “${name}”`);
+  toast(`Saved “${name}” — ${pl.items.length} tracks`,true);
+});
+
+/* ── LOG ── */
+function renderLog(){
+  const l=$("#logList");
+  if(!state.log.length){
+    l.innerHTML=`<div class="empty"><div class="e-g">${ICO.edit}</div><i>The record is blank.</i><br>The sky will write here as it changes.</div>`;
+    return;
+  }
+  l.innerHTML=state.log.map(e=>{
+    const d=new Date(e.t);
+    return`<div class="log-e">
+      <div class="log-g ${e.cls}">${ICOLOG[e.g]||e.g}</div>
+      <div><div class="log-t">${esc(e.text)}</div>
+      <div class="log-when">${d.toLocaleDateString(undefined,{month:"short",day:"numeric"})} \u00B7 ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div></div>
+    </div>`;
+  }).join("");
+}
+
+/* ── SETTINGS ── */
+function renderEQ(){
+  const pr=$("#eqPresets");
+  pr.innerHTML=Object.keys(EQ_PRESETS).map(k=>
+    `<button class="eqp${state.settings.eqPreset===k?" on":""}" data-p="${k}">${k}</button>`).join("");
+  pr.querySelectorAll("[data-p]").forEach(b=>b.addEventListener("click",()=>{
+    state.settings.eqPreset=b.dataset.p;
+    state.settings.eqGains=[...EQ_PRESETS[b.dataset.p]];
+    applyEQ();saveSettings();renderEQ();
+  }));
+  $("#eqBands").innerHTML=EQ_FREQS.map((f,i)=>`
+    <div class="band">
+      <div class="b-v" id="bv${i}">${fmtDb(state.settings.eqGains[i])}</div>
+      <input type="range" min="-12" max="12" step="1" value="${state.settings.eqGains[i]}" data-b="${i}"
+        aria-label="${f} hertz gain" orient="vertical">
+      <div class="b-f">${f>=1000?f/1000+"k":f}</div>
+    </div>`).join("");
+  $("#eqBands").querySelectorAll("input").forEach(inp=>inp.addEventListener("input",()=>{
+    const i=+inp.dataset.b;
+    state.settings.eqGains[i]=+inp.value;
+    state.settings.eqPreset="CUSTOM";
+    $("#bv"+i).textContent=fmtDb(+inp.value);
+    $$("#eqPresets .eqp").forEach(b=>b.classList.remove("on"));
+    applyEQ();saveSettings();
+  }));
+}
+const fmtDb=v=>v>0?"+"+v:v===0?"0":String(v);
+function saveSettings(){kvSet("settings",state.settings)}
+
+$("#tglHud").addEventListener("click",()=>setHud(!state.settings.hud));
+function setHud(on){
+  state.settings.hud=on;saveSettings();
+  $("#hud").classList.toggle("show",on);
+  $("#tglHud").classList.toggle("on",on);
+  $("#tglHud").setAttribute("aria-checked",on);
+}
+$("#tglFft").addEventListener("click",()=>{
+  state.settings.fft=!state.settings.fft;saveSettings();
+  $("#tglFft").classList.toggle("on",state.settings.fft);
+  $("#tglFft").setAttribute("aria-checked",state.settings.fft);
+});
+
+async function updateStorage(){
+  updatePersistUI();
+  if(!navigator.storage||!navigator.storage.estimate){$("#storText").textContent="This browser won't report usage.";return}
+  try{
+    const e=await navigator.storage.estimate();
+    const used=e.usage||0,quota=e.quota||1;
+    const pct=Math.min(100,used/quota*100);
+    $("#storFill").style.width=Math.max(1.5,pct)+"%";
+    $("#storFill").classList.toggle("warn",pct>80);
+    $("#storText").textContent=`${fmtBytes(used)} used of ~${fmtBytes(quota)} (${pct.toFixed(1)}%)`;
+    $("#storWarn").style.display=pct>80?"":"none";
+  }catch(e){$("#storText").textContent="Couldn't measure storage."}
+}
+const fmtBytes=b=>b>1e9?(b/1e9).toFixed(2)+" GB":b>1e6?(b/1e6).toFixed(1)+" MB":Math.round(b/1e3)+" KB";
+
+/* mock tools */
+async function runMock(n,label){
+  toast(label);
+  const before=state.albums.length;
+  const made=await makeMockAlbums(n);
+  await kvSet("seq",seqCounter);
+  onAlbumsAdded(made,before);
+  renderLibrary();updateStorage();
+  switchTab("sky");
+}
+$("#mock1").addEventListener("click",()=>runMock(1,"Conjuring one mock star\u2026"));
+$("#mock20").addEventListener("click",()=>runMock(20,"Conjuring twenty — watch it knit\u2026"));
+$("#mock100").addEventListener("click",async()=>{
+  const need=Math.max(0,100-state.albums.length);
+  if(!need){toast("Already at or past one hundred");return}
+  await runMock(need,`Filling to one hundred (+${need})\u2026`);
+});
+$("#mockClear").addEventListener("click",async()=>{
+  const mocks=state.albums.filter(a=>a.mock);
+  if(!mocks.length){toast("No mock stars to remove");return}
+  for(const a of mocks){
+    for(const t of state.tracks.get(a.id)||[])await dbDel("tracks",t.id);
+    await dbDel("albums",a.id);
+    state.tracks.delete(a.id);
+  }
+  state.albums=state.albums.filter(a=>!a.mock);
+  if(state.playingAlbumId&&!albumById(state.playingAlbumId)){
+    audio.pause();state.playingAlbumId=null;$("#playerBar").classList.remove("show");
+  }
+  sky.rebuild();renderLibrary();updateStorage();
+  await addLog("\u2727","g-dim",`${mocks.length} mock stars dissolved back into the void`);
+  toast(`${mocks.length} mock stars removed`);
+});
+$("#btnWipe").addEventListener("click",async()=>{
+  if(!confirm("Erase everything? Albums, audio, playlists, and the log all go. The sky goes dark."))return;
+  audio.pause();
+  await dbClearAll();
+  state.albums=[];state.tracks.clear();state.playlists=[];state.log=[];
+  state.queue=[];state.qIndex=-1;state.playingAlbumId=null;seqCounter=0;
+  $("#playerBar").classList.remove("show");
+  sky.rebuild();renderLibrary();renderPlaylists();renderLog();updateStorage();
+  toast("The sky is dark again");
+});
+
+/* ════════════════════════════════════════════════════════════════
+   TRANSMISSIONS FROM OUTSIDE — recommendations seeded by the library.
+   Related artists via Deezer's public JSONP API; anything already in
+   the sky (by artist or normalized album title) is filtered out.
+   ════════════════════════════════════════════════════════════════ */
+function jsonp(url,timeout=9000){
+  return new Promise((res,rej)=>{
+    const cb="__iso"+Math.random().toString(36).slice(2);
+    const s=document.createElement("script");
+    const to=setTimeout(()=>{done();rej(new Error("timeout"))},timeout);
+    function done(){try{delete window[cb]}catch(e){window[cb]=undefined}s.remove();clearTimeout(to)}
+    window[cb]=d=>{done();res(d)};
+    s.onerror=()=>{done();rej(new Error("network"))};
+    s.src=url+(url.includes("?")?"&":"?")+"output=jsonp&callback="+cb;
+    document.head.appendChild(s);
+  });
+}
+async function scanOutside(){
+  const seeds=[...new Set(state.albums.filter(a=>!a.mock).map(a=>a.artist))]
+    .filter(a=>a&&a!=="Unknown Artist").slice(0,6);
+  if(!seeds.length){toast("Import real albums first — mock stars don't broadcast");return}
+  const btn=$("#btnRecs"),note=$("#recsNote");
+  btn.disabled=true;btn.textContent="LISTENING\u2026";
+  note.style.display="";note.textContent="Sweeping the frequencies near "+seeds.slice(0,3).join(", ")+"\u2026";
+  const ownedArtists=new Set(state.albums.map(a=>a.artist.toLowerCase()));
+  const ownedTitles=new Set(state.albums.map(a=>normAlbum(a.title)));
+  const scores=new Map();
+  for(const s of seeds){
+    try{
+      const sr=await jsonp("https://api.deezer.com/search/artist?q="+encodeURIComponent(s)+"&limit=1");
+      const hit=sr&&sr.data&&sr.data[0];if(!hit)continue;
+      const rel=await jsonp("https://api.deezer.com/artist/"+hit.id+"/related?limit=12");
+      (rel&&rel.data||[]).forEach((r,i)=>{
+        const k=r.name.toLowerCase();
+        if(ownedArtists.has(k))return;
+        const e=scores.get(k)||{name:r.name,id:r.id,pic:r.picture_medium,score:0};
+        e.score+=12-i;scores.set(k,e);
+      });
+    }catch(e){/* one seed failing shouldn't kill the sweep */}
+  }
+  const ranked=[...scores.values()].sort((a,b)=>b.score-a.score).slice(0,8);
+  if(!ranked.length){
+    btn.disabled=false;btn.textContent="SCAN THE OUTSIDE";
+    note.textContent="No signal came back — check the connection and try again.";
+    return;
+  }
+  const recs=[];
+  for(const r of ranked){
+    let album="",art=r.pic;
+    try{
+      const al=await jsonp("https://api.deezer.com/artist/"+r.id+"/albums?limit=3");
+      const a=(al&&al.data||[]).find(x=>!ownedTitles.has(normAlbum(x.title)))||((al&&al.data)||[])[0];
+      if(a){album=a.title;art=a.cover_medium||art}
+    }catch(e){}
+    // the door leads to Bandcamp — where a listener becomes an owner
+    const link="https://bandcamp.com/search?q="+encodeURIComponent(album?r.name+" "+album:r.name)
+      +"&item_type="+(album?"a":"b");
+    recs.push({artist:r.name,album,art,link});
+  }
+  await kvSet("recs",{t:Date.now(),recs});
+  renderRecs(recs,Date.now());
+  btn.disabled=false;btn.textContent="SCAN AGAIN";
+  note.style.display="none";
+  await addLog("\u266A","g-teal",`The antenna heard ${recs.length} transmissions from outside the collection`);
+  toast(recs.length+" transmissions received",true);
+}
+function renderRecs(recs,t){
+  if(!recs||!recs.length)return;
+  $("#btnRecs").textContent="SCAN AGAIN";
+  $("#recsGrid").innerHTML=recs.map(r=>`
+    <a class="rec" href="${esc(r.link)}" target="_blank" rel="noopener">
+      <img src="${esc(r.art||"")}" alt="" loading="lazy">
+      <div class="r-tag">OUTSIDE</div>
+      <div class="r-m">
+        <div class="r-t">${esc(r.album||"Explore artist")}</div>
+        <div class="r-a">${esc(r.artist)}</div>
+      </div>
+    </a>`).join("");
+}
+$("#btnRecs").addEventListener("click",scanOutside);
+
+/* ════════════════════════════════════════════════════════════════
+   SHARE THE SKY — a collection is a social object. One tap renders
+   the live canvases into a card and hands it to the share sheet.
+   Only the picture leaves the device; never the music or the data.
+   ════════════════════════════════════════════════════════════════ */
+async function shareSky(){
+  const n=state.albums.length;
+  if(!n){toast("Light a star first");return}
+  const cv=document.createElement("canvas");
+  cv.width=1080;cv.height=1350;
+  const x=cv.getContext("2d");
+  x.fillStyle="#000";x.fillRect(0,0,cv.width,cv.height);
+  const neb=$("#cvNebula"),wld=$("#cvWorld");
+  const sw=wld.width,sh=wld.height;
+  const cap=170; // caption band
+  const sc=Math.max(cv.width/sw,(cv.height-cap)/sh);
+  const dw=sw*sc,dh=sh*sc,dx=(cv.width-dw)/2,dy=(cv.height-cap-dh)/2;
+  x.drawImage(neb,dx,dy,dw,dh);
+  x.drawImage(wld,dx,dy,dw,dh);
+  const g=x.createLinearGradient(0,cv.height-cap-80,0,cv.height-cap+20);
+  g.addColorStop(0,"rgba(0,0,0,0)");g.addColorStop(1,"rgba(0,0,0,.85)");
+  x.fillStyle=g;x.fillRect(0,cv.height-cap-80,cv.width,100);
+  x.fillStyle="rgba(0,0,0,.85)";x.fillRect(0,cv.height-cap,cv.width,cap);
+  x.textAlign="center";
+  x.fillStyle="#eef0f8";x.font="44px 'Audiowide', sans-serif";
+  x.fillText("I S O L A T I O N",cv.width/2,cv.height-cap+68);
+  x.fillStyle="#8d86b8";x.font="30px 'Space Grotesk', sans-serif";
+  const cst=Math.floor(n/20),pl=Math.floor(n/100);
+  x.fillText(`${n} album${n>1?"s":""} · ${cst} constellation${cst!==1?"s":""} · ${pl} planet${pl!==1?"s":""}`,
+    cv.width/2,cv.height-cap+122);
+  const blob=await new Promise(r=>cv.toBlob(r,"image/png"));
+  if(!blob){toast("Couldn't render the sky");return}
+  const file=new File([blob],"my-sky.png",{type:"image/png"});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:"My sky — ISOLATION"})}catch(e){/* user closed the sheet */}
+  }else downloadBlob(blob,"isolation-sky.png");
+  addLog("✦","g-pink","A picture of the sky left the observatory");
+}
+$("#shareSky").addEventListener("click",shareSky);
+
+/* the collector's guide — the on-ramp for people arriving with nothing */
+$("#inviteGuide").addEventListener("click",()=>openSheet("sheetGuide"));
+$("#emptyGuide").addEventListener("click",()=>openSheet("sheetGuide"));
+$("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInput.click()});
+
+/* ════════════════════════════════════════════════════════════════
+   INIT — the reload test: kill the tab, reopen, nothing is lost.
+   ════════════════════════════════════════════════════════════════ */
+(async function init(){
+  db=await openDB();
+  const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays]=await Promise.all([
+    dbAll("albums"),dbAll("tracks"),dbAll("playlists"),
+    kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays")
+  ]);
+  playCounts=plays||{};
+  state.albums=albums||[];
+  (tracks||[]).forEach(t=>{
+    if(!state.tracks.has(t.albumId))state.tracks.set(t.albumId,[]);
+    state.tracks.get(t.albumId).push(t);
+  });
+  state.tracks.forEach(l=>l.sort((a,b)=>a.idx-b.idx));
+  state.playlists=playlists||[];
+  if(settings)state.settings={...state.settings,...settings,
+    eqGains:(settings.eqGains&&settings.eqGains.length===10)?settings.eqGains:new Array(10).fill(0)};
+  state.log=log||[];
+  seqCounter=seq||state.albums.reduce((m,a)=>Math.max(m,a.seq||0),0);
+
+  if(!state.log.length){
+    await addLog("\u2726","g-gold","The void opened. ISOLATION v1 — first light.");
+  }
+
+  // this install's sky is its own: seed minted once, kept forever
+  skySeed=await kvGet("skySeed");
+  if(skySeed===undefined||skySeed===null){
+    skySeed=(crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(1))[0]:(Math.random()*4294967296))>>>0;
+    await kvSet("skySeed",skySeed);
+  }
+
+  sky.init();
+  $("#shareSky").style.display=state.albums.length?"":"none";
+  syncRepeatUI();
+  setHud(!!state.settings.hud);
+  $("#tglFft").classList.toggle("on",state.settings.fft!==false);
+  $("#volSlider").value=Math.round((state.settings.volume??.9)*100);
+  audio.volume=1; // gain node owns volume once the graph exists
+
+  // restore last played — paused, poised, exactly where it was
+  if(lastPlayed&&lastPlayed.queue&&albumById(lastPlayed.albumId)){
+    const valid=lastPlayed.queue.filter(q=>trackById(q.albumId,q.trackId));
+    if(valid.length){
+      state.queue=valid;
+      state.qIndex=clamp(lastPlayed.qIndex||0,0,valid.length-1);
+      const q=state.queue[state.qIndex];
+      const alb=albumById(q.albumId),trk=trackById(q.albumId,q.trackId);
+      if(alb&&trk){
+        state.playingAlbumId=alb.id;
+        updatePlayerUI(alb,trk);
+        syncPlayGlyphs(false);
+        sky.focusAlbum(alb.id);
+      }
+    }
+  }
+  renderLibrary();
+  updateStorage();
+  kvGet("recs").then(r=>{if(r&&r.recs)renderRecs(r.recs,r.t)});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "isolation",
+  "version": "2.0.0",
+  "private": true,
+  "description": "A music library that composes itself as a night sky.",
+  "scripts": {
+    "ios": "cap add ios || true && cap sync ios && cap open ios",
+    "sync": "cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/ios": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}

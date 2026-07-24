@@ -1,0 +1,11 @@
+{
+  "appId": "app.isolation.sky",
+  "appName": "ISOLATION",
+  "webDir": "app",
+  "backgroundColor": "#000000",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#000000",
+    "limitsNavigationsToAppBoundDomains": false
+  }
+}
