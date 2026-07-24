@@ -831,7 +831,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.1 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1000,9 +1000,19 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
 
 <script>
 "use strict";
-/* install the offline shell when served from a real origin */
+/* install the offline shell when served from a real origin; when a new
+   version of the app takes over, reload once so it appears immediately —
+   but never on first install, and never mid-song */
 if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
   addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+  const hadController=!!navigator.serviceWorker.controller;
+  let swReloaded=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(!hadController||swReloaded)return;
+    swReloaded=true;
+    try{if(typeof audio==="undefined"||audio.paused)location.reload()}
+    catch(e){location.reload()}
+  });
 }
 /* ════════════════════════════════════════════════════════════════
    ISOLATION — a music library that composes itself as a night sky.
