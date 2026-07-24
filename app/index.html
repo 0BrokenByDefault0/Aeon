@@ -89,7 +89,7 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
 }
 .wordmark em{font-style:normal;color:var(--red);text-shadow:0 0 12px rgba(255,59,47,.7)}
 #hudToggle{
-  position:fixed;top:calc(var(--safe-t) + 10px);right:16px;pointer-events:auto;
+  position:fixed;top:calc(var(--safe-t) + 10px);right:64px;pointer-events:auto;
   font-size:10px;letter-spacing:.3em;color:var(--faint);
   font-family:'Audiowide',sans-serif;
   padding:9px 14px;border-radius:999px;border:1px solid var(--line);
@@ -97,14 +97,18 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
   transition:color .3s,border-color .3s,text-shadow .3s;
 }
 #hudToggle.on{color:var(--amber);border-color:var(--line-amber);text-shadow:var(--glow-a)}
+/* the flash — snap a picture of the sky, top-right corner */
 #shareSky{
-  position:fixed;top:calc(var(--safe-t) + 10px);right:88px;pointer-events:auto;
-  font-size:10px;letter-spacing:.3em;color:var(--faint);
-  font-family:'Audiowide',sans-serif;
-  padding:9px 14px;border-radius:999px;border:1px solid var(--line);
+  position:fixed;top:calc(var(--safe-t) + 10px);right:16px;pointer-events:auto;
+  width:38px;height:38px;border-radius:999px;display:grid;place-items:center;
+  color:var(--faint);border:1px solid var(--line);
   background:rgba(11,8,18,.7);backdrop-filter:blur(8px);
 }
+#shareSky svg{width:17px;height:17px;display:block}
 #shareSky:active{color:var(--amber);border-color:var(--line-amber)}
+#flashFx{position:fixed;inset:0;z-index:60;background:#fff;opacity:0;pointer-events:none}
+#flashFx.snap{animation:flashSnap .55s ease-out}
+@keyframes flashSnap{0%{opacity:.85}100%{opacity:0}}
 #hud{
   position:fixed;top:calc(var(--safe-t) + 52px);right:16px;pointer-events:none;
   text-align:right;font-size:11px;letter-spacing:.14em;color:var(--dim);
@@ -696,7 +700,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <button class="btn hot" id="inviteImport">LIGHT THE FIRST STAR</button>
     <div style="margin-top:12px"><button class="btn small ghost" id="inviteGuide">WHERE DO I FIND MUSIC?</button></div>
   </div>
-  <button id="shareSky" style="display:none" aria-label="Share a picture of your sky">SHARE SKY</button>
+  <button id="shareSky" style="display:none" aria-label="Snap and share a picture of your sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13 2.5L6.5 13h4l-1.5 8.5L15.5 11h-4Z"/><path d="M18.5 4.5l2-2" opacity=".6"/><path d="M20 9.5h2.5" opacity=".6"/><path d="M4.5 19l-2 2" opacity=".6"/></svg></button>
   <div id="ceremonyBanner">
     <div class="cb-tag" id="cbTag"></div>
     <div class="cb-name" id="cbName"></div>
@@ -990,6 +994,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
 </div>
 
+<div id="flashFx"></div>
 <div id="toasts" aria-live="polite"></div>
 <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.flac,.aac,.wav,.ogg,.opus,.zip,application/zip" multiple style="display:none">
 
@@ -1856,6 +1861,7 @@ function ensureAudioGraph(){
     fftBuf=new Uint8Array(analyser.frequencyBinCount);
     gainNode=actx.createGain();gainNode.gain.value=state.settings.volume;
     node.connect(analyser);analyser.connect(gainNode);gainNode.connect(actx.destination);
+    actx.onstatechange=()=>reviveAudio(); // OS suspended us mid-song? come back
   }catch(e){/* graph optional — plain playback still works */}
 }
 function applyEQ(){
@@ -1937,8 +1943,35 @@ audio.addEventListener("ended",()=>{
   if(state.settings.repeat==="one"){audio.currentTime=0;audio.play().catch(()=>{});return}
   nextTrack();
 });
-audio.addEventListener("play",()=>syncPlayGlyphs(true));
-audio.addEventListener("pause",()=>syncPlayGlyphs(false));
+audio.addEventListener("play",()=>{
+  syncPlayGlyphs(true);
+  if("mediaSession" in navigator)navigator.mediaSession.playbackState="playing";
+});
+audio.addEventListener("pause",()=>{
+  syncPlayGlyphs(false);
+  if("mediaSession" in navigator)navigator.mediaSession.playbackState="paused";
+});
+/* ── streaming-app persistence ──
+   Music keeps playing until the user pauses it, another app claims the
+   speaker, or the app is closed. Backgrounding must never be a stop:
+   iOS likes to suspend the WebAudio context when the screen locks or the
+   app hides mid-song — if the element still intends to play, revive it.
+   An interruption (call, other app's audio) pauses the element; that
+   pause is honored and playback waits for the user, like any player. */
+function reviveAudio(){
+  if(actx&&actx.state!=="running"&&!audio.paused)actx.resume().catch(()=>{});
+}
+document.addEventListener("visibilitychange",reviveAudio);
+addEventListener("focus",reviveAudio);
+addEventListener("pageshow",reviveAudio);
+if("mediaSession" in navigator){ // lock screen + control-center transport
+  try{
+    navigator.mediaSession.setActionHandler("play",()=>{
+      ensureAudioGraph();reviveAudio();audio.play().catch(()=>{});
+    });
+    navigator.mediaSession.setActionHandler("pause",()=>audio.pause());
+  }catch(e){}
+}
 audio.addEventListener("timeupdate",()=>{
   const p=audio.duration?audio.currentTime/audio.duration:0;
   $("#pbSeekFill").style.width=(p*100)+"%";
@@ -3278,6 +3311,8 @@ async function shareSky(){
   const cst=Math.floor(n/20),pl=Math.floor(n/100);
   x.fillText(`${n} album${n>1?"s":""} · ${cst} constellation${cst!==1?"s":""} · ${pl} planet${pl!==1?"s":""}`,
     cv.width/2,cv.height-cap+122);
+  const fx=$("#flashFx"); // the shutter fires
+  fx.classList.remove("snap");void fx.offsetWidth;fx.classList.add("snap");
   const blob=await new Promise(r=>cv.toBlob(r,"image/png"));
   if(!blob){toast("Couldn't render the sky");return}
   const file=new File([blob],"my-sky.png",{type:"image/png"});
