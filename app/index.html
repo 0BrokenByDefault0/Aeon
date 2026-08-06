@@ -816,6 +816,13 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
 
   <div class="card">
+    <h3>Artwork</h3>
+    <div class="c-note">Re-checks every cover in the library, discards any that no longer decode, and asks the archive for replacements.</div>
+    <div class="btnrow"><button class="btn small" id="btnRepairArt">REPAIR ARTWORK</button></div>
+    <div class="c-note" id="repairNote" style="margin-top:8px;display:none"></div>
+  </div>
+
+  <div class="card">
     <h3>Backup</h3>
     <div class="c-note">Your collection exists only on this device. Export it somewhere safe &#8212; restoring is just importing the backup zip through IMPORT ALBUMS.</div>
     <div class="btnrow">
@@ -832,7 +839,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.2 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.3 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -914,6 +921,10 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
         <button class="btn small" id="efLookup"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>FIND METADATA</button>
         <button class="btn hot small" id="efSave">SAVE TAGS</button>
         <button class="btn small ghost" id="efCancel">CANCEL</button>
+      </div>
+      <div class="btnrow">
+        <button class="btn small" id="efFindArt">FIND ARTWORK</button>
+        <button class="btn small" id="efPickArt">CHOOSE IMAGE</button>
       </div>
       <div class="c-note" style="margin-top:8px">Edits live in the catalog only &#8212; source files are never touched. FIND METADATA consults the archive for this album's title, artist, year, genre and art.</div>
     </div>
@@ -997,6 +1008,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
 
 <div id="flashFx"></div>
 <div id="toasts" aria-live="polite"></div>
+<input type="file" id="artInput" accept="image/*" style="display:none">
 <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.flac,.aac,.wav,.ogg,.opus,.zip,application/zip" multiple style="display:none">
 
 <script>
@@ -1117,11 +1129,60 @@ const state={
 };
 const albumById=id=>state.albums.find(a=>a.id===id);
 const trackById=(albumId,trackId)=>(state.tracks.get(albumId)||[]).find(t=>t.id===trackId);
+/* a star-glyph placeholder: art that is missing or refuses to decode shows
+   this, never the browser's broken-image icon */
+const ART_PH="data:image/svg+xml,"+encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0d0c16"/>'
+ +'<path d="M32 15l3.4 13.6L49 32l-13.6 3.4L32 49l-3.4-13.6L15 32l13.6-3.4Z" fill="none" stroke="#34305a" stroke-width="1.4" stroke-linejoin="round"/></svg>');
 const artURLs=new Map();
 function artURL(album){
   if(!album||!album.art)return null;
   if(!artURLs.has(album.id))artURLs.set(album.id,URL.createObjectURL(album.art));
   return artURLs.get(album.id);
+}
+/* point an <img> at an album's cover, falling back to the placeholder both
+   when there is no art and when the blob turns out to be undecodable */
+function artImg(el,album){
+  if(!el)return;
+  el.onerror=()=>{if(el.getAttribute("src")!==ART_PH)el.src=ART_PH};
+  el.src=artURL(album)||ART_PH;
+}
+function dropArtURL(id){
+  const u=artURLs.get(id);
+  if(u)URL.revokeObjectURL(u);
+  artURLs.delete(id);
+}
+/* Embedded covers are wildly inconsistent: truncated, mis-flagged, or 6 MB
+   scans. Verify the bytes actually decode, and cap runaway sizes. Art that
+   cannot be decoded is dropped so the archive can supply a real cover
+   instead of the library carrying a permanently broken image. */
+async function normalizeArt(blob){
+  if(!blob||!blob.size)return null;
+  let bmp=null;
+  try{bmp=await createImageBitmap(blob)}catch(e){return null}
+  const MAX=700;
+  try{
+    if(bmp.width<=MAX&&bmp.height<=MAX&&blob.size<=900000)return blob;
+    const s=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+    const c=document.createElement("canvas");
+    c.width=Math.max(1,Math.round(bmp.width*s));
+    c.height=Math.max(1,Math.round(bmp.height*s));
+    c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(r,"image/jpeg",.88))||blob;
+  }finally{if(bmp.close)bmp.close()}
+}
+/* single path for changing a cover: old object URL revoked, catalog written,
+   every surface showing that album refreshed */
+async function setAlbumArt(a,blob){
+  const art=await normalizeArt(blob);
+  if(!art)return false;
+  dropArtURL(a.id);
+  a.art=art;
+  await dbPut("albums",a);
+  if(sheetAlbumId===a.id)artImg($("#albArtBig"),a);
+  if(state.playingAlbumId===a.id){artImg($("#pbArt"),a);artImg($("#nowArt"),a)}
+  renderLibrary();
+  return true;
 }
 async function addLog(g,cls,text){
   const e={t:Date.now(),g,cls,text};
@@ -1146,23 +1207,56 @@ function decodeText(enc,bytes){
 }
 function syncsafe(dv,off){return((dv.getUint8(off)&0x7f)<<21)|((dv.getUint8(off+1)&0x7f)<<14)|((dv.getUint8(off+2)&0x7f)<<7)|(dv.getUint8(off+3)&0x7f)}
 
+/* unsynchronisation: writers pad 0xFF with a 0x00 so decoders never mistake
+   tag bytes for an MPEG frame sync. Cover art is JPEG — which is dense with
+   0xFF — so skipping this step is what silently corrupts embedded artwork. */
+function deunsync(u8){
+  const out=new Uint8Array(u8.length);let n=0;
+  for(let i=0;i<u8.length;i++){
+    out[n++]=u8[i];
+    if(u8[i]===0xFF&&u8[i+1]===0x00)i++;
+  }
+  return out.subarray(0,n);
+}
 function parseID3(buf){
   const dv=new DataView(buf), u8=new Uint8Array(buf);
   if(buf.byteLength<10||latin1(u8.subarray(0,3))!=="ID3")return null;
   const ver=dv.getUint8(3), flags=dv.getUint8(5);
-  let off=10, end=Math.min(buf.byteLength,10+syncsafe(dv,6));
+  const tagUnsync=!!(flags&0x80);
+  let body=u8.subarray(10,Math.min(buf.byteLength,10+syncsafe(dv,6)));
+  if(tagUnsync)body=deunsync(body); // v2.3 unsyncs the tag as a whole
+  const bv=new DataView(body.buffer,body.byteOffset,body.byteLength);
+  let off=0, end=body.length;
   if(flags&0x40){ // extended header
-    off+= ver===4? syncsafe(dv,10) : dv.getUint32(10)+4;
+    off+= ver===4? syncsafe(bv,0) : bv.getUint32(0)+4;
   }
   const out={};
   while(off+10<=end){
-    const id=latin1(u8.subarray(off,off+4));
+    const id=latin1(body.subarray(off,off+4));
     if(!/^[A-Z0-9]{4}$/.test(id))break;
-    let sz= ver===4? syncsafe(dv,off+4) : dv.getUint32(off+4);
-    if(ver===3&&sz>end-off-10&&syncsafe(dv,off+4)<=end-off-10)sz=syncsafe(dv,off+4);
+    let sz= ver===4? syncsafe(bv,off+4) : bv.getUint32(off+4);
+    // some taggers write plain sizes where syncsafe is required — take whichever fits
+    if(ver===4&&(sz<=0||sz>end-off-10)&&bv.getUint32(off+4)<=end-off-10)sz=bv.getUint32(off+4);
+    if(ver===3&&sz>end-off-10&&syncsafe(bv,off+4)<=end-off-10)sz=syncsafe(bv,off+4);
+    const fflags=bv.getUint16(off+8);
     off+=10;
     if(sz<=0||off+sz>end)break;
-    const data=u8.subarray(off,off+sz);
+    let data=body.subarray(off,off+sz);
+    off+=sz;
+    /* strip the per-frame extras in the order the spec prepends them, or the
+       first bytes of a cover get read as image data */
+    if(ver===4){
+      if(fflags&0x0040)data=data.subarray(1);              // group identifier
+      if(fflags&0x0009)data=data.subarray(4);              // data length / compressed size
+      if((fflags&0x0002)&&!tagUnsync)data=deunsync(data);  // frame-level unsync
+      if(fflags&0x000C)continue;                           // compressed or encrypted
+    }else{
+      if(fflags&0x0080)data=data.subarray(4);              // decompressed size
+      if(fflags&0x0040)data=data.subarray(1);              // encryption method
+      if(fflags&0x0020)data=data.subarray(1);              // group identifier
+      if(fflags&0x00C0)continue;                           // compressed or encrypted
+    }
+    if(!data.length)continue;
     if(id==="APIC"&&!out.art){
       try{
         const enc=data[0];let p=1;
@@ -1185,7 +1279,6 @@ function parseID3(buf){
         else if(id==="TRCK")out.track=parseInt(txt)||undefined;
       }
     }
-    off+=sz;
   }
   return out;
 }
@@ -1605,11 +1698,12 @@ async function importFiles(rawFiles){
     const artist=most("albumArtist")||most("artist")||dirArtist||"Unknown Artist";
     title=title||"Untitled Transmission";
     const first=g.find(it=>it.meta.art);
+    const rawArt=first?first.meta.art:(withDir?folderArt(images,withDir.folder):null);
     const alb={
       id:uid(),seq:nextSeq(),title,artist,
       year:most("year")||dirYear,genre:most("genre"),
       trackCount:g.length,
-      art:first?first.meta.art:(withDir?folderArt(images,withDir.folder):null),
+      art:await normalizeArt(rawArt), // undecodable covers become gaps the archive can fill
       mock:false
     };
     const trks=g.map((it,i)=>({
@@ -1828,7 +1922,8 @@ async function enrichAlbums(albums){
       if(!a.year&&m.year){a.year=m.year;touched=true}
       if(!a.art&&m.artUrl){
         const b=await fetchArtBlob(m.artUrl);
-        if(b){a.art=b;artURLs.delete(a.id);touched=true}
+        const nb=await normalizeArt(b);
+        if(nb){a.art=nb;dropArtURL(a.id);touched=true}
       }
       if(touched){await dbPut("albums",a);filled++}
     }catch(e){/* one album failing shouldn't stop the sweep */}
@@ -1999,10 +2094,10 @@ function syncPlayGlyphs(playing){
 function updatePlayerUI(alb,trk){
   $("#playerBar").classList.add("show");
   const art=artURL(alb);
-  $("#pbArt").src=art||"";
+  artImg($("#pbArt"),alb);
   $("#pbTitle").textContent=trk.title;
   $("#pbArtist").textContent=(trk.artist||alb.artist)+" \u2014 "+alb.title;
-  $("#nowArt").src=art||"";
+  artImg($("#nowArt"),alb);
   $("#nowTitle").textContent=trk.title;
   $("#nowArtist").textContent=(trk.artist||alb.artist).toUpperCase()+" \u2014 "+alb.title.toUpperCase();
   $("#hudNow").style.display="";
@@ -2800,7 +2895,7 @@ function renderLibrary(){
     const art=artURL(a);
     return`<div class="albwrap">
       <button class="alb${a.id===state.playingAlbumId?" playing":""}" data-alb="${a.id}" aria-label="${esc(a.title)} by ${esc(a.artist)}">
-        ${art?`<img class="art" src="${art}" alt="" loading="lazy">`:`<div class="art"></div>`}
+        <img class="art" src="${art||ART_PH}" alt="" loading="lazy">
         <div class="meta">
           <div class="a-t">${esc(a.title)}</div>
           <div class="a-a">${esc(a.artist)}</div>
@@ -2810,6 +2905,7 @@ function renderLibrary(){
       ${a.mock?'<div class="mockchip">MOCK</div>':""}
     </div>`;
   }).join("");
+  g.querySelectorAll("img.art").forEach(im=>im.onerror=()=>{if(im.getAttribute("src")!==ART_PH)im.src=ART_PH});
   g.querySelectorAll("[data-alb]").forEach(b=>b.addEventListener("click",()=>openAlbum(b.dataset.alb)));
 }
 
@@ -2819,7 +2915,7 @@ function openAlbum(id){
   const a=albumById(id);if(!a)return;
   sheetAlbumId=id;
   $("#albEditor").style.display="none";
-  $("#albArtBig").src=artURL(a)||"";
+  artImg($("#albArtBig"),a);
   $("#albTitle").textContent=a.title;
   renderAlbumSub(a);
   renderAlbumTracks(a);
@@ -2886,12 +2982,26 @@ $("#efLookup").addEventListener("click",async()=>{
   if(m.artist)$("#efArtist").value=m.artist;
   if(m.year)$("#efYear").value=m.year;
   if(m.genre)$("#efGenre").value=m.genre;
-  if(!a.art&&m.artUrl){
-    const b=await fetchArtBlob(m.artUrl);
-    if(b){a.art=b;artURLs.delete(a.id);await dbPut("albums",a);
-      $("#albArtBig").src=artURL(a)||"";renderLibrary()}
-  }
+  if(!a.art&&m.artUrl)await setAlbumArt(a,await fetchArtBlob(m.artUrl));
   toast("Archive match found — review the fields, then SAVE TAGS");
+});
+/* artwork is repairable in place — a bad embedded cover never has to mean
+   deleting and re-importing the album */
+$("#efFindArt").addEventListener("click",async()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  const btn=$("#efFindArt");btn.disabled=true;const old=btn.textContent;btn.textContent="SEARCHING\u2026";
+  try{
+    const m=await lookupAlbum($("#efTitle").value.trim()||a.title,$("#efArtist").value.trim()||a.artist,true);
+    if(m&&m.artUrl&&await setAlbumArt(a,await fetchArtBlob(m.artUrl)))toast("Artwork replaced from the archive");
+    else toast("The archive had no usable cover — try CHOOSE IMAGE");
+  }finally{btn.disabled=false;btn.textContent=old}
+});
+$("#efPickArt").addEventListener("click",()=>$("#artInput").click());
+$("#artInput").addEventListener("change",async()=>{
+  const f=$("#artInput").files[0];$("#artInput").value="";
+  const a=albumById(sheetAlbumId);
+  if(!f||!a)return;
+  toast(await setAlbumArt(a,f)?"Artwork updated":"That image couldn't be read");
 });
 $("#efSave").addEventListener("click",async()=>{
   const a=albumById(sheetAlbumId);if(!a)return;
@@ -2902,6 +3012,7 @@ $("#efSave").addEventListener("click",async()=>{
   await dbPut("albums",a);
   $("#albTitle").textContent=a.title;renderAlbumSub(a);
   $("#albEditor").style.display="none";
+  artImg($("#albArtBig"),a);
   renderLibrary();sky.rebuild();
   toast("Tags saved to the catalog — source files untouched");
 });
@@ -3166,6 +3277,33 @@ async function updateStorage(){
   }catch(e){$("#storText").textContent="Couldn't measure storage."}
 }
 const fmtBytes=b=>b>1e9?(b/1e9).toFixed(2)+" GB":b>1e6?(b/1e6).toFixed(1)+" MB":Math.round(b/1e3)+" KB";
+
+async function repairArtwork(){
+  const note=$("#repairNote");note.style.display="";
+  const real=state.albums.filter(a=>!a.mock);
+  if(!real.length){note.textContent="Nothing in the library to repair.";return}
+  let dropped=0,shrunk=0,i=0;
+  for(const a of real){
+    note.textContent=`Checking ${++i}/${real.length}\u2026`;
+    if(!a.art)continue;
+    const ok=await normalizeArt(a.art);
+    if(!ok){a.art=null;dropArtURL(a.id);await dbPut("albums",a);dropped++}
+    else if(ok!==a.art){a.art=ok;dropArtURL(a.id);await dbPut("albums",a);shrunk++}
+  }
+  renderLibrary();
+  const missing=real.filter(a=>!a.art);
+  note.textContent=`${dropped} unreadable cover${dropped===1?"":"s"} cleared, ${shrunk} resized. `
+    +(missing.length?`Asking the archive for ${missing.length}\u2026`:"Every cover reads cleanly.");
+  if(missing.length){
+    await enrichAlbums(missing);
+    const left=state.albums.filter(a=>!a.mock&&!a.art).length;
+    note.textContent=left
+      ?`${missing.length-left} cover${missing.length-left===1?"":"s"} recovered. ${left} still missing — use CHOOSE IMAGE on those albums.`
+      :"Every album has artwork again.";
+  }
+  updateStorage();
+}
+$("#btnRepairArt").addEventListener("click",repairArtwork);
 
 /* mock tools */
 async function runMock(n,label){
