@@ -142,7 +142,8 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
   text-transform:uppercase;text-shadow:var(--glow-a)}
 #voidInvite p{font-size:12.5px;color:var(--dim);letter-spacing:.06em;margin-bottom:20px}
 #ceremonyBanner{
-  position:fixed;left:50%;bottom:calc(var(--dock-h) + var(--safe-b) + 26px);
+  position:fixed;left:50%;bottom:calc(var(--dock-h) + var(--safe-b) + 92px);
+  max-width:86vw;
   transform:translate(-50%,10px);z-index:5;pointer-events:none;text-align:center;
   opacity:0;transition:opacity .8s,transform .8s;
 }
@@ -150,7 +151,8 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
 #ceremonyBanner .cb-tag{font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.5em;color:var(--red);margin-bottom:6px;
   text-shadow:0 0 12px rgba(255,59,47,.6)}
 #ceremonyBanner .cb-name{font-family:'Audiowide',sans-serif;
-  font-size:17px;letter-spacing:.18em;color:var(--amber);text-shadow:var(--glow-a)}
+  font-size:15px;letter-spacing:.14em;line-height:1.4;color:var(--amber);text-shadow:var(--glow-a);
+  overflow-wrap:anywhere}
 
 /* ═══════════════ PANELS ═══════════════ */
 .panel{
@@ -676,6 +678,27 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
 .pl-row,.trk,.log-e,.set-row,.pick-row{border-top-color:#1c1a2e}
 .empty i{color:var(--lav-dim)}.empty .e-g{color:#26243c}
 :focus-visible{outline-color:var(--holo-c)}
+
+/* ═══════ TONIGHT'S TRANSIT ═══════ */
+#transitChip{
+  position:fixed;top:calc(var(--safe-t) + 44px);left:20px;z-index:5;
+  max-width:calc(100vw - 130px);pointer-events:auto;
+  display:flex;align-items:center;gap:9px;
+  padding:8px 14px;border:1px solid #34305a;
+  background:rgba(13,12,22,.78);backdrop-filter:blur(8px);
+  font-size:11.5px;color:#cfcbe8;text-align:left;
+}
+#transitChip .tc-tag{font-family:'Audiowide',sans-serif;font-size:8px;letter-spacing:.3em;
+  color:var(--holo-c);flex-shrink:0;text-shadow:0 0 10px rgba(195,157,255,.5)}
+#transitChip .tc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#transitChip:not(.seen){animation:tcPulse 3.4s ease-in-out infinite}
+#transitChip.seen{opacity:.62}
+#transitChip.seen .tc-tag{color:var(--lav-dim);text-shadow:none}
+#transitChip:active{border-color:var(--holo-c)}
+@keyframes tcPulse{0%,100%{border-color:#34305a}50%{border-color:rgba(195,157,255,.75)}}
+#trGlyph{font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.4em;color:var(--holo-c);
+  text-align:center;margin-top:2px}
+@media (prefers-reduced-motion: reduce){#transitChip:not(.seen){animation:none}}
 </style>
 </head>
 <body data-tab="sky">
@@ -690,18 +713,19 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
 <div id="skyChrome">
   <div id="hud" role="status">
     <div><b id="hudAlbums">0</b> albums adrift</div>
-    <div>next constellation <b id="hudCst">0/20</b></div>
-    <div>next planet <b id="hudPlanet">0/100</b></div>
+    <div>constellations <b id="hudCst">0</b></div>
+    <div>next planet <b id="hudPlanet">0/20</b></div>
     <div id="hudNow" class="h-acc" style="display:none"></div>
   </div>
   <div id="starLabel"></div>
   <div id="voidInvite">
     <h2>The void is listening.</h2>
-    <p>Every album you bring becomes a star. Twenty stars knit a constellation. A hundred wake a planet.</p>
+    <p>Every album becomes a star. A second album by the same artist draws their constellation. Every twenty wakes a planet.</p>
     <button class="btn hot" id="inviteImport">LIGHT THE FIRST STAR</button>
     <div style="margin-top:12px"><button class="btn small ghost" id="inviteGuide">WHERE DO I FIND MUSIC?</button></div>
   </div>
   <button id="shareSky" style="display:none" aria-label="Snap and share a picture of your sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13 2.5L6.5 13h4l-1.5 8.5L15.5 11h-4Z"/><path d="M18.5 4.5l2-2" opacity=".6"/><path d="M20 9.5h2.5" opacity=".6"/><path d="M4.5 19l-2 2" opacity=".6"/></svg></button>
+  <button id="transitChip" style="display:none" aria-label="Tonight's transit"></button>
   <div id="ceremonyBanner">
     <div class="cb-tag" id="cbTag"></div>
     <div class="cb-name" id="cbName"></div>
@@ -790,6 +814,10 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="tgl" id="tglHud" role="switch" aria-checked="false" aria-label="Heads-up display"></button>
     </div>
     <div class="set-row">
+      <div><div class="set-l">Transits witnessed</div><div class="set-d" id="setTransit">The sky keeps count of the nights you showed up</div></div>
+      <div class="pl-count" id="setTransitN">0</div>
+    </div>
+    <div class="set-row">
       <div><div class="set-l">Spectrum feeds the sky</div><div class="set-d">Star glow and nebula breath follow the music</div></div>
       <button class="tgl on" id="tglFft" role="switch" aria-checked="true" aria-label="Spectrum reactivity"></button>
     </div>
@@ -839,7 +867,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.3 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.4 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -980,6 +1008,25 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
 </div>
 
+<!-- ═══ tonight's transit ═══ -->
+<div class="sheet" id="sheetTransit" aria-modal="true" role="dialog" aria-label="Tonight's transit">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="p-eyebrow" id="trTag">TRANSIT</div>
+    <h2 id="trTitle"></h2>
+    <div class="s-sub" id="trWhen"></div>
+    <div class="card">
+      <div class="c-note" id="trText"></div>
+    </div>
+    <div class="btnrow">
+      <button class="btn hot small" id="trPlay"><span class="bi"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></span>FOLLOW IT</button>
+      <button class="btn small" id="trSave">KEEP AS PLAYLIST</button>
+    </div>
+    <div class="c-note" id="trStat" style="margin-top:10px"></div>
+  </div>
+</div>
+
 <!-- ═══ collector's guide sheet — the on-ramp ═══ -->
 <div class="sheet" id="sheetGuide" aria-modal="true" role="dialog" aria-label="How to start collecting">
   <div class="sheet-body">
@@ -1043,6 +1090,14 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtT=s=>{if(!isFinite(s))return"0:00";s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
 const PALETTE=["#ffb057","#ff4b2e","#e8f1ff","#4d7cff","#ffd98a"];
+const normKey=s=>String(s??"").trim().toLowerCase();
+/* tonight's celestial event — declared early so the sky can draw it */
+let transit=null, transitStats={witnessed:0,history:[]};
+function skyCensus(){
+  const n=state.albums.length;
+  const c=sky.constellations().length, g=sky.regions().length, p=Math.floor(n/20);
+  return `${n} album${n!==1?"s":""} \u00B7 ${c} constellation${c!==1?"s":""} \u00B7 ${g} region${g!==1?"s":""} \u00B7 ${p} planet${p!==1?"s":""}`;
+}
 
 /* ── abstract broadcast icons — thin white geometry, red when live ── */
 const ICO={
@@ -2157,7 +2212,9 @@ const sky=(()=>{
   let manual=false; // true while the user is flying the camera
   let stars=[];            // computed from state.albums
   let planets=[];
-  let cstMeta=[];          // per-constellation: name, formedAt, lineProg
+  let csts=[];             // artist constellations: {key,name,stars,cx,cy,lineProg}
+  let regions=[];          // genre regions: {key,name,x,y,r,col,n}
+  let transitHit=null;     // world-space tap target for tonight's transit
   let ceremonyTarget=null; // {cx,cy,s,until}
   let bass=0,mids=0;
   const births=new Map();  // albumId -> birth timestamp (for materialization)
@@ -2226,56 +2283,117 @@ const sky=(()=>{
 
   /* ── deterministic placement: constellations spiral out on a
         golden-angle phyllotaxis; members cluster around each core ── */
+  /* ── how the sky is organised ──
+     An artist is a constellation: every album they made sits in one
+     cluster, and the second album draws the first line. A genre is a
+     region: all its artists live in the same quarter of the sky. Regions
+     are ordered by when the genre first appeared and packed so they never
+     collide, so the sky grows outward instead of rearranging what you
+     already recognise. */
+  const SQ=0.9;            // gentle vertical squash — a sky, not a circle
+  function packRing(items,gap,step,spin){
+    const done=[];
+    items.forEach((it,i)=>{
+      let t=i,placed=false;
+      for(let guard=0;guard<600&&!placed;guard++){
+        const ang=t*2.39996+spin, rad=t===0?0:step*Math.sqrt(t);
+        const x=Math.cos(ang)*rad, y=Math.sin(ang)*rad;
+        if(done.every(P=>Math.hypot(P.x-x,P.y-y)>=(P.r+it.r)*gap)){it.x=x;it.y=y;placed=true}
+        t+=0.28;
+      }
+      if(!placed){it.x=0;it.y=0}
+      done.push(it);
+    });
+  }
   function rebuild(){
     const albs=[...state.albums].sort((a,b)=>a.seq-b.seq);
     const spin=(skySeed%628)/100; // this install's twist on the spiral
-    stars=albs.map((a,i)=>{
-      const c=Math.floor(i/20);
-      const ang=c*2.39996+0.9+spin, rad=c===0?0:320*Math.sqrt(c);
-      const cx=Math.cos(ang)*rad, cy=Math.sin(ang)*rad*.78;
-      const r=mulberry(hashStr(skySeed+":"+a.id));
-      const sr=26+r()*128, sa=r()*Math.PI*2;
-      return{
-        album:a, cst:c, i,
-        x:cx+Math.cos(sa)*sr, y:cy+Math.sin(sa)*sr*.85,
-        col:PALETTE[hashStr(skySeed+a.id+"c")%PALETTE.length],
-        rad:1.6+r()*1.8, tw:r()*Math.PI*2, twf:.4+r()*.9,
-      };
+
+    // artists first — an artist is never split across the sky
+    const artists=new Map();
+    albs.forEach(a=>{
+      const k=normKey(a.artist)||"unknown artist";
+      if(!artists.has(k))artists.set(k,{key:k,name:a.artist||"Unknown Artist",albums:[],seq:a.seq});
+      artists.get(k).albums.push(a);
     });
-    // constellations
-    const nC=Math.floor(stars.length/20);
-    cstMeta=cstMeta.slice(0,nC);
-    for(let c=0;c<nC;c++){
-      if(!cstMeta[c]){
-        cstMeta[c]={name:"CST-"+String(c+1).padStart(2,"0"),
-          epithet:(MOCK_A[hashStr("e"+c+skySeed)%MOCK_A.length]+" "+MOCK_B[hashStr("f"+c+skySeed)%MOCK_B.length]).toUpperCase(),
-          lineProg:1};
-      }
-      const members=stars.filter(s=>s.cst===c);
-      // spine: 7 anchor stars swept left→right; branches connect the rest
-      const sorted=[...members].sort((a,b)=>a.x-b.x);
-      const spine=sorted.filter((_,i)=>i%3===0);
-      if(spine[spine.length-1]!==sorted[sorted.length-1])spine.push(sorted[sorted.length-1]);
-      cstMeta[c].spine=spine;
-      cstMeta[c].branches=sorted.filter(s=>!spine.includes(s)).map(s=>{
-        let best=spine[0],bd=1e9;
-        spine.forEach(p=>{const d=(p.x-s.x)**2+(p.y-s.y)**2;if(d<bd){bd=d;best=p}});
-        return[s,best];
+    // each artist belongs to whichever genre most of their albums claim
+    artists.forEach(A=>{
+      const c={};
+      A.albums.forEach(a=>{const g=normKey(a.genre);if(g)c[g]=(c[g]||0)+1});
+      const top=Object.entries(c).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0]))[0];
+      A.genreKey=top?top[0]:"\u2014uncharted";
+      A.genreName=top?(A.albums.find(a=>normKey(a.genre)===top[0]).genre||"").toUpperCase():"UNCHARTED";
+      A.r=A.albums.length<2?11:15+11*Math.sqrt(A.albums.length);
+    });
+    // genres collect their artists
+    const gmap=new Map();
+    [...artists.values()].sort((a,b)=>a.seq-b.seq).forEach(A=>{
+      if(!gmap.has(A.genreKey))gmap.set(A.genreKey,
+        {key:A.genreKey,name:A.genreName,artists:[],n:0,seq:A.seq,
+         col:PALETTE[hashStr(A.genreKey+skySeed)%PALETTE.length]});
+      const G=gmap.get(A.genreKey);
+      G.artists.push(A);G.n+=A.albums.length;
+    });
+    regions=[...gmap.values()].sort((a,b)=>a.seq-b.seq);
+
+    // pack artists inside each region, then the regions inside the sky
+    regions.forEach(G=>{
+      const aStep=Math.max(46,2.5*(G.artists.reduce((m,A)=>m+A.r,0)/G.artists.length));
+      packRing(G.artists,1.22,aStep,(hashStr(G.key+skySeed)%628)/100);
+      G.r=Math.max(70,...G.artists.map(A=>Math.hypot(A.x,A.y)+A.r))+46;
+    });
+    const rStep=Math.max(230,2.5*(regions.reduce((m,G)=>m+G.r,0)/(regions.length||1)));
+    packRing(regions,1.14,rStep,spin);
+
+    // stars
+    stars=[];
+    regions.forEach(G=>{
+      G.artists.forEach(A=>{
+        const aspin=(hashStr(A.key+skySeed)%628)/100;
+        A.stars=A.albums.map((alb,j)=>{
+          const r=mulberry(hashStr(skySeed+":"+alb.id));
+          let ox=A.x,oy=A.y;
+          if(A.albums.length>1){
+            const ang=(j/A.albums.length)*6.283+aspin, rr=A.r*.6;
+            ox+=Math.cos(ang)*rr;oy+=Math.sin(ang)*rr;
+          }
+          const st={
+            album:alb, artist:A, region:G,
+            x:G.x+ox, y:(G.y+oy)*SQ,
+            col:r()<.24?"#e8f1ff":G.col,
+            rad:1.6+r()*1.7, tw:r()*Math.PI*2, twf:.4+r()*.9,
+          };
+          stars.push(st);
+          return st;
+        });
+        A.cx=G.x+A.x;A.cy=(G.y+A.y)*SQ;
       });
-      const bx=members.reduce((n,s)=>n+s.x,0)/members.length;
-      const by=members.reduce((n,s)=>n+s.y,0)/members.length;
-      cstMeta[c].cx=bx;cstMeta[c].cy=by;
-    }
-    // planets — one wakes per hundred albums
-    const nP=Math.floor(stars.length/100);
-    const oldN=planets.length;
+      G.lx=G.x;G.ly=G.y*SQ;
+    });
+
+    // constellations: artists with two or more albums, lines intact across rebuilds
+    const prev=new Map(csts.map(c=>[c.key,c]));
+    csts=[];
+    regions.forEach(G=>G.artists.forEach(A=>{
+      if(A.albums.length<2)return;
+      const old=prev.get(A.key);
+      csts.push({key:A.key,name:A.name,col:G.col,stars:A.stars,
+        cx:A.cx,cy:A.cy,region:G,
+        lineProg:old?old.lineProg:1,nameA:old?old.nameA:0});
+    }));
+
+    // planets — one wakes for every twenty albums
+    const nP=Math.floor(stars.length/20);
+    const oldN=planets.length,oldP=planets;
     planets=[];
+    const skyR=Math.max(320,...regions.map(G=>Math.hypot(G.x,G.y)+G.r));
     for(let p=0;p<nP;p++){
-      const ang=p*2.1+2.6+(skySeed%628)/100, rad=560*Math.sqrt(p+1);
+      const ang=p*2.1+2.6+spin, rad=(skyR+190)*Math.sqrt((p+1)/Math.max(1,nP));
       planets.push({
         x:Math.cos(ang)*rad, y:Math.sin(ang)*rad*.7,
         type:(p+skySeed)%5, r:30+((hashStr("p"+p+skySeed)%12)), phase:hashStr("q"+p+skySeed)%628/100,
-        born:p<oldN?(planets[p]&&planets[p].born||0):performance.now()
+        born:p<oldN?(oldP[p]&&oldP[p].born||0):performance.now(),
+        tex:p<oldN?(oldP[p]&&oldP[p].tex):null
       });
     }
     computeHome();
@@ -2288,6 +2406,11 @@ const sky=(()=>{
     if(!stars.length){cam.tcx=0;cam.tcy=0;cam.ts=1;return}
     let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
     stars.forEach(s=>{x0=Math.min(x0,s.x);y0=Math.min(y0,s.y);x1=Math.max(x1,s.x);y1=Math.max(y1,s.y)});
+    // region rings and their labels are part of the picture
+    regions.forEach(G=>{
+      x0=Math.min(x0,G.lx-G.r);x1=Math.max(x1,G.lx+G.r);
+      y0=Math.min(y0,G.ly-G.r*SQ-30);y1=Math.max(y1,G.ly+G.r*SQ);
+    });
     planets.forEach(p=>{x0=Math.min(x0,p.x-p.r*2);y0=Math.min(y0,p.y-p.r*2);x1=Math.max(x1,p.x+p.r*2);y1=Math.max(y1,p.y+p.r*2)});
     const pad=90;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
     let cx=(x0+x1)/2, cy=(y0+y1)/2;
@@ -2302,25 +2425,28 @@ const sky=(()=>{
   }
 
   function focusAlbum(id){computeHome();updateHUD()}
+  const starById=id=>stars.find(s=>s.album.id===id);
+  const cstByKey=k=>csts.find(c=>c.key===k);
 
   /* ceremonies */
   function materialize(albums){
     const t=performance.now();
     albums.forEach((a,i)=>births.set(a.id,t+i*260));
   }
-  function ceremonyConstellation(c){
-    const m=cstMeta[c];if(!m)return;
+  /* an artist's second album draws their first line */
+  function ceremonyConstellation(artistKey){
+    const m=cstByKey(artistKey);if(!m)return;
     m.lineProg=0;
-    ceremonyTarget={cx:m.cx,cy:m.cy,s:clamp(Math.min(W,H)/460,.4,2),until:performance.now()+5200};
-    banner("CONSTELLATION FORMED",m.name+" \u00B7 \u201C"+m.epithet+"\u201D");
-    addLog("\u2726","g-gold",`${m.name} “${m.epithet}” knit itself together — twenty stars in accord`);
+    ceremonyTarget={cx:m.cx,cy:m.cy,s:clamp(Math.min(W,H)/320,.4,2.4),until:performance.now()+5200};
+    banner("A CONSTELLATION FORMS",m.name.toUpperCase());
+    addLog("\u2726","g-gold",`${m.name} became a constellation — ${m.stars.length} albums drawn together in ${m.region.name}`);
   }
   function ceremonyPlanet(p){
     const pl=planets[p];if(!pl)return;
     pl.born=performance.now();
     ceremonyTarget={cx:pl.x,cy:pl.y,s:clamp(Math.min(W,H)/(pl.r*14),.4,2.4),until:performance.now()+5200};
     banner("A PLANET WAKES",PLANET_KINDS[pl.type].name.toUpperCase());
-    addLog("\u25CD","g-violet",`One hundred albums — ${PLANET_KINDS[pl.type].name} woke at the rim of the sky`);
+    addLog("\u25CD","g-violet",`Twenty more albums — ${PLANET_KINDS[pl.type].name} woke at the rim of the sky`);
   }
   let bannerTO=null;
   function banner(tag,name){
@@ -2398,7 +2524,13 @@ const sky=(()=>{
     if(wasGesture||moved>12||held>600)return; // a pan/pinch/hold, not a tap
     const rect=cvW.getBoundingClientRect();
     const px=e.clientX-rect.left, py=e.clientY-rect.top;
-    // planets first — each is a doorway to its era's top-played songs
+    // tonight's transit takes the tap first — it is only there for a day
+    if(transitHit){
+      const sx=(transitHit.x-cam.cx)*cam.s+W/2, sy=(transitHit.y-cam.cy)*cam.s+H/2;
+      const pr=Math.max(34,transitHit.r*cam.s);
+      if((sx-px)**2+(sy-py)**2<pr*pr){lastEmptyTap=null;openTransit();return}
+    }
+    // planets next — each is a doorway to its era's top-played songs
     for(let i=0;i<planets.length;i++){
       const p=planets[i];
       const sx=(p.x-cam.cx)*cam.s+W/2, sy=(p.y-cam.cy)*cam.s+H/2;
@@ -2604,6 +2736,95 @@ const sky=(()=>{
     x2.restore();
   }
 
+  /* ── tonight's transit, drawn from the collection itself ── */
+  function skyReach(){
+    return Math.max(300,...regions.map(G=>Math.hypot(G.x,G.y)+G.r));
+  }
+  function drawTransit(x2,t){
+    transitHit=null;
+    if(!transit||!stars.length||document.body.dataset.tab!=="sky")return;
+    const R0=skyReach(), k=transit.kind;
+    if(k==="comet"){
+      const P=46000, u=REDUCED?.5:((t%P)/P);
+      const D=R0*1.6, dx=Math.cos(transit.ang), dy=Math.sin(transit.ang)*.6;
+      const px=dx*(-D+2*D*u), py=dy*(-D+2*D*u);
+      const fade=Math.sin(Math.PI*u);
+      if(fade>.02){
+        const tail=R0*.45;
+        const g=x2.createLinearGradient(px,py,px-dx*tail,py-dy*tail);
+        g.addColorStop(0,`rgba(232,241,255,${.8*fade})`);
+        g.addColorStop(1,"rgba(140,160,255,0)");
+        x2.strokeStyle=g;x2.lineWidth=3/cam.s;x2.lineCap="round";
+        x2.beginPath();x2.moveTo(px,py);x2.lineTo(px-dx*tail,py-dy*tail);x2.stroke();
+        x2.lineCap="butt";
+        const spr=sprGlow["#e8f1ff"];
+        const gr=16/Math.sqrt(cam.s);
+        x2.globalAlpha=fade;
+        if(spr)x2.drawImage(spr,px-gr,py-gr,gr*2,gr*2);
+        x2.fillStyle="#fff";x2.beginPath();x2.arc(px,py,2.6/Math.sqrt(cam.s),0,6.283);x2.fill();
+        x2.globalAlpha=1;
+        transitHit={x:px,y:py,r:26/cam.s};
+      }
+    }else if(k==="supernova"){
+      const st=starById(transit.albumId);
+      if(st){
+        const ph=REDUCED?0:(t%2600)/2600;
+        for(let i=0;i<3;i++){
+          const u=(ph+i/3)%1;
+          x2.strokeStyle=`rgba(255,217,138,${(1-u)*.45})`;
+          x2.lineWidth=1.4/cam.s;
+          x2.beginPath();x2.arc(st.x,st.y,(7+u*80)/cam.s,0,6.283);x2.stroke();
+        }
+        const spr=sprGlow["#ffd98a"];
+        const gr=(26+(REDUCED?0:Math.sin(t/400)*4))/Math.sqrt(cam.s);
+        if(spr){x2.globalAlpha=.9;x2.drawImage(spr,st.x-gr,st.y-gr,gr*2,gr*2);x2.globalAlpha=1}
+        transitHit={x:st.x,y:st.y,r:30/cam.s};
+      }
+    }else if(k==="shower"){
+      const rx=Math.cos(transit.ang)*R0*.9, ry=Math.sin(transit.ang)*R0*.6;
+      for(let i=0;i<14;i++){
+        const seed=((i*137)%100)/100;
+        const u=REDUCED?.5:(((t/2600)+seed)%1);
+        const a2=transit.ang+Math.PI+(seed-.5)*1.6;
+        const d0=u*R0*.9, len=R0*.14;
+        const al=Math.sin(Math.PI*u)*.75;
+        x2.strokeStyle=`rgba(232,241,255,${al})`;x2.lineWidth=1.2/cam.s;
+        x2.beginPath();
+        x2.moveTo(rx+Math.cos(a2)*d0,ry+Math.sin(a2)*d0*.7);
+        x2.lineTo(rx+Math.cos(a2)*(d0+len),ry+Math.sin(a2)*(d0+len)*.7);
+        x2.stroke();
+      }
+      const spr=sprGlow["#4d7cff"];
+      if(spr){const gr=20/Math.sqrt(cam.s);x2.globalAlpha=.6;x2.drawImage(spr,rx-gr,ry-gr,gr*2,gr*2);x2.globalAlpha=1}
+      transitHit={x:rx,y:ry,r:34/cam.s};
+    }else if(k==="alignment"){
+      const A=cstByKey(transit.a), B=cstByKey(transit.b);
+      if(A&&B){
+        const pulse=REDUCED?.4:(.4+Math.sin(t/900)*.22);
+        x2.strokeStyle=`rgba(195,157,255,${pulse})`;x2.lineWidth=1.3/cam.s;
+        x2.setLineDash([5/cam.s,7/cam.s]);
+        x2.beginPath();x2.moveTo(A.cx,A.cy);x2.lineTo(B.cx,B.cy);x2.stroke();
+        x2.setLineDash([]);
+        const mx=(A.cx+B.cx)/2,my=(A.cy+B.cy)/2,r2=10/cam.s;
+        x2.save();x2.translate(mx,my);x2.rotate(REDUCED?0:t/2400);
+        x2.strokeStyle="rgba(195,157,255,.9)";x2.lineWidth=1.2/cam.s;
+        x2.beginPath();x2.moveTo(0,-r2);x2.lineTo(r2,0);x2.lineTo(0,r2);x2.lineTo(-r2,0);
+        x2.closePath();x2.stroke();x2.restore();
+        transitHit={x:mx,y:my,r:26/cam.s};
+      }
+    }else if(k==="eclipse"){
+      const ex=Math.cos(transit.ang)*R0*.72, ey=Math.sin(transit.ang)*R0*.5;
+      const R=Math.max(24,R0*.085);
+      const cg=x2.createRadialGradient(ex,ey,R*.92,ex,ey,R*2.3);
+      cg.addColorStop(0,"rgba(255,214,170,.42)");cg.addColorStop(1,"rgba(255,170,110,0)");
+      x2.fillStyle=cg;x2.beginPath();x2.arc(ex,ey,R*2.3,0,6.283);x2.fill();
+      x2.fillStyle="#030206";x2.beginPath();x2.arc(ex,ey,R,0,6.283);x2.fill();
+      x2.strokeStyle="rgba(255,226,190,.8)";x2.lineWidth=1.3/cam.s;
+      x2.beginPath();x2.arc(ex,ey,R,0,6.283);x2.stroke();
+      transitHit={x:ex,y:ey,r:R+16/cam.s};
+    }
+  }
+
   /* ── main loop ── */
   let last=0;
   function frame(t){
@@ -2644,68 +2865,82 @@ const sky=(()=>{
     xW.save();
     xW.translate(W/2,H/2);xW.scale(cam.s,cam.s);xW.translate(-cam.cx,-cam.cy);
 
-    // constellation lines — bright spine, dimmer branches, gentle pulse
-    // names reveal only when the camera closes in: past a zoom threshold,
-    // only the constellation nearest the center of the frame carries its
-    // name, and it cross-fades away as you migrate toward another.
-    const nameZoom=clamp((cam.s-.45)/.3,0,1);
+    /* genre regions read from far away, artist constellations from close in:
+       zoom out and the sky is a map of genres; zoom in and it is a map of
+       who you actually collect. */
+    const artistZoom=clamp((cam.s-.42)/.3,0,1);
+    const genreZoom=clamp((.62-cam.s)/.24,0,1);
+    if(genreZoom>.02&&regions.length){
+      xW.textAlign="center";
+      regions.forEach(G=>{
+        xW.globalAlpha=genreZoom*.5;
+        xW.strokeStyle=G.col;xW.lineWidth=.8/cam.s;
+        xW.setLineDash([6/cam.s,9/cam.s]);
+        xW.beginPath();xW.ellipse(G.lx,G.ly,G.r,G.r*SQ,0,0,Math.PI*2);xW.stroke();
+        xW.setLineDash([]);
+        xW.globalAlpha=genreZoom*.85;
+        xW.font=`${11/cam.s}px 'Audiowide','Space Grotesk',sans-serif`;
+        xW.fillStyle=G.col;
+        const lb=G.name;
+        let cxx=-lb.length*3.6/cam.s;
+        xW.save();xW.translate(G.lx,G.ly-G.r*SQ-16/cam.s);
+        for(const ch of lb){xW.fillText(ch,cxx,0);cxx+=8.4/cam.s}
+        xW.restore();
+      });
+      xW.globalAlpha=1;
+    }
+
+    // an artist's albums, strung together
     let nearestCst=-1,ncd=1e18;
-    cstMeta.forEach((m,ci)=>{
+    csts.forEach((m,ci)=>{
       const d=(m.cx-cam.cx)**2+(m.cy-cam.cy)**2;
       if(d<ncd){ncd=d;nearestCst=ci}
     });
-    cstMeta.forEach((m,ci)=>{
-      if(!m.spine||m.spine.length<2)return;
-      if(m.lineProg<1)m.lineProg=Math.min(1,m.lineProg+dt/2600);
-      const pulse=REDUCED?.8:(.62+Math.sin(t/1600+ci)*.22+bass*.3);
-      const hue=PALETTE[ci%PALETTE.length];
+    csts.forEach((m,ci)=>{
+      const pts=m.stars;
+      if(!pts||pts.length<2)return;
+      if(m.lineProg<1)m.lineProg=Math.min(1,m.lineProg+dt/2200);
+      const pulse=REDUCED?.8:(.6+Math.sin(t/1600+ci)*.2+bass*.3);
       xW.lineWidth=1.1/cam.s;
-      const segs=m.spine.length-1, upTo=m.lineProg*segs;
-      xW.strokeStyle=hue;xW.globalAlpha=pulse;
+      xW.strokeStyle=m.col;xW.globalAlpha=pulse;
+      const segs=pts.length-1, upTo=m.lineProg*segs;
       xW.beginPath();
       for(let i=0;i<Math.floor(upTo);i++){
-        xW.moveTo(m.spine[i].x,m.spine[i].y);xW.lineTo(m.spine[i+1].x,m.spine[i+1].y);
+        xW.moveTo(pts[i].x,pts[i].y);xW.lineTo(pts[i+1].x,pts[i+1].y);
       }
       const fi=Math.floor(upTo);
-      if(fi<segs){const f=upTo-fi,a=m.spine[fi],b=m.spine[fi+1];
+      if(fi<segs){const f=upTo-fi,a=pts[fi],b=pts[fi+1];
         xW.moveTo(a.x,a.y);xW.lineTo(lerp(a.x,b.x,f),lerp(a.y,b.y,f));}
       xW.stroke();
-      if(m.lineProg>.6){
-        xW.globalAlpha=pulse*.34;xW.lineWidth=.7/cam.s;
-        xW.beginPath();
-        m.branches.forEach(([a,b])=>{xW.moveTo(a.x,a.y);xW.lineTo(b.x,b.y)});
-        xW.stroke();
+      // three or more albums close the loop — a shape you can recognise
+      if(pts.length>2&&m.lineProg>=1){
+        xW.globalAlpha=pulse*.5;
+        xW.beginPath();xW.moveTo(pts[pts.length-1].x,pts[pts.length-1].y);
+        xW.lineTo(pts[0].x,pts[0].y);xW.stroke();
       }
       xW.globalAlpha=1;
-      // name — eased alpha toward its target: fully formed, zoomed in,
-      // and this is the constellation the camera is nearest
-      const want=(m.lineProg>.85&&ci===nearestCst)?nameZoom:0;
+      const want=(m.lineProg>.8&&ci===nearestCst)?artistZoom:0;
       m.nameA=lerp(m.nameA||0,want,REDUCED?1:.06);
       if(m.nameA>.02){
         xW.globalAlpha=m.nameA*.9;
         xW.font=`${9.5/cam.s}px 'Audiowide','Space Grotesk',sans-serif`;
         xW.textAlign="center";
-        xW.fillStyle="rgba(196,186,255,.85)";
-        const label=m.name+"  \u00B7  "+m.epithet;
-        xW.save();xW.translate(m.cx,m.cy+150);
+        xW.fillStyle="rgba(196,186,255,.9)";
+        const label=m.name.toUpperCase();
+        let bot=-1e9;pts.forEach(p2=>bot=Math.max(bot,p2.y));
+        xW.save();xW.translate(m.cx,bot+34/cam.s);
         let cxx=-label.length*3.2/cam.s;
-        for(const ch of label){xW.fillText(ch,cxx,0);cxx+=7.6/cam.s} // letterspacing
+        for(const ch of label){xW.fillText(ch,cxx,0);cxx+=7.6/cam.s}
         xW.restore();
         xW.globalAlpha=1;
       }
     });
-    // forming hint — faint thread through the incomplete constellation
-    const incomplete=stars.filter(s=>s.cst===cstMeta.length);
-    if(incomplete.length>1){
-      xW.strokeStyle="rgba(157,146,196,.16)";xW.lineWidth=.7/cam.s;
-      xW.setLineDash([3/cam.s,5/cam.s]);
-      xW.beginPath();
-      incomplete.forEach((s,i)=>{i?xW.lineTo(s.x,s.y):xW.moveTo(s.x,s.y)});
-      xW.stroke();xW.setLineDash([]);
-    }
 
     // planets
     planets.forEach(p=>drawPlanet(xW,p,t));
+
+    // tonight's transit
+    drawTransit(xW,t);
 
     // stars — materialization ceremony, twinkle, spectrum glow
     const glowMul=1+bass*1.1+mids*.35;
@@ -2762,14 +2997,15 @@ const sky=(()=>{
   function updateHUD(){
     const n=state.albums.length;
     $("#hudAlbums").textContent=n;
-    $("#hudCst").textContent=(n%20)+"/20"+(Math.floor(n/20)?" \u00B7 "+Math.floor(n/20)+" formed":"");
-    $("#hudPlanet").textContent=(n%100)+"/100";
+    $("#hudCst").textContent=csts.length+(regions.length?" \u00B7 "+regions.length+" region"+(regions.length!==1?"s":""):"");
+    $("#hudPlanet").textContent=(n%20)+"/20";
     $("#voidInvite").classList.toggle("gone",n>0);
-    $("#libSub").textContent=n?`${n} album${n>1?"s":""} \u00B7 ${Math.floor(n/20)} constellation${Math.floor(n/20)!==1?"s":""} \u00B7 ${Math.floor(n/100)} planet${Math.floor(n/100)!==1?"s":""}`:"Every album here is a star in the sky.";
+    $("#libSub").textContent=n?skyCensus():"Every album here is a star in the sky.";
   }
 
   function init(){resize();buildSprites();rebuild();requestAnimationFrame(frame)}
   return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,
+    starById,cstByKey,constellations:()=>csts,regions:()=>regions,
     clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
 })();
 
@@ -2780,30 +3016,39 @@ const MILESTONES=[
   [1,"FIRST LIGHT","ONE STAR BURNS IN THE VOID"],
   [3,"A SKY BEGINS","THREE STARS · THE DARK HAS A SHAPE"],
   [5,"FIVE STARS STRONG","THE VOID IS LOSING"],
-  [10,"TEN STARS","HALFWAY TO A CONSTELLATION"],
+  [10,"TEN STARS","HALFWAY TO A WORLD"],
 ];
 function onAlbumsAdded(newAlbums,countBefore){
   sky.rebuild();
   sky.materialize(newAlbums);
   const after=state.albums.length;
-  const cstBefore=Math.floor(countBefore/20), cstAfter=Math.floor(after/20);
-  const plBefore=Math.floor(countBefore/100), plAfter=Math.floor(after/100);
+  const plBefore=Math.floor(countBefore/20), plAfter=Math.floor(after/20);
   let delay=Math.min(newAlbums.length,20)*260+900;
+  /* an artist crossing from one album to two is the moment their
+     constellation is drawn — the sky's main reward, and it belongs to
+     collecting deeply rather than merely counting */
+  const addedBy={};
+  newAlbums.forEach(a=>{const k=normKey(a.artist)||"unknown artist";addedBy[k]=(addedBy[k]||0)+1});
+  const formed=Object.keys(addedBy).filter(k=>{
+    const total=state.albums.filter(a=>(normKey(a.artist)||"unknown artist")===k).length;
+    return total>=2&&total-addedBy[k]<2;
+  });
   const mile=MILESTONES.filter(([n])=>countBefore<n&&after>=n).pop();
-  if(mile&&cstAfter===cstBefore){ // constellation/planet rites outrank these
+  if(mile&&!formed.length&&plAfter===plBefore){
     setTimeout(()=>{
       sky.banner(mile[1],mile[2]);
-      addLog("✦","g-gold",mile[1].charAt(0)+mile[1].slice(1).toLowerCase()+" — "+after+" album"+(after>1?"s":"")+" in the sky");
+      addLog("\u2726","g-gold",mile[1].charAt(0)+mile[1].slice(1).toLowerCase()+" — "+after+" album"+(after>1?"s":"")+" in the sky");
     },delay);
     delay+=5000;
   }
-  for(let c=cstBefore;c<cstAfter;c++){
-    setTimeout(()=>sky.ceremonyConstellation(c),delay);delay+=5600;
-  }
+  formed.slice(0,3).forEach(k=>{
+    setTimeout(()=>sky.ceremonyConstellation(k),delay);delay+=5600;
+  });
   for(let p=plBefore;p<plAfter;p++){
     setTimeout(()=>sky.ceremonyPlanet(p),delay);delay+=5600;
   }
   $("#shareSky").style.display=after?"":"none";
+  refreshTransit(false);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -2889,8 +3134,7 @@ function renderLibrary(){
   $("#libEmpty").style.display=all.length?"none":"";
   $("#libNoMatch").style.display=(all.length&&!albs.length)?"":"none";
   if(libQuery)$("#libSub").textContent=`${albs.length} of ${all.length} album${all.length>1?"s":""} answer`;
-  else{const n=all.length;
-    $("#libSub").textContent=n?`${n} album${n>1?"s":""} \u00B7 ${Math.floor(n/20)} constellation${Math.floor(n/20)!==1?"s":""} \u00B7 ${Math.floor(n/100)} planet${Math.floor(n/100)!==1?"s":""}`:"Every album here is a star in the sky.";}
+  else $("#libSub").textContent=all.length?skyCensus():"Every album here is a star in the sky.";
   g.innerHTML=albs.map(a=>{
     const art=artURL(a);
     return`<div class="albwrap">
@@ -3032,7 +3276,7 @@ $("#albDelete").addEventListener("click",async()=>{
   }
   if(state.playingAlbumId===a.id){audio.pause();state.playingAlbumId=null;$("#playerBar").classList.remove("show")}
   closeSheet("sheetAlbum");
-  sky.rebuild();renderLibrary();updateStorage();
+  sky.rebuild();renderLibrary();updateStorage();refreshTransit(false);
   await addLog("\u2727","g-dim",`${a.title} left the catalog — its star went dark`);
   toast("Album deleted");
 });
@@ -3137,17 +3381,17 @@ function pickPlaylist(items){
 }
 
 /* ── PLANETS — each planet remembers its era ──
-   Planet N wakes when the library crosses N×100 albums; it presides over
-   the hundred that raised it (seq N×100+1 … (N+1)×100). Tapping it opens
+   Planet N wakes when the library crosses N×20 albums; it presides over
+   the twenty that raised it (seq N×20+1 … (N+1)×20). Tapping it opens
    that era's chart: the most-played songs from the stretch of time in
    which those hundred albums arrived. Before any listening history
    exists, it offers a survey of the era instead. */
 const ROMAN=["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
 function planetEraAlbums(p){
-  const lo=p*100+1,hi=(p+1)*100;
+  const lo=p*20+1,hi=(p+1)*20;
   return state.albums.filter(a=>a.seq>=lo&&a.seq<=hi).sort((a,b)=>a.seq-b.seq);
 }
-function planetTopTracks(p,limit=30){
+function planetTopTracks(p,limit=25){
   const albs=planetEraAlbums(p);
   const all=[];
   albs.forEach(a=>(state.tracks.get(a.id)||[]).forEach(t=>all.push({a,t,n:playCounts[t.id]||0})));
@@ -3166,9 +3410,9 @@ function openPlanet(i,kindName){
   sheetPlanetIdx=i;
   const {items,charted}=planetTopTracks(i);
   sheetPlanetItems=items;
-  const lo=i*100+1,hi=(i+1)*100;
+  const lo=i*20+1,hi=(i+1)*20;
   $("#pnTitle").textContent="ERA "+(ROMAN[i]||i+1)+" \u2014 "+(kindName||"a planet").toUpperCase();
-  $("#pnSub").textContent=`Albums ${lo}\u2013${hi} \u00B7 the hundred that woke this world`;
+  $("#pnSub").textContent=`Albums ${lo}\u2013${hi} \u00B7 the twenty that woke this world`;
   $("#pnNote").textContent=charted
     ?"The songs this era kept returning to, most-played first."
     :"No listening history from this era yet \u2014 a survey of its albums instead. Play through the era and this chart will write itself.";
@@ -3334,7 +3578,7 @@ $("#mockClear").addEventListener("click",async()=>{
   if(state.playingAlbumId&&!albumById(state.playingAlbumId)){
     audio.pause();state.playingAlbumId=null;$("#playerBar").classList.remove("show");
   }
-  sky.rebuild();renderLibrary();updateStorage();
+  sky.rebuild();renderLibrary();updateStorage();refreshTransit(false);
   await addLog("\u2727","g-dim",`${mocks.length} mock stars dissolved back into the void`);
   toast(`${mocks.length} mock stars removed`);
 });
@@ -3346,6 +3590,7 @@ $("#btnWipe").addEventListener("click",async()=>{
   state.queue=[];state.qIndex=-1;state.playingAlbumId=null;seqCounter=0;
   $("#playerBar").classList.remove("show");
   sky.rebuild();renderLibrary();renderPlaylists();renderLog();updateStorage();
+  transit=null;renderTransitChip();
   toast("The sky is dark again");
 });
 
@@ -3478,14 +3723,162 @@ $("#emptyGuide").addEventListener("click",()=>openSheet("sheetGuide"));
 $("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInput.click()});
 
 /* ════════════════════════════════════════════════════════════════
+   TRANSITS — one celestial event a night, composed entirely from what
+   you own. The date and this install's seed decide it together, so it
+   holds all day, is gone tomorrow, and is never the same in two skies.
+   Following one is recorded: the sky remembers the nights you showed up.
+   ════════════════════════════════════════════════════════════════ */
+const dayKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const saveTransits=()=>kvSet("transits",transitStats);
+function albumPlays(a){
+  return (state.tracks.get(a.id)||[]).reduce((n,t)=>n+(playCounts[t.id]||0),0);
+}
+function albumQueue(a){
+  return (state.tracks.get(a.id)||[]).filter(t=>t.blob).sort((x,y)=>x.idx-y.idx)
+    .map(t=>({albumId:a.id,trackId:t.id}));
+}
+function makeTransit(key){
+  const playable=state.albums.filter(a=>albumQueue(a).length);
+  if(!playable.length)return null;
+  const r=mulberry(hashStr(key+"|"+skySeed));
+  const ang=r()*6.283;
+  const cst=sky.constellations().filter(c=>c.stars.some(st=>albumQueue(st.album).length));
+  const kinds=["comet","supernova","shower","eclipse"];
+  if(cst.length>=2)kinds.push("alignment","alignment");
+  const kind=kinds[Math.floor(r()*kinds.length)];
+  const byPlays=[...playable].sort((a,b)=>albumPlays(a)-albumPlays(b)||a.seq-b.seq);
+  const T={kind,ang,key};
+
+  if(kind==="supernova"){
+    const a=byPlays[byPlays.length-1];
+    T.albumId=a.id;T.items=albumQueue(a);
+    T.tag="A STAR GOES SUPERNOVA";
+    T.title=a.title;
+    T.short=`A supernova — ${a.title}`;
+    T.text=`The star you have fed the most is burning through everything it has. ${a.title} by ${a.artist} blazes over the sky tonight, brighter than anything else you own. Play it while it holds.`;
+  }else if(kind==="eclipse"){
+    const a=byPlays[0];
+    T.albumId=a.id;T.items=albumQueue(a);
+    T.tag="AN ECLIPSE";
+    T.title=a.title;
+    T.short=`An eclipse — ${a.title}`;
+    T.text=`Something dark has slid across your sky, and in the hush it leaves behind, one neglected record is audible: ${a.title} by ${a.artist}. You have barely played it. Tonight the sky is quiet enough to hear it.`;
+  }else if(kind==="comet"){
+    const cold=byPlays.slice(0,Math.max(1,Math.ceil(byPlays.length/3)));
+    const a=cold[Math.floor(r()*cold.length)];
+    T.albumId=a.id;T.items=albumQueue(a);
+    T.tag="A COMET PASSES";
+    T.title=a.title;
+    T.short=`A comet carries ${a.title}`;
+    T.text=`A comet is crossing your sky on a long orbit, and it is carrying ${a.title} by ${a.artist} with it. Follow it before morning — it will not come back around for a while.`;
+  }else if(kind==="shower"){
+    const pool=[];
+    playable.forEach(a=>albumQueue(a).forEach(q=>pool.push(q)));
+    for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+    T.items=pool.slice(0,14);
+    T.tag="A METEOR SHOWER";
+    T.title="Debris from the whole sky";
+    T.short="A meteor shower — 14 songs";
+    T.text=`Fourteen fragments are falling out of your own sky tonight, pulled at random from every corner of the collection. No order, no logic, nothing curated — just whatever the dark shook loose.`;
+  }else{
+    const i=Math.floor(r()*cst.length);
+    let j=Math.floor(r()*(cst.length-1));if(j>=i)j++;
+    const A=cst[i],B=cst[j];
+    T.a=A.key;T.b=B.key;
+    const qa=[],qb=[];
+    A.stars.forEach(st=>qa.push(...albumQueue(st.album)));
+    B.stars.forEach(st=>qb.push(...albumQueue(st.album)));
+    const mix=[];
+    for(let n=0;n<Math.max(qa.length,qb.length)&&mix.length<20;n++){
+      if(qa[n])mix.push(qa[n]);
+      if(qb[n])mix.push(qb[n]);
+    }
+    T.items=mix;
+    T.tag="AN ALIGNMENT";
+    T.title=`${A.name} \u00D7 ${B.name}`;
+    T.short=`${A.name} aligns with ${B.name}`;
+    T.text=`Two of your constellations have swung into line: ${A.name} and ${B.name}, linked tonight by a thread of light. The sky has drawn a playlist between them — their records, alternating, as if they were meant to be heard together.`;
+  }
+  return T;
+}
+const transitWitnessed=()=>!!(transit&&transitStats.history.some(h=>h.d===transit.key));
+function renderTransitChip(){
+  const el=$("#transitChip");
+  if(!transit||!state.albums.length){el.style.display="none";return}
+  const seen=transitWitnessed();
+  el.style.display="";
+  el.classList.toggle("seen",seen);
+  el.innerHTML=`<span class="tc-tag">${seen?"WITNESSED":"TONIGHT"}</span><span class="tc-name">${esc(transit.short)}</span>`;
+  const sn=$("#setTransitN");if(sn)sn.textContent=transitStats.witnessed||0;
+}
+function openTransit(){
+  if(!transit)return;
+  $("#trTag").textContent=transit.tag;
+  $("#trTitle").textContent=transit.title;
+  $("#trWhen").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})
+    +" \u00B7 "+transit.items.length+" track"+(transit.items.length===1?"":"s");
+  $("#trText").textContent=transit.text;
+  const n=transitStats.witnessed||0;
+  $("#trStat").textContent=transitWitnessed()
+    ?`You followed this one. ${n} transit${n===1?"":"s"} witnessed in this sky.`
+    :`${n} transit${n===1?"":"s"} witnessed in this sky. Tonight's is still overhead.`;
+  openSheet("sheetTransit");
+}
+async function witnessTransit(){
+  if(!transit||transitWitnessed())return;
+  transitStats.witnessed=(transitStats.witnessed||0)+1;
+  transitStats.history.unshift({d:transit.key,kind:transit.kind,title:transit.title});
+  if(transitStats.history.length>60)transitStats.history.length=60;
+  await saveTransits();
+  renderTransitChip();
+  await addLog("\u2726","g-violet",`Followed ${transit.tag.toLowerCase()} — ${transit.title}`);
+}
+async function refreshTransit(announce){
+  const key=dayKey();
+  const prev=transit&&transit.key;
+  transit=makeTransit(key);
+  renderTransitChip();
+  if(!transit)return;
+  if(announce&&transitStats.lastSeen!==key){
+    transitStats.lastSeen=key;
+    await saveTransits();
+    await addLog("\u2726","g-teal",`${transit.tag} \u2014 ${transit.title}`);
+    if(document.body.dataset.tab==="sky")sky.banner(transit.tag,transit.title.toUpperCase());
+  }
+}
+$("#transitChip").addEventListener("click",openTransit);
+$("#trPlay").addEventListener("click",async()=>{
+  if(!transit||!transit.items.length){toast("Nothing playable in tonight's transit");return}
+  playQueue(transit.items.slice(),0);
+  closeSheet("sheetTransit");switchTab("sky");
+  await witnessTransit();
+});
+$("#trSave").addEventListener("click",async()=>{
+  if(!transit||!transit.items.length){toast("Nothing to keep");return}
+  const name=transit.tag+" \u00B7 "+transit.key;
+  const pl={id:uid(),name,items:transit.items.slice()};
+  state.playlists.push(pl);
+  await dbPut("playlists",pl);
+  renderPlaylists();
+  await addLog("\u266A","g-pink",`Kept “${name}” — ${pl.items.length} tracks`);
+  toast(`Kept as “${name}”`,true);
+});
+/* the sky rolls over at midnight without a reload */
+setInterval(()=>{if(transit&&transit.key!==dayKey())refreshTransit(true)},60000);
+document.addEventListener("visibilitychange",()=>{
+  if(!document.hidden&&transit&&transit.key!==dayKey())refreshTransit(true);
+});
+
+/* ════════════════════════════════════════════════════════════════
    INIT — the reload test: kill the tab, reopen, nothing is lost.
    ════════════════════════════════════════════════════════════════ */
 (async function init(){
   db=await openDB();
-  const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays]=await Promise.all([
+  const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays,transits]=await Promise.all([
     dbAll("albums"),dbAll("tracks"),dbAll("playlists"),
-    kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays")
+    kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays"),kvGet("transits")
   ]);
+  if(transits)transitStats={witnessed:transits.witnessed||0,history:transits.history||[],lastSeen:transits.lastSeen};
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{
@@ -3536,6 +3929,7 @@ $("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInp
   }
   renderLibrary();
   updateStorage();
+  refreshTransit(true); // tonight's event, announced once a day
   kvGet("recs").then(r=>{if(r&&r.recs)renderRecs(r.recs,r.t)});
 })();
 </script>

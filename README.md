@@ -2,9 +2,20 @@
 
 *A music library that composes itself as a night sky.*
 
-Every album you own becomes a star. Twenty stars knit a constellation.
-A hundred wake a planet. Each install mints its own sky seed, so two
-people with identical libraries still live under different skies.
+Every album you own becomes a star. **An artist is a constellation** —
+their second album draws the first line between them. **A genre is a
+region** — every artist working in it clusters in the same quarter of the
+sky. Every twenty albums wakes a planet, which presides over the twenty
+that raised it. Each install mints its own sky seed, so two people with
+identical libraries still live under different skies.
+
+**A transit crosses the sky every night** — a comet carrying a record you
+have neglected, a supernova on the album you have played to death, a
+meteor shower of fourteen songs shaken loose at random, an eclipse over
+the one you never returned to, or an alignment binding two of your
+constellations into a single playlist. The date and your sky seed decide
+it together, so it holds all day, is gone by morning, and is never the
+same in two collections. Following one is recorded.
 
 Everything — audio, artwork, playlists, listening history — lives **on
 the device only**. Nothing is uploaded, tracked, or shared. The only
