@@ -34,33 +34,67 @@ package.json
 
 ## Get it on your iPhone
 
-### A) Native app via Xcode (plug your phone in)
+### A) The real native app (needs a Mac, once)
 
-Needs a Mac with Xcode and free Apple-ID signing (no paid account required
-for personal installs).
+Everything in `ios/` is a complete Xcode project — background audio, the
+app icon, permission strings and the file-export bridge are already
+configured. You never open Xcode's settings except to pick your name in
+the signing dropdown.
+
+**One-time setup on the Mac**
+
+1. Install **Xcode** from the Mac App Store (free, large — start this
+   first, it is the slowest step). Open it once and accept the licence so
+   it finishes installing components.
+2. Install **Node** (<https://nodejs.org>, LTS) if you don't have it.
+3. Install **CocoaPods**: `brew install cocoapods` — or, without Homebrew,
+   `sudo gem install cocoapods`.
+
+**Build and install**
 
 ```sh
-npm install
-npx cap sync ios     # runs pod install, copies app/ into the shell
-npx cap open ios     # opens Xcode
+cd Aeon           # the project folder
+npm install       # fetches Capacitor
+npx cap sync ios  # copies app/ into the shell and runs pod install
+npx cap open ios  # opens App.xcworkspace in Xcode
 ```
 
-In Xcode: select the **App** target → *Signing & Capabilities* → pick your
-Team (your Apple ID) → plug in your iPhone → choose it as the run
-destination → press **Run**. The app installs and launches; data persists
-in the app's own WKWebView storage and survives reboots and updates.
+Then, in Xcode:
 
-> An `.ipa` archive for distribution is *Product → Archive* from the same
-> project once signing is set up.
+4. **Xcode → Settings → Accounts → +** and sign in with your Apple ID
+   (a free one is enough — no paid developer account needed).
+5. In the left sidebar click the blue **App** project → the **App**
+   target → **Signing & Capabilities** tab. Tick *Automatically manage
+   signing* and choose your name under **Team**. If it complains the
+   bundle identifier is taken, change `app.isolation.sky` to something
+   like `app.isolation.sky.yourname`.
+6. Plug the iPhone in with a cable, unlock it, and tap **Trust** if asked.
+7. At the top of the Xcode window, set the run destination (next to the
+   ▶ button) to your iPhone.
+8. Press **▶** (or ⌘R). The app builds and installs.
+9. The first launch is blocked by iOS: on the phone go to **Settings →
+   General → VPN & Device Management**, tap your Apple ID, and
+   **Trust**. Then open ISOLATION from the home screen.
+
+**Worth knowing:** an app signed with a *free* Apple ID stops opening
+after 7 days — plug in and press ▶ again to renew it, which does not
+touch your library. A paid developer account ($99/yr) extends this to a
+year and lets you export a shareable `.ipa` via *Product → Archive*.
+
+No Mac of your own? A rented cloud Mac works with exactly the same steps.
 
 ### B) No Mac — install as a PWA today
 
-1. Drag the `app/` folder into <https://app.netlify.com/drop> (or any
-   static host).
-2. Open the URL in Safari on the iPhone.
-3. Share → **Add to Home Screen**.
+Apple only allows iOS apps to be built and signed on macOS, so without one
+this is the way in — and it is the same app, offline-capable, with its own
+icon and no browser chrome.
 
-Fullscreen, offline after first load (service worker), keeps your library.
+1. Drag the contents of `app/` onto <https://app.netlify.com/drop>.
+2. Open the URL it gives you in **Safari** on the iPhone.
+3. **Share → Add to Home Screen**.
+
+The only thing the PWA gives up is audio surviving a swipe-away from the
+app switcher; locking the screen and backgrounding are fine.
 
 ## Collecting features
 

@@ -867,7 +867,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.4 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.5 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1586,11 +1586,47 @@ function zipWrite(files){ // files: [{name:string,u8:Uint8Array}] → Blob
   eo.setUint32(12,cd,true);eo.setUint32(16,off,true);
   return new Blob([...parts,...central,eo.buffer],{type:"application/zip"});
 }
+/* Handing a file to the user.
+   In a browser an <a download> is enough. Inside the native shell it is
+   not — WKWebView has no download manager, so a backup would silently
+   vanish. There the file is written to the app's cache and passed to the
+   iOS share sheet, where "Save to Files" puts it wherever the user wants. */
+const NATIVE=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
 function downloadBlob(blob,name){
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download=name;
   document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);
+}
+async function blobSliceB64(blob,start,end){
+  const u8=new Uint8Array(await blob.slice(start,end).arrayBuffer());
+  let str="";const CH=0x8000;
+  for(let i=0;i<u8.length;i+=CH)str+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));
+  return btoa(str);
+}
+async function saveBlob(blob,name){
+  if(!NATIVE){downloadBlob(blob,name);return true}
+  try{
+    const {Filesystem,Share}=Capacitor.Plugins;
+    if(!Filesystem||!Share)throw new Error("file plugins unavailable");
+    // whole libraries can be gigabytes: write in chunks so nothing is ever
+    // base64-encoded in one piece. Each chunk is a multiple of three bytes
+    // so the encodings concatenate without stray padding.
+    const STEP=4194303;
+    if(blob.size===0)await Filesystem.writeFile({path:name,data:"",directory:"CACHE",recursive:true});
+    for(let off=0;off<blob.size;off+=STEP){
+      const data=await blobSliceB64(blob,off,Math.min(blob.size,off+STEP));
+      if(off===0)await Filesystem.writeFile({path:name,data,directory:"CACHE",recursive:true});
+      else await Filesystem.appendFile({path:name,data,directory:"CACHE"});
+    }
+    const {uri}=await Filesystem.getUri({path:name,directory:"CACHE"});
+    await Share.share({title:name,files:[uri]});
+    return true;
+  }catch(e){
+    if(/cancel/i.test(e&&e.message||""))return true; // user dismissed the sheet
+    toast("Couldn't hand that file to iOS \u2014 "+((e&&e.message)||e));
+    return false;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1839,8 +1875,9 @@ async function exportBackup(){
     files.unshift({name:"isolation-backup.json",u8:new TextEncoder().encode(JSON.stringify(cat))});
     const blob=zipWrite(files);
     const name="isolation-backup-"+new Date().toISOString().slice(0,10)+".zip";
-    downloadBlob(blob,name);
-    note.textContent=`Backup written — ${fmtBytes(blob.size)}. Move it somewhere safe.`;
+    note.textContent=`Packing done — ${fmtBytes(blob.size)}. Choose where to keep it\u2026`;
+    await saveBlob(blob,name);
+    note.textContent=`Backup written — ${fmtBytes(blob.size)}. Keep it somewhere off this device.`;
     await addLog("✦","g-teal",`The sky was pressed into a backup — ${real.length} albums, ${fmtBytes(blob.size)}`);
   }catch(e){
     note.textContent="Backup failed — likely out of memory. Try freeing space or exporting the catalog only.";
@@ -1852,7 +1889,7 @@ function exportCatalog(){
       id:a.id,title:a.title,artist:a.artist,year:a.year,genre:a.genre,trackCount:a.trackCount,
       tracks:(state.tracks.get(a.id)||[]).map(t=>({idx:t.idx,title:t.title,artist:t.artist}))})),
     playlists:state.playlists,plays:playCounts,log:state.log};
-  downloadBlob(new Blob([JSON.stringify(cat,null,1)],{type:"application/json"}),
+  saveBlob(new Blob([JSON.stringify(cat,null,1)],{type:"application/json"}),
     "isolation-catalog-"+new Date().toISOString().slice(0,10)+".json");
   toast("Catalog exported — tags, playlists and history (no audio)");
 }
@@ -3710,9 +3747,9 @@ async function shareSky(){
   const blob=await new Promise(r=>cv.toBlob(r,"image/png"));
   if(!blob){toast("Couldn't render the sky");return}
   const file=new File([blob],"my-sky.png",{type:"image/png"});
-  if(navigator.canShare&&navigator.canShare({files:[file]})){
+  if(!NATIVE&&navigator.canShare&&navigator.canShare({files:[file]})){
     try{await navigator.share({files:[file],title:"My sky — ISOLATION"})}catch(e){/* user closed the sheet */}
-  }else downloadBlob(blob,"isolation-sky.png");
+  }else await saveBlob(blob,"isolation-sky.png");
   addLog("✦","g-pink","A picture of the sky left the observatory");
 }
 $("#shareSky").addEventListener("click",shareSky);

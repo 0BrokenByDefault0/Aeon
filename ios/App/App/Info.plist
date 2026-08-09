@@ -48,6 +48,14 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<true/>
+	<false/>
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Pick an image from your library to use as album artwork. Photos are never uploaded — the image is stored inside ISOLATION on this device.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save a picture of your sky to your photo library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo to use as album artwork. Photos are never uploaded — the image is stored inside ISOLATION on this device.</string>
 </dict>
 </plist>
