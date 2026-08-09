@@ -4,7 +4,7 @@
    when offline. Static assets are cache-first. Bump CACHE on release so
    old caches are swept. Audio and library data live in IndexedDB, never
    here — updating the shell can't touch a user's collection. */
-const CACHE = "isolation-v2.5";
+const CACHE = "isolation-v2.6";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -26,23 +26,37 @@ self.addEventListener("fetch", e => {
   const isApp = e.request.mode === "navigate" || /(?:^|\/)(index\.html)?$/.test(url.pathname);
 
   if (isApp) {
-    // network-first: fresh app when online, cached app when not
-    e.respondWith(
-      fetch(e.request).then(res => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put("./index.html", copy)); }
-        return res;
-      }).catch(() => caches.match("./index.html", { ignoreSearch: true }))
-    );
+    // Network-first, but the cached app beats any *bad* answer, not just a
+    // failed one: an outage, a captive portal, or a host that still resolves
+    // after the site is gone and hands back its own 404 page. The library
+    // lives in IndexedDB, so a working shell is the only thing standing
+    // between the user and their collection — never replace it with an error.
+    e.respondWith((async () => {
+      try {
+        const res = await fetch(e.request);
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put("./index.html", copy));
+          return res;
+        }
+        return (await caches.match("./index.html", { ignoreSearch: true })) || res;
+      } catch (err) {
+        const hit = await caches.match("./index.html", { ignoreSearch: true });
+        if (hit) return hit;
+        throw err;
+      }
+    })());
     return;
   }
 
-  e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(hit =>
-      hit ||
-      fetch(e.request).then(res => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
-        return res;
-      })
-    )
-  );
+  e.respondWith((async () => {
+    const hit = await caches.match(e.request, { ignoreSearch: true });
+    if (hit) return hit;
+    const res = await fetch(e.request);
+    if (res && res.ok) {
+      const copy = res.clone();
+      caches.open(CACHE).then(c => c.put(e.request, copy));
+    }
+    return res;
+  })());
 });
