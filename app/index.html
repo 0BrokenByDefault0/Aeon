@@ -844,6 +844,15 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
 
   <div class="card">
+    <h3>Importing</h3>
+    <div class="set-row">
+      <div><div class="set-l">One import, one album</div>
+      <div class="set-d">Files picked together become one album; only separate folders split them. Turn off to let album tags divide files instead.</div></div>
+      <button class="tgl on" id="tglGroup" role="switch" aria-checked="true" aria-label="One import, one album"></button>
+    </div>
+  </div>
+
+  <div class="card">
     <h3>Artwork</h3>
     <div class="c-note">Re-checks every cover in the library, discards any that no longer decode, and asks the archive for replacements.</div>
     <div class="btnrow"><button class="btn small" id="btnRepairArt">REPAIR ARTWORK</button></div>
@@ -867,7 +876,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.6 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.7 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -959,6 +968,10 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <hr class="hairline">
     <div id="albTracks"></div>
     <div class="btnrow">
+      <button class="btn small" id="albReorder">REORDER TRACKS</button>
+      <button class="btn small" id="albMerge">MERGE INTO&#8230;</button>
+    </div>
+    <div class="btnrow">
       <button class="btn small" id="albToPl"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg></span>ADD ALBUM TO PLAYLIST</button>
       <button class="btn small danger" id="albDelete">DELETE ALBUM</button>
     </div>
@@ -986,7 +999,8 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   <div class="sheet-body">
     <div class="grab"></div>
     <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <h2>Add to playlist</h2>
+    <h2 id="pickTitle">Add to playlist</h2>
+    <div class="s-sub" id="pickSub" style="display:none"></div>
     <div id="pickList" style="margin-top:8px"></div>
   </div>
 </div>
@@ -1654,7 +1668,7 @@ if(window.showDirectoryPicker){
         }
       }
       await walk(dir,dir.name);
-      if(files.length)await importFiles(files);
+      if(files.length)await importFiles(files,{perFolder:true});
       else toast("No audio files found in that folder");
     }catch(e){/* user cancelled */}
   });
@@ -1679,7 +1693,8 @@ const AUD_RE=/\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i, IMG_RE=/\.(jpe?g|png|gif|web
 /* zips unpack in place; loose images ride along as candidate album art;
    a zip carrying isolation-backup.json is a restore, not an import */
 async function expandInputFiles(files){
-  const audio=[],images=[];let backup=null;
+  const batches=[];let backup=null;
+  const loose={label:"",files:[],images:[]};
   for(const f of files){
     if(/\.zip$/i.test(f.name)){
       let entries;
@@ -1687,6 +1702,7 @@ async function expandInputFiles(files){
       const bj=entries.find(x=>x.name.split("/").pop()==="isolation-backup.json");
       if(bj){backup={json:bj,entries};continue}
       const base=f.name.replace(/\.zip$/i,"");
+      const b={label:base,files:[],images:[]};
       for(const en of entries){
         const nm=en.name.split("/").pop();
         if(!nm||nm.startsWith("."))continue;
@@ -1694,44 +1710,39 @@ async function expandInputFiles(files){
         if(AUD_RE.test(nm)){
           const file=new File([en.blob],nm,{type:"audio/mpeg"});
           Object.defineProperty(file,"webkitRelativePath",{value:path});
-          audio.push(file);
-        }else if(IMG_RE.test(nm))images.push({path,blob:en.blob});
+          b.files.push(file);
+        }else if(IMG_RE.test(nm))b.images.push({path,blob:en.blob});
       }
-    }else if(AUD_RE.test(f.name))audio.push(f);
-    else if(IMG_RE.test(f.name))images.push({path:f.webkitRelativePath||f.name,blob:f});
+      if(b.files.length)batches.push(b);      // each zip is its own record
+    }else if(AUD_RE.test(f.name))loose.files.push(f);
+    else if(IMG_RE.test(f.name))loose.images.push({path:f.webkitRelativePath||f.name,blob:f});
   }
-  return{audio,images,backup};
-}
-/* best cover image for a folder: cover/front/folder beats anything else,
-   then the largest file wins */
-function folderArt(images,folder){
-  if(!folder)return null;
-  const dir=folder.toLowerCase();
-  const c=images.filter(im=>{
-    const segs=im.path.toLowerCase().split("/");
-    return segs.length>1&&segs[segs.length-2]===dir;
-  });
-  if(!c.length)return null;
-  c.sort((a,b)=>{
-    const pref=p=>/cover|front|folder|album/i.test(p.split("/").pop())?1:0;
-    return pref(b.path)-pref(a.path)||(b.blob.size||0)-(a.blob.size||0);
-  });
-  return c[0].blob;
-}
-async function importFiles(rawFiles){
-  toast(`Reading ${rawFiles.length} file${rawFiles.length>1?"s":""}\u2026`);
-  const {audio:files,images,backup}=await expandInputFiles(rawFiles);
-  if(backup){await restoreBackup(backup);return}
-  if(!files.length){toast("No audio found in that selection");return}
-  const items=[];let parsed=0;
-  for(const f of files){
-    let meta={};
-    try{meta=parseMeta(await f.arrayBuffer(),f.name)}catch(e){meta={title:f.name.replace(/\.[^.]+$/,"")}}
-    const folder=(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||"";
-    items.push({file:f,meta,folder});
-    if(++parsed%8===0)await new Promise(r=>setTimeout(r,0)); // breathe
+  if(loose.files.length){
+    const dirs=new Set(loose.files.map(f=>(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||""));
+    loose.label=dirs.size===1?[...dirs][0]:"";
+    batches.push(loose);                      // one hand-picked selection is one record
   }
-  /* ── grouping, generously: normalized tag → folder → ride along ── */
+  return{batches,backup,images:batches.reduce((a,b)=>a.concat(b.images),[])};
+}
+/* ── how a selection becomes albums ──
+   "single"  everything picked in one go is one album, and each zip is one
+             album. This is what a Bandcamp download or a hand-picked
+             folder actually means, and it is the default.
+   "folder"  one album per containing folder — the desktop folder picker.
+   "smart"   tags lead, for a batch that genuinely holds several albums. */
+function groupItems(items,mode){
+  const folders=new Set(items.map(it=>(it.folder||"").toLowerCase()).filter(Boolean));
+  // Folders are a deliberate structure, so they divide. Album tags are not:
+  // one record routinely arrives with a deluxe suffix on some tracks, a
+  // guest credit on another and a blank on a third, and splitting on that
+  // is what tore albums in half.
+  if(mode==="folder"||(mode!=="smart"&&folders.size>1)){
+    const by=new Map();
+    items.forEach(it=>{const k=(it.folder||"").toLowerCase();
+      if(!by.has(k))by.set(k,[]);by.get(k).push(it)});
+    return[...by.values()];
+  }
+  if(mode!=="smart")return[items];
   const groups=new Map();
   const put=(k,it)=>{if(!groups.has(k))groups.set(k,[]);groups.get(k).push(it)};
   for(const it of items){
@@ -1768,28 +1779,66 @@ async function importFiles(rawFiles){
     let big=null;groups.forEach(g=>{if(!big||g.length>big.length)big=g});
     big.push(...strays);
   }
+  return[...groups.values()];
+}
+/* best cover image for a folder: cover/front/folder beats anything else,
+   then the largest file wins */
+function folderArt(images,folder){
+  if(!folder)return null;
+  const dir=folder.toLowerCase();
+  const c=images.filter(im=>{
+    const segs=im.path.toLowerCase().split("/");
+    return segs.length>1&&segs[segs.length-2]===dir;
+  });
+  if(!c.length)return null;
+  c.sort((a,b)=>{
+    const pref=p=>/cover|front|folder|album/i.test(p.split("/").pop())?1:0;
+    return pref(b.path)-pref(a.path)||(b.blob.size||0)-(a.blob.size||0);
+  });
+  return c[0].blob;
+}
+async function importFiles(rawFiles,opts={}){
+  toast(`Reading ${rawFiles.length} file${rawFiles.length>1?"s":""}\u2026`);
+  const {batches,backup,images}=await expandInputFiles(rawFiles);
+  if(backup){await restoreBackup(backup);return}
+  const total=batches.reduce((n,b)=>n+b.files.length,0);
+  if(!total){toast("No audio found in that selection");return}
+  const mode=opts.perFolder?"folder":(state.settings.groupMode||"single");
   const before=state.albums.length;
   const newAlbums=[];
-  for(const g of groups.values()){
+  let parsed=0;
+  for(const batch of batches){
+    const items=[];
+    for(const f of batch.files){
+      let meta={};
+      try{meta=parseMeta(await f.arrayBuffer(),f.name)}catch(e){meta={title:f.name.replace(/\.[^.]+$/,"")}}
+      const folder=(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||"";
+      items.push({file:f,meta,folder});
+      if(++parsed%8===0)await new Promise(r=>setTimeout(r,0)); // breathe
+    }
+    for(const g of groupItems(items,mode)){
     g.sort((a,b)=>(a.meta.track||999)-(b.meta.track||999)||a.file.name.localeCompare(b.file.name));
     // majority vote on every album-level field
     const most=f=>{const c={};g.forEach(it=>{const v=it.meta[f];if(v)c[v]=(c[v]||0)+1});
       const top=Object.entries(c).sort((x,y)=>y[1]-x[1])[0];return top?top[0]:""};
     const withDir=g.find(it=>it.folder);
     let title=most("album"), dirArtist="", dirYear="";
-    if(!title&&withDir){
-      // mine the folder name: "Artist - Album (1997)", "Album [2004]", plain "Album"
-      const f=withDir.folder;
-      const ym=f.match(/[\(\[](\d{4})[\)\]]/);if(ym)dirYear=ym[1];
-      const cf=f.replace(/[\(\[]\d{4}[\)\]]/g,"").replace(/[_]+/g," ").trim();
-      const pp=cf.split(/\s+-\s+/);
-      if(pp.length>=2){dirArtist=pp[0].trim();title=pp.slice(1).join(" - ").trim()}
-      else title=cf;
+    if(!title){
+      // mine the folder or zip name: "Artist - Album (1997)", "Album [2004]"
+      const f=(withDir&&withDir.folder)||batch.label||"";
+      if(f){
+        const ym=f.match(/[\(\[](\d{4})[\)\]]/);if(ym)dirYear=ym[1];
+        const cf=f.replace(/[\(\[]\d{4}[\)\]]/g,"").replace(/[_]+/g," ").trim();
+        const pp=cf.split(/\s+-\s+/);
+        if(pp.length>=2){dirArtist=pp[0].trim();title=pp.slice(1).join(" - ").trim()}
+        else title=cf;
+      }
     }
     const artist=most("albumArtist")||most("artist")||dirArtist||"Unknown Artist";
     title=title||"Untitled Transmission";
     const first=g.find(it=>it.meta.art);
-    const rawArt=first?first.meta.art:(withDir?folderArt(images,withDir.folder):null);
+    const rawArt=first?first.meta.art
+      :(folderArt(images,(withDir&&withDir.folder)||"")||folderArt(images,batch.label));
     const alb={
       id:uid(),seq:nextSeq(),title,artist,
       year:most("year")||dirYear,genre:most("genre"),
@@ -1797,8 +1846,9 @@ async function importFiles(rawFiles){
       art:await normalizeArt(rawArt), // undecodable covers become gaps the archive can fill
       mock:false
     };
+    // one continuous run of track numbers, whatever the tags claimed
     const trks=g.map((it,i)=>({
-      id:alb.id+"-t"+i,albumId:alb.id,idx:it.meta.track||i+1,
+      id:alb.id+"-t"+i,albumId:alb.id,idx:i+1,
       title:it.meta.title,artist:it.meta.artist||artist,blob:it.file
     }));
     state.albums.push(alb);state.tracks.set(alb.id,trks);
@@ -1808,6 +1858,7 @@ async function importFiles(rawFiles){
     }catch(e){toast("Storage refused some data — check quota in Settings")}
     newAlbums.push(alb);
     await addLog("\u2726","g-amber",`${alb.title} — ${alb.artist} entered the sky (${trks.length} tracks)`);
+    }
   }
   await kvSet("seq",seqCounter);
   onAlbumsAdded(newAlbums,before);
@@ -3195,6 +3246,9 @@ let sheetAlbumId=null;
 function openAlbum(id){
   const a=albumById(id);if(!a)return;
   sheetAlbumId=id;
+  albReorderMode=false;
+  $("#albReorder").textContent="REORDER TRACKS";
+  $("#albReorder").classList.remove("hot");
   $("#albEditor").style.display="none";
   artImg($("#albArtBig"),a);
   $("#albTitle").textContent=a.title;
@@ -3205,27 +3259,48 @@ function openAlbum(id){
 function renderAlbumSub(a){
   $("#albSub").textContent=`${a.artist} \u00B7 ${a.year||"\u2014"} \u00B7 ${a.genre||"unsorted"}${a.mock?" \u00B7 mock":""}`;
 }
+let albReorderMode=false;
 function renderAlbumTracks(a){
   const trks=(state.tracks.get(a.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
   const q=state.queue[state.qIndex];
-  $("#albTracks").innerHTML=trks.map(t=>`
+  const last=trks.length-1;
+  $("#albTracks").innerHTML=trks.map((t,i)=>`
     <div class="trk${q&&q.trackId===t.id?" playing":""}" data-trk="${t.id}">
       <div class="t-no">${t.idx}</div>
-      <button class="t-main" data-play="${t.id}" style="text-align:left" aria-label="Play ${esc(t.title)}">
+      <button class="t-main"${albReorderMode?"":` data-play="${t.id}"`} style="text-align:left" aria-label="${albReorderMode?esc(t.title):"Play "+esc(t.title)}">
         <div class="t-title">${esc(t.title)}</div>
         <div class="t-sub">${esc(t.artist||a.artist)}</div>
       </button>
-      <button class="t-btn" data-rename="${t.id}" aria-label="Rename track">${ICO.edit}</button>
-      <button class="t-btn" data-pl="${t.id}" aria-label="Add track to playlist">${ICO.plus}</button>
+      ${albReorderMode?`
+        <button class="t-btn" data-up="${i}" aria-label="Move up"${i===0?" disabled style=\"opacity:.3\"":""}>&#9650;</button>
+        <button class="t-btn" data-down="${i}" aria-label="Move down"${i===last?" disabled style=\"opacity:.3\"":""}>&#9660;</button>`
+      :`
+        <button class="t-btn" data-rename="${t.id}" aria-label="Rename track">${ICO.edit}</button>
+        <button class="t-btn" data-pl="${t.id}" aria-label="Add track to playlist">${ICO.plus}</button>`}
     </div>`).join("");
-  $("#albTracks").querySelectorAll("[data-play]").forEach(b=>b.addEventListener("click",()=>{
+  const T=$("#albTracks");
+  /* reordering rewrites idx for the whole album, so the numbers stay a
+     clean 1..n run no matter how the tags arrived */
+  async function move(from,to){
+    if(to<0||to>=trks.length)return;
+    const arr=trks.slice();
+    arr.splice(to,0,arr.splice(from,1)[0]);
+    for(let i=0;i<arr.length;i++){
+      if(arr[i].idx!==i+1){arr[i].idx=i+1;await dbPut("tracks",arr[i])}
+    }
+    state.tracks.set(a.id,arr);
+    renderAlbumTracks(a);
+  }
+  T.querySelectorAll("[data-up]").forEach(b=>b.addEventListener("click",()=>move(+b.dataset.up,+b.dataset.up-1)));
+  T.querySelectorAll("[data-down]").forEach(b=>b.addEventListener("click",()=>move(+b.dataset.down,+b.dataset.down+1)));
+  T.querySelectorAll("[data-play]").forEach(b=>b.addEventListener("click",()=>{
     const idx=trks.findIndex(t=>t.id===b.dataset.play);
     playQueue(trks.map(t=>({albumId:a.id,trackId:t.id})),idx);
     renderAlbumTracks(a);
   }));
-  $("#albTracks").querySelectorAll("[data-pl]").forEach(b=>b.addEventListener("click",()=>
+  T.querySelectorAll("[data-pl]").forEach(b=>b.addEventListener("click",()=>
     pickPlaylist([{albumId:a.id,trackId:b.dataset.pl}])));
-  $("#albTracks").querySelectorAll("[data-rename]").forEach(b=>b.addEventListener("click",()=>{
+  T.querySelectorAll("[data-rename]").forEach(b=>b.addEventListener("click",()=>{
     const t=trackById(a.id,b.dataset.rename);if(!t)return;
     const row=b.closest(".trk"), main=row.querySelector(".t-main");
     main.innerHTML=`<input class="t-edit" value="${esc(t.title)}" aria-label="Track title">`;
@@ -3239,6 +3314,70 @@ function renderAlbumTracks(a){
     inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()});
   }));
 }
+$("#albReorder").addEventListener("click",()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  albReorderMode=!albReorderMode;
+  $("#albReorder").textContent=albReorderMode?"DONE REORDERING":"REORDER TRACKS";
+  $("#albReorder").classList.toggle("hot",albReorderMode);
+  renderAlbumTracks(a);
+});
+/* ── merging ──
+   A single that belongs on a record shouldn't have to sit beside it as
+   its own star. Merging moves the tracks, renumbers them onto the end,
+   inherits artwork if the target has none, and repoints every playlist
+   and the live queue so nothing that referenced them breaks. */
+async function mergeAlbums(srcId,dstId){
+  const src=albumById(srcId), dst=albumById(dstId);
+  if(!src||!dst||src.id===dst.id)return false;
+  const srcT=(state.tracks.get(src.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
+  const dstT=(state.tracks.get(dst.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
+  let n=dstT.length;
+  for(const t of srcT){
+    t.albumId=dst.id;t.idx=++n;
+    await dbPut("tracks",t);
+    dstT.push(t);
+  }
+  state.tracks.set(dst.id,dstT);
+  state.tracks.delete(src.id);
+  dst.trackCount=dstT.length;
+  if(!dst.art&&src.art){dst.art=src.art;dropArtURL(dst.id)}
+  await dbPut("albums",dst);
+  await dbDel("albums",src.id);
+  state.albums=state.albums.filter(x=>x.id!==src.id);
+  for(const pl of state.playlists){
+    let touched=false;
+    pl.items.forEach(it=>{if(it.albumId===src.id){it.albumId=dst.id;touched=true}});
+    if(touched)await dbPut("playlists",pl);
+  }
+  state.queue.forEach(qq=>{if(qq.albumId===src.id)qq.albumId=dst.id});
+  if(state.playingAlbumId===src.id)state.playingAlbumId=dst.id;
+  await addLog("\u266A","g-teal",`${src.title} was folded into ${dst.title} — ${srcT.length} track${srcT.length===1?"":"s"} moved`);
+  sky.rebuild();renderLibrary();renderPlaylists();updateStorage();refreshTransit(false);
+  return true;
+}
+$("#albMerge").addEventListener("click",()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  const others=state.albums.filter(x=>x.id!==a.id).sort((x,y)=>x.seq-y.seq);
+  if(!others.length){toast("There's nothing else to merge into yet");return}
+  $("#pickTitle").textContent="Merge into which album?";
+  $("#pickSub").style.display="";
+  $("#pickSub").textContent=`“${a.title}” and its ${(state.tracks.get(a.id)||[]).length} track(s) will move to the end of the album you choose, and this star goes out.`;
+  const list=$("#pickList");
+  list.innerHTML=others.map(o=>`
+    <button class="pick-row" data-merge="${o.id}">
+      <img class="art" src="${artURL(o)||ART_PH}" alt="" style="width:34px;height:34px;object-fit:cover;flex-shrink:0">
+      <div style="min-width:0"><div class="pl-name">${esc(o.title)}</div>
+      <div class="pl-count">${esc(o.artist)} \u00B7 ${(state.tracks.get(o.id)||[]).length} TRACKS</div></div>
+    </button>`).join("");
+  list.querySelectorAll("img.art").forEach(im=>im.onerror=()=>{if(im.getAttribute("src")!==ART_PH)im.src=ART_PH});
+  list.querySelectorAll("[data-merge]").forEach(b=>b.addEventListener("click",async()=>{
+    const dst=albumById(b.dataset.merge);
+    if(!dst||!confirm(`Move “${a.title}” into “${dst.title}”?`))return;
+    closeSheet("sheetPick");closeSheet("sheetAlbum");
+    if(await mergeAlbums(a.id,dst.id))toast(`Folded into “${dst.title}”`,true);
+  }));
+  openSheet("sheetPick");
+});
 $("#albPlay").addEventListener("click",()=>{
   const a=albumById(sheetAlbumId);if(!a)return;
   const trks=(state.tracks.get(a.id)||[]).slice().sort((x,y)=>x.idx-y.idx);
@@ -3397,6 +3536,8 @@ $("#albToPl").addEventListener("click",()=>{
 });
 function pickPlaylist(items){
   const list=$("#pickList");
+  $("#pickTitle").textContent="Add to playlist";
+  $("#pickSub").style.display="none";
   if(!state.playlists.length){
     list.innerHTML=`<div class="empty"><i>No playlists yet.</i><br>Create one in the LISTS tab first.</div>`;
   }else{
@@ -3538,6 +3679,16 @@ function setHud(on){
   $("#tglHud").classList.toggle("on",on);
   $("#tglHud").setAttribute("aria-checked",on);
 }
+$("#tglGroup").addEventListener("click",()=>{
+  const single=(state.settings.groupMode||"single")!=="single";
+  state.settings.groupMode=single?"single":"smart";
+  saveSettings();syncGroupUI();
+});
+function syncGroupUI(){
+  const on=(state.settings.groupMode||"single")==="single";
+  $("#tglGroup").classList.toggle("on",on);
+  $("#tglGroup").setAttribute("aria-checked",on);
+}
 $("#tglFft").addEventListener("click",()=>{
   state.settings.fft=!state.settings.fft;saveSettings();
   $("#tglFft").classList.toggle("on",state.settings.fft);
@@ -3627,7 +3778,7 @@ $("#btnWipe").addEventListener("click",async()=>{
   state.queue=[];state.qIndex=-1;state.playingAlbumId=null;seqCounter=0;
   $("#playerBar").classList.remove("show");
   sky.rebuild();renderLibrary();renderPlaylists();renderLog();updateStorage();
-  transit=null;renderTransitChip();
+  transitStats={witnessed:0,history:[]};transit=null;renderTransitChip();
   toast("The sky is dark again");
 });
 
@@ -3870,17 +4021,41 @@ async function witnessTransit(){
   renderTransitChip();
   await addLog("\u2726","g-violet",`Followed ${transit.tag.toLowerCase()} — ${transit.title}`);
 }
+/* A transit is resolved once and then kept. It used to be recomputed on
+   every call from live play counts — so following tonight's comet changed
+   which album was least-played, and the comet could be carrying something
+   different by the time you looked again. The resolved event is stored for
+   the day and only rebuilt when the date turns over or the music it points
+   at is gone. */
+function transitStillValid(T){
+  if(!T||!T.key||!Array.isArray(T.items))return false;
+  const live=T.items.filter(q=>{const t=trackById(q.albumId,q.trackId);return t&&t.blob});
+  if(!live.length)return false;
+  T.items=live;
+  if(T.albumId&&!albumById(T.albumId))return false;
+  if(T.a&&!sky.cstByKey(T.a))return false;
+  if(T.b&&!sky.cstByKey(T.b))return false;
+  return true;
+}
 async function refreshTransit(announce){
   const key=dayKey();
-  const prev=transit&&transit.key;
-  transit=makeTransit(key);
+  const kept=transitStats.today;
+  let T=(kept&&kept.key===key&&transitStillValid(kept))?kept:null;
+  if(!T){
+    T=makeTransit(key);
+    transitStats.today=T;
+    await saveTransits();
+  }
+  transit=T;
   renderTransitChip();
   if(!transit)return;
   if(announce&&transitStats.lastSeen!==key){
     transitStats.lastSeen=key;
     await saveTransits();
     await addLog("\u2726","g-teal",`${transit.tag} \u2014 ${transit.title}`);
+    // the sky's banner only exists on the sky — say it out loud anywhere else
     if(document.body.dataset.tab==="sky")sky.banner(transit.tag,transit.title.toUpperCase());
+    else toast(`${transit.tag} \u2014 ${transit.title}`,true);
   }
 }
 $("#transitChip").addEventListener("click",openTransit);
@@ -3915,7 +4090,8 @@ document.addEventListener("visibilitychange",()=>{
     dbAll("albums"),dbAll("tracks"),dbAll("playlists"),
     kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays"),kvGet("transits")
   ]);
-  if(transits)transitStats={witnessed:transits.witnessed||0,history:transits.history||[],lastSeen:transits.lastSeen};
+  if(transits)transitStats={witnessed:transits.witnessed||0,history:transits.history||[],
+    lastSeen:transits.lastSeen,today:transits.today||null};
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{
@@ -3945,6 +4121,7 @@ document.addEventListener("visibilitychange",()=>{
   syncRepeatUI();
   setHud(!!state.settings.hud);
   $("#tglFft").classList.toggle("on",state.settings.fft!==false);
+  syncGroupUI();
   $("#volSlider").value=Math.round((state.settings.volume??.9)*100);
   audio.volume=1; // gain node owns volume once the graph exists
 
