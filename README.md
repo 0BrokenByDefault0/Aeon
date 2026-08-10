@@ -15,7 +15,11 @@ meteor shower of fourteen songs shaken loose at random, an eclipse over
 the one you never returned to, or an alignment binding two of your
 constellations into a single playlist. The date and your sky seed decide
 it together, so it holds all day, is gone by morning, and is never the
-same in two collections. Following one is recorded.
+same in two collections. Comets and showers are the ordinary weather; a
+supernova or an alignment lands rarely enough to be an occasion. Following
+one leaves a permanent mark exactly where it happened — the scar of a
+comet's path, the remnant rings of a supernova — so the sky slowly becomes
+a record of the nights you turned up for it.
 
 Everything — audio, artwork, playlists, listening history — lives **on
 the device only**. Nothing is uploaded, tracked, or shared. The only

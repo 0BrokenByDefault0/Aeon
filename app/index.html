@@ -814,7 +814,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="tgl" id="tglHud" role="switch" aria-checked="false" aria-label="Heads-up display"></button>
     </div>
     <div class="set-row">
-      <div><div class="set-l">Transits witnessed</div><div class="set-d" id="setTransit">The sky keeps count of the nights you showed up</div></div>
+      <div><div class="set-l">Transits witnessed</div><div class="set-d" id="setTransit">Each one left a permanent mark where it happened</div></div>
       <div class="pl-count" id="setTransitN">0</div>
     </div>
     <div class="set-row">
@@ -876,7 +876,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.7 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.8 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1903,7 +1903,8 @@ async function exportBackup(){
   try{
     const files=[];
     const cat={v:1,exported:Date.now(),skySeed,
-      albums:[],playlists:state.playlists,log:state.log,plays:playCounts};
+      albums:[],playlists:state.playlists,log:state.log,plays:playCounts,
+      transits:transitStats}; // the nights you showed up travel with the music
     for(const a of real){
       const rec={id:a.id,title:a.title,artist:a.artist,year:a.year,genre:a.genre,
         trackCount:a.trackCount,artFile:null,tracks:[]};
@@ -1969,6 +1970,14 @@ async function restoreBackup(b){
   }
   for(const k in cat.plays||{})playCounts[k]=Math.max(playCounts[k]||0,cat.plays[k]);
   await kvSet("plays",playCounts);
+  if(cat.transits){ // merge witnessed history without double-counting a night
+    const seen=new Set((transitStats.relics||[]).map(r=>r.d));
+    (cat.transits.relics||[]).forEach(r=>{if(!seen.has(r.d)){transitStats.relics.push(r);seen.add(r.d)}});
+    const days=new Set((transitStats.history||[]).map(h=>h.d));
+    (cat.transits.history||[]).forEach(h=>{if(!days.has(h.d)){transitStats.history.push(h);days.add(h.d)}});
+    transitStats.witnessed=days.size||Math.max(transitStats.witnessed||0,cat.transits.witnessed||0);
+    await saveTransits();
+  }
   await kvSet("seq",seqCounter);
   onAlbumsAdded(newAlbums,before);
   renderLibrary();renderPlaylists();updateStorage();
@@ -2828,6 +2837,56 @@ const sky=(()=>{
   function skyReach(){
     return Math.max(300,...regions.map(G=>Math.hypot(G.x,G.y)+G.r));
   }
+  /* ── relics ──
+     Every transit you followed leaves a permanent trace exactly where it
+     happened: the scar of a comet's path, the remnant rings of a supernova,
+     the dust left at a shower's radiant. Over months the sky stops being
+     only a map of what you own and becomes a record of the nights you
+     turned up for it. Positions are stored as angles and re-derived from
+     the sky's current reach, so relics stay coherent as the sky grows. */
+  function drawRelics(x2,t){
+    const rel=transitStats.relics;
+    if(!rel||!rel.length||!stars.length)return;
+    const R0=skyReach(), now=Date.now();
+    rel.forEach(rl=>{
+      const days=Math.max(0,(now-(rl.at||now))/86400000);
+      x2.globalAlpha=Math.max(.06,Math.min(.26,days<7?.24:.13));
+      if(rl.kind==="comet"){
+        const dx=Math.cos(rl.ang),dy=Math.sin(rl.ang)*.6,D=R0*1.6;
+        x2.strokeStyle="#c8d6ff";x2.lineWidth=.7/cam.s;
+        x2.setLineDash([11/cam.s,17/cam.s]);
+        x2.beginPath();x2.moveTo(-dx*D,-dy*D);x2.lineTo(dx*D,dy*D);x2.stroke();
+        x2.setLineDash([]);
+      }else if(rl.kind==="supernova"){
+        const st=starById(rl.albumId);
+        if(st){
+          x2.strokeStyle="#ffd98a";x2.lineWidth=.9/cam.s;
+          x2.beginPath();x2.arc(st.x,st.y,26,0,6.283);x2.stroke();
+          x2.beginPath();x2.arc(st.x,st.y,35,0,6.283);x2.stroke();
+        }
+      }else if(rl.kind==="shower"){
+        const rx=Math.cos(rl.ang)*R0*.9, ry=Math.sin(rl.ang)*R0*.6;
+        x2.fillStyle="#e8f1ff";
+        const q=mulberry(hashStr("relic"+rl.d));
+        for(let i=0;i<7;i++){
+          x2.beginPath();
+          x2.arc(rx+(q()-.5)*52,ry+(q()-.5)*40,.7/cam.s+.7,0,6.283);
+          x2.fill();
+        }
+      }else if(rl.kind==="eclipse"){
+        const ex=Math.cos(rl.ang)*R0*.72, ey=Math.sin(rl.ang)*R0*.5;
+        x2.strokeStyle="#ffd6aa";x2.lineWidth=.9/cam.s;
+        x2.beginPath();x2.arc(ex,ey,Math.max(24,R0*.085),0,6.283);x2.stroke();
+      }else if(rl.kind==="alignment"){
+        const A=cstByKey(rl.a),B=cstByKey(rl.b);
+        if(A&&B){
+          x2.strokeStyle="#c39dff";x2.lineWidth=.7/cam.s;
+          x2.beginPath();x2.moveTo(A.cx,A.cy);x2.lineTo(B.cx,B.cy);x2.stroke();
+        }
+      }
+      x2.globalAlpha=1;
+    });
+  }
   function drawTransit(x2,t){
     transitHit=null;
     if(!transit||!stars.length||document.body.dataset.tab!=="sky")return;
@@ -2952,6 +3011,9 @@ const sky=(()=>{
     xW.clearRect(0,0,W,H);
     xW.save();
     xW.translate(W/2,H/2);xW.scale(cam.s,cam.s);xW.translate(-cam.cx,-cam.cy);
+
+    // every night you turned up for, still there behind everything
+    drawRelics(xW,t);
 
     /* genre regions read from far away, artist constellations from close in:
        zoom out and the sky is a map of genres; zoom in and it is a map of
@@ -3778,7 +3840,7 @@ $("#btnWipe").addEventListener("click",async()=>{
   state.queue=[];state.qIndex=-1;state.playingAlbumId=null;seqCounter=0;
   $("#playerBar").classList.remove("show");
   sky.rebuild();renderLibrary();renderPlaylists();renderLog();updateStorage();
-  transitStats={witnessed:0,history:[]};transit=null;renderTransitChip();
+  transitStats={witnessed:0,history:[],relics:[]};transit=null;renderTransitChip();
   toast("The sky is dark again");
 });
 
@@ -3931,9 +3993,16 @@ function makeTransit(key){
   const r=mulberry(hashStr(key+"|"+skySeed));
   const ang=r()*6.283;
   const cst=sky.constellations().filter(c=>c.stars.some(st=>albumQueue(st.album).length));
-  const kinds=["comet","supernova","shower","eclipse"];
-  if(cst.length>=2)kinds.push("alignment","alignment");
-  const kind=kinds[Math.floor(r()*kinds.length)];
+  /* Weighted so the big occasions stay occasions. Comets and showers are
+     the sky's ordinary weather; an eclipse is a periodic hush; a supernova
+     or an alignment lands rarely enough that finding one feels like being
+     in the right place on the right night. */
+  const WEIGHTS={comet:5,shower:4,eclipse:3,supernova:1,alignment:1};
+  const kinds=["comet","shower","eclipse","supernova"];
+  if(cst.length>=2)kinds.push("alignment");
+  const pool=[];
+  kinds.forEach(k=>{for(let i=0;i<WEIGHTS[k];i++)pool.push(k)});
+  const kind=pool[Math.floor(r()*pool.length)];
   const byPlays=[...playable].sort((a,b)=>albumPlays(a)-albumPlays(b)||a.seq-b.seq);
   const T={kind,ang,key};
 
@@ -4008,8 +4077,8 @@ function openTransit(){
   $("#trText").textContent=transit.text;
   const n=transitStats.witnessed||0;
   $("#trStat").textContent=transitWitnessed()
-    ?`You followed this one. ${n} transit${n===1?"":"s"} witnessed in this sky.`
-    :`${n} transit${n===1?"":"s"} witnessed in this sky. Tonight's is still overhead.`;
+    ?`You followed this one, and the sky kept the mark. ${n} transit${n===1?"":"s"} witnessed here.`
+    :`${n} transit${n===1?"":"s"} witnessed in this sky, each one still marked where it happened. Tonight's is overhead now.`;
   openSheet("sheetTransit");
 }
 async function witnessTransit(){
@@ -4017,9 +4086,15 @@ async function witnessTransit(){
   transitStats.witnessed=(transitStats.witnessed||0)+1;
   transitStats.history.unshift({d:transit.key,kind:transit.kind,title:transit.title});
   if(transitStats.history.length>60)transitStats.history.length=60;
+  // the permanent mark, placed where the event actually happened
+  transitStats.relics=transitStats.relics||[];
+  transitStats.relics.unshift({d:transit.key,at:Date.now(),kind:transit.kind,
+    ang:transit.ang,albumId:transit.albumId,a:transit.a,b:transit.b});
+  if(transitStats.relics.length>200)transitStats.relics.length=200;
   await saveTransits();
   renderTransitChip();
-  await addLog("\u2726","g-violet",`Followed ${transit.tag.toLowerCase()} — ${transit.title}`);
+  await addLog("\u2726","g-violet",`Followed ${transit.tag.toLowerCase()} — ${transit.title}. It left a mark on the sky.`);
+  toast("The sky keeps a mark where that happened",true);
 }
 /* A transit is resolved once and then kept. It used to be recomputed on
    every call from live play counts — so following tonight's comet changed
@@ -4091,7 +4166,7 @@ document.addEventListener("visibilitychange",()=>{
     kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays"),kvGet("transits")
   ]);
   if(transits)transitStats={witnessed:transits.witnessed||0,history:transits.history||[],
-    lastSeen:transits.lastSeen,today:transits.today||null};
+    lastSeen:transits.lastSeen,today:transits.today||null,relics:transits.relics||[]};
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{
