@@ -22,9 +22,13 @@ comet's path, the remnant rings of a supernova — so the sky slowly becomes
 a record of the nights you turned up for it.
 
 Everything — audio, artwork, playlists, listening history — lives **on
-the device only**. Nothing is uploaded, tracked, or shared. The only
-network calls are optional metadata lookups (iTunes/Deezer) and the
-recommendation scan, which links out to Bandcamp so discovery ends in
+the device only**. Library content is never uploaded, tracked, or shared.
+The only application-data network calls are manual metadata lookups,
+automatic metadata lookups that the collector explicitly enables in
+Settings (off by default), and the
+recommendation scan. Metadata requests send the album title and artist to
+iTunes or Deezer as data-only HTTP requests; third-party scripts never run
+inside the app. Recommendations link out to Bandcamp so discovery ends in
 *owning* the music, not renting it.
 
 ## What's in here

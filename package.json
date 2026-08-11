@@ -4,6 +4,10 @@
   "private": true,
   "description": "A music library that composes itself as a night sky.",
   "scripts": {
+    "postinstall": "node scripts/patch-capacitor-tar.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "check": "node scripts/check-syntax.cjs",
+    "audit": "npm audit --audit-level=high",
     "ios": "cap add ios || true && cap sync ios && cap open ios",
     "sync": "cap sync ios"
   },
@@ -15,5 +19,9 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^6.0.0"
+  },
+  "overrides": {
+    "tar": "7.5.22",
+    "brace-expansion": "2.1.4"
   }
 }

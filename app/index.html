@@ -850,6 +850,11 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <div class="set-d">Files picked together become one album; only separate folders split them. Turn off to let album tags divide files instead.</div></div>
       <button class="tgl on" id="tglGroup" role="switch" aria-checked="true" aria-label="One import, one album"></button>
     </div>
+    <div class="set-row">
+      <div><div class="set-l">Automatic metadata lookups</div>
+      <div class="set-d">Off by default. When enabled, missing album titles and artist names are sent to iTunes or Deezer after import to find tags and artwork.</div></div>
+      <button class="tgl" id="tglMeta" role="switch" aria-checked="false" aria-label="Automatic metadata lookups"></button>
+    </div>
   </div>
 
   <div class="card">
@@ -876,7 +881,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.8 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.9 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1105,6 +1110,281 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const fmtT=s=>{if(!isFinite(s))return"0:00";s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
 const PALETTE=["#ffb057","#ff4b2e","#e8f1ff","#4d7cff","#ffd98a"];
 const normKey=s=>String(s??"").trim().toLowerCase();
+/* AEON_CORE_START */
+const AeonCore=(()=>{
+  const MIME_BY_EXT=Object.freeze({
+    mp3:"audio/mpeg",m4a:"audio/mp4",aac:"audio/aac",flac:"audio/flac",
+    wav:"audio/wav",ogg:"audio/ogg",opus:"audio/opus",
+    jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",gif:"image/gif",webp:"image/webp",
+    json:"application/json",zip:"application/zip"
+  });
+  const EXT_BY_MIME=Object.freeze({
+    "audio/mpeg":".mp3","audio/mp3":".mp3","audio/mp4":".m4a","audio/x-m4a":".m4a",
+    "audio/aac":".aac","audio/flac":".flac","audio/x-flac":".flac",
+    "audio/wav":".wav","audio/x-wav":".wav","audio/wave":".wav",
+    "audio/ogg":".ogg","audio/opus":".opus",
+    "image/jpeg":".jpg","image/png":".png","image/gif":".gif","image/webp":".webp"
+  });
+  const CRC_TABLE=(()=>{const table=new Uint32Array(256);for(let n=0;n<256;n++){
+    let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;table[n]=c
+  }return table})();
+
+  function fileExtension(name){
+    const match=String(name||"").match(/\.([a-z0-9]+)$/i);
+    return match?"."+match[1].toLowerCase():"";
+  }
+  function mimeForFilename(name){
+    const ext=fileExtension(name).slice(1);
+    return MIME_BY_EXT[ext]||"application/octet-stream";
+  }
+  function extensionForBlob(blob,fallback=""){
+    return fileExtension(blob&&blob.name)||EXT_BY_MIME[String(blob&&blob.type||"").toLowerCase()]||fallback;
+  }
+  function normAlbum(value){
+    return String(value||"").toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/[\(\[\{][^\)\]\}]*?(deluxe|remaster|remastered|edition|expanded|bonus|anniversary|version|explicit|clean|disc|disk|cd|vol|mono|stereo)[^\)\]\}]*?[\)\]\}]/gi," ")
+      .replace(/\b(disc|disk|cd)\s*\d+\b/gi," ")
+      .replace(/[^\p{L}\p{N}]+/gu," ")
+      .replace(/\s+/g," ").trim();
+  }
+  const normPerson=value=>String(value||"").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^\p{L}\p{N}]+/gu," ").replace(/\s+/g," ").trim();
+
+  function groupItems(items,mode){
+    if(!items.length)return[];
+    const folders=new Set(items.map(it=>(it.folder||"").toLowerCase()).filter(Boolean));
+    if(mode==="folder"||(mode!=="smart"&&folders.size>1)){
+      const byFolder=new Map();
+      items.forEach(item=>{const key=(item.folder||"").toLowerCase();
+        if(!byFolder.has(key))byFolder.set(key,[]);byFolder.get(key).push(item)});
+      return[...byFolder.values()];
+    }
+    if(mode!=="smart")return[items];
+
+    const groups=new Map(),sep="\u0000";
+    const put=(key,item)=>{if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item)};
+    for(const item of items){
+      const title=normAlbum(item.meta&&item.meta.album);
+      const folder=normPerson(item.folder);
+      const artist=normPerson(item.meta&&(item.meta.albumArtist||item.meta.artist))||("folder:"+folder);
+      put(title?"album:"+artist+sep+title : folder?"dir:"+folder:"",item);
+    }
+    let again=true;
+    while(again){
+      again=false;
+      const keys=[...groups.keys()].filter(key=>key.startsWith("album:"));
+      scan:
+      for(let i=0;i<keys.length;i++)for(let j=i+1;j<keys.length;j++){
+        const a=keys[i].slice(6).split(sep),b=keys[j].slice(6).split(sep);
+        if(a[0]!==b[0])continue;
+        const aTitle=a[1]||"",bTitle=b[1]||"";
+        if(aTitle.length>=4&&(aTitle.includes(bTitle)||bTitle.includes(aTitle))){
+          const keep=aTitle.length>=bTitle.length?keys[i]:keys[j];
+          const fold=keep===keys[i]?keys[j]:keys[i];
+          groups.get(keep).push(...groups.get(fold));groups.delete(fold);again=true;break scan;
+        }
+      }
+    }
+    for(const key of [...groups.keys()].filter(key=>key.startsWith("dir:"))){
+      const dir=key.slice(4);
+      for(const albumKey of [...groups.keys()].filter(candidate=>candidate.startsWith("album:"))){
+        const group=groups.get(albumKey);
+        if(group.filter(item=>normPerson(item.folder)===dir).length>=group.length*.5){
+          group.push(...groups.get(key));groups.delete(key);break;
+        }
+      }
+    }
+    if(groups.has("")&&groups.size>1){
+      const strays=groups.get("");groups.delete("");
+      let biggest=null;groups.forEach(group=>{if(!biggest||group.length>biggest.length)biggest=group});
+      if(biggest)biggest.push(...strays);
+    }
+    return[...groups.values()];
+  }
+
+  function safeArchivePath(path){
+    if(typeof path!=="string"||!path||path.startsWith("/")||path.includes("\\")||path.includes("\0"))return false;
+    return path.split("/").every(part=>part&&part!=="."&&part!=="..");
+  }
+  const plainObject=value=>!!value&&typeof value==="object"&&!Array.isArray(value);
+  function requiredString(value,label){
+    if(typeof value!=="string"||!value.trim())throw new Error("Backup has invalid "+label);
+    return value;
+  }
+  function validateBackupCatalog(raw,entryNames){
+    if(!plainObject(raw))throw new Error("Backup catalog is not an object");
+    if(raw.v!==1&&raw.v!==2)throw new Error("Unsupported backup version: "+String(raw.v));
+    if(!Array.isArray(raw.albums))throw new Error("Backup albums are invalid");
+    const names=entryNames instanceof Set?entryNames:new Set(entryNames||[]);
+    const albumIDs=new Set(),trackIDs=new Set(),trackKeys=new Set();
+    const albums=raw.albums.map((record,albumIndex)=>{
+      if(!plainObject(record))throw new Error("Backup album "+(albumIndex+1)+" is invalid");
+      const id=requiredString(record.id,"album ID");
+      if(albumIDs.has(id))throw new Error("Backup has duplicate album ID: "+id);
+      albumIDs.add(id);
+      if(!Array.isArray(record.tracks))throw new Error("Backup album "+id+" has invalid tracks");
+      let artFile=null;
+      if(record.artFile!=null){
+        artFile=requiredString(record.artFile,"artwork path");
+        if(!safeArchivePath(artFile))throw new Error("Backup has unsafe artwork path: "+artFile);
+        if(!names.has(artFile))throw new Error("Backup is missing artwork: "+artFile);
+      }
+      const tracks=record.tracks.map((track,trackIndex)=>{
+        if(!plainObject(track))throw new Error("Backup track "+(trackIndex+1)+" in "+id+" is invalid");
+        const trackID=requiredString(track.id,"track ID");
+        if(trackIDs.has(trackID))throw new Error("Backup has duplicate track ID: "+trackID);
+        trackIDs.add(trackID);trackKeys.add(id+"\u0000"+trackID);
+        if(typeof track.file!=="string"||!track.file.trim())throw new Error("Backup is missing audio for "+trackID);
+        const file=track.file;
+        if(!safeArchivePath(file))throw new Error("Backup has unsafe audio path: "+file);
+        if(!names.has(file))throw new Error("Backup is missing audio: "+file);
+        const idx=Number(track.idx);
+        if(!Number.isInteger(idx)||idx<1)throw new Error("Backup has invalid track number for "+trackID);
+        return{id:trackID,idx,title:requiredString(track.title,"track title"),
+          artist:typeof track.artist==="string"?track.artist:"",file,
+          name:typeof track.name==="string"?track.name:"",type:typeof track.type==="string"?track.type:""};
+      });
+      return{id,seq:Number.isInteger(record.seq)&&record.seq>0?record.seq:null,
+        title:requiredString(record.title,"album title"),artist:requiredString(record.artist,"album artist"),
+        year:typeof record.year==="string"?record.year:"",genre:typeof record.genre==="string"?record.genre:"",
+        artFile,tracks};
+    });
+    const playlistIDs=new Set();
+    const playlists=(Array.isArray(raw.playlists)?raw.playlists:[]).map((playlist,index)=>{
+      if(!plainObject(playlist))throw new Error("Backup playlist "+(index+1)+" is invalid");
+      const id=requiredString(playlist.id,"playlist ID");
+      if(playlistIDs.has(id))throw new Error("Backup has duplicate playlist ID: "+id);
+      playlistIDs.add(id);
+      const items=(Array.isArray(playlist.items)?playlist.items:[]).map(item=>{
+        if(!plainObject(item))throw new Error("Backup playlist "+id+" has an invalid item");
+        const albumId=requiredString(item.albumId,"playlist album ID");
+        const trackId=requiredString(item.trackId,"playlist track ID");
+        if(!trackKeys.has(albumId+"\u0000"+trackId))throw new Error("Backup playlist "+id+" references missing audio: "+trackId);
+        return{albumId,trackId};
+      });
+      return{id,name:requiredString(playlist.name,"playlist name"),items};
+    });
+    const plays={};if(plainObject(raw.plays))for(const [key,value] of Object.entries(raw.plays)){
+      const n=Number(value);if(Number.isFinite(n)&&n>=0)plays[key]=n;
+    }
+    return{...raw,v:raw.v,albums,playlists,plays,
+      log:Array.isArray(raw.log)?raw.log.filter(plainObject):[],
+      skySeed:Number.isInteger(raw.skySeed)&&raw.skySeed>=0&&raw.skySeed<=0xffffffff?raw.skySeed>>>0:null,
+      settings:plainObject(raw.settings)?raw.settings:null,
+      lastPlayed:plainObject(raw.lastPlayed)?raw.lastPlayed:null,
+      transits:plainObject(raw.transits)?raw.transits:null};
+  }
+
+  function mergeLogEntries(existing,incoming){
+    const seen=new Set(),out=[];
+    for(const entry of[...(existing||[]),...(incoming||[])]){
+      if(!plainObject(entry))continue;
+      const clean={t:Number(entry.t)||0,g:String(entry.g||""),cls:String(entry.cls||""),text:String(entry.text||"")};
+      const key=JSON.stringify([clean.t,clean.g,clean.cls,clean.text]);
+      if(seen.has(key))continue;seen.add(key);out.push(clean);
+    }
+    return out.sort((a,b)=>a.t-b.t);
+  }
+  function scrubQueueForAlbum(queue,qIndex,albumID){
+    const original=Array.isArray(queue)?queue:[],current=original[qIndex]||null;
+    const filtered=original.filter(item=>item&&item.albumId!==albumID);
+    const removedCurrent=!!current&&current.albumId===albumID;
+    if(!filtered.length)return{queue:[],qIndex:-1,removedCurrent};
+    if(!removedCurrent){
+      const preserved=filtered.indexOf(current);
+      if(preserved>=0)return{queue:filtered,qIndex:preserved,removedCurrent:false};
+    }
+    return{queue:filtered,qIndex:Math.min(Math.max(Number(qIndex)||0,0),filtered.length-1),removedCurrent};
+  }
+  const shouldAutoEnrich=(settings,albums)=>!!(settings&&settings.metadataLookups===true&&albums&&albums.length);
+  async function saveBackup(saver,blob,name){return(await saver(blob,name))===true}
+
+  function crcUpdate(crc,bytes){
+    let value=crc;for(let i=0;i<bytes.length;i++)value=CRC_TABLE[(value^bytes[i])&0xff]^(value>>>8);return value;
+  }
+  async function crc32Blob(blob){
+    let crc=~0;const reader=blob.stream().getReader();
+    try{for(;;){const{done,value}=await reader.read();if(done)break;crc=crcUpdate(crc,value)}}
+    finally{reader.releaseLock()}
+    return(~crc)>>>0;
+  }
+  async function zipWrite(files){
+    const encoder=new TextEncoder(),parts=[],central=[];let offset=0;
+    for(const source of files){
+      if(!safeArchivePath(source.name))throw new Error("Unsafe ZIP path: "+source.name);
+      const name=encoder.encode(source.name),blob=source.blob instanceof Blob?source.blob:new Blob([source.blob]);
+      if(name.length>0xffff||blob.size>0xffffffff||offset>0xffffffff)throw new Error("Backup is too large for ZIP32");
+      const crc=await crc32Blob(blob),size=blob.size;
+      const local=new DataView(new ArrayBuffer(30));
+      local.setUint32(0,0x04034b50,true);local.setUint16(4,20,true);local.setUint16(6,0x0800,true);
+      local.setUint32(14,crc,true);local.setUint32(18,size,true);local.setUint32(22,size,true);local.setUint16(26,name.length,true);
+      parts.push(local.buffer,name,blob);
+      const directory=new DataView(new ArrayBuffer(46));
+      directory.setUint32(0,0x02014b50,true);directory.setUint16(4,20,true);directory.setUint16(6,20,true);directory.setUint16(8,0x0800,true);
+      directory.setUint32(16,crc,true);directory.setUint32(20,size,true);directory.setUint32(24,size,true);
+      directory.setUint16(28,name.length,true);directory.setUint32(42,offset,true);
+      central.push(directory.buffer,name);offset+=30+name.length+size;
+    }
+    if(files.length>0xffff||offset>0xffffffff)throw new Error("Backup is too large for ZIP32");
+    let centralSize=0;central.forEach(part=>centralSize+=part.byteLength);
+    const end=new DataView(new ArrayBuffer(22));
+    end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);
+    end.setUint32(12,centralSize,true);end.setUint32(16,offset,true);
+    return new Blob([...parts,...central,end.buffer],{type:"application/zip"});
+  }
+  async function sliceBytes(blob,start,end){return new Uint8Array(await blob.slice(start,end).arrayBuffer())}
+  async function unzip(file){
+    if(!file||file.size<22)throw new Error("not a zip file");
+    const tailStart=Math.max(0,file.size-65580),tail=await sliceBytes(file,tailStart,file.size),tailView=new DataView(tail.buffer,tail.byteOffset,tail.byteLength);
+    let endOffset=-1;
+    for(let i=tail.length-22;i>=0;i--)if(tailView.getUint32(i,true)===0x06054b50){endOffset=i;break}
+    if(endOffset<0)throw new Error("not a zip file");
+    const count=tailView.getUint16(endOffset+10,true),centralSize=tailView.getUint32(endOffset+12,true),centralOffset=tailView.getUint32(endOffset+16,true);
+    if(centralOffset+centralSize>file.size)throw new Error("corrupt zip directory");
+    const centralBytes=await sliceBytes(file,centralOffset,centralOffset+centralSize);
+    const centralView=new DataView(centralBytes.buffer,centralBytes.byteOffset,centralBytes.byteLength);
+    const records=[];let cursor=0;
+    for(let i=0;i<count;i++){
+      if(cursor+46>centralBytes.length||centralView.getUint32(cursor,true)!==0x02014b50)throw new Error("corrupt zip entry");
+      const flags=centralView.getUint16(cursor+8,true),method=centralView.getUint16(cursor+10,true),crc=centralView.getUint32(cursor+16,true);
+      const compressedSize=centralView.getUint32(cursor+20,true),size=centralView.getUint32(cursor+24,true);
+      const nameLength=centralView.getUint16(cursor+28,true),extraLength=centralView.getUint16(cursor+30,true),commentLength=centralView.getUint16(cursor+32,true);
+      const localOffset=centralView.getUint32(cursor+42,true);
+      const name=new TextDecoder(flags&0x0800?"utf-8":"windows-1252")
+        .decode(centralBytes.subarray(cursor+46,cursor+46+nameLength));
+      cursor+=46+nameLength+extraLength+commentLength;
+      if(name.endsWith("/")||name.includes("__MACOSX"))continue;
+      if(!safeArchivePath(name))throw new Error("unsafe zip entry: "+name);
+      if(method!==0&&method!==8)throw new Error("unsupported zip compression for "+name);
+      records.push({name,method,crc,compressedSize,size,localOffset});
+    }
+    const entries=[];
+    for(const record of records){
+      const header=await sliceBytes(file,record.localOffset,record.localOffset+30);
+      const view=new DataView(header.buffer,header.byteOffset,header.byteLength);
+      if(header.length!==30||view.getUint32(0,true)!==0x04034b50)throw new Error("corrupt zip header for "+record.name);
+      const start=record.localOffset+30+view.getUint16(26,true)+view.getUint16(28,true);
+      if(start+record.compressedSize>file.size)throw new Error("truncated zip entry: "+record.name);
+      const compressed=file.slice(start,start+record.compressedSize);
+      let blob;
+      if(record.method===0)blob=new Blob([compressed],{type:mimeForFilename(record.name)});
+      else if(typeof DecompressionStream!=="undefined"){
+        blob=await new Response(compressed.stream().pipeThrough(new DecompressionStream("deflate-raw"))).blob();
+        blob=new Blob([blob],{type:mimeForFilename(record.name)});
+      }else throw new Error("compressed zip entries are not supported on this device");
+      if(blob.size!==record.size)throw new Error("wrong size for zip entry: "+record.name);
+      if(await crc32Blob(blob)!==record.crc)throw new Error("checksum failed for zip entry: "+record.name);
+      entries.push({name:record.name,blob});
+    }
+    return entries;
+  }
+  return{mimeForFilename,extensionForBlob,normAlbum,groupItems,validateBackupCatalog,
+    mergeLogEntries,scrubQueueForAlbum,shouldAutoEnrich,saveBackup,zipWrite,unzip};
+})();
+/* AEON_CORE_END */
+const{mimeForFilename,extensionForBlob,normAlbum,groupItems,zipWrite,unzip}=AeonCore;
 /* tonight's celestial event — declared early so the sky can draw it */
 let transit=null, transitStats={witnessed:0,history:[]};
 function skyCensus(){
@@ -1191,7 +1471,7 @@ const state={
   tracks:new Map(),    // albumId -> [{id,albumId,idx,title,artist,blob|null}]
   playlists:[],        // {id,name,items:[{albumId,trackId}]}
   log:[],              // {t,g,cls,text}
-  settings:{hud:false,fft:true,volume:.9,eqPreset:"FLAT",eqGains:new Array(10).fill(0),repeat:"off"},
+  settings:{hud:false,fft:true,volume:.9,eqPreset:"FLAT",eqGains:new Array(10).fill(0),repeat:"off",metadataLookups:false},
   queue:[],qIndex:-1,  // playback queue of {albumId,trackId}
   playingAlbumId:null,
   selectedAlbumId:null,
@@ -1537,69 +1817,6 @@ let skySeed=0;
    Bandcamp downloads. Writing emits stored-only zips for backups —
    audio is already compressed; recompressing buys nothing.
    ════════════════════════════════════════════════════════════════ */
-const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c}return t})();
-function crc32(u8){let c=~0;for(let i=0;i<u8.length;i++)c=CRC_T[(c^u8[i])&0xff]^(c>>>8);return(~c)>>>0}
-async function unzip(file){
-  const buf=await file.arrayBuffer();
-  const dv=new DataView(buf),u8=new Uint8Array(buf);
-  let eo=-1; // end-of-central-directory, scanned back past any zip comment
-  for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-22-65558);i--){
-    if(dv.getUint32(i,true)===0x06054b50){eo=i;break}
-  }
-  if(eo<0)throw new Error("not a zip file");
-  const count=dv.getUint16(eo+10,true);
-  let off=dv.getUint32(eo+16,true);
-  const raw=[];
-  for(let i=0;i<count&&off+46<=buf.byteLength;i++){
-    if(dv.getUint32(off,true)!==0x02014b50)break;
-    const method=dv.getUint16(off+10,true);
-    const csize=dv.getUint32(off+20,true);
-    const nlen=dv.getUint16(off+28,true),xlen=dv.getUint16(off+30,true),clen=dv.getUint16(off+32,true);
-    const lho=dv.getUint32(off+42,true);
-    const flags=dv.getUint16(off+8,true);
-    const name=new TextDecoder(flags&0x800?"utf-8":"windows-1252").decode(u8.subarray(off+46,off+46+nlen));
-    off+=46+nlen+xlen+clen;
-    if(name.endsWith("/")||name.includes("__MACOSX"))continue;
-    raw.push({name,method,csize,lho});
-  }
-  const entries=[];
-  for(const it of raw){
-    const lnlen=dv.getUint16(it.lho+26,true),lxlen=dv.getUint16(it.lho+28,true);
-    const start=it.lho+30+lnlen+lxlen;
-    const data=u8.subarray(start,start+it.csize);
-    let blob=null;
-    if(it.method===0)blob=new Blob([data.slice()]);
-    else if(it.method===8&&window.DecompressionStream){
-      try{blob=await new Response(new Blob([data.slice()]).stream()
-        .pipeThrough(new DecompressionStream("deflate-raw"))).blob()}catch(e){}
-    }
-    if(blob)entries.push({name:it.name,blob});
-  }
-  return entries;
-}
-function zipWrite(files){ // files: [{name:string,u8:Uint8Array}] → Blob
-  const enc=new TextEncoder(),parts=[],central=[];let off=0;
-  for(const f of files){
-    const n=enc.encode(f.name),crc=crc32(f.u8),sz=f.u8.length;
-    const lh=new DataView(new ArrayBuffer(30));
-    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);
-    lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);
-    lh.setUint16(26,n.length,true);
-    parts.push(lh.buffer,n,f.u8);
-    const ch=new DataView(new ArrayBuffer(46));
-    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);
-    ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);
-    ch.setUint16(28,n.length,true);ch.setUint32(42,off,true);
-    central.push(ch.buffer,n);
-    off+=30+n.length+sz;
-  }
-  let cd=0;central.forEach(p=>cd+=p.byteLength);
-  const eo=new DataView(new ArrayBuffer(22));
-  eo.setUint32(0,0x06054b50,true);
-  eo.setUint16(8,files.length,true);eo.setUint16(10,files.length,true);
-  eo.setUint32(12,cd,true);eo.setUint32(16,off,true);
-  return new Blob([...parts,...central,eo.buffer],{type:"application/zip"});
-}
 /* Handing a file to the user.
    In a browser an <a download> is enough. Inside the native shell it is
    not — WKWebView has no download manager, so a backup would silently
@@ -1637,7 +1854,7 @@ async function saveBlob(blob,name){
     await Share.share({title:name,files:[uri]});
     return true;
   }catch(e){
-    if(/cancel/i.test(e&&e.message||""))return true; // user dismissed the sheet
+    if(/cancel/i.test(e&&e.message||""))return false;
     toast("Couldn't hand that file to iOS \u2014 "+((e&&e.message)||e));
     return false;
   }
@@ -1679,16 +1896,6 @@ fileInput.addEventListener("change",async()=>{
   if(files.length)await importFiles(files);
 });
 
-/* forgiving album-name normalizer — variant tags must never split one album */
-function normAlbum(s){
-  return String(s||"").toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-    .replace(/[\(\[\{][^\)\]\}]*?(deluxe|remaster|remastered|edition|expanded|bonus|anniversary|version|explicit|clean|disc|disk|cd|vol|mono|stereo)[^\)\]\}]*?[\)\]\}]/gi," ")
-    .replace(/\b(disc|disk|cd)\s*\d+\b/gi," ")
-    .replace(/[^\p{L}\p{N}]+/gu," ")
-    .replace(/\s+/g," ").trim();
-}
-
 const AUD_RE=/\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i, IMG_RE=/\.(jpe?g|png|gif|webp)$/i;
 /* zips unpack in place; loose images ride along as candidate album art;
    a zip carrying isolation-backup.json is a restore, not an import */
@@ -1708,7 +1915,7 @@ async function expandInputFiles(files){
         if(!nm||nm.startsWith("."))continue;
         const path=base+"/"+en.name;
         if(AUD_RE.test(nm)){
-          const file=new File([en.blob],nm,{type:"audio/mpeg"});
+          const file=new File([en.blob],nm,{type:mimeForFilename(nm)});
           Object.defineProperty(file,"webkitRelativePath",{value:path});
           b.files.push(file);
         }else if(IMG_RE.test(nm))b.images.push({path,blob:en.blob});
@@ -1724,63 +1931,8 @@ async function expandInputFiles(files){
   }
   return{batches,backup,images:batches.reduce((a,b)=>a.concat(b.images),[])};
 }
-/* ── how a selection becomes albums ──
-   "single"  everything picked in one go is one album, and each zip is one
-             album. This is what a Bandcamp download or a hand-picked
-             folder actually means, and it is the default.
-   "folder"  one album per containing folder — the desktop folder picker.
-   "smart"   tags lead, for a batch that genuinely holds several albums. */
-function groupItems(items,mode){
-  const folders=new Set(items.map(it=>(it.folder||"").toLowerCase()).filter(Boolean));
-  // Folders are a deliberate structure, so they divide. Album tags are not:
-  // one record routinely arrives with a deluxe suffix on some tracks, a
-  // guest credit on another and a blank on a third, and splitting on that
-  // is what tore albums in half.
-  if(mode==="folder"||(mode!=="smart"&&folders.size>1)){
-    const by=new Map();
-    items.forEach(it=>{const k=(it.folder||"").toLowerCase();
-      if(!by.has(k))by.set(k,[]);by.get(k).push(it)});
-    return[...by.values()];
-  }
-  if(mode!=="smart")return[items];
-  const groups=new Map();
-  const put=(k,it)=>{if(!groups.has(k))groups.set(k,[]);groups.get(k).push(it)};
-  for(const it of items){
-    const nk=normAlbum(it.meta.album);
-    put(nk?"alb:"+nk : it.folder?"dir:"+it.folder.toLowerCase() : "", it);
-  }
-  // fold near-duplicate names into each other ("x" joins "x special edition")
-  let again=true;
-  while(again){
-    again=false;
-    const keys=[...groups.keys()].filter(k=>k.startsWith("alb:"));
-    scan:
-    for(const a of keys)for(const b of keys){
-      if(a===b)continue;
-      const na=a.slice(4);
-      if(na.length>=4&&b.slice(4).includes(na)){
-        groups.get(b).push(...groups.get(a));groups.delete(a);again=true;break scan;
-      }
-    }
-  }
-  // untagged files join a tagged group that lives in the same folder
-  for(const k of [...groups.keys()].filter(k=>k.startsWith("dir:"))){
-    const dir=k.slice(4);
-    for(const ak of [...groups.keys()].filter(x=>x.startsWith("alb:"))){
-      const g=groups.get(ak);
-      if(g.filter(x=>(x.folder||"").toLowerCase()===dir).length>=g.length*.5){
-        g.push(...groups.get(k));groups.delete(k);break;
-      }
-    }
-  }
-  // tagless, folderless stragglers ride with the biggest group of the batch
-  if(groups.has("")&&groups.size>1){
-    const strays=groups.get("");groups.delete("");
-    let big=null;groups.forEach(g=>{if(!big||g.length>big.length)big=g});
-    big.push(...strays);
-  }
-  return[...groups.values()];
-}
+/* Selection grouping lives in AeonCore so import behavior and its regression
+   tests execute the same artist-aware production code. */
 /* best cover image for a folder: cover/front/folder beats anything else,
    then the largest file wins */
 function folderArt(images,folder){
@@ -1865,7 +2017,7 @@ async function importFiles(rawFiles,opts={}){
   renderLibrary();updateStorage();
   toast(`${newAlbums.length} album${newAlbums.length>1?"s":""} catalogued — ${newAlbums.length} new star${newAlbums.length>1?"s":""}`,true);
   requestPersist(); // a real collection exists now — ask the OS to protect it
-  enrichAlbums(newAlbums); // fill missing tags from the archive in the background
+  if(AeonCore.shouldAutoEnrich(state.settings,newAlbums))enrichAlbums(newAlbums);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -1891,110 +2043,211 @@ async function updatePersistUI(){
       :"○ Best-effort storage — the OS could evict data under extreme pressure. Keep a backup.";
   }catch(e){el.textContent=""}
 }
-function extOf(blob,fallback){
-  const n=(blob&&blob.name)||"";
-  const m=n.match(/\.[a-z0-9]+$/i);
-  return m?m[0].toLowerCase():fallback;
-}
+const archiveComponent=value=>encodeURIComponent(String(value));
 async function exportBackup(){
   const real=state.albums.filter(a=>!a.mock);
-  if(!real.length){toast("Nothing real to back up yet");return}
+  if(!real.length){toast("Nothing real to back up yet");return false}
   const note=$("#backupNote");note.style.display="";note.textContent="Packing the sky…";
   try{
-    const files=[];
-    const cat={v:1,exported:Date.now(),skySeed,
-      albums:[],playlists:state.playlists,log:state.log,plays:playCounts,
-      transits:transitStats}; // the nights you showed up travel with the music
+    const files=[],trackKeys=new Set();
+    const cat={v:2,exported:Date.now(),skySeed,seq:seqCounter,
+      albums:[],playlists:[],log:state.log,plays:playCounts,
+      settings:state.settings,lastPlayed:null,transits:transitStats};
     for(const a of real){
-      const rec={id:a.id,title:a.title,artist:a.artist,year:a.year,genre:a.genre,
-        trackCount:a.trackCount,artFile:null,tracks:[]};
+      const rec={id:a.id,seq:a.seq,title:a.title||"Untitled Transmission",
+        artist:a.artist||"Unknown Artist",year:a.year||"",genre:a.genre||"",artFile:null,tracks:[]};
       if(a.art){
-        rec.artFile=`art/${a.id}${(a.art.type||"").includes("png")?".png":".jpg"}`;
-        files.push({name:rec.artFile,u8:new Uint8Array(await a.art.arrayBuffer())});
+        rec.artFile=`art/${archiveComponent(a.id)}${extensionForBlob(a.art,".jpg")}`;
+        files.push({name:rec.artFile,blob:a.art});
       }
       for(const t of(state.tracks.get(a.id)||[])){
-        let file=null;
-        if(t.blob){
-          file=`audio/${t.id}${extOf(t.blob,".mp3")}`;
-          files.push({name:file,u8:new Uint8Array(await t.blob.arrayBuffer())});
-        }
-        rec.tracks.push({id:t.id,idx:t.idx,title:t.title,artist:t.artist,file});
+        if(!t.blob||!t.blob.size)throw new Error(`“${t.title||"Untitled Track"}” has no audio data`);
+        const file=`audio/${archiveComponent(t.id)}${extensionForBlob(t.blob,".mp3")}`;
+        files.push({name:file,blob:t.blob});trackKeys.add(a.id+"\u0000"+t.id);
+        rec.tracks.push({id:t.id,idx:t.idx,title:t.title||"Untitled Track",artist:t.artist||a.artist||"",
+          file,name:t.blob.name||file.split("/").pop(),type:t.blob.type||mimeForFilename(file)});
       }
       cat.albums.push(rec);
       note.textContent=`Packing ${cat.albums.length}/${real.length} albums…`;
       await new Promise(r=>setTimeout(r,0));
     }
-    files.unshift({name:"isolation-backup.json",u8:new TextEncoder().encode(JSON.stringify(cat))});
-    const blob=zipWrite(files);
+    cat.playlists=state.playlists.map(playlist=>({id:playlist.id,name:playlist.name||"Untitled List",
+      items:(playlist.items||[]).filter(item=>trackKeys.has(item.albumId+"\u0000"+item.trackId))}));
+    const lastPlayed=await kvGet("lastPlayed");
+    if(lastPlayed&&Array.isArray(lastPlayed.queue)){
+      const queue=lastPlayed.queue.filter(item=>trackKeys.has(item.albumId+"\u0000"+item.trackId));
+      if(queue.length){
+        let qIndex=queue.findIndex(item=>item.albumId===lastPlayed.albumId&&item.trackId===lastPlayed.trackId);
+        if(qIndex<0)qIndex=Math.min(Math.max(Number(lastPlayed.qIndex)||0,0),queue.length-1);
+        cat.lastPlayed={albumId:queue[qIndex].albumId,trackId:queue[qIndex].trackId,qIndex,queue};
+      }
+    }
+    files.unshift({name:"isolation-backup.json",blob:new Blob([JSON.stringify(cat)],{type:"application/json"})});
+    const blob=await zipWrite(files);
     const name="isolation-backup-"+new Date().toISOString().slice(0,10)+".zip";
     note.textContent=`Packing done — ${fmtBytes(blob.size)}. Choose where to keep it\u2026`;
-    await saveBlob(blob,name);
+    const saved=await AeonCore.saveBackup(saveBlob,blob,name);
+    if(!saved){note.textContent="Backup was packed but not saved.";return false}
     note.textContent=`Backup written — ${fmtBytes(blob.size)}. Keep it somewhere off this device.`;
     await addLog("✦","g-teal",`The sky was pressed into a backup — ${real.length} albums, ${fmtBytes(blob.size)}`);
+    return true;
   }catch(e){
-    note.textContent="Backup failed — likely out of memory. Try freeing space or exporting the catalog only.";
+    note.textContent="Backup failed — "+((e&&e.message)||"the archive could not be built")+".";
+    return false;
   }
 }
-function exportCatalog(){
-  const cat={v:1,exported:Date.now(),skySeed,
+async function exportCatalog(){
+  const cat={v:2,exported:Date.now(),skySeed,
     albums:state.albums.filter(a=>!a.mock).map(a=>({
-      id:a.id,title:a.title,artist:a.artist,year:a.year,genre:a.genre,trackCount:a.trackCount,
+      id:a.id,seq:a.seq,title:a.title,artist:a.artist,year:a.year,genre:a.genre,trackCount:a.trackCount,
       tracks:(state.tracks.get(a.id)||[]).map(t=>({idx:t.idx,title:t.title,artist:t.artist}))})),
-    playlists:state.playlists,plays:playCounts,log:state.log};
-  saveBlob(new Blob([JSON.stringify(cat,null,1)],{type:"application/json"}),
+    playlists:state.playlists,plays:playCounts,log:state.log,settings:state.settings,transits:transitStats};
+  const saved=await saveBlob(new Blob([JSON.stringify(cat,null,1)],{type:"application/json"}),
     "isolation-catalog-"+new Date().toISOString().slice(0,10)+".json");
-  toast("Catalog exported — tags, playlists and history (no audio)");
+  toast(saved?"Catalog exported — tags, playlists and history (no audio)":"Catalog was not saved");
+  return saved;
+}
+function dbRestoreAtomic(plan){
+  if(!db){
+    const next={};for(const [name,records] of Object.entries(memoryDB))next[name]=new Map(records);
+    plan.deleteTrackIDs.forEach(id=>next.tracks.delete(id));
+    plan.albums.forEach(value=>next.albums.set(value.id,value));
+    plan.tracks.forEach(value=>next.tracks.set(value.id,value));
+    plan.playlists.forEach(value=>next.playlists.set(value.id,value));
+    plan.kvDelete.forEach(key=>next.kv.delete(key));
+    plan.kv.forEach(value=>next.kv.set(value.k,value));
+    memoryDB=next;return Promise.resolve();
+  }
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(["albums","tracks","playlists","kv"],"readwrite");
+    const albums=tx.objectStore("albums"),tracks=tx.objectStore("tracks");
+    const playlists=tx.objectStore("playlists"),kv=tx.objectStore("kv");
+    plan.deleteTrackIDs.forEach(id=>tracks.delete(id));
+    plan.albums.forEach(value=>albums.put(value));
+    plan.tracks.forEach(value=>tracks.put(value));
+    plan.playlists.forEach(value=>playlists.put(value));
+    plan.kvDelete.forEach(key=>kv.delete(key));
+    plan.kv.forEach(value=>kv.put(value));
+    tx.oncomplete=()=>resolve();
+    tx.onabort=tx.onerror=()=>reject(tx.error||new Error("restore transaction failed"));
+  });
+}
+function mergeTransitData(current,incoming){
+  const base={...(current||{}),history:[...((current&&current.history)||[])],relics:[...((current&&current.relics)||[])]};
+  if(!incoming)return base;
+  const historyDays=new Set(base.history.map(item=>item&&item.d));
+  for(const item of(Array.isArray(incoming.history)?incoming.history:[]))if(item&&!historyDays.has(item.d)){
+    base.history.push(item);historyDays.add(item.d);
+  }
+  const relicDays=new Set(base.relics.map(item=>item&&item.d));
+  for(const item of(Array.isArray(incoming.relics)?incoming.relics:[]))if(item&&!relicDays.has(item.d)){
+    base.relics.push(item);relicDays.add(item.d);
+  }
+  base.witnessed=Math.max(Number(base.witnessed)||0,Number(incoming.witnessed)||0,historyDays.size);
+  if(incoming.lastSeen)base.lastSeen=incoming.lastSeen;
+  if(incoming.today)base.today=incoming.today;
+  return base;
+}
+function sanitizeLastPlayed(value,tracks){
+  if(!value||!Array.isArray(value.queue))return null;
+  const queue=value.queue.filter(item=>item&&tracks.has(item.albumId)
+    &&tracks.get(item.albumId).some(track=>track.id===item.trackId));
+  if(!queue.length)return null;
+  let qIndex=queue.findIndex(item=>item.albumId===value.albumId&&item.trackId===value.trackId);
+  if(qIndex<0)qIndex=Math.min(Math.max(Number(value.qIndex)||0,0),queue.length-1);
+  return{albumId:queue[qIndex].albumId,trackId:queue[qIndex].trackId,qIndex,queue};
 }
 async function restoreBackup(b){
-  let cat;
-  try{cat=JSON.parse(await b.json.blob.text())}catch(e){toast("Backup file is unreadable");return}
   const byName=new Map(b.entries.map(e=>[e.name,e.blob]));
-  const before=state.albums.length,newAlbums=[];
+  let parsed,cat;
+  try{
+    parsed=JSON.parse(await b.json.blob.text());
+    cat=AeonCore.validateBackupCatalog(parsed,new Set(byName.keys()));
+  }catch(e){toast("Backup rejected — "+((e&&e.message)||"unreadable catalog"));return false}
+  const before=state.albums.length,existingByID=new Map(state.albums.map(album=>[album.id,album]));
+  const restoredIDs=new Set(cat.albums.map(album=>album.id)),albums=[],tracks=[],deleteTrackIDs=[];
+  const newAlbums=[];let repaired=0,nextSequence=seqCounter;
   toast("Restoring from backup…");
-  for(const rec of cat.albums||[]){
-    if(albumById(rec.id))continue; // already here — merge, never duplicate
-    const alb={id:rec.id,seq:nextSeq(),title:rec.title,artist:rec.artist,
-      year:rec.year||"",genre:rec.genre||"",trackCount:(rec.tracks||[]).length,
-      art:rec.artFile?byName.get(rec.artFile)||null:null,mock:false};
-    const trks=(rec.tracks||[]).map(t=>({id:t.id,albumId:rec.id,idx:t.idx,
-      title:t.title,artist:t.artist,blob:t.file?byName.get(t.file)||null:null}));
-    state.albums.push(alb);state.tracks.set(alb.id,trks);
-    try{
-      await dbPut("albums",alb);
-      for(const t of trks)await dbPut("tracks",t);
-    }catch(e){toast("Storage refused some data — check quota in Settings")}
-    newAlbums.push(alb);
+  for(const rec of cat.albums){
+    const existing=existingByID.get(rec.id),seq=(existing&&existing.seq)||rec.seq||++nextSequence;
+    nextSequence=Math.max(nextSequence,seq);
+    const art=rec.artFile?new Blob([byName.get(rec.artFile)],{type:mimeForFilename(rec.artFile)}):null;
+    const restoredTracks=rec.tracks.map(track=>{
+      const rawName=(track.name||track.file.split("/").pop()).split(/[\\/]/).pop();
+      const type=/^audio\//.test(track.type)?track.type:mimeForFilename(rawName||track.file);
+      const blob=new File([byName.get(track.file)],rawName||("track"+extensionForBlob({type},".mp3")),{type});
+      return{id:track.id,albumId:rec.id,idx:track.idx,title:track.title,artist:track.artist||rec.artist,blob};
+    });
+    const keep=new Set(restoredTracks.map(track=>track.id));
+    for(const old of(state.tracks.get(rec.id)||[]))if(!keep.has(old.id))deleteTrackIDs.push(old.id);
+    const album={id:rec.id,seq,title:rec.title,artist:rec.artist,year:rec.year,genre:rec.genre,
+      trackCount:restoredTracks.length,art,mock:false};
+    albums.push(album);tracks.push(...restoredTracks);
+    if(existing)repaired++;else newAlbums.push(album);
   }
-  for(const pl of cat.playlists||[]){
-    if(!state.playlists.find(p=>p.id===pl.id)){state.playlists.push(pl);await dbPut("playlists",pl)}
-  }
-  for(const k in cat.plays||{})playCounts[k]=Math.max(playCounts[k]||0,cat.plays[k]);
-  await kvSet("plays",playCounts);
-  if(cat.transits){ // merge witnessed history without double-counting a night
-    const seen=new Set((transitStats.relics||[]).map(r=>r.d));
-    (cat.transits.relics||[]).forEach(r=>{if(!seen.has(r.d)){transitStats.relics.push(r);seen.add(r.d)}});
-    const days=new Set((transitStats.history||[]).map(h=>h.d));
-    (cat.transits.history||[]).forEach(h=>{if(!days.has(h.d)){transitStats.history.push(h);days.add(h.d)}});
-    transitStats.witnessed=days.size||Math.max(transitStats.witnessed||0,cat.transits.witnessed||0);
-    await saveTransits();
-  }
-  await kvSet("seq",seqCounter);
+  const mergedAlbums=state.albums.filter(album=>!restoredIDs.has(album.id)).concat(albums);
+  const mergedTracks=new Map(state.tracks);
+  for(const album of albums)mergedTracks.set(album.id,tracks.filter(track=>track.albumId===album.id));
+  const playlistMap=new Map(state.playlists.map(playlist=>[playlist.id,playlist]));
+  cat.playlists.forEach(playlist=>playlistMap.set(playlist.id,playlist));
+  const mergedPlaylists=[...playlistMap.values()];
+  const mergedPlays={...playCounts};
+  for(const [key,value] of Object.entries(cat.plays))mergedPlays[key]=Math.max(mergedPlays[key]||0,value);
+  const mergedLog=AeonCore.mergeLogEntries(state.log,cat.log),mergedTransits=mergeTransitData(transitStats,cat.transits);
+  const mergedSettings=cat.settings?{...state.settings,...cat.settings}:{...state.settings};
+  mergedSettings.metadataLookups=mergedSettings.metadataLookups===true;
+  if(!Array.isArray(mergedSettings.eqGains)||mergedSettings.eqGains.length!==10)mergedSettings.eqGains=[...state.settings.eqGains];
+  const currentLastPlayed=await kvGet("lastPlayed");
+  const restoredLastPlayed=sanitizeLastPlayed(Object.prototype.hasOwnProperty.call(parsed,"lastPlayed")?cat.lastPlayed:currentLastPlayed,mergedTracks);
+  const restoredSeed=cat.skySeed===null?skySeed:cat.skySeed;
+  const kv=[{k:"plays",v:mergedPlays},{k:"log",v:mergedLog},{k:"transits",v:mergedTransits},
+    {k:"settings",v:mergedSettings},{k:"skySeed",v:restoredSeed},{k:"seq",v:nextSequence}];
+  if(restoredLastPlayed)kv.push({k:"lastPlayed",v:restoredLastPlayed});
+  try{await dbRestoreAtomic({albums,tracks,deleteTrackIDs,playlists:cat.playlists,kv,kvDelete:restoredLastPlayed?[]:["lastPlayed"]})}
+  catch(e){toast("Restore failed before changes were committed — "+((e&&e.message)||"storage refused the transaction"));return false}
+
+  clearPlaybackSource();restoredIDs.forEach(dropArtURL);
+  state.albums=mergedAlbums;state.tracks=mergedTracks;state.playlists=mergedPlaylists;
+  state.log=mergedLog;state.settings=mergedSettings;playCounts=mergedPlays;
+  transitStats=mergedTransits;skySeed=restoredSeed;seqCounter=nextSequence;
+  state.queue=restoredLastPlayed?restoredLastPlayed.queue:[];
+  state.qIndex=restoredLastPlayed?restoredLastPlayed.qIndex:-1;
+  state.playingAlbumId=restoredLastPlayed?restoredLastPlayed.albumId:null;
   onAlbumsAdded(newAlbums,before);
-  renderLibrary();renderPlaylists();updateStorage();
+  renderLibrary();renderPlaylists();renderLog();renderEQ();syncGroupUI();syncMetaUI();
+  setHud(!!state.settings.hud);$("#tglFft").classList.toggle("on",state.settings.fft!==false);
+  if(gainNode)gainNode.gain.value=state.settings.volume;else audio.volume=state.settings.volume;
+  $("#volSlider").value=Math.round((state.settings.volume??.9)*100);
+  if(restoredLastPlayed){
+    const item=state.queue[state.qIndex],album=albumById(item.albumId),track=trackById(item.albumId,item.trackId);
+    if(album&&track){updatePlayerUI(album,track);syncPlayGlyphs(false)}
+  }
+  sky.rebuild();updateStorage();refreshTransit(false);
   requestPersist();
-  await addLog("✦","g-gold",`A backup re-lit the sky — ${newAlbums.length} albums returned`);
-  toast(newAlbums.length?`Restored ${newAlbums.length} album${newAlbums.length>1?"s":""} from backup`:"Backup matched what's already here — nothing to add",true);
+  await addLog("✦","g-gold",`A backup re-lit the sky — ${newAlbums.length} added, ${repaired} repaired`);
+  toast(`Restore complete — ${newAlbums.length} added, ${repaired} repaired`,true);
+  return true;
 }
 $("#btnExportAll").addEventListener("click",exportBackup);
 $("#btnExportCat").addEventListener("click",exportCatalog);
 
 /* ════════════════════════════════════════════════════════════════
-   THE ARCHIVE — online metadata enrichment. After import, any album
-   missing a title, artist, genre, year or art is looked up against
-   the iTunes Search API (CORS, keyless), falling back to Deezer's
-   JSONP API. Tag-derived values are never overwritten — the archive
-   only fills gaps. Everything degrades gracefully offline.
+   THE ARCHIVE — explicit online metadata enrichment. Automatic lookup
+   is off until the collector enables it; manual lookups and repair are
+   direct actions. Responses are fetched as data, never executed as code.
+   Tag-derived values are never overwritten. Everything degrades offline.
    ════════════════════════════════════════════════════════════════ */
+async function fetchJSON(url){
+  const nativeHTTP=NATIVE&&window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.CapacitorHttp;
+  if(nativeHTTP){
+    const response=await nativeHTTP.get({url,headers:{Accept:"application/json"}});
+    if(response.status<200||response.status>=300)throw new Error("HTTP "+response.status);
+    return typeof response.data==="string"?JSON.parse(response.data):response.data;
+  }
+  const response=await fetch(url,{credentials:"omit",referrerPolicy:"no-referrer",headers:{Accept:"application/json"}});
+  if(!response.ok)throw new Error("HTTP "+response.status);
+  return response.json();
+}
 function tokSim(a,b){
   a=normAlbum(a);b=normAlbum(b);
   if(!a||!b)return 0;
@@ -2025,8 +2278,7 @@ async function lookupAlbum(title,artist,loose){
   if(!term)return null;
   // iTunes first — rich fields: genre, release year, big art
   try{
-    const r=await fetch("https://itunes.apple.com/search?media=music&entity=album&limit=6&term="+encodeURIComponent(term));
-    const j=await r.json();
+    const j=await fetchJSON("https://itunes.apple.com/search?media=music&entity=album&limit=6&term="+encodeURIComponent(term));
     const cands=(j.results||[]).map(x=>({
       title:x.collectionName,artist:x.artistName,
       genre:x.primaryGenreName||"",year:(x.releaseDate||"").slice(0,4),
@@ -2035,9 +2287,9 @@ async function lookupAlbum(title,artist,loose){
     const best=pickBest(cands,title,artist,loose);
     if(best)return best;
   }catch(e){}
-  // Deezer fallback (JSONP — no CORS needed)
+  // Deezer fallback; failed CORS requests simply leave local tags alone.
   try{
-    const j=await jsonp("https://api.deezer.com/search/album?q="+encodeURIComponent(term)+"&limit=6");
+    const j=await fetchJSON("https://api.deezer.com/search/album?q="+encodeURIComponent(term)+"&limit=6");
     const cands=(j&&j.data||[]).map(x=>({
       title:x.title,artist:x.artist&&x.artist.name||"",
       genre:"",year:"",artUrl:x.cover_big||x.cover_medium||""
@@ -2049,7 +2301,9 @@ async function lookupAlbum(title,artist,loose){
 async function fetchArtBlob(url){
   if(!url)return null;
   try{
-    const b=await(await fetch(url)).blob();
+    const response=await fetch(url,{credentials:"omit",referrerPolicy:"no-referrer"});
+    if(!response.ok)return null;
+    const b=await response.blob();
     if(b&&b.size&&/^image\//.test(b.type||"image/jpeg"))return b;
   }catch(e){}
   return null;
@@ -2130,6 +2384,35 @@ function setVolume(v){
   state.settings.volume=v;
   if(gainNode)gainNode.gain.value=v;else audio.volume=v;
   saveSettings();
+}
+function clearPlaybackSource(){
+  audio.pause();
+  if(curURL){URL.revokeObjectURL(curURL);curURL=null}
+  audio.removeAttribute("src");
+  try{audio.load()}catch(e){}
+  state.playingAlbumId=null;
+  $("#playerBar").classList.remove("show");
+  if("mediaSession" in navigator){
+    navigator.mediaSession.metadata=null;
+    navigator.mediaSession.playbackState="none";
+  }
+}
+async function persistLastPlayedState(){
+  const item=state.queue[state.qIndex];
+  if(!item||!trackById(item.albumId,item.trackId)){await dbDel("kv","lastPlayed");return false}
+  await kvSet("lastPlayed",{albumId:item.albumId,trackId:item.trackId,qIndex:state.qIndex,queue:state.queue});
+  return true;
+}
+async function scrubAlbumPlayback(albumID){
+  const result=AeonCore.scrubQueueForAlbum(state.queue,state.qIndex,albumID);
+  const removedLive=result.removedCurrent||state.playingAlbumId===albumID;
+  state.queue=result.queue;state.qIndex=result.qIndex;
+  if(removedLive)clearPlaybackSource();
+  const item=state.queue[state.qIndex],album=item&&albumById(item.albumId),track=item&&trackById(item.albumId,item.trackId);
+  if(removedLive&&album&&track){
+    state.playingAlbumId=album.id;updatePlayerUI(album,track);syncPlayGlyphs(false);
+  }
+  await persistLastPlayedState();
 }
 
 function playQueue(items,startIdx=0){
@@ -3413,6 +3696,8 @@ async function mergeAlbums(srcId,dstId){
   }
   state.queue.forEach(qq=>{if(qq.albumId===src.id)qq.albumId=dst.id});
   if(state.playingAlbumId===src.id)state.playingAlbumId=dst.id;
+  dropArtURL(src.id);
+  await persistLastPlayedState();
   await addLog("\u266A","g-teal",`${src.title} was folded into ${dst.title} — ${srcT.length} track${srcT.length===1?"":"s"} moved`);
   sky.rebuild();renderLibrary();renderPlaylists();updateStorage();refreshTransit(false);
   return true;
@@ -3512,7 +3797,8 @@ $("#albDelete").addEventListener("click",async()=>{
     pl.items=pl.items.filter(it=>it.albumId!==a.id);
     if(pl.items.length!==n)await dbPut("playlists",pl);
   }
-  if(state.playingAlbumId===a.id){audio.pause();state.playingAlbumId=null;$("#playerBar").classList.remove("show")}
+  dropArtURL(a.id);
+  await scrubAlbumPlayback(a.id);
   closeSheet("sheetAlbum");
   sky.rebuild();renderLibrary();updateStorage();refreshTransit(false);
   await addLog("\u2727","g-dim",`${a.title} left the catalog — its star went dark`);
@@ -3751,6 +4037,15 @@ function syncGroupUI(){
   $("#tglGroup").classList.toggle("on",on);
   $("#tglGroup").setAttribute("aria-checked",on);
 }
+$("#tglMeta").addEventListener("click",()=>{
+  state.settings.metadataLookups=state.settings.metadataLookups!==true;
+  saveSettings();syncMetaUI();
+});
+function syncMetaUI(){
+  const on=state.settings.metadataLookups===true;
+  $("#tglMeta").classList.toggle("on",on);
+  $("#tglMeta").setAttribute("aria-checked",on);
+}
 $("#tglFft").addEventListener("click",()=>{
   state.settings.fft=!state.settings.fft;saveSettings();
   $("#tglFft").classList.toggle("on",state.settings.fft);
@@ -3825,20 +4120,18 @@ $("#mockClear").addEventListener("click",async()=>{
     state.tracks.delete(a.id);
   }
   state.albums=state.albums.filter(a=>!a.mock);
-  if(state.playingAlbumId&&!albumById(state.playingAlbumId)){
-    audio.pause();state.playingAlbumId=null;$("#playerBar").classList.remove("show");
-  }
+  for(const album of mocks){dropArtURL(album.id);await scrubAlbumPlayback(album.id)}
   sky.rebuild();renderLibrary();updateStorage();refreshTransit(false);
   await addLog("\u2727","g-dim",`${mocks.length} mock stars dissolved back into the void`);
   toast(`${mocks.length} mock stars removed`);
 });
 $("#btnWipe").addEventListener("click",async()=>{
   if(!confirm("Erase everything? Albums, audio, playlists, and the log all go. The sky goes dark."))return;
-  audio.pause();
+  clearPlaybackSource();
+  state.albums.forEach(album=>dropArtURL(album.id));
   await dbClearAll();
   state.albums=[];state.tracks.clear();state.playlists=[];state.log=[];
   state.queue=[];state.qIndex=-1;state.playingAlbumId=null;seqCounter=0;
-  $("#playerBar").classList.remove("show");
   sky.rebuild();renderLibrary();renderPlaylists();renderLog();updateStorage();
   transitStats={witnessed:0,history:[],relics:[]};transit=null;renderTransitChip();
   toast("The sky is dark again");
@@ -3846,21 +4139,9 @@ $("#btnWipe").addEventListener("click",async()=>{
 
 /* ════════════════════════════════════════════════════════════════
    TRANSMISSIONS FROM OUTSIDE — recommendations seeded by the library.
-   Related artists via Deezer's public JSONP API; anything already in
+   Explicit scans request related-artist data from Deezer; anything already in
    the sky (by artist or normalized album title) is filtered out.
    ════════════════════════════════════════════════════════════════ */
-function jsonp(url,timeout=9000){
-  return new Promise((res,rej)=>{
-    const cb="__iso"+Math.random().toString(36).slice(2);
-    const s=document.createElement("script");
-    const to=setTimeout(()=>{done();rej(new Error("timeout"))},timeout);
-    function done(){try{delete window[cb]}catch(e){window[cb]=undefined}s.remove();clearTimeout(to)}
-    window[cb]=d=>{done();res(d)};
-    s.onerror=()=>{done();rej(new Error("network"))};
-    s.src=url+(url.includes("?")?"&":"?")+"output=jsonp&callback="+cb;
-    document.head.appendChild(s);
-  });
-}
 async function scanOutside(){
   const seeds=[...new Set(state.albums.filter(a=>!a.mock).map(a=>a.artist))]
     .filter(a=>a&&a!=="Unknown Artist").slice(0,6);
@@ -3873,9 +4154,9 @@ async function scanOutside(){
   const scores=new Map();
   for(const s of seeds){
     try{
-      const sr=await jsonp("https://api.deezer.com/search/artist?q="+encodeURIComponent(s)+"&limit=1");
+      const sr=await fetchJSON("https://api.deezer.com/search/artist?q="+encodeURIComponent(s)+"&limit=1");
       const hit=sr&&sr.data&&sr.data[0];if(!hit)continue;
-      const rel=await jsonp("https://api.deezer.com/artist/"+hit.id+"/related?limit=12");
+      const rel=await fetchJSON("https://api.deezer.com/artist/"+hit.id+"/related?limit=12");
       (rel&&rel.data||[]).forEach((r,i)=>{
         const k=r.name.toLowerCase();
         if(ownedArtists.has(k))return;
@@ -3894,7 +4175,7 @@ async function scanOutside(){
   for(const r of ranked){
     let album="",art=r.pic;
     try{
-      const al=await jsonp("https://api.deezer.com/artist/"+r.id+"/albums?limit=3");
+      const al=await fetchJSON("https://api.deezer.com/artist/"+r.id+"/albums?limit=3");
       const a=(al&&al.data||[]).find(x=>!ownedTitles.has(normAlbum(x.title)))||((al&&al.data)||[])[0];
       if(a){album=a.title;art=a.cover_medium||art}
     }catch(e){}
@@ -4197,6 +4478,7 @@ document.addEventListener("visibilitychange",()=>{
   setHud(!!state.settings.hud);
   $("#tglFft").classList.toggle("on",state.settings.fft!==false);
   syncGroupUI();
+  syncMetaUI();
   $("#volSlider").value=Math.round((state.settings.volume??.9)*100);
   audio.volume=1; // gain node owns volume once the graph exists
 
