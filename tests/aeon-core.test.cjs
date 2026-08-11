@@ -153,6 +153,20 @@ test("accepts valid version-one and version-two backup catalogs", () => {
   assert.equal(core().validateBackupCatalog(v1, names).v, 1);
 });
 
+test("drops legacy daily-event data while normalizing a backup", () => {
+  const catalog = validCatalog();
+  catalog.transits = {
+    witnessed: 3,
+    today: { kind: "comet", key: "2026-08-11" },
+    relics: [{ kind: "shower", d: "2026-08-10" }],
+  };
+  const normalized = core().validateBackupCatalog(
+    catalog,
+    new Set(["audio/track-1.flac"]),
+  );
+  assert.equal(Object.hasOwn(normalized, "transits"), false);
+});
+
 test("merges restored log entries without duplicating existing events", () => {
   const event = { t: 1, g: "✦", cls: "g-gold", text: "first" };
   const later = { t: 2, g: "✦", cls: "g-teal", text: "second" };

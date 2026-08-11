@@ -9,25 +9,13 @@ sky. Every twenty albums wakes a planet, which presides over the twenty
 that raised it. Each install mints its own sky seed, so two people with
 identical libraries still live under different skies.
 
-**A transit crosses the sky every night** — a comet carrying a record you
-have neglected, a supernova on the album you have played to death, a
-meteor shower of fourteen songs shaken loose at random, an eclipse over
-the one you never returned to, or an alignment binding two of your
-constellations into a single playlist. The date and your sky seed decide
-it together, so it holds all day, is gone by morning, and is never the
-same in two collections. Comets and showers are the ordinary weather; a
-supernova or an alignment lands rarely enough to be an occasion. Following
-one leaves a permanent mark exactly where it happened — the scar of a
-comet's path, the remnant rings of a supernova — so the sky slowly becomes
-a record of the nights you turned up for it.
-
 Everything — audio, artwork, playlists, listening history — lives **on
 the device only**. Library content is never uploaded, tracked, or shared.
 The only application-data network calls are manual metadata lookups,
 automatic metadata lookups that the collector explicitly enables in
-Settings (off by default), and the
-recommendation scan. Metadata requests send the album title and artist to
-iTunes or Deezer as data-only HTTP requests; third-party scripts never run
+Settings (off by default), and the recommendation scan. Metadata requests
+send the album title and artist to iTunes or Deezer as data-only HTTP
+requests; third-party scripts never run
 inside the app. Recommendations link out to Bandcamp so discovery ends in
 *owning* the music, not renting it.
 

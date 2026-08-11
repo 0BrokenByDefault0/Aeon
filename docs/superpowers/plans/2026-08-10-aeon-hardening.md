@@ -166,7 +166,7 @@ Expected: the ZIP round-trip, no-whole-blob-copy, MIME, and save-result tests pa
 
 **Interfaces:**
 - Consumes: validated backup catalog plus archive entry map.
-- Produces: one atomic update across `albums`, `tracks`, `playlists`, and `kv`, repairing matching album IDs and restoring `skySeed`, `log`, play counts, settings, transit history, and valid last-played state.
+- Produces: one atomic update across `albums`, `tracks`, `playlists`, and `kv`, repairing matching album IDs and restoring `skySeed`, `log`, play counts, settings, and valid last-played state.
 
 - [ ] **Step 1: Add failing validation and merge tests**
 

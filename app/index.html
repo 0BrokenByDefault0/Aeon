@@ -679,26 +679,6 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
 .empty i{color:var(--lav-dim)}.empty .e-g{color:#26243c}
 :focus-visible{outline-color:var(--holo-c)}
 
-/* ═══════ TONIGHT'S TRANSIT ═══════ */
-#transitChip{
-  position:fixed;top:calc(var(--safe-t) + 44px);left:20px;z-index:5;
-  max-width:calc(100vw - 130px);pointer-events:auto;
-  display:flex;align-items:center;gap:9px;
-  padding:8px 14px;border:1px solid #34305a;
-  background:rgba(13,12,22,.78);backdrop-filter:blur(8px);
-  font-size:11.5px;color:#cfcbe8;text-align:left;
-}
-#transitChip .tc-tag{font-family:'Audiowide',sans-serif;font-size:8px;letter-spacing:.3em;
-  color:var(--holo-c);flex-shrink:0;text-shadow:0 0 10px rgba(195,157,255,.5)}
-#transitChip .tc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#transitChip:not(.seen){animation:tcPulse 3.4s ease-in-out infinite}
-#transitChip.seen{opacity:.62}
-#transitChip.seen .tc-tag{color:var(--lav-dim);text-shadow:none}
-#transitChip:active{border-color:var(--holo-c)}
-@keyframes tcPulse{0%,100%{border-color:#34305a}50%{border-color:rgba(195,157,255,.75)}}
-#trGlyph{font-family:'Audiowide',sans-serif;font-size:9px;letter-spacing:.4em;color:var(--holo-c);
-  text-align:center;margin-top:2px}
-@media (prefers-reduced-motion: reduce){#transitChip:not(.seen){animation:none}}
 </style>
 </head>
 <body data-tab="sky">
@@ -725,7 +705,6 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <div style="margin-top:12px"><button class="btn small ghost" id="inviteGuide">WHERE DO I FIND MUSIC?</button></div>
   </div>
   <button id="shareSky" style="display:none" aria-label="Snap and share a picture of your sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13 2.5L6.5 13h4l-1.5 8.5L15.5 11h-4Z"/><path d="M18.5 4.5l2-2" opacity=".6"/><path d="M20 9.5h2.5" opacity=".6"/><path d="M4.5 19l-2 2" opacity=".6"/></svg></button>
-  <button id="transitChip" style="display:none" aria-label="Tonight's transit"></button>
   <div id="ceremonyBanner">
     <div class="cb-tag" id="cbTag"></div>
     <div class="cb-name" id="cbName"></div>
@@ -814,10 +793,6 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="tgl" id="tglHud" role="switch" aria-checked="false" aria-label="Heads-up display"></button>
     </div>
     <div class="set-row">
-      <div><div class="set-l">Transits witnessed</div><div class="set-d" id="setTransit">Each one left a permanent mark where it happened</div></div>
-      <div class="pl-count" id="setTransitN">0</div>
-    </div>
-    <div class="set-row">
       <div><div class="set-l">Spectrum feeds the sky</div><div class="set-d">Star glow and nebula breath follow the music</div></div>
       <button class="tgl on" id="tglFft" role="switch" aria-checked="true" aria-label="Spectrum reactivity"></button>
     </div>
@@ -881,7 +856,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.9 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.10 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1024,25 +999,6 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <div class="c-note" id="pnNote" style="margin-top:8px"></div>
     <hr class="hairline">
     <div id="pnTracks"></div>
-  </div>
-</div>
-
-<!-- ═══ tonight's transit ═══ -->
-<div class="sheet" id="sheetTransit" aria-modal="true" role="dialog" aria-label="Tonight's transit">
-  <div class="sheet-body">
-    <div class="grab"></div>
-    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <div class="p-eyebrow" id="trTag">TRANSIT</div>
-    <h2 id="trTitle"></h2>
-    <div class="s-sub" id="trWhen"></div>
-    <div class="card">
-      <div class="c-note" id="trText"></div>
-    </div>
-    <div class="btnrow">
-      <button class="btn hot small" id="trPlay"><span class="bi"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></span>FOLLOW IT</button>
-      <button class="btn small" id="trSave">KEEP AS PLAYLIST</button>
-    </div>
-    <div class="c-note" id="trStat" style="margin-top:10px"></div>
   </div>
 </div>
 
@@ -1269,12 +1225,11 @@ const AeonCore=(()=>{
     const plays={};if(plainObject(raw.plays))for(const [key,value] of Object.entries(raw.plays)){
       const n=Number(value);if(Number.isFinite(n)&&n>=0)plays[key]=n;
     }
-    return{...raw,v:raw.v,albums,playlists,plays,
+    return{v:raw.v,albums,playlists,plays,
       log:Array.isArray(raw.log)?raw.log.filter(plainObject):[],
       skySeed:Number.isInteger(raw.skySeed)&&raw.skySeed>=0&&raw.skySeed<=0xffffffff?raw.skySeed>>>0:null,
       settings:plainObject(raw.settings)?raw.settings:null,
-      lastPlayed:plainObject(raw.lastPlayed)?raw.lastPlayed:null,
-      transits:plainObject(raw.transits)?raw.transits:null};
+      lastPlayed:plainObject(raw.lastPlayed)?raw.lastPlayed:null};
   }
 
   function mergeLogEntries(existing,incoming){
@@ -1385,8 +1340,6 @@ const AeonCore=(()=>{
 })();
 /* AEON_CORE_END */
 const{mimeForFilename,extensionForBlob,normAlbum,groupItems,zipWrite,unzip}=AeonCore;
-/* tonight's celestial event — declared early so the sky can draw it */
-let transit=null, transitStats={witnessed:0,history:[]};
 function skyCensus(){
   const n=state.albums.length;
   const c=sky.constellations().length, g=sky.regions().length, p=Math.floor(n/20);
@@ -2052,7 +2005,7 @@ async function exportBackup(){
     const files=[],trackKeys=new Set();
     const cat={v:2,exported:Date.now(),skySeed,seq:seqCounter,
       albums:[],playlists:[],log:state.log,plays:playCounts,
-      settings:state.settings,lastPlayed:null,transits:transitStats};
+      settings:state.settings,lastPlayed:null};
     for(const a of real){
       const rec={id:a.id,seq:a.seq,title:a.title||"Untitled Transmission",
         artist:a.artist||"Unknown Artist",year:a.year||"",genre:a.genre||"",artFile:null,tracks:[]};
@@ -2101,7 +2054,7 @@ async function exportCatalog(){
     albums:state.albums.filter(a=>!a.mock).map(a=>({
       id:a.id,seq:a.seq,title:a.title,artist:a.artist,year:a.year,genre:a.genre,trackCount:a.trackCount,
       tracks:(state.tracks.get(a.id)||[]).map(t=>({idx:t.idx,title:t.title,artist:t.artist}))})),
-    playlists:state.playlists,plays:playCounts,log:state.log,settings:state.settings,transits:transitStats};
+    playlists:state.playlists,plays:playCounts,log:state.log,settings:state.settings};
   const saved=await saveBlob(new Blob([JSON.stringify(cat,null,1)],{type:"application/json"}),
     "isolation-catalog-"+new Date().toISOString().slice(0,10)+".json");
   toast(saved?"Catalog exported — tags, playlists and history (no audio)":"Catalog was not saved");
@@ -2131,22 +2084,6 @@ function dbRestoreAtomic(plan){
     tx.oncomplete=()=>resolve();
     tx.onabort=tx.onerror=()=>reject(tx.error||new Error("restore transaction failed"));
   });
-}
-function mergeTransitData(current,incoming){
-  const base={...(current||{}),history:[...((current&&current.history)||[])],relics:[...((current&&current.relics)||[])]};
-  if(!incoming)return base;
-  const historyDays=new Set(base.history.map(item=>item&&item.d));
-  for(const item of(Array.isArray(incoming.history)?incoming.history:[]))if(item&&!historyDays.has(item.d)){
-    base.history.push(item);historyDays.add(item.d);
-  }
-  const relicDays=new Set(base.relics.map(item=>item&&item.d));
-  for(const item of(Array.isArray(incoming.relics)?incoming.relics:[]))if(item&&!relicDays.has(item.d)){
-    base.relics.push(item);relicDays.add(item.d);
-  }
-  base.witnessed=Math.max(Number(base.witnessed)||0,Number(incoming.witnessed)||0,historyDays.size);
-  if(incoming.lastSeen)base.lastSeen=incoming.lastSeen;
-  if(incoming.today)base.today=incoming.today;
-  return base;
 }
 function sanitizeLastPlayed(value,tracks){
   if(!value||!Array.isArray(value.queue))return null;
@@ -2193,23 +2130,24 @@ async function restoreBackup(b){
   const mergedPlaylists=[...playlistMap.values()];
   const mergedPlays={...playCounts};
   for(const [key,value] of Object.entries(cat.plays))mergedPlays[key]=Math.max(mergedPlays[key]||0,value);
-  const mergedLog=AeonCore.mergeLogEntries(state.log,cat.log),mergedTransits=mergeTransitData(transitStats,cat.transits);
+  const mergedLog=AeonCore.mergeLogEntries(state.log,cat.log);
   const mergedSettings=cat.settings?{...state.settings,...cat.settings}:{...state.settings};
   mergedSettings.metadataLookups=mergedSettings.metadataLookups===true;
   if(!Array.isArray(mergedSettings.eqGains)||mergedSettings.eqGains.length!==10)mergedSettings.eqGains=[...state.settings.eqGains];
   const currentLastPlayed=await kvGet("lastPlayed");
   const restoredLastPlayed=sanitizeLastPlayed(Object.prototype.hasOwnProperty.call(parsed,"lastPlayed")?cat.lastPlayed:currentLastPlayed,mergedTracks);
   const restoredSeed=cat.skySeed===null?skySeed:cat.skySeed;
-  const kv=[{k:"plays",v:mergedPlays},{k:"log",v:mergedLog},{k:"transits",v:mergedTransits},
+  const kv=[{k:"plays",v:mergedPlays},{k:"log",v:mergedLog},
     {k:"settings",v:mergedSettings},{k:"skySeed",v:restoredSeed},{k:"seq",v:nextSequence}];
   if(restoredLastPlayed)kv.push({k:"lastPlayed",v:restoredLastPlayed});
-  try{await dbRestoreAtomic({albums,tracks,deleteTrackIDs,playlists:cat.playlists,kv,kvDelete:restoredLastPlayed?[]:["lastPlayed"]})}
+  const kvDelete=["transits"];if(!restoredLastPlayed)kvDelete.push("lastPlayed");
+  try{await dbRestoreAtomic({albums,tracks,deleteTrackIDs,playlists:cat.playlists,kv,kvDelete})}
   catch(e){toast("Restore failed before changes were committed — "+((e&&e.message)||"storage refused the transaction"));return false}
 
   clearPlaybackSource();restoredIDs.forEach(dropArtURL);
   state.albums=mergedAlbums;state.tracks=mergedTracks;state.playlists=mergedPlaylists;
   state.log=mergedLog;state.settings=mergedSettings;playCounts=mergedPlays;
-  transitStats=mergedTransits;skySeed=restoredSeed;seqCounter=nextSequence;
+  skySeed=restoredSeed;seqCounter=nextSequence;
   state.queue=restoredLastPlayed?restoredLastPlayed.queue:[];
   state.qIndex=restoredLastPlayed?restoredLastPlayed.qIndex:-1;
   state.playingAlbumId=restoredLastPlayed?restoredLastPlayed.albumId:null;
@@ -2222,7 +2160,7 @@ async function restoreBackup(b){
     const item=state.queue[state.qIndex],album=albumById(item.albumId),track=trackById(item.albumId,item.trackId);
     if(album&&track){updatePlayerUI(album,track);syncPlayGlyphs(false)}
   }
-  sky.rebuild();updateStorage();refreshTransit(false);
+  sky.rebuild();updateStorage();
   requestPersist();
   await addLog("✦","g-gold",`A backup re-lit the sky — ${newAlbums.length} added, ${repaired} repaired`);
   toast(`Restore complete — ${newAlbums.length} added, ${repaired} repaired`,true);
@@ -2594,7 +2532,6 @@ const sky=(()=>{
   let planets=[];
   let csts=[];             // artist constellations: {key,name,stars,cx,cy,lineProg}
   let regions=[];          // genre regions: {key,name,x,y,r,col,n}
-  let transitHit=null;     // world-space tap target for tonight's transit
   let ceremonyTarget=null; // {cx,cy,s,until}
   let bass=0,mids=0;
   const births=new Map();  // albumId -> birth timestamp (for materialization)
@@ -2805,7 +2742,6 @@ const sky=(()=>{
   }
 
   function focusAlbum(id){computeHome();updateHUD()}
-  const starById=id=>stars.find(s=>s.album.id===id);
   const cstByKey=k=>csts.find(c=>c.key===k);
 
   /* ceremonies */
@@ -2904,12 +2840,6 @@ const sky=(()=>{
     if(wasGesture||moved>12||held>600)return; // a pan/pinch/hold, not a tap
     const rect=cvW.getBoundingClientRect();
     const px=e.clientX-rect.left, py=e.clientY-rect.top;
-    // tonight's transit takes the tap first — it is only there for a day
-    if(transitHit){
-      const sx=(transitHit.x-cam.cx)*cam.s+W/2, sy=(transitHit.y-cam.cy)*cam.s+H/2;
-      const pr=Math.max(34,transitHit.r*cam.s);
-      if((sx-px)**2+(sy-py)**2<pr*pr){lastEmptyTap=null;openTransit();return}
-    }
     // planets next — each is a doorway to its era's top-played songs
     for(let i=0;i<planets.length;i++){
       const p=planets[i];
@@ -3116,145 +3046,6 @@ const sky=(()=>{
     x2.restore();
   }
 
-  /* ── tonight's transit, drawn from the collection itself ── */
-  function skyReach(){
-    return Math.max(300,...regions.map(G=>Math.hypot(G.x,G.y)+G.r));
-  }
-  /* ── relics ──
-     Every transit you followed leaves a permanent trace exactly where it
-     happened: the scar of a comet's path, the remnant rings of a supernova,
-     the dust left at a shower's radiant. Over months the sky stops being
-     only a map of what you own and becomes a record of the nights you
-     turned up for it. Positions are stored as angles and re-derived from
-     the sky's current reach, so relics stay coherent as the sky grows. */
-  function drawRelics(x2,t){
-    const rel=transitStats.relics;
-    if(!rel||!rel.length||!stars.length)return;
-    const R0=skyReach(), now=Date.now();
-    rel.forEach(rl=>{
-      const days=Math.max(0,(now-(rl.at||now))/86400000);
-      x2.globalAlpha=Math.max(.06,Math.min(.26,days<7?.24:.13));
-      if(rl.kind==="comet"){
-        const dx=Math.cos(rl.ang),dy=Math.sin(rl.ang)*.6,D=R0*1.6;
-        x2.strokeStyle="#c8d6ff";x2.lineWidth=.7/cam.s;
-        x2.setLineDash([11/cam.s,17/cam.s]);
-        x2.beginPath();x2.moveTo(-dx*D,-dy*D);x2.lineTo(dx*D,dy*D);x2.stroke();
-        x2.setLineDash([]);
-      }else if(rl.kind==="supernova"){
-        const st=starById(rl.albumId);
-        if(st){
-          x2.strokeStyle="#ffd98a";x2.lineWidth=.9/cam.s;
-          x2.beginPath();x2.arc(st.x,st.y,26,0,6.283);x2.stroke();
-          x2.beginPath();x2.arc(st.x,st.y,35,0,6.283);x2.stroke();
-        }
-      }else if(rl.kind==="shower"){
-        const rx=Math.cos(rl.ang)*R0*.9, ry=Math.sin(rl.ang)*R0*.6;
-        x2.fillStyle="#e8f1ff";
-        const q=mulberry(hashStr("relic"+rl.d));
-        for(let i=0;i<7;i++){
-          x2.beginPath();
-          x2.arc(rx+(q()-.5)*52,ry+(q()-.5)*40,.7/cam.s+.7,0,6.283);
-          x2.fill();
-        }
-      }else if(rl.kind==="eclipse"){
-        const ex=Math.cos(rl.ang)*R0*.72, ey=Math.sin(rl.ang)*R0*.5;
-        x2.strokeStyle="#ffd6aa";x2.lineWidth=.9/cam.s;
-        x2.beginPath();x2.arc(ex,ey,Math.max(24,R0*.085),0,6.283);x2.stroke();
-      }else if(rl.kind==="alignment"){
-        const A=cstByKey(rl.a),B=cstByKey(rl.b);
-        if(A&&B){
-          x2.strokeStyle="#c39dff";x2.lineWidth=.7/cam.s;
-          x2.beginPath();x2.moveTo(A.cx,A.cy);x2.lineTo(B.cx,B.cy);x2.stroke();
-        }
-      }
-      x2.globalAlpha=1;
-    });
-  }
-  function drawTransit(x2,t){
-    transitHit=null;
-    if(!transit||!stars.length||document.body.dataset.tab!=="sky")return;
-    const R0=skyReach(), k=transit.kind;
-    if(k==="comet"){
-      const P=46000, u=REDUCED?.5:((t%P)/P);
-      const D=R0*1.6, dx=Math.cos(transit.ang), dy=Math.sin(transit.ang)*.6;
-      const px=dx*(-D+2*D*u), py=dy*(-D+2*D*u);
-      const fade=Math.sin(Math.PI*u);
-      if(fade>.02){
-        const tail=R0*.45;
-        const g=x2.createLinearGradient(px,py,px-dx*tail,py-dy*tail);
-        g.addColorStop(0,`rgba(232,241,255,${.8*fade})`);
-        g.addColorStop(1,"rgba(140,160,255,0)");
-        x2.strokeStyle=g;x2.lineWidth=3/cam.s;x2.lineCap="round";
-        x2.beginPath();x2.moveTo(px,py);x2.lineTo(px-dx*tail,py-dy*tail);x2.stroke();
-        x2.lineCap="butt";
-        const spr=sprGlow["#e8f1ff"];
-        const gr=16/Math.sqrt(cam.s);
-        x2.globalAlpha=fade;
-        if(spr)x2.drawImage(spr,px-gr,py-gr,gr*2,gr*2);
-        x2.fillStyle="#fff";x2.beginPath();x2.arc(px,py,2.6/Math.sqrt(cam.s),0,6.283);x2.fill();
-        x2.globalAlpha=1;
-        transitHit={x:px,y:py,r:26/cam.s};
-      }
-    }else if(k==="supernova"){
-      const st=starById(transit.albumId);
-      if(st){
-        const ph=REDUCED?0:(t%2600)/2600;
-        for(let i=0;i<3;i++){
-          const u=(ph+i/3)%1;
-          x2.strokeStyle=`rgba(255,217,138,${(1-u)*.45})`;
-          x2.lineWidth=1.4/cam.s;
-          x2.beginPath();x2.arc(st.x,st.y,(7+u*80)/cam.s,0,6.283);x2.stroke();
-        }
-        const spr=sprGlow["#ffd98a"];
-        const gr=(26+(REDUCED?0:Math.sin(t/400)*4))/Math.sqrt(cam.s);
-        if(spr){x2.globalAlpha=.9;x2.drawImage(spr,st.x-gr,st.y-gr,gr*2,gr*2);x2.globalAlpha=1}
-        transitHit={x:st.x,y:st.y,r:30/cam.s};
-      }
-    }else if(k==="shower"){
-      const rx=Math.cos(transit.ang)*R0*.9, ry=Math.sin(transit.ang)*R0*.6;
-      for(let i=0;i<14;i++){
-        const seed=((i*137)%100)/100;
-        const u=REDUCED?.5:(((t/2600)+seed)%1);
-        const a2=transit.ang+Math.PI+(seed-.5)*1.6;
-        const d0=u*R0*.9, len=R0*.14;
-        const al=Math.sin(Math.PI*u)*.75;
-        x2.strokeStyle=`rgba(232,241,255,${al})`;x2.lineWidth=1.2/cam.s;
-        x2.beginPath();
-        x2.moveTo(rx+Math.cos(a2)*d0,ry+Math.sin(a2)*d0*.7);
-        x2.lineTo(rx+Math.cos(a2)*(d0+len),ry+Math.sin(a2)*(d0+len)*.7);
-        x2.stroke();
-      }
-      const spr=sprGlow["#4d7cff"];
-      if(spr){const gr=20/Math.sqrt(cam.s);x2.globalAlpha=.6;x2.drawImage(spr,rx-gr,ry-gr,gr*2,gr*2);x2.globalAlpha=1}
-      transitHit={x:rx,y:ry,r:34/cam.s};
-    }else if(k==="alignment"){
-      const A=cstByKey(transit.a), B=cstByKey(transit.b);
-      if(A&&B){
-        const pulse=REDUCED?.4:(.4+Math.sin(t/900)*.22);
-        x2.strokeStyle=`rgba(195,157,255,${pulse})`;x2.lineWidth=1.3/cam.s;
-        x2.setLineDash([5/cam.s,7/cam.s]);
-        x2.beginPath();x2.moveTo(A.cx,A.cy);x2.lineTo(B.cx,B.cy);x2.stroke();
-        x2.setLineDash([]);
-        const mx=(A.cx+B.cx)/2,my=(A.cy+B.cy)/2,r2=10/cam.s;
-        x2.save();x2.translate(mx,my);x2.rotate(REDUCED?0:t/2400);
-        x2.strokeStyle="rgba(195,157,255,.9)";x2.lineWidth=1.2/cam.s;
-        x2.beginPath();x2.moveTo(0,-r2);x2.lineTo(r2,0);x2.lineTo(0,r2);x2.lineTo(-r2,0);
-        x2.closePath();x2.stroke();x2.restore();
-        transitHit={x:mx,y:my,r:26/cam.s};
-      }
-    }else if(k==="eclipse"){
-      const ex=Math.cos(transit.ang)*R0*.72, ey=Math.sin(transit.ang)*R0*.5;
-      const R=Math.max(24,R0*.085);
-      const cg=x2.createRadialGradient(ex,ey,R*.92,ex,ey,R*2.3);
-      cg.addColorStop(0,"rgba(255,214,170,.42)");cg.addColorStop(1,"rgba(255,170,110,0)");
-      x2.fillStyle=cg;x2.beginPath();x2.arc(ex,ey,R*2.3,0,6.283);x2.fill();
-      x2.fillStyle="#030206";x2.beginPath();x2.arc(ex,ey,R,0,6.283);x2.fill();
-      x2.strokeStyle="rgba(255,226,190,.8)";x2.lineWidth=1.3/cam.s;
-      x2.beginPath();x2.arc(ex,ey,R,0,6.283);x2.stroke();
-      transitHit={x:ex,y:ey,r:R+16/cam.s};
-    }
-  }
-
   /* ── main loop ── */
   let last=0;
   function frame(t){
@@ -3294,9 +3085,6 @@ const sky=(()=>{
     xW.clearRect(0,0,W,H);
     xW.save();
     xW.translate(W/2,H/2);xW.scale(cam.s,cam.s);xW.translate(-cam.cx,-cam.cy);
-
-    // every night you turned up for, still there behind everything
-    drawRelics(xW,t);
 
     /* genre regions read from far away, artist constellations from close in:
        zoom out and the sky is a map of genres; zoom in and it is a map of
@@ -3372,9 +3160,6 @@ const sky=(()=>{
     // planets
     planets.forEach(p=>drawPlanet(xW,p,t));
 
-    // tonight's transit
-    drawTransit(xW,t);
-
     // stars — materialization ceremony, twinkle, spectrum glow
     const glowMul=1+bass*1.1+mids*.35;
     stars.forEach(s=>{
@@ -3438,7 +3223,7 @@ const sky=(()=>{
 
   function init(){resize();buildSprites();rebuild();requestAnimationFrame(frame)}
   return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,
-    starById,cstByKey,constellations:()=>csts,regions:()=>regions,
+    constellations:()=>csts,regions:()=>regions,
     clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
 })();
 
@@ -3481,7 +3266,6 @@ function onAlbumsAdded(newAlbums,countBefore){
     setTimeout(()=>sky.ceremonyPlanet(p),delay);delay+=5600;
   }
   $("#shareSky").style.display=after?"":"none";
-  refreshTransit(false);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -3699,7 +3483,7 @@ async function mergeAlbums(srcId,dstId){
   dropArtURL(src.id);
   await persistLastPlayedState();
   await addLog("\u266A","g-teal",`${src.title} was folded into ${dst.title} — ${srcT.length} track${srcT.length===1?"":"s"} moved`);
-  sky.rebuild();renderLibrary();renderPlaylists();updateStorage();refreshTransit(false);
+  sky.rebuild();renderLibrary();renderPlaylists();updateStorage();
   return true;
 }
 $("#albMerge").addEventListener("click",()=>{
@@ -3800,7 +3584,7 @@ $("#albDelete").addEventListener("click",async()=>{
   dropArtURL(a.id);
   await scrubAlbumPlayback(a.id);
   closeSheet("sheetAlbum");
-  sky.rebuild();renderLibrary();updateStorage();refreshTransit(false);
+  sky.rebuild();renderLibrary();updateStorage();
   await addLog("\u2727","g-dim",`${a.title} left the catalog — its star went dark`);
   toast("Album deleted");
 });
@@ -4121,7 +3905,7 @@ $("#mockClear").addEventListener("click",async()=>{
   }
   state.albums=state.albums.filter(a=>!a.mock);
   for(const album of mocks){dropArtURL(album.id);await scrubAlbumPlayback(album.id)}
-  sky.rebuild();renderLibrary();updateStorage();refreshTransit(false);
+  sky.rebuild();renderLibrary();updateStorage();
   await addLog("\u2727","g-dim",`${mocks.length} mock stars dissolved back into the void`);
   toast(`${mocks.length} mock stars removed`);
 });
@@ -4133,7 +3917,6 @@ $("#btnWipe").addEventListener("click",async()=>{
   state.albums=[];state.tracks.clear();state.playlists=[];state.log=[];
   state.queue=[];state.qIndex=-1;state.playingAlbumId=null;seqCounter=0;
   sky.rebuild();renderLibrary();renderPlaylists();renderLog();updateStorage();
-  transitStats={witnessed:0,history:[],relics:[]};transit=null;renderTransitChip();
   toast("The sky is dark again");
 });
 
@@ -4254,200 +4037,15 @@ $("#emptyGuide").addEventListener("click",()=>openSheet("sheetGuide"));
 $("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInput.click()});
 
 /* ════════════════════════════════════════════════════════════════
-   TRANSITS — one celestial event a night, composed entirely from what
-   you own. The date and this install's seed decide it together, so it
-   holds all day, is gone tomorrow, and is never the same in two skies.
-   Following one is recorded: the sky remembers the nights you showed up.
-   ════════════════════════════════════════════════════════════════ */
-const dayKey=(d=new Date())=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-const saveTransits=()=>kvSet("transits",transitStats);
-function albumPlays(a){
-  return (state.tracks.get(a.id)||[]).reduce((n,t)=>n+(playCounts[t.id]||0),0);
-}
-function albumQueue(a){
-  return (state.tracks.get(a.id)||[]).filter(t=>t.blob).sort((x,y)=>x.idx-y.idx)
-    .map(t=>({albumId:a.id,trackId:t.id}));
-}
-function makeTransit(key){
-  const playable=state.albums.filter(a=>albumQueue(a).length);
-  if(!playable.length)return null;
-  const r=mulberry(hashStr(key+"|"+skySeed));
-  const ang=r()*6.283;
-  const cst=sky.constellations().filter(c=>c.stars.some(st=>albumQueue(st.album).length));
-  /* Weighted so the big occasions stay occasions. Comets and showers are
-     the sky's ordinary weather; an eclipse is a periodic hush; a supernova
-     or an alignment lands rarely enough that finding one feels like being
-     in the right place on the right night. */
-  const WEIGHTS={comet:5,shower:4,eclipse:3,supernova:1,alignment:1};
-  const kinds=["comet","shower","eclipse","supernova"];
-  if(cst.length>=2)kinds.push("alignment");
-  const pool=[];
-  kinds.forEach(k=>{for(let i=0;i<WEIGHTS[k];i++)pool.push(k)});
-  const kind=pool[Math.floor(r()*pool.length)];
-  const byPlays=[...playable].sort((a,b)=>albumPlays(a)-albumPlays(b)||a.seq-b.seq);
-  const T={kind,ang,key};
-
-  if(kind==="supernova"){
-    const a=byPlays[byPlays.length-1];
-    T.albumId=a.id;T.items=albumQueue(a);
-    T.tag="A STAR GOES SUPERNOVA";
-    T.title=a.title;
-    T.short=`A supernova — ${a.title}`;
-    T.text=`The star you have fed the most is burning through everything it has. ${a.title} by ${a.artist} blazes over the sky tonight, brighter than anything else you own. Play it while it holds.`;
-  }else if(kind==="eclipse"){
-    const a=byPlays[0];
-    T.albumId=a.id;T.items=albumQueue(a);
-    T.tag="AN ECLIPSE";
-    T.title=a.title;
-    T.short=`An eclipse — ${a.title}`;
-    T.text=`Something dark has slid across your sky, and in the hush it leaves behind, one neglected record is audible: ${a.title} by ${a.artist}. You have barely played it. Tonight the sky is quiet enough to hear it.`;
-  }else if(kind==="comet"){
-    const cold=byPlays.slice(0,Math.max(1,Math.ceil(byPlays.length/3)));
-    const a=cold[Math.floor(r()*cold.length)];
-    T.albumId=a.id;T.items=albumQueue(a);
-    T.tag="A COMET PASSES";
-    T.title=a.title;
-    T.short=`A comet carries ${a.title}`;
-    T.text=`A comet is crossing your sky on a long orbit, and it is carrying ${a.title} by ${a.artist} with it. Follow it before morning — it will not come back around for a while.`;
-  }else if(kind==="shower"){
-    const pool=[];
-    playable.forEach(a=>albumQueue(a).forEach(q=>pool.push(q)));
-    for(let i=pool.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
-    T.items=pool.slice(0,14);
-    T.tag="A METEOR SHOWER";
-    T.title="Debris from the whole sky";
-    T.short="A meteor shower — 14 songs";
-    T.text=`Fourteen fragments are falling out of your own sky tonight, pulled at random from every corner of the collection. No order, no logic, nothing curated — just whatever the dark shook loose.`;
-  }else{
-    const i=Math.floor(r()*cst.length);
-    let j=Math.floor(r()*(cst.length-1));if(j>=i)j++;
-    const A=cst[i],B=cst[j];
-    T.a=A.key;T.b=B.key;
-    const qa=[],qb=[];
-    A.stars.forEach(st=>qa.push(...albumQueue(st.album)));
-    B.stars.forEach(st=>qb.push(...albumQueue(st.album)));
-    const mix=[];
-    for(let n=0;n<Math.max(qa.length,qb.length)&&mix.length<20;n++){
-      if(qa[n])mix.push(qa[n]);
-      if(qb[n])mix.push(qb[n]);
-    }
-    T.items=mix;
-    T.tag="AN ALIGNMENT";
-    T.title=`${A.name} \u00D7 ${B.name}`;
-    T.short=`${A.name} aligns with ${B.name}`;
-    T.text=`Two of your constellations have swung into line: ${A.name} and ${B.name}, linked tonight by a thread of light. The sky has drawn a playlist between them — their records, alternating, as if they were meant to be heard together.`;
-  }
-  return T;
-}
-const transitWitnessed=()=>!!(transit&&transitStats.history.some(h=>h.d===transit.key));
-function renderTransitChip(){
-  const el=$("#transitChip");
-  if(!transit||!state.albums.length){el.style.display="none";return}
-  const seen=transitWitnessed();
-  el.style.display="";
-  el.classList.toggle("seen",seen);
-  el.innerHTML=`<span class="tc-tag">${seen?"WITNESSED":"TONIGHT"}</span><span class="tc-name">${esc(transit.short)}</span>`;
-  const sn=$("#setTransitN");if(sn)sn.textContent=transitStats.witnessed||0;
-}
-function openTransit(){
-  if(!transit)return;
-  $("#trTag").textContent=transit.tag;
-  $("#trTitle").textContent=transit.title;
-  $("#trWhen").textContent=new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})
-    +" \u00B7 "+transit.items.length+" track"+(transit.items.length===1?"":"s");
-  $("#trText").textContent=transit.text;
-  const n=transitStats.witnessed||0;
-  $("#trStat").textContent=transitWitnessed()
-    ?`You followed this one, and the sky kept the mark. ${n} transit${n===1?"":"s"} witnessed here.`
-    :`${n} transit${n===1?"":"s"} witnessed in this sky, each one still marked where it happened. Tonight's is overhead now.`;
-  openSheet("sheetTransit");
-}
-async function witnessTransit(){
-  if(!transit||transitWitnessed())return;
-  transitStats.witnessed=(transitStats.witnessed||0)+1;
-  transitStats.history.unshift({d:transit.key,kind:transit.kind,title:transit.title});
-  if(transitStats.history.length>60)transitStats.history.length=60;
-  // the permanent mark, placed where the event actually happened
-  transitStats.relics=transitStats.relics||[];
-  transitStats.relics.unshift({d:transit.key,at:Date.now(),kind:transit.kind,
-    ang:transit.ang,albumId:transit.albumId,a:transit.a,b:transit.b});
-  if(transitStats.relics.length>200)transitStats.relics.length=200;
-  await saveTransits();
-  renderTransitChip();
-  await addLog("\u2726","g-violet",`Followed ${transit.tag.toLowerCase()} — ${transit.title}. It left a mark on the sky.`);
-  toast("The sky keeps a mark where that happened",true);
-}
-/* A transit is resolved once and then kept. It used to be recomputed on
-   every call from live play counts — so following tonight's comet changed
-   which album was least-played, and the comet could be carrying something
-   different by the time you looked again. The resolved event is stored for
-   the day and only rebuilt when the date turns over or the music it points
-   at is gone. */
-function transitStillValid(T){
-  if(!T||!T.key||!Array.isArray(T.items))return false;
-  const live=T.items.filter(q=>{const t=trackById(q.albumId,q.trackId);return t&&t.blob});
-  if(!live.length)return false;
-  T.items=live;
-  if(T.albumId&&!albumById(T.albumId))return false;
-  if(T.a&&!sky.cstByKey(T.a))return false;
-  if(T.b&&!sky.cstByKey(T.b))return false;
-  return true;
-}
-async function refreshTransit(announce){
-  const key=dayKey();
-  const kept=transitStats.today;
-  let T=(kept&&kept.key===key&&transitStillValid(kept))?kept:null;
-  if(!T){
-    T=makeTransit(key);
-    transitStats.today=T;
-    await saveTransits();
-  }
-  transit=T;
-  renderTransitChip();
-  if(!transit)return;
-  if(announce&&transitStats.lastSeen!==key){
-    transitStats.lastSeen=key;
-    await saveTransits();
-    await addLog("\u2726","g-teal",`${transit.tag} \u2014 ${transit.title}`);
-    // the sky's banner only exists on the sky — say it out loud anywhere else
-    if(document.body.dataset.tab==="sky")sky.banner(transit.tag,transit.title.toUpperCase());
-    else toast(`${transit.tag} \u2014 ${transit.title}`,true);
-  }
-}
-$("#transitChip").addEventListener("click",openTransit);
-$("#trPlay").addEventListener("click",async()=>{
-  if(!transit||!transit.items.length){toast("Nothing playable in tonight's transit");return}
-  playQueue(transit.items.slice(),0);
-  closeSheet("sheetTransit");switchTab("sky");
-  await witnessTransit();
-});
-$("#trSave").addEventListener("click",async()=>{
-  if(!transit||!transit.items.length){toast("Nothing to keep");return}
-  const name=transit.tag+" \u00B7 "+transit.key;
-  const pl={id:uid(),name,items:transit.items.slice()};
-  state.playlists.push(pl);
-  await dbPut("playlists",pl);
-  renderPlaylists();
-  await addLog("\u266A","g-pink",`Kept “${name}” — ${pl.items.length} tracks`);
-  toast(`Kept as “${name}”`,true);
-});
-/* the sky rolls over at midnight without a reload */
-setInterval(()=>{if(transit&&transit.key!==dayKey())refreshTransit(true)},60000);
-document.addEventListener("visibilitychange",()=>{
-  if(!document.hidden&&transit&&transit.key!==dayKey())refreshTransit(true);
-});
-
-/* ════════════════════════════════════════════════════════════════
    INIT — the reload test: kill the tab, reopen, nothing is lost.
    ════════════════════════════════════════════════════════════════ */
 (async function init(){
   db=await openDB();
-  const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays,transits]=await Promise.all([
+  await dbDel("kv","transits").catch(()=>{});
+  const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays]=await Promise.all([
     dbAll("albums"),dbAll("tracks"),dbAll("playlists"),
-    kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays"),kvGet("transits")
+    kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays")
   ]);
-  if(transits)transitStats={witnessed:transits.witnessed||0,history:transits.history||[],
-    lastSeen:transits.lastSeen,today:transits.today||null,relics:transits.relics||[]};
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{
@@ -4500,7 +4098,6 @@ document.addEventListener("visibilitychange",()=>{
   }
   renderLibrary();
   updateStorage();
-  refreshTransit(true); // tonight's event, announced once a day
   kvGet("recs").then(r=>{if(r&&r.recs)renderRecs(r.recs,r.t)});
 })();
 </script>
