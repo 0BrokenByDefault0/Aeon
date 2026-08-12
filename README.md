@@ -13,19 +13,54 @@ Everything — audio, artwork, playlists, listening history — lives **on
 the device only**. Library content is never uploaded, tracked, or shared.
 The only application-data network calls are manual metadata lookups,
 automatic metadata lookups that the collector explicitly enables in
-Settings (off by default), and the recommendation scan. Metadata requests
-send the album title and artist to iTunes or Deezer as data-only HTTP
-requests; third-party scripts never run
-inside the app. Recommendations link out to Bandcamp so discovery ends in
-*owning* the music, not renting it.
+Settings (off by default). Metadata requests send the album title and
+artist to Apple and MusicBrainz as data-only HTTP requests; third-party
+scripts never run inside the app. Recommendations need no network at all —
+they read your own library for artists you own exactly one record by — and
+link out to Bandcamp, so discovery ends in *owning* the music, not renting
+it.
+
+**No storage cap.** In the native app the audio is written to the device's
+own filesystem rather than into browser storage, streamed from disk at
+playback, and never held in memory. The ceiling is the space on the phone,
+not a quota. Because the folder is Documents, the whole collection appears
+in **Files → ISOLATION → Music** and can be copied in or out wholesale —
+the only workable way to move a library measured in hundreds of gigabytes.
 
 ## What's in here
 
 ```
 app/                  the entire application (single-file PWA + service worker)
 ios/                  Capacitor iOS shell, ready for Xcode
+tests/                unit tests over the deterministic core (npm test)
+test/                 browser regression suite (npm run test:browser)
+scripts/              syntax check and dependency patches
+.github/workflows/    verify.yml (CI) and ios-ipa.yml (unsigned IPA)
 capacitor.config.json
 package.json
+```
+
+## The unsigned .ipa
+
+Apple only permits iOS binaries to be produced on macOS, so the build runs
+on a hosted Mac in CI. Every push builds `ISOLATION-unsigned.ipa` and
+attaches it to the run: **GitHub → Actions → "Build unsigned IPA" → the
+newest run → Artifacts**.
+
+It is deliberately unsigned, which is what sideloading tools expect —
+[AltStore](https://altstore.io), SideStore or
+[Sideloadly](https://sideloadly.io) sign it with your own Apple ID on your
+own machine. That signature is the one part no build server can produce
+for you, because it is yours. With a Mac to hand, the Xcode route below is
+faster and gives a properly signed build.
+
+## Tests
+
+```sh
+npm test                 # unit tests over the deterministic core
+npm run test:browser     # 24 checks driving the real app in a browser
+npm run check            # syntax check
+python3 test/fixtures.py # regenerate the audio fixtures
 ```
 
 ## Get it on your iPhone

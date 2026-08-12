@@ -303,8 +303,9 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
 #eqBands{display:flex;gap:6px;justify-content:space-between;margin-top:14px;padding:0 2px}
 .band{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1}
 .band input[type=range]{
-  writing-mode:vertical-lr;direction:rtl;appearance:none;-webkit-appearance:slider-vertical;
-  width:26px;height:110px;background:transparent;
+  writing-mode:vertical-lr;direction:rtl;
+  appearance:none;-webkit-appearance:none;
+  width:26px;height:118px;background:transparent;
 }
 .band .b-f{font-family:'Audiowide',sans-serif;font-size:7px;color:var(--faint);letter-spacing:.06em}
 .band .b-v{font-family:'Audiowide',sans-serif;font-size:8px;color:var(--amber);min-height:12px;
@@ -679,6 +680,120 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
 .empty i{color:var(--lav-dim)}.empty .e-g{color:#26243c}
 :focus-visible{outline-color:var(--holo-c)}
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UNIFICATION PASS
+   Three design generations were layered in this file — a warm amber
+   console, a data board, then chrome — and the first one still showed
+   through in forty places: gold skip buttons beside a lavender play
+   button, brown body copy, a brown toggle knob. Rather than chase every
+   rule, the old palette's tokens are redefined to their chrome
+   equivalents, so every straggling reference lands correctly at once.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --starlight:#eef0f8;
+  --dim:#a49ecb;
+  --faint:#6f6b95;
+  --amber:#c39dff;
+  --amber-hot:#a98bff;
+  --gold:#ffd0a8;
+  --line:#34305a;
+  --line-amber:rgba(195,157,255,.34);
+  --line-soft:#26243c;
+  --panel:#0d0c16;
+  --panel-2:#121020;
+  --plush:#181630;
+  --screen:#0a0a12;
+  --glow-a:0 0 12px rgba(195,157,255,.45), 0 0 34px rgba(150,140,255,.22);
+  --tint:#c39dff;            /* recoloured by whatever is playing */
+  --ink:#07060e;
+}
+
+/* the sky stops drifting behind everything you are trying to read */
+.panel{background:var(--ink)}
+body[data-tab]:not([data-tab="sky"]) #skyDim{opacity:1;background:var(--ink)}
+
+/* nothing hides behind the transport any more */
+body.has-player .panel{padding-bottom:calc(var(--dock-h) + var(--safe-b) + 92px)}
+#dockWrap::before{content:"";position:absolute;inset:auto 0 0 0;height:100%;
+  background:linear-gradient(180deg,rgba(7,6,14,0),var(--ink) 42%);
+  pointer-events:none;z-index:-1}
+
+/* display type is for names and ceremonies, not for data */
+.alb .a-x,.pl-count,.log-when,#storText,#nowTimes,.band .b-f,.band .b-v,
+.t-no,#libSub,.s-sub,#ibCount{
+  font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:.02em;
+}
+.alb .a-x{font-size:10.5px}
+.pl-count{font-size:11px}
+.log-when{font-size:10.5px}
+#storText{font-size:11.5px}
+#nowTimes{font-size:11px}
+.t-no{font-size:11px}
+#libSub,.s-sub{font-size:12px;text-transform:none;letter-spacing:.01em}
+.p-head h1{font-size:19px;letter-spacing:.14em}
+.p-eyebrow{font-size:8.5px;letter-spacing:.3em}
+.tab .tl{font-size:9px;letter-spacing:.14em}
+.card h3{font-size:11.5px;letter-spacing:.18em}
+
+/* a search field that looks like somewhere to type */
+#libSearch input{font-family:'Space Grotesk',system-ui,sans-serif;font-size:15px;letter-spacing:0}
+#libSearch input::placeholder{font-family:'Space Grotesk',system-ui,sans-serif;
+  font-size:15px;letter-spacing:0;text-transform:none;color:var(--faint)}
+
+/* sort chips */
+#libSort{display:flex;gap:7px;margin-top:12px;overflow-x:auto;padding-bottom:2px}
+#libSort::-webkit-scrollbar{display:none}
+.sortc{
+  flex:0 0 auto;font-family:'Space Grotesk',sans-serif;font-size:11px;letter-spacing:.08em;
+  padding:8px 13px;min-height:40px;border:1px solid var(--line-soft);color:var(--faint);
+  background:transparent;
+}
+.sortc.on{color:#141026;border-color:transparent;
+  background:linear-gradient(120deg,#8be9ff,#c39dff,#f2a6e3)}
+
+/* 44px is the floor for a thumb */
+.trk .t-btn{width:44px;height:44px}
+.pb-btn{width:44px;height:44px}
+#shareSky{width:44px;height:44px}
+#pbMain{min-height:44px}
+.btn.small{min-height:44px}
+
+/* the equalizer stops being a stock iOS control */
+.band input[type=range]::-webkit-slider-runnable-track{
+  width:5px;border-radius:0;background:rgba(200,200,240,.14)}
+.band input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:12px;border-radius:2px;border:1px solid #141026;
+  background:linear-gradient(120deg,#8be9ff,#c39dff);
+  box-shadow:0 0 10px rgba(170,160,255,.6);margin-left:-9px}
+.band input[type=range]::-moz-range-track{width:5px;background:rgba(200,200,240,.14)}
+.band input[type=range]::-moz-range-thumb{width:22px;height:12px;border-radius:2px;border:none;background:#c39dff}
+.band .b-v{font-size:11px;color:var(--dim)}
+.band .b-f{font-size:10px}
+
+/* import progress */
+#importBar{
+  position:fixed;left:0;right:0;top:0;z-index:60;
+  padding:calc(var(--safe-t) + 8px) 16px 10px;
+  background:linear-gradient(180deg,rgba(7,6,14,.97),rgba(7,6,14,.86));
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line-soft);
+}
+#importBar .ib-txt{display:flex;justify-content:space-between;gap:12px;
+  font-size:12px;color:var(--dim);margin-bottom:7px}
+#ibLabel{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#importBar .ib-track{height:3px;background:rgba(200,200,240,.12)}
+#ibFill{height:100%;width:0%;transition:width .25s;
+  background:linear-gradient(90deg,#8be9ff,#c39dff,#f2a6e3)}
+
+/* what is playing quietly colours the room */
+#pbSeekFill{background:var(--tint)}
+.alb.playing{border-color:var(--tint);box-shadow:0 0 18px -4px var(--tint)}
+#nowArt{box-shadow:0 18px 60px rgba(0,0,0,.7), 0 0 70px -18px var(--tint)}
+.trk.playing .t-title{color:var(--tint);text-shadow:none}
+
+/* destructive actions stop shouting as loud as ordinary ones */
+.btn.danger{opacity:.75}
+.btn.danger:active{opacity:1}
 </style>
 </head>
 <body data-tab="sky">
@@ -724,8 +839,15 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
   <div id="libSearch">
     <span class="ls-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>
-    <input type="search" id="libSearchIn" placeholder="SEARCH ARTIST OR ALBUM" aria-label="Search library by artist or album" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+    <input type="search" id="libSearchIn" placeholder="Search albums, artists, songs" aria-label="Search library by artist or album" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
     <button id="libSearchClr" aria-label="Clear search" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="libSort">
+    <button class="sortc on" data-sort="added">RECENT</button>
+    <button class="sortc" data-sort="artist">ARTIST</button>
+    <button class="sortc" data-sort="title">TITLE</button>
+    <button class="sortc" data-sort="year">YEAR</button>
+    <button class="sortc" data-sort="plays">PLAYED</button>
   </div>
   <div id="libGrid"></div>
   <div id="libNoMatch" class="empty" style="display:none">
@@ -738,9 +860,9 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <div class="btnrow" style="justify-content:center"><button class="btn small ghost" id="emptyGuide">HOW TO START COLLECTING</button></div>
   </div>
   <div class="card" id="recsCard">
-    <h3>Transmissions from outside</h3>
+    <h3>Waiting on a second star</h3>
     <div class="c-note">Artists orbiting near your taste that aren't in your sky yet. Each one links to Bandcamp &#8212; if it lands, buy the files and bring them home. Seeded from your imported artists; needs a network signal.</div>
-    <div class="btnrow"><button class="btn hot small" id="btnRecs">SCAN THE OUTSIDE</button></div>
+    <div class="btnrow"><button class="btn hot small" id="btnRecs">FIND THE GAPS</button></div>
     <div id="recsGrid"></div>
     <div id="recsNote" class="c-note" style="display:none;margin-top:10px"></div>
   </div>
@@ -827,9 +949,22 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     </div>
     <div class="set-row">
       <div><div class="set-l">Automatic metadata lookups</div>
-      <div class="set-d">Off by default. When enabled, missing album titles and artist names are sent to iTunes or Deezer after import to find tags and artwork.</div></div>
+      <div class="set-d">Off by default. When enabled, missing album titles and artist names are sent to Apple and MusicBrainz after an import to find tags and artwork. Only those words are sent, never your files.</div></div>
       <button class="tgl" id="tglMeta" role="switch" aria-checked="false" aria-label="Automatic metadata lookups"></button>
     </div>
+  </div>
+
+  <div class="card">
+    <h3>Sleep timer</h3>
+    <div class="c-note">The music fades out and stops on its own. Pick a length, or let the record finish.</div>
+    <div id="sleepRow" class="btnrow">
+      <button class="btn small" data-sleep="15">15 MIN</button>
+      <button class="btn small" data-sleep="30">30 MIN</button>
+      <button class="btn small" data-sleep="60">1 HOUR</button>
+      <button class="btn small" data-sleep="album">END OF ALBUM</button>
+      <button class="btn small ghost" data-sleep="0">OFF</button>
+    </div>
+    <div class="c-note" id="sleepNote" style="margin-top:8px"></div>
   </div>
 
   <div class="card">
@@ -856,7 +991,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.10 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.11 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -906,7 +1041,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <div class="btnrow" style="justify-content:center">
       <button class="btn small ghost" id="nowShuffle">SHUFFLE</button>
       <button class="btn small ghost" id="nowRepeat">REPEAT&#8201;&#183;&#8201;OFF</button>
-      <button class="btn small ghost" id="nowClose">CLOSE</button>
+      <button class="btn small ghost" id="nowQueue">UP NEXT</button>
     </div>
   </div>
 </div>
@@ -948,6 +1083,7 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
     <hr class="hairline">
     <div id="albTracks"></div>
     <div class="btnrow">
+      <button class="btn small" id="albFind">FIND IN SKY</button>
       <button class="btn small" id="albReorder">REORDER TRACKS</button>
       <button class="btn small" id="albMerge">MERGE INTO&#8230;</button>
     </div>
@@ -1002,6 +1138,17 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
 </div>
 
+<!-- ═══ the queue ═══ -->
+<div class="sheet" id="sheetQueue" aria-modal="true" role="dialog" aria-label="Up next">
+  <div class="sheet-body">
+    <div class="grab"></div>
+    <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2>Up next</h2>
+    <div class="s-sub" id="qSub"></div>
+    <div id="qList" style="margin-top:6px"></div>
+  </div>
+</div>
+
 <!-- ═══ collector's guide sheet — the on-ramp ═══ -->
 <div class="sheet" id="sheetGuide" aria-modal="true" role="dialog" aria-label="How to start collecting">
   <div class="sheet-body">
@@ -1028,6 +1175,10 @@ input[type=range].hseek::-webkit-slider-thumb{border-color:#141026;
   </div>
 </div>
 
+<div id="importBar" style="display:none" role="status" aria-live="polite">
+  <div class="ib-txt"><span id="ibLabel">Importing</span><span id="ibCount"></span></div>
+  <div class="ib-track"><div id="ibFill"></div></div>
+</div>
 <div id="flashFx"></div>
 <div id="toasts" aria-live="polite"></div>
 <input type="file" id="artInput" accept="image/*" style="display:none">
@@ -1486,11 +1637,17 @@ async function setAlbumArt(a,blob){
   renderLibrary();
   return true;
 }
+let logSaveTO=null;
+function queueLogSave(){
+  clearTimeout(logSaveTO);
+  logSaveTO=setTimeout(()=>kvSet("log",state.log),1200);
+}
+addEventListener("pagehide",()=>{if(logSaveTO){clearTimeout(logSaveTO);kvSet("log",state.log)}});
 async function addLog(g,cls,text){
   const e={t:Date.now(),g,cls,text};
   state.log.unshift(e);
   if(state.log.length>400)state.log.length=400;
-  await kvSet("log",state.log);
+  queueLogSave();
   if(document.body.dataset.tab==="log")renderLog();
 }
 
@@ -1673,6 +1830,20 @@ function parseFLAC(buf){
   return out;
 }
 
+/* Tags live in the first few hundred kilobytes of nearly every file, and
+   pulling a 60 MB FLAC entirely into memory to read them is how importing a
+   real library runs a phone out of RAM. Read the head; fall back to the
+   whole file only when nothing was found. */
+async function readMeta(f){
+  const HEAD=3145728;
+  if(f.size>HEAD){
+    const head=parseMeta(await f.slice(0,HEAD).arrayBuffer(),f.name);
+    if(head&&(head.title||head.album||head.artist||head.art))return head;
+    const tail=parseMeta(await f.slice(Math.max(0,f.size-HEAD)).arrayBuffer(),f.name);
+    if(tail&&(tail.title||tail.album||tail.artist||tail.art))return tail;
+  }
+  return parseMeta(await f.arrayBuffer(),f.name);
+}
 function parseMeta(buf,fileName){
   let m=null;
   try{m=parseID3(buf)}catch(e){}
@@ -1787,6 +1958,65 @@ async function blobSliceB64(blob,start,end){
   let str="";const CH=0x8000;
   for(let i=0;i<u8.length;i+=CH)str+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));
   return btoa(str);
+}
+/* ════════════════════════════════════════════════════════════════
+   WHERE THE AUDIO LIVES
+   In a browser there is only IndexedDB, whose quota is whatever the engine
+   feels like granting. In the native shell there is a real filesystem:
+   audio is written into the app's Documents folder, streamed from disk at
+   playback, and never held in memory or counted against a web storage
+   quota. The ceiling becomes the device itself. Because it is Documents,
+   the collection also appears in the Files app and can be copied in or out
+   wholesale — the only sane way to move a library measured in hundreds of
+   gigabytes.
+   ════════════════════════════════════════════════════════════════ */
+const AUDIO_DIR="Music";
+const FS=()=>Capacitor.Plugins.Filesystem;
+const B64_STEP=4194303; // a multiple of 3, so chunks concatenate cleanly
+async function writeFileChunked(path,blob){
+  const fs=FS();
+  await fs.writeFile({path,data:"",directory:"DOCUMENTS",recursive:true});
+  for(let off=0;off<blob.size;off+=B64_STEP){
+    const end=Math.min(blob.size,off+B64_STEP);
+    await fs.appendFile({path,data:await blobSliceB64(blob,off,end),directory:"DOCUMENTS"});
+  }
+}
+function safeName(v){return String(v||"").replace(/[^\w\-. ]+/g,"_").slice(0,60).trim()||"untitled"}
+async function storeAudio(alb,trk,file){
+  if(!NATIVE)return{blob:file,bytes:file.size};
+  const path=`${AUDIO_DIR}/${safeName(alb.artist)} - ${safeName(alb.title)}/`
+    +String(trk.idx).padStart(2,"0")+" "+safeName(trk.title)+extOf(file,".mp3");
+  await writeFileChunked(path,file);
+  return{path,bytes:file.size};
+}
+const hasAudio=t=>!!(t&&(t.blob||t.path));
+async function trackURL(t){
+  if(t.blob)return URL.createObjectURL(t.blob);
+  if(t.path&&NATIVE){
+    try{
+      const {uri}=await FS().getUri({path:t.path,directory:"DOCUMENTS"});
+      return Capacitor.convertFileSrc(uri);
+    }catch(e){return null}
+  }
+  return null;
+}
+async function dropAudio(t){
+  if(t.path&&NATIVE){try{await FS().deleteFile({path:t.path,directory:"DOCUMENTS"})}catch(e){}}
+}
+function librarySize(){
+  let n=0;
+  state.tracks.forEach(list=>list.forEach(t=>{n+=t.bytes||(t.blob&&t.blob.size)||0}));
+  return n;
+}
+/* a long import used to look like a frozen app — show the work */
+function importProgress(done,total,label){
+  const bar=$("#importBar");
+  if(!bar)return;
+  if(!total||done>=total){bar.style.display="none";return}
+  bar.style.display="";
+  $("#ibLabel").textContent=label||"Importing";
+  $("#ibCount").textContent=done+" / "+total;
+  $("#ibFill").style.width=(done/total*100).toFixed(1)+"%";
 }
 async function saveBlob(blob,name){
   if(!NATIVE){downloadBlob(blob,name);return true}
@@ -1911,12 +2141,13 @@ async function importFiles(rawFiles,opts={}){
   const mode=opts.perFolder?"folder":(state.settings.groupMode||"single");
   const before=state.albums.length;
   const newAlbums=[];
-  let parsed=0;
+  let parsed=0,done=0;
+  const skipped=[];
   for(const batch of batches){
     const items=[];
     for(const f of batch.files){
       let meta={};
-      try{meta=parseMeta(await f.arrayBuffer(),f.name)}catch(e){meta={title:f.name.replace(/\.[^.]+$/,"")}}
+      try{meta=await readMeta(f)}catch(e){meta={title:f.name.replace(/\.[^.]+$/,"")}}
       const folder=(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||"";
       items.push({file:f,meta,folder});
       if(++parsed%8===0)await new Promise(r=>setTimeout(r,0)); // breathe
@@ -1941,6 +2172,10 @@ async function importFiles(rawFiles,opts={}){
     }
     const artist=most("albumArtist")||most("artist")||dirArtist||"Unknown Artist";
     title=title||"Untitled Transmission";
+    // the same record twice is a second star for one album — refuse it
+    const twin=state.albums.find(x=>!x.mock&&normAlbum(x.title)===normAlbum(title)
+      &&normKey(x.artist)===normKey(artist)&&(state.tracks.get(x.id)||[]).length===g.length);
+    if(twin){skipped.push(title);continue}
     const first=g.find(it=>it.meta.art);
     const rawArt=first?first.meta.art
       :(folderArt(images,(withDir&&withDir.folder)||"")||folderArt(images,batch.label));
@@ -1954,13 +2189,18 @@ async function importFiles(rawFiles,opts={}){
     // one continuous run of track numbers, whatever the tags claimed
     const trks=g.map((it,i)=>({
       id:alb.id+"-t"+i,albumId:alb.id,idx:i+1,
-      title:it.meta.title,artist:it.meta.artist||artist,blob:it.file
+      title:it.meta.title,artist:it.meta.artist||artist,file:it.file
     }));
     state.albums.push(alb);state.tracks.set(alb.id,trks);
     try{
       await dbPut("albums",alb);
-      for(const t of trks)await dbPut("tracks",t);
-    }catch(e){toast("Storage refused some data — check quota in Settings")}
+      for(const t of trks){
+        const src=t.file;delete t.file;
+        Object.assign(t,await storeAudio(alb,t,src));
+        await dbPut("tracks",t);
+        importProgress(++done,total,alb.title);
+      }
+    }catch(e){toast("Couldn't store some audio — "+((e&&e.message)||e))}
     newAlbums.push(alb);
     await addLog("\u2726","g-amber",`${alb.title} — ${alb.artist} entered the sky (${trks.length} tracks)`);
     }
@@ -2225,12 +2465,16 @@ async function lookupAlbum(title,artist,loose){
     const best=pickBest(cands,title,artist,loose);
     if(best)return best;
   }catch(e){}
-  // Deezer fallback; failed CORS requests simply leave local tags alone.
+  // MusicBrainz fallback — a plain CORS request that actually succeeds,
+  // unlike the Deezer endpoint, which sends no cross-origin headers at all.
   try{
-    const j=await fetchJSON("https://api.deezer.com/search/album?q="+encodeURIComponent(term)+"&limit=6");
-    const cands=(j&&j.data||[]).map(x=>({
-      title:x.title,artist:x.artist&&x.artist.name||"",
-      genre:"",year:"",artUrl:x.cover_big||x.cover_medium||""
+    const j=await fetchJSON("https://musicbrainz.org/ws/2/release?fmt=json&limit=6&query="
+      +encodeURIComponent(term));
+    const cands=(j&&j.releases||[]).map(x=>({
+      title:x.title,
+      artist:(x["artist-credit"]||[]).map(c=>c.name).join(" & "),
+      genre:"",year:(x.date||"").slice(0,4),
+      artUrl:x.id?`https://coverartarchive.org/release/${x.id}/front-500`:""
     }));
     return pickBest(cands,title,artist,loose);
   }catch(e){}
@@ -2325,11 +2569,11 @@ function setVolume(v){
 }
 function clearPlaybackSource(){
   audio.pause();
-  if(curURL){URL.revokeObjectURL(curURL);curURL=null}
+  if(curURL){if(curURL.startsWith("blob:"))URL.revokeObjectURL(curURL);curURL=null}
   audio.removeAttribute("src");
   try{audio.load()}catch(e){}
   state.playingAlbumId=null;
-  $("#playerBar").classList.remove("show");
+  $("#playerBar").classList.remove("show");document.body.classList.remove("has-player");
   if("mediaSession" in navigator){
     navigator.mediaSession.metadata=null;
     navigator.mediaSession.playbackState="none";
@@ -2361,6 +2605,17 @@ function playQueue(items,startIdx=0){
    track records, so audio blobs are never rewritten just to count) */
 let playCounts={};
 let playsFlushTO=null;
+/* A play used to be logged the instant a track was selected, so skipping
+   through a record counted as listening to all of it. A play is now earned:
+   thirty seconds, or half the track, whichever comes first. */
+let pendingPlay=null;
+function armPlayCount(trkId){pendingPlay={id:trkId,counted:false}}
+function creditListening(){
+  if(!pendingPlay||pendingPlay.counted)return;
+  const d=audio.duration;
+  const enough=Math.min(30,isFinite(d)&&d?d/2:30);
+  if(audio.currentTime>=enough){pendingPlay.counted=true;bumpPlays(pendingPlay.id)}
+}
 function bumpPlays(trkId){
   playCounts[trkId]=(playCounts[trkId]||0)+1;
   clearTimeout(playsFlushTO);
@@ -2371,8 +2626,8 @@ async function playCurrent(autoplay){
   if(!q)return;
   const alb=albumById(q.albumId), trk=trackById(q.albumId,q.trackId);
   if(!alb||!trk)return;
-  bumpPlays(trk.id);
-  if(!trk.blob){
+  armPlayCount(trk.id);
+  if(!hasAudio(trk)){
     state.playingAlbumId=alb.id;
     updatePlayerUI(alb,trk,false);
     sky.focusAlbum(alb.id);
@@ -2381,8 +2636,9 @@ async function playCurrent(autoplay){
   }
   ensureAudioGraph();
   if(actx&&actx.state==="suspended")actx.resume();
-  if(curURL)URL.revokeObjectURL(curURL);
-  curURL=URL.createObjectURL(trk.blob);
+  if(curURL&&curURL.startsWith("blob:"))URL.revokeObjectURL(curURL);
+  curURL=await trackURL(trk); // a file stream on device, a blob in a browser
+  if(!curURL){toast("That track's audio is missing");return}
   audio.src=curURL;
   state.playingAlbumId=alb.id;
   updatePlayerUI(alb,trk,true);
@@ -2413,7 +2669,7 @@ function togglePlay(){
   const q=state.queue[state.qIndex];
   if(!q)return;
   const trk=q&&trackById(q.albumId,q.trackId);
-  if(trk&&!trk.blob){toast("Mock star — no audio to play");return}
+  if(trk&&!hasAudio(trk)){toast("Mock star — no audio to play");return}
   ensureAudioGraph();
   if(actx&&actx.state==="suspended")actx.resume();
   if(audio.paused)audio.play().catch(()=>{});else audio.pause();
@@ -2452,6 +2708,7 @@ if("mediaSession" in navigator){ // lock screen + control-center transport
   }catch(e){}
 }
 audio.addEventListener("timeupdate",()=>{
+  creditListening();
   const p=audio.duration?audio.currentTime/audio.duration:0;
   $("#pbSeekFill").style.width=(p*100)+"%";
   if($("#sheetNow").classList.contains("open")&&!seekHeld){
@@ -2460,12 +2717,40 @@ audio.addEventListener("timeupdate",()=>{
     $("#tDur").textContent=fmtT(audio.duration);
   }
 });
+function markPlayingCard(){
+  $("#libGrid").querySelectorAll("[data-alb]").forEach(el=>
+    el.classList.toggle("playing",el.dataset.alb===state.playingAlbumId));
+}
 function syncPlayGlyphs(playing){
   $("#pbPlay").innerHTML=playing?ICO.pause:ICO.play;
   $("#nowPlay").innerHTML=playing?ICO.pause:ICO.play;
 }
+/* Pull a usable colour out of the cover and let the room take it on:
+   the seek fill, the glow under the art, the ring on the playing card. */
+function applyTint(album){
+  const root=document.documentElement;
+  if(!album||!album.art){root.style.setProperty("--tint","#c39dff");return}
+  createImageBitmap(album.art).then(bmp=>{
+    const c=document.createElement("canvas");c.width=c.height=8;
+    const x=c.getContext("2d");x.drawImage(bmp,0,0,8,8);
+    if(bmp.close)bmp.close();
+    const d=x.getImageData(0,0,8,8).data;
+    let r=0,g=0,b=0,n=0;
+    for(let i=0;i<d.length;i+=4){
+      if(Math.max(d[i],d[i+1],d[i+2])<34)continue; // ignore the black
+      r+=d[i];g+=d[i+1];b+=d[i+2];n++;
+    }
+    if(!n){root.style.setProperty("--tint","#c39dff");return}
+    r/=n;g/=n;b/=n;
+    const lift=Math.max(1,170/Math.max(r,g,b,1)); // make it able to glow
+    root.style.setProperty("--tint",
+      `rgb(${Math.min(255,r*lift|0)},${Math.min(255,g*lift|0)},${Math.min(255,b*lift|0)})`);
+  }).catch(()=>{});
+}
 function updatePlayerUI(alb,trk){
   $("#playerBar").classList.add("show");
+  document.body.classList.add("has-player");
+  applyTint(alb);
   const art=artURL(alb);
   artImg($("#pbArt"),alb);
   $("#pbTitle").textContent=trk.title;
@@ -2475,7 +2760,7 @@ function updatePlayerUI(alb,trk){
   $("#nowArtist").textContent=(trk.artist||alb.artist).toUpperCase()+" \u2014 "+alb.title.toUpperCase();
   $("#hudNow").style.display="";
   $("#hudNow").textContent="\u266A "+trk.title;
-  renderLibrary(); // playing ring on the grid
+  markPlayingCard(); // a class, not a rebuild of every album card
 }
 
 /* transport wiring */
@@ -2487,7 +2772,35 @@ $("#nowPrev").addEventListener("click",prevTrack);
 $("#nowNext").addEventListener("click",nextTrack);
 $("#pbMain").addEventListener("click",()=>openSheet("sheetNow"));
 $("#pbArt").addEventListener("click",()=>openSheet("sheetNow"));
-$("#nowClose").addEventListener("click",()=>closeSheet("sheetNow"));
+$("#nowQueue").addEventListener("click",openQueue);
+function openQueue(){renderQueue();openSheet("sheetQueue")}
+function renderQueue(){
+  const q=state.queue;
+  $("#qSub").textContent=q.length?`${state.qIndex+1} of ${q.length}`:"";
+  $("#qList").innerHTML=q.length?q.map((it,i)=>{
+    const a=albumById(it.albumId), t=a&&trackById(it.albumId,it.trackId);
+    if(!t)return"";
+    const now=i===state.qIndex;
+    return`<div class="trk${now?" playing":""}">
+      <div class="t-no">${now?"\u25B6":i+1}</div>
+      <button class="t-main" data-q="${i}" style="text-align:left" aria-label="Play ${esc(t.title)}">
+        <div class="t-title">${esc(t.title)}</div>
+        <div class="t-sub">${esc(t.artist||a.artist)} \u2014 ${esc(a.title)}</div>
+      </button>
+      <button class="t-btn" data-qrm="${i}" aria-label="Remove from queue">${ICO.x}</button>
+    </div>`;
+  }).join(""):`<div class="empty"><i>Nothing queued.</i><br>Play an album and it will line up here.</div>`;
+  $("#qList").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{
+    state.qIndex=+b.dataset.q;playCurrent(true);renderQueue();
+  }));
+  $("#qList").querySelectorAll("[data-qrm]").forEach(b=>b.addEventListener("click",()=>{
+    const i=+b.dataset.qrm;
+    if(i===state.qIndex){toast("That one is playing now");return}
+    state.queue.splice(i,1);
+    if(i<state.qIndex)state.qIndex--;
+    renderQueue();
+  }));
+}
 let seekHeld=false;
 $("#nowSeek").addEventListener("input",()=>{seekHeld=true;
   if(audio.duration)$("#tCur").textContent=fmtT($("#nowSeek").value/1000*audio.duration)});
@@ -2742,6 +3055,15 @@ const sky=(()=>{
   }
 
   function focusAlbum(id){computeHome();updateHUD()}
+  /* take the camera to one album and hold it there */
+  function flyTo(id){
+    const st=stars.find(x=>x.album.id===id);
+    if(!st)return false;
+    manual=true;
+    cam.tcx=st.x;cam.tcy=st.y;cam.ts=clamp(Math.min(W,H)/300,.5,2.6);
+    selected=st;showLabel(st);
+    return true;
+  }
   const cstByKey=k=>csts.find(c=>c.key===k);
 
   /* ceremonies */
@@ -3222,7 +3544,7 @@ const sky=(()=>{
   }
 
   function init(){resize();buildSprites();rebuild();requestAnimationFrame(frame)}
-  return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,
+  return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,flyTo,
     constellations:()=>csts,regions:()=>regions,
     clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
 })();
@@ -3282,6 +3604,11 @@ function switchTab(name){
   if(name==="settings"){renderEQ();updateStorage()}
 }
 $$(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.go)));
+$$("#libSort .sortc").forEach(b=>b.addEventListener("click",()=>{
+  libSortMode=b.dataset.sort;
+  $$("#libSort .sortc").forEach(x=>x.classList.toggle("on",x===b));
+  renderLibrary();
+}));
 
 /* Sheets always offer a way home: an ✕ button, a tap on the dimmed
    backdrop, the Escape key, and the phone's back gesture all close the
@@ -3323,7 +3650,8 @@ let libQuery="";
 const foldSearch=s=>(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 function libMatches(a){
   if(!libQuery)return true;
-  const hay=foldSearch(a.title+" "+a.artist);
+  const hay=foldSearch(a.title+" "+a.artist+" "+(a.genre||"")+" "+(a.year||"")+" "
+    +(state.tracks.get(a.id)||[]).map(t=>t.title).join(" "));
   return libQuery.split(/\s+/).every(tok=>hay.includes(tok));
 }
 {
@@ -3343,9 +3671,23 @@ function libMatches(a){
   });
   inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()}); // dismiss keyboard
 }
+function albumPlays(a){
+  return (state.tracks.get(a.id)||[]).reduce((n,t)=>n+(playCounts[t.id]||0),0);
+}
+let libSortMode="added";
+function sortAlbums(list){
+  const by={
+    added:(a,b)=>b.seq-a.seq,
+    artist:(a,b)=>a.artist.localeCompare(b.artist)||a.seq-b.seq,
+    title:(a,b)=>a.title.localeCompare(b.title),
+    year:(a,b)=>(b.year||"").localeCompare(a.year||"")||a.seq-b.seq,
+    plays:(a,b)=>albumPlays(b)-albumPlays(a)||a.seq-b.seq,
+  };
+  return list.sort(by[libSortMode]||by.added);
+}
 function renderLibrary(){
   const g=$("#libGrid");
-  const all=[...state.albums].sort((a,b)=>a.seq-b.seq);
+  const all=sortAlbums([...state.albums]);
   const albs=all.filter(libMatches);
   $("#libSearch").style.display=all.length?"":"none";
   $("#libEmpty").style.display=all.length?"none":"";
@@ -3443,6 +3785,11 @@ function renderAlbumTracks(a){
     inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()});
   }));
 }
+$("#albFind").addEventListener("click",()=>{
+  const a=albumById(sheetAlbumId);if(!a)return;
+  closeSheet("sheetAlbum");switchTab("sky");
+  if(!sky.flyTo(a.id))toast("That star hasn't been placed yet");
+});
 $("#albReorder").addEventListener("click",()=>{
   const a=albumById(sheetAlbumId);if(!a)return;
   albReorderMode=!albReorderMode;
@@ -3571,7 +3918,8 @@ $("#albDelete").addEventListener("click",async()=>{
   const a=albumById(sheetAlbumId);if(!a)return;
   if(!confirm(`Delete “${a.title}”? Its star goes out and its audio leaves this browser.`))return;
   const trks=state.tracks.get(a.id)||[];
-  for(const t of trks)await dbDel("tracks",t.id);
+  for(const t of trks){await dropAudio(t);await dbDel("tracks",t.id)}
+  dropArtURL(a.id);
   await dbDel("albums",a.id);
   state.tracks.delete(a.id);
   state.albums=state.albums.filter(x=>x.id!==a.id);
@@ -3836,8 +4184,51 @@ $("#tglFft").addEventListener("click",()=>{
   $("#tglFft").setAttribute("aria-checked",state.settings.fft);
 });
 
+/* ── sleep timer — a night-time app should be able to put itself out ── */
+let sleepTO=null,sleepAlbum=false;
+function setSleep(v){
+  clearTimeout(sleepTO);sleepTO=null;sleepAlbum=false;
+  if(v==="album"){
+    sleepAlbum=true;
+    $("#sleepNote").textContent="Sleeping when this album ends.";
+  }else if(+v>0){
+    const at=Date.now()+ +v*60000;
+    sleepTO=setTimeout(fadeToSleep,+v*60000);
+    $("#sleepNote").textContent=`Sleeping at ${new Date(at).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}.`;
+  }else $("#sleepNote").textContent="";
+  $$("#sleepRow [data-sleep]").forEach(b=>b.classList.toggle("hot",
+    String(v)!=="0"&&b.dataset.sleep===String(v)));
+}
+function fadeToSleep(){
+  const g=gainNode?gainNode.gain:null, from=state.settings.volume??.9;
+  let v=1;
+  const step=()=>{
+    v-=.05;
+    if(g)g.value=Math.max(0,from*v); else audio.volume=Math.max(0,v);
+    if(v>0)setTimeout(step,180);
+    else{
+      audio.pause();
+      if(g)g.value=from; else audio.volume=1;
+      setSleep(0);
+      toast("Goodnight — the sky keeps watch");
+      addLog("\u2727","g-violet","The sleep timer put the music out");
+    }
+  };
+  step();
+}
+$$("#sleepRow [data-sleep]").forEach(b=>b.addEventListener("click",()=>setSleep(b.dataset.sleep)));
+
 async function updateStorage(){
   updatePersistUI();
+  if(NATIVE){
+    /* the audio is not in web storage at all — a browser quota here
+       would simply be a lie. Report the collection instead. */
+    $("#storFill").style.width="100%";
+    $("#storFill").classList.remove("warn");
+    $("#storText").textContent=`${fmtBytes(librarySize())} of music on this device \u00B7 ${state.albums.length} albums`;
+    $("#storWarn").style.display="none";
+    return;
+  }
   if(!navigator.storage||!navigator.storage.estimate){$("#storText").textContent="This browser won't report usage.";return}
   try{
     const e=await navigator.storage.estimate();
@@ -3925,54 +4316,43 @@ $("#btnWipe").addEventListener("click",async()=>{
    Explicit scans request related-artist data from Deezer; anything already in
    the sky (by artist or normalized album title) is filtered out.
    ════════════════════════════════════════════════════════════════ */
-async function scanOutside(){
-  const seeds=[...new Set(state.albums.filter(a=>!a.mock).map(a=>a.artist))]
-    .filter(a=>a&&a!=="Unknown Artist").slice(0,6);
-  if(!seeds.length){toast("Import real albums first — mock stars don't broadcast");return}
-  const btn=$("#btnRecs"),note=$("#recsNote");
-  btn.disabled=true;btn.textContent="LISTENING\u2026";
-  note.style.display="";note.textContent="Sweeping the frequencies near "+seeds.slice(0,3).join(", ")+"\u2026";
-  const ownedArtists=new Set(state.albums.map(a=>a.artist.toLowerCase()));
-  const ownedTitles=new Set(state.albums.map(a=>normAlbum(a.title)));
-  const scores=new Map();
-  for(const s of seeds){
-    try{
-      const sr=await fetchJSON("https://api.deezer.com/search/artist?q="+encodeURIComponent(s)+"&limit=1");
-      const hit=sr&&sr.data&&sr.data[0];if(!hit)continue;
-      const rel=await fetchJSON("https://api.deezer.com/artist/"+hit.id+"/related?limit=12");
-      (rel&&rel.data||[]).forEach((r,i)=>{
-        const k=r.name.toLowerCase();
-        if(ownedArtists.has(k))return;
-        const e=scores.get(k)||{name:r.name,id:r.id,pic:r.picture_medium,score:0};
-        e.score+=12-i;scores.set(k,e);
-      });
-    }catch(e){/* one seed failing shouldn't kill the sweep */}
-  }
-  const ranked=[...scores.values()].sort((a,b)=>b.score-a.score).slice(0,8);
-  if(!ranked.length){
-    btn.disabled=false;btn.textContent="SCAN THE OUTSIDE";
-    note.textContent="No signal came back — check the connection and try again.";
+/* The recommender used to ask a third party which artists resemble yours.
+   Your own sky already knows something more useful and needs no network at
+   all: which artists you own exactly one record by. Each of those is a
+   constellation waiting on its second star. */
+function libraryGaps(){
+  const byArtist=new Map();
+  state.albums.filter(a=>!a.mock).forEach(a=>{
+    const k=normKey(a.artist)||"unknown";
+    if(k==="unknown"||k==="unknown artist")return;
+    if(!byArtist.has(k))byArtist.set(k,{name:a.artist,albums:[]});
+    byArtist.get(k).albums.push(a);
+  });
+  return[...byArtist.values()].filter(x=>x.albums.length===1)
+    .sort((x,y)=>albumPlays(y.albums[0])-albumPlays(x.albums[0])).slice(0,8);
+}
+function scanOutside(){
+  const gaps=libraryGaps(), note=$("#recsNote");
+  if(!gaps.length){
+    note.style.display="";
+    note.textContent="Every artist in your sky already has two or more records. Nothing is waiting on a second star.";
+    $("#recsGrid").innerHTML="";
     return;
   }
-  const recs=[];
-  for(const r of ranked){
-    let album="",art=r.pic;
-    try{
-      const al=await fetchJSON("https://api.deezer.com/artist/"+r.id+"/albums?limit=3");
-      const a=(al&&al.data||[]).find(x=>!ownedTitles.has(normAlbum(x.title)))||((al&&al.data)||[])[0];
-      if(a){album=a.title;art=a.cover_medium||art}
-    }catch(e){}
-    // the door leads to Bandcamp — where a listener becomes an owner
-    const link="https://bandcamp.com/search?q="+encodeURIComponent(album?r.name+" "+album:r.name)
-      +"&item_type="+(album?"a":"b");
-    recs.push({artist:r.name,album,art,link});
-  }
-  await kvSet("recs",{t:Date.now(),recs});
-  renderRecs(recs,Date.now());
-  btn.disabled=false;btn.textContent="SCAN AGAIN";
   note.style.display="none";
-  await addLog("\u266A","g-teal",`The antenna heard ${recs.length} transmissions from outside the collection`);
-  toast(recs.length+" transmissions received",true);
+  $("#recsGrid").innerHTML=gaps.map(g=>{
+    const a=g.albums[0];
+    return`<a class="rec" href="https://bandcamp.com/search?q=${encodeURIComponent(g.name)}&item_type=a" target="_blank" rel="noopener">
+      <img src="${artURL(a)||ART_PH}" alt="" loading="lazy">
+      <div class="r-tag">ONE STAR</div>
+      <div class="r-m">
+        <div class="r-t">${esc(g.name)}</div>
+        <div class="r-a">You own only ${esc(a.title)}</div>
+      </div>
+    </a>`;
+  }).join("");
+  $("#recsGrid").querySelectorAll("img").forEach(im=>im.onerror=()=>{if(im.getAttribute("src")!==ART_PH)im.src=ART_PH});
+  $("#btnRecs").textContent="REFRESH";
 }
 function renderRecs(recs,t){
   if(!recs||!recs.length)return;

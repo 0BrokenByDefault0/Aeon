@@ -1,0 +1,70 @@
+name: Build unsigned IPA
+
+# Apple only allows iOS binaries to be produced on macOS, so the build runs
+# on a hosted Mac. The result is an UNSIGNED .ipa: it cannot be installed
+# by double-clicking, but it is exactly what sideloading tools (AltStore,
+# SideStore, Sideloadly) expect — they sign it with your own Apple ID on
+# your own machine, which is the only way an unsigned build can ever run.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'app/**'
+      - 'ios/**'
+      - 'package.json'
+      - 'capacitor.config.json'
+      - '.github/workflows/ios-ipa.yml'
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Sync web assets into the iOS shell
+        run: npx cap sync ios
+
+      - name: Install pods
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      - name: Build unsigned
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            | xcpretty || exit ${PIPESTATUS[0]}
+
+      - name: Package as .ipa
+        working-directory: ios/App
+        run: |
+          APP="build/Build/Products/Release-iphoneos/App.app"
+          test -d "$APP" || { echo "App.app was not produced"; ls -R build/Build/Products || true; exit 1; }
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry ISOLATION-unsigned.ipa Payload
+          ls -lh ISOLATION-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ISOLATION-unsigned-ipa
+          path: ios/App/ISOLATION-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30

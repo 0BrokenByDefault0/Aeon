@@ -9,7 +9,9 @@
     "check": "node scripts/check-syntax.cjs",
     "audit": "npm audit --audit-level=high",
     "ios": "cap add ios || true && cap sync ios && cap open ios",
-    "sync": "cap sync ios"
+    "sync": "cap sync ios",
+    "test:browser": "node test/run.mjs",
+    "fixtures": "python3 test/fixtures.py"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0",
@@ -18,7 +20,8 @@
     "@capacitor/share": "^6.0.4"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.0.0"
+    "@capacitor/cli": "^6.0.0",
+    "playwright": "^1.62.1"
   },
   "overrides": {
     "tar": "7.5.22",
