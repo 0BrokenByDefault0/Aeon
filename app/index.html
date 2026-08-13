@@ -861,7 +861,7 @@ body.has-player .panel{padding-bottom:calc(var(--dock-h) + var(--safe-b) + 92px)
   </div>
   <div class="card" id="recsCard">
     <h3>Waiting on a second star</h3>
-    <div class="c-note">Artists orbiting near your taste that aren't in your sky yet. Each one links to Bandcamp &#8212; if it lands, buy the files and bring them home. Seeded from your imported artists; needs a network signal.</div>
+    <div class="c-note">Artists you own exactly one record by. A second album draws their constellation &#8212; each links to Bandcamp. Worked out entirely on this device; nothing is sent anywhere.</div>
     <div class="btnrow"><button class="btn hot small" id="btnRecs">FIND THE GAPS</button></div>
     <div id="recsGrid"></div>
     <div id="recsNote" class="c-note" style="display:none;margin-top:10px"></div>
@@ -991,7 +991,7 @@ body.has-player .panel{padding-bottom:calc(var(--dock-h) + var(--safe-b) + 92px)
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.11 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.12 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1981,6 +1981,11 @@ async function writeFileChunked(path,blob){
     await fs.appendFile({path,data:await blobSliceB64(blob,off,end),directory:"DOCUMENTS"});
   }
 }
+/* keep a file's real extension so iOS picks the right decoder */
+function extOf(file,fallback){
+  const m=String((file&&file.name)||"").match(/\.[A-Za-z0-9]{1,5}$/);
+  return m?m[0].toLowerCase():fallback;
+}
 function safeName(v){return String(v||"").replace(/[^\w\-. ]+/g,"_").slice(0,60).trim()||"untitled"}
 async function storeAudio(alb,trk,file){
   if(!NATIVE)return{blob:file,bytes:file.size};
@@ -2142,7 +2147,8 @@ async function importFiles(rawFiles,opts={}){
   const before=state.albums.length;
   const newAlbums=[];
   let parsed=0,done=0;
-  const skipped=[];
+  const skipped=[],failed=[];
+  let lastErr=null;
   for(const batch of batches){
     const items=[];
     for(const f of batch.files){
@@ -2194,13 +2200,33 @@ async function importFiles(rawFiles,opts={}){
     state.albums.push(alb);state.tracks.set(alb.id,trks);
     try{
       await dbPut("albums",alb);
+      let stored=0,firstErr=null;
       for(const t of trks){
         const src=t.file;delete t.file;
-        Object.assign(t,await storeAudio(alb,t,src));
+        try{
+          Object.assign(t,await storeAudio(alb,t,src));
+          stored++;
+        }catch(e){firstErr=firstErr||e}
         await dbPut("tracks",t);
         importProgress(++done,total,alb.title);
       }
-    }catch(e){toast("Couldn't store some audio — "+((e&&e.message)||e))}
+      if(!stored){
+        /* an album with no audio is a silent shell that looks imported and
+           plays nothing — take it back out rather than leave it lying there */
+        for(const t of trks)await dbDel("tracks",t.id);
+        await dbDel("albums",alb.id);
+        state.albums=state.albums.filter(x=>x.id!==alb.id);
+        state.tracks.delete(alb.id);
+        failed.push(alb.title);lastErr=firstErr||lastErr;
+        continue;
+      }
+      if(stored<trks.length)toast(`${trks.length-stored} track(s) of “${alb.title}” could not be stored`);
+    }catch(e){
+      lastErr=e;failed.push(alb.title);
+      state.albums=state.albums.filter(x=>x.id!==alb.id);
+      state.tracks.delete(alb.id);
+      continue;
+    }
     newAlbums.push(alb);
     await addLog("\u2726","g-amber",`${alb.title} — ${alb.artist} entered the sky (${trks.length} tracks)`);
     }
@@ -2208,7 +2234,9 @@ async function importFiles(rawFiles,opts={}){
   await kvSet("seq",seqCounter);
   onAlbumsAdded(newAlbums,before);
   renderLibrary();updateStorage();
-  toast(`${newAlbums.length} album${newAlbums.length>1?"s":""} catalogued — ${newAlbums.length} new star${newAlbums.length>1?"s":""}`,true);
+  if(failed.length)toast(`${failed.length} album${failed.length>1?"s":""} could not be stored — ${(lastErr&&lastErr.message)||lastErr||"unknown error"}`);
+  if(skipped.length)toast(`${skipped.length} album${skipped.length>1?"s":""} already in your sky — skipped`);
+  if(newAlbums.length)toast(`${newAlbums.length} album${newAlbums.length>1?"s":""} catalogued — ${newAlbums.length} new star${newAlbums.length>1?"s":""}`,true);
   requestPersist(); // a real collection exists now — ask the OS to protect it
   if(AeonCore.shouldAutoEnrich(state.settings,newAlbums))enrichAlbums(newAlbums);
 }

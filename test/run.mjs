@@ -171,6 +171,89 @@ server.listen(PORT);
   await ctx.close();
 }
 
+/* ── the native path ──
+ * This suite used to run only as a browser, where storeAudio returns a blob
+ * and never touches the filesystem helpers. A missing helper in the device
+ * branch therefore sailed through every check and shipped in an IPA that
+ * imported 28 files and stored none of them. The Capacitor bridge is now
+ * stubbed so the device path is exercised for real.
+ */
+{
+  console.log("\nnative storage path");
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(() => {
+    const disk = {};
+    window.__disk = disk;
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      convertFileSrc: u => u.replace("file://", "http://localhost:8917/__file/"),
+      Plugins: {
+        Filesystem: {
+          async writeFile({ path, data }) { disk[path] = data === "" ? [] : [data]; return {}; },
+          async appendFile({ path, data }) { (disk[path] = disk[path] || []).push(data); return {}; },
+          async getUri({ path }) {
+            if (!(path in disk)) throw new Error("File does not exist");
+            return { uri: "file:///DOCUMENTS/" + path };
+          },
+          async deleteFile({ path }) { delete disk[path]; return {}; },
+        },
+        Share: { async share() { return {}; } },
+      },
+    };
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  page.on("dialog", d => d.accept());
+  await page.route("**://itunes.apple.com/**", r => r.abort());
+  await page.route("**://musicbrainz.org/**", r => r.abort());
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForTimeout(900);
+  ok("the app knows it is native", await page.evaluate(() => NATIVE === true));
+  await page.setInputFiles("#fileInput", fixture("split.zip"));
+  await page.waitForTimeout(5000);
+  const res = await page.evaluate(() => {
+    const a = state.albums[0];
+    const tracks = a ? (state.tracks.get(a.id) || []) : [];
+    return {
+      albums: state.albums.length,
+      tracks: tracks.length,
+      withPath: tracks.filter(t => t.path).length,
+      withBlob: tracks.filter(t => t.blob).length,
+      bytes: tracks.every(t => t.bytes > 0),
+      filesOnDisk: Object.keys(window.__disk).length,
+      sample: tracks[0] && tracks[0].path,
+    };
+  });
+  ok("the album survives the import", res.albums === 1, res);
+  ok("every track was written to disk", res.tracks > 0 && res.withPath === res.tracks, res);
+  ok("no audio blob is kept in memory", res.withBlob === 0, res);
+  ok("byte sizes are recorded", res.bytes, res);
+  ok("files actually landed on the filesystem", res.filesOnDisk === res.tracks, res);
+  ok("paths keep the real extension", /\.mp3$/.test(res.sample || ""), res.sample);
+  ok("playback resolves a file URL", await page.evaluate(async () => {
+    const a = state.albums[0], t = (state.tracks.get(a.id) || [])[0];
+    const url = await trackURL(t);
+    return typeof url === "string" && url.includes("/__file/");
+  }));
+  ok("the storage card reports the library, not a quota", await page.evaluate(async () => {
+    switchTab("settings");
+    await updateStorage();
+    return /of music on this device/.test(document.querySelector("#storText").textContent);
+  }));
+  ok("deleting an album reclaims its files", await page.evaluate(async () => {
+    const before = Object.keys(window.__disk).length;
+    const a = state.albums[0];
+    sheetAlbumId = a.id;
+    await new Promise(r => setTimeout(r, 50));
+    document.querySelector("#albDelete").click();
+    await new Promise(r => setTimeout(r, 1200));
+    return Object.keys(window.__disk).length < before;
+  }));
+  ok("no errors on the device path", errors.length === 0, errors);
+  await ctx.close();
+}
+
 /* ── backup, wipe, restore ── */
 {
   console.log("\nbackup and restore");
