@@ -38,13 +38,27 @@ of hairlines and space.
 
 The sky is a place rather than a diagram. Regions are marked by a breath
 of their own light instead of a drawn boundary; genre names read from
-orbit and artist names on approach, never both at once. Worlds are lit
+orbit and artist names on approach, never both at once. **No
+constellation is a polygon.** Each artist's figure is *grown* from their
+name rather than laid out on a circle: a spine that wanders, limbs that
+branch off it once the artist runs deep enough, no two arms the same
+length, and nothing closing back on itself. Because it grows in
+sequence, buying their next record extends the figure instead of
+rearranging the shape you already recognise. Worlds are lit
 from a single sun shared by the whole sky — a dark sphere, a bright
 crescent along the lit limb, an atmosphere that dies at the terminator,
 and nothing else. The camera is a critically damped spring, so it settles
 without ever ringing, and on launch the collection assembles outward from
 the centre. There is no film grain; instead the transmission stutters
 every so often, a couple of hairline bands for a tenth of a second.
+
+Sheets are objects, and the handle at the top of one is not decoration:
+pull down and the sheet tracks your finger while the dark behind it
+thins, let go past a quarter of its height — or throw it — and it
+leaves. Pull *up* on the player bar and the full player arrives; pull up
+on the sleeve inside it and the rest of the queue does. The gesture only
+takes over when a sheet is already scrolled to its top and the movement
+is clearly vertical, so lists still scroll and sliders still slide.
 
 ## What's in here
 
@@ -77,7 +91,7 @@ faster and gives a properly signed build.
 
 ```sh
 npm test                 # unit tests over the deterministic core
-npm run test:browser     # 24 checks driving the real app in a browser
+npm run test:browser     # drives the real app in a browser
 npm run check            # syntax check
 python3 test/fixtures.py # regenerate the audio fixtures
 ```

@@ -299,6 +299,119 @@ server.listen(PORT);
   await ctx.close();
 }
 
+/* ── the handle on every sheet is real, and the figures are figures ── */
+{
+  console.log("\ngestures");
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.route("**://itunes.apple.com/**", r => r.abort());
+  await page.route("**://musicbrainz.org/**", r => r.abort());
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForTimeout(900);
+
+  // a synthetic finger, since these are touch gestures
+  const swipe = (sel, x, y0, y1, steps = 14) => page.evaluate(async ({ sel, x, y0, y1, steps }) => {
+    const el = document.querySelector(sel);
+    const fire = (type, cy) => {
+      const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: cy });
+      el.dispatchEvent(new TouchEvent(type, {
+        touches: type === "touchend" ? [] : [t], targetTouches: type === "touchend" ? [] : [t],
+        changedTouches: [t], bubbles: true, cancelable: true,
+      }));
+    };
+    fire("touchstart", y0);
+    for (let i = 1; i <= steps; i++) { fire("touchmove", y0 + (y1 - y0) * i / steps); await new Promise(r => setTimeout(r, 16)); }
+    fire("touchend", y1);
+  }, { sel, x, y0, y1, steps });
+  const isOpen = id => page.evaluate(i => document.querySelector("#" + i).classList.contains("open"), id);
+
+  await page.evaluate(() => openSheet("sheetNow"));
+  await page.waitForTimeout(700);
+  await swipe("#sheetNow .sheet-body", 195, 300, 780);
+  await page.waitForTimeout(600);
+  ok("pulling a sheet down dismisses it", await isOpen("sheetNow") === false);
+
+  await page.evaluate(() => openSheet("sheetNow"));
+  await page.waitForTimeout(700);
+  await swipe("#sheetNow .sheet-body", 195, 300, 330);
+  await page.waitForTimeout(600);
+  ok("a short tug springs back", await isOpen("sheetNow") === true);
+  ok("and leaves no transform behind", await page.evaluate(() =>
+    document.querySelector("#sheetNow .sheet-body").style.transform) === "");
+
+  /* swapping one sheet for another in a single tick must land on the new
+     sheet — the history entry the old one gives back must not take it */
+  await page.evaluate(() => { closeSheet("sheetNow"); openSheet("sheetGuide"); });
+  await page.waitForTimeout(800);
+  ok("closing one sheet and opening another keeps the new one", await isOpen("sheetGuide") === true);
+
+  // a sheet mid-scroll must scroll, not leave
+  const scrolled = await page.evaluate(() => {
+    const b = document.querySelector("#sheetGuide .sheet-body");
+    b.scrollTop = 10000;                 // as far as this sheet will go
+    return b.scrollTop;
+  });
+  await swipe("#sheetGuide .sheet-body", 195, 300, 700);
+  await page.waitForTimeout(600);
+  ok("a scrolled sheet scrolls instead of closing",
+    scrolled > 0 && await isOpen("sheetGuide") === true, { scrolled });
+  await page.evaluate(() => closeSheet("sheetGuide"));
+  await page.waitForTimeout(600);
+
+  await swipe("#playerBar", 195, 700, 620);
+  await page.waitForTimeout(600);
+  ok("pulling up on the bar opens the player", await isOpen("sheetNow") === true);
+  await swipe("#nowArt", 195, 300, 200);
+  await page.waitForTimeout(600);
+  ok("pulling up on the sleeve opens up next", await isOpen("sheetQueue") === true);
+
+  /* an artist's figure is grown, not stamped: it must be lopsided, it
+     must branch once it is big enough, and a new record must extend it
+     rather than rearrange the shape the collector already knows. */
+  const fig = await page.evaluate(() => {
+    const add = (artist, i) => {
+      const a = { id: "t-" + artist + "-" + i, title: "R" + i, artist, genre: "test",
+        year: 2000 + i, seq: ++seqCounter, added: Date.now(), mock: true, tracks: 1 };
+      state.albums.push(a); state.tracks.set(a.id, []);
+    };
+    for (let i = 1; i <= 9; i++) add("Deep", i);
+    for (let i = 1; i <= 3; i++) add("Shallow", i);
+    sky.rebuild();
+    const of = n => sky.constellations().find(c => c.name === n);
+    const spread = c => {
+      const d = c.stars.map(s => Math.hypot(s.x - c.cx, s.y - c.cy));
+      const m = d.reduce((a, b) => a + b, 0) / d.length;
+      return Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / d.length) / (m || 1);
+    };
+    const deep = of("Deep");
+    const junctions = () => {
+      const deg = {};
+      deep.edges.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
+      return Object.values(deg).filter(v => v > 2).length;
+    };
+    const rel = c => { const s = c.stars; return s.slice(1).map(p => [Math.round(p.x - s[0].x), Math.round(p.y - s[0].y)]); };
+    const before = rel(deep);
+    add("Deep", 10); sky.rebuild();
+    const after = rel(of("Deep"));
+    return {
+      edges: deep.edges.length, stars: deep.stars.length,
+      spreadDeep: spread(deep), spreadShallow: spread(of("Shallow")),
+      junctions: junctions(),
+      grew: after.length === before.length + 1,
+      kept: before.every((p, i) => Math.abs(p[0] - after[i][0]) < 2 && Math.abs(p[1] - after[i][1]) < 2),
+    };
+  });
+  ok("a figure is a tree, one line per new record", fig.edges === fig.stars - 1, fig);
+  ok("it is lopsided, not a ring", fig.spreadDeep > 0.15 && fig.spreadShallow > 0.15, fig);
+  ok("a large figure branches", fig.junctions >= 1, fig);
+  ok("a new record extends the figure", fig.grew && fig.kept, fig);
+
+  ok("no errors while gesturing", errors.length === 0, errors);
+  await ctx.close();
+}
+
 /* ── nothing reaches for a third-party script any more ── */
 {
   console.log("\nprivacy");
