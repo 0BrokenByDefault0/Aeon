@@ -794,6 +794,190 @@ body.has-player .panel{padding-bottom:calc(var(--dock-h) + var(--safe-b) + 92px)
 /* destructive actions stop shouting as loud as ordinary ones */
 .btn.danger{opacity:.75}
 .btn.danger:active{opacity:1}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   THE ARCHIVE PASS
+   One colour, one material. Every gradient, every lavender accent and
+   every drawn box is retired here: names are set in a tight grotesk,
+   anything countable is set in mono, and the only saturated colour left
+   in the interface arrives with the record that is playing.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --bone:#e9e4d9;
+  --bone-2:#9c968a;
+  --bone-3:#605b52;
+  --ink:#050506;
+  --ink-2:#0a0a0c;
+  --rule:#191a1e;
+  --starlight:var(--bone);
+  --dim:var(--bone-2);
+  --faint:var(--bone-3);
+  --amber:var(--bone);
+  --amber-hot:var(--bone);
+  --holo-c:var(--bone);
+  --lav:var(--bone);
+  --lav-dim:var(--bone-2);
+  --chrome:var(--bone);
+  --mute:var(--bone-3);
+  --line:#22232a;
+  --line-soft:var(--rule);
+  --line-amber:var(--rule);
+  --panel:var(--ink-2);
+  --panel-2:var(--ink-2);
+  --screen:#08080a;
+  --glow-a:none;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+}
+body{background:var(--ink);color:var(--bone);letter-spacing:0}
+.panel{background:var(--ink)}
+body[data-tab]:not([data-tab="sky"]) #skyDim{background:var(--ink)}
+#dockWrap::before{background:linear-gradient(180deg,rgba(5,5,6,0),var(--ink) 44%)}
+
+/* names in a tight grotesk */
+.p-head h1,.card h3,.sheet h2,#nowTitle,.alb .a-t,.pl-name,.set-l,.trk .t-title,
+#albTitle,#pbTitle,.log-t,.empty i,.p-eyebrow,.tab .tl,.btn,.sortc,.eqp,
+#voidInvite h2,#ceremonyBanner .cb-name,#ceremonyBanner .cb-tag,.wordmark,
+#starLabel,.r-t{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  text-shadow:none;
+}
+.p-head h1{font-size:27px;font-weight:600;letter-spacing:-.035em;text-transform:none;color:var(--bone)}
+.p-head h1 em{color:var(--bone-3);background:none;-webkit-text-fill-color:currentColor}
+.p-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.24em;color:var(--bone-3)}
+.p-eyebrow::before{content:"";margin:0}
+.card h3{font-size:13px;font-weight:600;letter-spacing:-.01em;text-transform:none;color:var(--bone)}
+.card h3::before{content:"";margin:0}
+.sheet h2{font-size:19px;font-weight:600;letter-spacing:-.03em;text-transform:none}
+#nowTitle{font-size:27px;font-weight:600;letter-spacing:-.035em;line-height:1.08}
+#albTitle{font-size:18px;font-weight:600;letter-spacing:-.025em}
+.alb .a-t{font-size:14px;font-weight:500;letter-spacing:-.015em}
+.trk .t-title{font-size:14.5px;font-weight:450;letter-spacing:-.01em}
+.pl-name,.set-l{font-weight:500;letter-spacing:-.012em}
+
+/* anything countable is an instrument readout */
+.alb .a-a,.alb .a-x,.pl-count,.log-when,#storText,#nowTimes,#nowArtist,#pbArtist,
+.trk .t-sub,.t-no,#libSub,.s-sub,.set-d,.c-note,.band .b-f,.band .b-v,
+#persistText,.r-a,#ibCount,#ibLabel,.field label,#recsNote,#backupNote,
+#repairNote,#sleepNote,#qSub{
+  font-family:var(--mono);
+}
+.alb .a-x,#nowArtist,#libSub,.s-sub,.pl-count,.log-when{
+  font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone-3);
+}
+.alb .a-a,.trk .t-sub,#pbArtist{font-size:11px;letter-spacing:.04em;color:var(--bone-2)}
+.c-note,.set-d{font-size:11.5px;line-height:1.7;color:var(--bone-3);letter-spacing:0}
+#nowTimes,.t-no{font-variant-numeric:tabular-nums;color:var(--bone-3)}
+
+/* boxes become hairlines */
+.card{border:none;border-top:1px solid var(--rule);background:none;
+  padding:20px 0 4px;margin-top:22px}
+.sheet-body{background:var(--ink);border-color:var(--rule)}
+.alb,.rec{border:none;background:none}
+.alb .meta{padding:10px 0 0}
+#dock,#playerBar{background:rgba(5,5,6,.94);border:none;border-top:1px solid var(--rule)}
+#libSearch input,#newPlName,.field input{background:none;border:none;
+  border-bottom:1px solid var(--rule);padding-left:26px}
+#libSearch input{padding-left:30px}
+#libSearch .ls-ico{left:2px}
+#libSearch input:focus,#newPlName:focus,.field input:focus{
+  border-color:var(--bone);box-shadow:none}
+.trk .t-btn{border:none;color:var(--bone-3)}
+.trk .t-btn:active{color:var(--bone);border:none}
+.pl-glyph{border:none;background:none;color:var(--bone-3)}
+.hairline{border-top-color:var(--rule)}
+
+/* controls: bone, never candy */
+.btn{border:1px solid var(--rule);background:none;color:var(--bone-2);
+  border-radius:0;font-size:11.5px;letter-spacing:.02em;font-weight:500}
+.btn.hot{background:var(--bone);color:#0a0a0c;border-color:var(--bone);font-weight:600}
+.btn.hot:active{background:#cdc8bd}
+.btn:not(.hot):active{color:var(--bone);border-color:var(--bone-3)}
+.btn.danger{color:var(--bone-3);border-color:var(--rule);opacity:1}
+.sortc{border:none;padding:8px 0;margin-right:20px;color:var(--bone-3);
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.sortc.on{background:none;color:var(--bone);box-shadow:inset 0 -1px 0 var(--bone)}
+#libSort{gap:0}
+.eqp{border:1px solid var(--rule);color:var(--bone-3);font-family:var(--mono);
+  font-size:10px;letter-spacing:.14em}
+.eqp.on{background:var(--bone);color:#0a0a0c;border-color:var(--bone)}
+.tgl{border-color:var(--rule);background:none}
+.tgl::after{background:var(--bone-3)}
+.tgl.on{background:none;border-color:var(--bone)}
+.tgl.on::after{background:var(--bone);box-shadow:none}
+.tab.on{background:none;box-shadow:inset 0 -1px 0 var(--bone);color:var(--bone)}
+.tab{color:var(--bone-3)}
+.tab .tl{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em}
+.mockchip,.rec .r-tag{background:var(--bone);color:#0a0a0c;font-family:var(--mono)}
+.toast{background:rgba(8,8,10,.96);border:1px solid var(--rule);color:var(--bone);
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.02em}
+.toast.gold{color:var(--bone);border-color:var(--bone-3)}
+
+/* the transport: the record supplies the only colour */
+#pbPlay,#nowPlay{background:var(--bone);color:#08080a;box-shadow:none;outline:none}
+#pbPlay:active,#nowPlay:active{background:#cdc8bd}
+#pbSeekFill,#storFill{background:var(--tint,var(--bone))}
+#storFill.warn{background:var(--bone-3)}
+.alb.playing{border:none;box-shadow:none}
+.alb.playing .a-t{color:var(--tint,var(--bone))}
+.trk.playing .t-title{color:var(--tint,var(--bone))}
+#nowArt{border:none;box-shadow:0 26px 90px -20px rgba(0,0,0,.9),0 0 120px -30px var(--tint,#000)}
+#albArtBig,#pbArt{border:none}
+input[type=range].hseek::-webkit-slider-runnable-track{height:1px;background:#26272e}
+input[type=range].hseek::-webkit-slider-thumb{
+  width:9px;height:9px;border-radius:50%;margin-top:-4px;border:none;
+  background:var(--bone);box-shadow:none}
+.band input[type=range]::-webkit-slider-thumb{
+  background:var(--bone);border:none;box-shadow:none;border-radius:0}
+.band input[type=range]::-webkit-slider-runnable-track{background:#22232a}
+#ibFill{background:var(--bone)}
+#setTransitN{color:var(--bone)}
+
+/* the sky's own chrome */
+.wordmark{font-size:12px;letter-spacing:.42em;color:var(--bone);font-weight:500}
+.wordmark em{color:var(--bone-3);background:none;-webkit-text-fill-color:currentColor}
+#hudToggle,#shareSky{border-color:var(--rule);color:var(--bone-3);background:rgba(5,5,6,.6)}
+#hudToggle.on{color:var(--bone);border-color:var(--bone-3)}
+#hud{border-color:var(--rule);background:rgba(5,5,6,.86);font-family:var(--mono);
+  font-size:10.5px;letter-spacing:.06em;color:var(--bone-3)}
+#hud b{color:var(--bone)}
+#starLabel{font-size:11.5px;letter-spacing:-.01em;font-weight:500;color:var(--bone)}
+#starLabel .la{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--bone-3)}
+#starLabel .l-hint{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--bone-3)}
+#voidInvite h2{font-size:22px;font-weight:600;letter-spacing:-.03em;text-transform:none;color:var(--bone)}
+#voidInvite p{font-family:var(--mono);font-size:12px;line-height:1.75;color:var(--bone-3)}
+#ceremonyBanner .cb-tag{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--bone-3)}
+#ceremonyBanner .cb-name{font-size:19px;font-weight:600;letter-spacing:-.02em;color:var(--bone)}
+
+/* ── motion ──
+   One easing curve for everything that moves, and a considered opening:
+   the chrome arrives after the sky, never with it. */
+:root{--ease:cubic-bezier(.16,.84,.28,1)}
+.panel.active{animation:panelIn .46s var(--ease)}
+@keyframes panelIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.sheet-body{animation:sheetUp .5s var(--ease)}
+@keyframes sheetUp{from{transform:translateY(38px);opacity:0}to{transform:none;opacity:1}}
+.btn,.sortc,.tab,.tgl,.tgl::after{transition:color .3s var(--ease),
+  background .3s var(--ease),border-color .3s var(--ease),transform .3s var(--ease)}
+.btn:active,.alb:active{transform:scale(.985)}
+#skyChrome{animation:chromeIn 1.5s var(--ease) .5s both}
+@keyframes chromeIn{from{opacity:0}to{opacity:1}}
+#voidInvite:not(.gone){animation:inviteIn 1.4s var(--ease) .8s both}
+#voidInvite.gone{animation:none;opacity:0}
+@keyframes inviteIn{from{opacity:0;transform:translate(-50%,calc(-50% + 16px))}
+  to{opacity:1;transform:translate(-50%,-50%)}}
+
+/* ── glitch ──
+   Not film grain: the transmission stuttering. A couple of thin displaced
+   bands, rarely, gone inside a tenth of a second. */
+#glitch{position:fixed;inset:0;z-index:58;pointer-events:none;opacity:0;
+  mix-blend-mode:screen}
+#glitch.on{opacity:1}
+#glitch i{position:absolute;left:0;right:0;display:block;background:var(--bone);
+  opacity:0;transform:translateX(0)}
+@media (prefers-reduced-motion:reduce){
+  #glitch{display:none}
+  #skyChrome,#voidInvite{animation:none}
+}
 </style>
 </head>
 <body data-tab="sky">
@@ -991,7 +1175,7 @@ body.has-player .panel{padding-bottom:calc(var(--dock-h) + var(--safe-b) + 92px)
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v2.12 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.0 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1179,6 +1363,7 @@ body.has-player .panel{padding-bottom:calc(var(--dock-h) + var(--safe-b) + 92px)
   <div class="ib-txt"><span id="ibLabel">Importing</span><span id="ibCount"></span></div>
   <div class="ib-track"><div id="ibFill"></div></div>
 </div>
+<div id="glitch" aria-hidden="true"><i></i><i></i><i></i></div>
 <div id="flashFx"></div>
 <div id="toasts" aria-live="polite"></div>
 <input type="file" id="artInput" accept="image/*" style="display:none">
@@ -1215,7 +1400,10 @@ function mulberry(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;l
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmtT=s=>{if(!isFinite(s))return"0:00";s=Math.floor(s);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
-const PALETTE=["#ffb057","#ff4b2e","#e8f1ff","#4d7cff","#ffd98a"];
+/* Starlight, not a rainbow. Five near-white tints with only enough
+   temperature to tell one region of the sky from another — the colour in
+   this app comes from the records, never from the chrome. */
+const PALETTE=["#efe9dc","#d7dfec","#eddbc8","#d6e0d8","#e0d8ea"];
 const normKey=s=>String(s??"").trim().toLowerCase();
 /* AEON_CORE_START */
 const AeonCore=(()=>{
@@ -2880,6 +3068,11 @@ const sky=(()=>{
 
   /* prerendered sprites */
   let sprGlow={},sprNebula=[],dustA=null,dustB=null;
+  let bootAt=0; // when the sky was first drawn, for the opening reveal
+  const hexA=(hex,a)=>{
+    const n=parseInt(hex.slice(1),16);
+    return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+  };
   function makeGlowSprite(color){
     const c=document.createElement("canvas");c.width=c.height=64;
     const x=c.getContext("2d");
@@ -3018,7 +3211,7 @@ const sky=(()=>{
           const st={
             album:alb, artist:A, region:G,
             x:G.x+ox, y:(G.y+oy)*SQ,
-            col:r()<.24?"#e8f1ff":G.col,
+            col:r()<.22?PALETTE[0]:G.col,
             rad:1.6+r()*1.7, tw:r()*Math.PI*2, twf:.4+r()*.9,
           };
           stars.push(st);
@@ -3028,6 +3221,10 @@ const sky=(()=>{
       });
       G.lx=G.x;G.ly=G.y*SQ;
     });
+    // first light: the sky assembles from the centre outward
+    let far=1;
+    stars.forEach(st=>{far=Math.max(far,Math.hypot(st.x,st.y))});
+    stars.forEach(st=>{st.bd=Math.hypot(st.x,st.y)/far});
 
     // constellations: artists with two or more albums, lines intact across rebuilds
     const prev=new Map(csts.map(c=>[c.key,c]));
@@ -3049,9 +3246,10 @@ const sky=(()=>{
       const ang=p*2.1+2.6+spin, rad=(skyR+190)*Math.sqrt((p+1)/Math.max(1,nP));
       planets.push({
         x:Math.cos(ang)*rad, y:Math.sin(ang)*rad*.7,
-        type:(p+skySeed)%5, r:30+((hashStr("p"+p+skySeed)%12)), phase:hashStr("q"+p+skySeed)%628/100,
-        born:p<oldN?(oldP[p]&&oldP[p].born||0):performance.now(),
-        tex:p<oldN?(oldP[p]&&oldP[p].tex):null
+        type:(p+skySeed)%5, r:96+((hashStr("p"+p+skySeed)%48)),
+        ring:hashStr("ring"+p+skySeed)%4===0,
+        tilt:(hashStr("tilt"+p+skySeed)%628)/100,
+        born:p<oldN?(oldP[p]&&oldP[p].born||0):performance.now()
       });
     }
     computeHome();
@@ -3072,8 +3270,11 @@ const sky=(()=>{
     planets.forEach(p=>{x0=Math.min(x0,p.x-p.r*2);y0=Math.min(y0,p.y-p.r*2);x1=Math.max(x1,p.x+p.r*2);y1=Math.max(y1,p.y+p.r*2)});
     const pad=90;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
     let cx=(x0+x1)/2, cy=(y0+y1)/2;
+    /* The sky is a place you stand in, not a diagram you fit on a page.
+       Past a certain size the collection simply extends beyond the frame
+       rather than shrinking to specks — you pan to see the rest. */
     let s=Math.min(W/(x1-x0),(H-170)/(y1-y0));
-    s=clamp(s,.14,2.2);
+    s=clamp(s,.34,2.2);
     // focus follows the music — ease the playing star into frame
     if(state.playingAlbumId){
       const ps=stars.find(st=>st.album.id===state.playingAlbumId);
@@ -3255,144 +3456,87 @@ const sky=(()=>{
   /* ── planets: five textured worlds, prerendered, rotating for real ──
         the texture strip scrolls behind a clipped disk; shading, rings,
         atmosphere and moons are composited live on top.               */
+  /* ── worlds ──
+     Not drawings of planets: photographs of them. Every world in the sky is
+     lit from the same direction, so the whole collection reads as one scene
+     under one sun. A world is a dark sphere, a thin bright crescent along
+     the lit limb, an atmosphere that catches the light and dies before it
+     reaches the far side, and nothing else. No bands, no craters, no moons.
+     The restraint is what makes it look expensive. */
+  const LIGHT={x:-.56,y:-.63};
+  const LANG=Math.atan2(LIGHT.y,LIGHT.x);
   const PLANET_KINDS=[
-    {name:"a rust world",     atmo:"rgba(255,150,90,.4)"},
-    {name:"a ringed giant",   atmo:"rgba(255,190,120,.35)"},
-    {name:"an ice world",     atmo:"rgba(170,205,255,.45)"},
-    {name:"a volcanic world", atmo:"rgba(255,90,46,.4)"},
-    {name:"an ocean world",   atmo:"rgba(140,200,255,.45)"},
+    {name:"a rust world",   core:"#4a2419", rim:"#ffbe93", halo:"255,163,112"},
+    {name:"an ice world",   core:"#1c2c3e", rim:"#cbe4ff", halo:"158,205,255"},
+    {name:"an ember world", core:"#3e1b14", rim:"#ffa679", halo:"255,132,88"},
+    {name:"a pale world",   core:"#2f2c27", rim:"#f6efe1", halo:"244,236,219"},
+    {name:"a deep world",   core:"#211d33", rim:"#d3c8ff", halo:"188,176,255"},
   ];
-  function makePlanetTex(seed,type){
-    const TW=720,TH=360,c=document.createElement("canvas");c.width=TW;c.height=TH;
-    const x=c.getContext("2d"),r=mulberry(seed);
-    const wrap=f=>{f(0);f(-TW);f(TW)}; // triple-draw for seamless scroll
-    const base=(c1,c2,c3)=>{const g=x.createLinearGradient(0,0,0,TH);
-      g.addColorStop(0,c1);g.addColorStop(.5,c2);g.addColorStop(1,c3||c1);
-      x.fillStyle=g;x.fillRect(0,0,TW,TH)};
-    const band=(y,h,col,a)=>{ // wobbling latitude band, integer cycles so it wraps
-      const k1=1+((r()*3)|0),k2=1+((r()*3)|0),p1=r()*6.283,p2=r()*6.283,a1=4+r()*16,a2=4+r()*16;
-      x.globalAlpha=a;x.fillStyle=col;x.beginPath();
-      x.moveTo(0,y+Math.sin(p1)*a1);
-      for(let i=0;i<=48;i++){const t=i/48;x.lineTo(t*TW,y+Math.sin(t*6.283*k1+p1)*a1)}
-      for(let i=48;i>=0;i--){const t=i/48;x.lineTo(t*TW,y+h+Math.sin(t*6.283*k2+p2)*a2)}
-      x.closePath();x.fill();x.globalAlpha=1;
-    };
-    const blob=(cx,cy,rad,col,a,sq)=>{wrap(dx=>{
-      x.globalAlpha=a;x.fillStyle=col;x.beginPath();
-      x.ellipse(cx+dx,cy,rad*(1.1+r()*.9),rad*(sq||(.5+r()*.5)),r()*3.14,0,6.283);
-      x.fill()});x.globalAlpha=1};
-    const crater=(cx,cy,cr,dark,lite)=>{wrap(dx=>{
-      x.globalAlpha=.55;x.fillStyle=dark;x.beginPath();x.arc(cx+dx,cy,cr,0,6.283);x.fill();
-      x.globalAlpha=.5;x.strokeStyle=lite;x.lineWidth=1.2;
-      x.beginPath();x.arc(cx+dx,cy,cr,Math.PI*1.05,Math.PI*1.95);x.stroke()});x.globalAlpha=1};
-    const cap=a=>{x.globalAlpha=a;x.fillStyle="#f8f4ec";
-      x.beginPath();x.ellipse(TW/2,-8,TW*.7,TH*.14,0,0,6.283);x.fill();
-      x.beginPath();x.ellipse(TW/2,TH+8,TW*.7,TH*.12,0,0,6.283);x.fill();x.globalAlpha=1};
-
-    if(type===0){ // rust world — the reference planet
-      base("#d0824a","#b4602f","#8a4423");
-      for(let i=0;i<8;i++)band(r()*TH,14+r()*40,["#c97347","#a04e26","#dc9558","#8a3f20"][i%4],.22+r()*.25);
-      for(let i=0;i<9;i++)blob(r()*TW,TH*.2+r()*TH*.6,18+r()*52,"#5e2a16",.22+r()*.2);
-      for(let i=0;i<10;i++)crater(r()*TW,TH*.15+r()*TH*.7,4+r()*10,"#4a2012","#e8b98a");
-      cap(.85);
-    }else if(type===1){ // banded giant
-      base("#e0b078","#c9884c","#a45c33");
-      let y=0;
-      while(y<TH){const h=16+r()*34;
-        band(y,h,["#e8c39a","#c98a4e","#a45c33","#e2a76f","#93502c"][(r()*5)|0],.5+r()*.35);y+=h*.7}
-      blob(TW*r(),TH*(.55+r()*.2),26+r()*14,"#f0764a",.9,.55);
-      blob(TW*r(),TH*(.3+r()*.2),16+r()*10,"#ffd9a8",.7,.5);
-    }else if(type===2){ // ice world
-      base("#e9f2ff","#bcd4f5","#9dbbe8");
-      for(let i=0;i<6;i++)band(r()*TH,10+r()*30,"#ffffff",.18+r()*.15);
-      x.strokeStyle="#6f8fc4";
-      for(let i=0;i<13;i++){ // fracture lines
-        x.globalAlpha=.3+r()*.3;x.lineWidth=.8+r()*.9;
-        wrap(dx=>{x.beginPath();let px=r()*TW+dx,py=r()*TH;x.moveTo(px,py);
-          for(let s2=0;s2<5;s2++){px+=(r()-.3)*60;py+=(r()-.5)*44;x.lineTo(px,py)}x.stroke()});
-      }
-      x.globalAlpha=1;
-      for(let i=0;i<6;i++)crater(r()*TW,TH*.2+r()*TH*.6,3+r()*8,"#8aa8d6","#ffffff");
-      cap(.9);
-    }else if(type===3){ // volcanic world
-      base("#2b1e28","#20161f","#181019");
-      for(let i=0;i<8;i++)blob(r()*TW,r()*TH,24+r()*60,"#3c2430",.4+r()*.3);
-      x.save();x.shadowColor="#ff5a2e";x.shadowBlur=9;
-      for(let i=0;i<15;i++){ // lava fissures
-        x.globalAlpha=.75+r()*.25;x.strokeStyle=r()<.5?"#ff5a2e":"#ff8a3e";x.lineWidth=1+r()*1.2;
-        wrap(dx=>{x.beginPath();let px=r()*TW+dx,py=r()*TH;x.moveTo(px,py);
-          for(let s2=0;s2<4;s2++){px+=(r()-.4)*46;py+=(r()-.5)*30;x.lineTo(px,py)}x.stroke()});
-      }
-      for(let i=0;i<10;i++)wrap(dx=>{x.globalAlpha=.9;x.fillStyle="#ffb257";
-        x.beginPath();x.arc(r()*TW+dx,r()*TH,1.2+r()*2.4,0,6.283);x.fill()});
-      x.restore();x.globalAlpha=1;
-    }else{ // ocean world
-      base("#3a7cb0","#2e6ea0","#1c4a74");
-      for(let i=0;i<6;i++){ // landmasses = clustered blobs
-        const cx=r()*TW,cy=TH*.2+r()*TH*.6,col=r()<.6?"#5f8a4e":"#8a7a4e";
-        for(let s2=0;s2<3;s2++)blob(cx+(r()-.5)*70,cy+(r()-.5)*50,16+r()*34,col,.95,.6);
-      }
-      for(let i=0;i<9;i++)band(r()*TH,5+r()*11,"#ffffff",.14+r()*.14); // cloud streaks
-      cap(.7);
-    }
-    return c;
-  }
-  function ringsHalf(x2,r,rot,front){
-    const wob=Math.sin(rot*.6)*.06;
-    x2.strokeStyle=front?"rgba(232,195,150,.95)":"rgba(232,195,150,.7)";
-    for(let i=0;i<3;i++){
-      x2.lineWidth=1.6-i*.4;x2.globalAlpha=(front?.95:.7)-i*.18;
+  function ringHalf(x2,R,K,alpha,front){
+    x2.save();
+    x2.globalAlpha=alpha;
+    x2.strokeStyle=K.rim;
+    for(let i=0;i<2;i++){
+      x2.lineWidth=Math.max(.45,R*(.010-i*.004));
+      x2.globalAlpha=alpha*(1-i*.45);
       x2.beginPath();
-      x2.ellipse(0,0,r*(1.55+i*.22),r*(.42+i*.07),.5+wob,
-        front?-.03:Math.PI*.97, front?Math.PI*.97:Math.PI*1.98);
+      x2.ellipse(0,0,R*(1.62+i*.17),R*(.40+i*.05),0,
+        front?0:Math.PI, front?Math.PI:Math.PI*2);
       x2.stroke();
     }
-    x2.globalAlpha=1;
+    x2.restore();
   }
   function drawPlanet(x2,p,t){
-    if(!p.tex)p.tex=makePlanetTex(hashStr("ptex"+p.type+"_"+Math.round(p.x*7)),p.type);
-    const age=clamp((t-p.born)/1800,0,1);
-    const scale=REDUCED?1:(age<1?1-Math.pow(1-age,3):1);
-    const rot=REDUCED?p.phase:t/16000+p.phase;
-    const R=p.r;
-    x2.save();x2.translate(p.x,p.y);x2.scale(scale,scale);
-    if(age<1&&!REDUCED){
-      x2.strokeStyle="rgba(195,157,255,"+(1-age)*.7+")";
-      x2.lineWidth=1.5;x2.beginPath();x2.arc(0,0,R*(1+age*2.2),0,Math.PI*2);x2.stroke();
-    }
-    if(p.type===1)ringsHalf(x2,R,rot,false);
-    // the textured disk — strip scrolls, disk clips
+    const K=PLANET_KINDS[p.type];
+    const age=REDUCED?1:clamp((t-p.born)/2800,0,1);
+    if(age<=0)return;
+    const ease=1-Math.pow(1-age,4);
+    const R=p.r*(.88+.12*ease);
     x2.save();
-    x2.beginPath();x2.arc(0,0,R,0,Math.PI*2);x2.clip();
-    const DW=R*6.4;
-    let off=(rot*R*1.6)%DW;if(off<0)off+=DW;
-    for(let k=-1;k<=1;k++)x2.drawImage(p.tex,-off+k*DW-0,-R,DW,R*2);
-    // limb darkening + soft sunlit highlight
-    const lg=x2.createRadialGradient(-R*.38,-R*.38,R*.12,0,0,R*1.02);
-    lg.addColorStop(0,"rgba(255,255,255,.12)");lg.addColorStop(.55,"rgba(0,0,0,0)");
-    lg.addColorStop(.85,"rgba(0,0,0,.34)");lg.addColorStop(1,"rgba(0,0,0,.62)");
-    x2.fillStyle=lg;x2.fillRect(-R,-R,R*2,R*2);
-    // terminator — night creeps over one shoulder
-    const tg=x2.createRadialGradient(-R*.5,-R*.4,R*.1,0,0,R*1.05);
-    tg.addColorStop(0,"rgba(0,0,0,0)");tg.addColorStop(.72,"rgba(0,0,0,0)");tg.addColorStop(1,"rgba(0,0,0,.72)");
-    x2.fillStyle=tg;x2.fillRect(-R,-R,R*2,R*2);
+    x2.translate(p.x,p.y);
+    x2.globalAlpha=ease;
+
+    // the ring passes behind the world before it passes in front
+    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,K,.30,false);x2.restore()}
+
+    // the body: dark, with the faintest interior falloff away from the sun
+    const body=x2.createRadialGradient(LIGHT.x*R*.7,LIGHT.y*R*.7,R*.04,0,0,R);
+    body.addColorStop(0,K.core);
+    body.addColorStop(.62,"#08080c");
+    body.addColorStop(1,"#040407");
+    x2.fillStyle=body;
+    x2.beginPath();x2.arc(0,0,R,0,6.283);x2.fill();
+
+    // the lit crescent, clipped to the sphere
+    x2.save();
+    x2.beginPath();x2.arc(0,0,R,0,6.283);x2.clip();
+    const lit=x2.createRadialGradient(
+      LIGHT.x*R*1.04,LIGHT.y*R*1.04,R*.02,
+      LIGHT.x*R*1.04,LIGHT.y*R*1.04,R*1.72);
+    lit.addColorStop(0,K.rim);
+    lit.addColorStop(.26,`rgba(${K.halo},.30)`);
+    lit.addColorStop(.58,"rgba(0,0,0,0)");
+    x2.fillStyle=lit;x2.fillRect(-R,-R,R*2,R*2);
     x2.restore();
-    // thin atmosphere rim
-    x2.strokeStyle=PLANET_KINDS[p.type].atmo;x2.lineWidth=1.3;
-    x2.beginPath();x2.arc(0,0,R+.9,0,Math.PI*2);x2.stroke();
-    if(p.type===1)ringsHalf(x2,R,rot,true);
-    // thin orbit rings, then the moons riding them
-    x2.strokeStyle="rgba(225,232,245,.22)";x2.lineWidth=.7;
-    for(let m=0;m<(p.type===1?1:2);m++){
-      x2.beginPath();x2.ellipse(0,0,R*(1.7+m*.5),R*(.5+m*.2),0,0,Math.PI*2);x2.stroke();
-    }
-    for(let m=0;m<(p.type===1?1:2);m++){
-      const ma=rot*8*(1.6+m*.7)+m*2.4;
-      const mx=Math.cos(ma)*R*(1.7+m*.5), my=Math.sin(ma)*R*(.5+m*.2);
-      const front=Math.sin(ma)>0;
-      if(front){x2.fillStyle="#d8dee9";x2.beginPath();x2.arc(mx,my,2.4,0,Math.PI*2);x2.fill()}
-      else{x2.fillStyle="rgba(170,178,196,.4)";x2.beginPath();x2.arc(mx,my,2,0,Math.PI*2);x2.fill()}
-    }
+
+    // atmosphere: a hairline that burns at the limb and dies at the terminator
+    const rim=x2.createLinearGradient(
+      Math.cos(LANG)*R,Math.sin(LANG)*R,-Math.cos(LANG)*R,-Math.sin(LANG)*R);
+    rim.addColorStop(0,`rgba(${K.halo},.95)`);
+    rim.addColorStop(.38,`rgba(${K.halo},.24)`);
+    rim.addColorStop(.70,"rgba(0,0,0,0)");
+    x2.strokeStyle=rim;
+    x2.lineWidth=Math.max(.55,R*.013);
+    x2.beginPath();x2.arc(0,0,R*.996,0,6.283);x2.stroke();
+
+    // the light it throws into the dark around it
+    const halo=x2.createRadialGradient(0,0,R*.97,0,0,R*1.62);
+    halo.addColorStop(0,`rgba(${K.halo},.13)`);
+    halo.addColorStop(1,"rgba(0,0,0,0)");
+    x2.fillStyle=halo;
+    x2.beginPath();x2.arc(0,0,R*1.62,0,6.283);x2.fill();
+
+    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,K,.55,true);x2.restore()}
     x2.restore();
   }
 
@@ -3426,10 +3570,19 @@ const sky=(()=>{
         if(manual){cam.tcx=cam.cx;cam.tcy=cam.cy;cam.ts=cam.s} // stay where the ceremony left us
       }
     }
-    const k=REDUCED?1:(ceremonyTarget?.028:.045);
-    cam.cx=lerp(cam.cx,target.cx,k);
-    cam.cy=lerp(cam.cy,target.cy,k);
-    cam.s=lerp(cam.s,target.s,k);
+    /* A critically damped spring rather than a lerp: the frame arrives,
+       settles once, and never rings. This is most of what separates motion
+       that feels engineered from motion that feels cheap. */
+    if(REDUCED){cam.cx=target.cx;cam.cy=target.cy;cam.s=target.s}
+    else{
+      const stiff=ceremonyTarget?7.5:12.5, damp=2*Math.sqrt(stiff);
+      const h=Math.min(.034,dt/1000);
+      for(const key of["cx","cy","s"]){
+        const v="v_"+key;
+        cam[v]=(cam[v]||0)+((target[key]-cam[key])*stiff-(cam[v]||0)*damp)*h;
+        cam[key]+=cam[v]*h;
+      }
+    }
 
     /* world layer */
     xW.clearRect(0,0,W,H);
@@ -3439,26 +3592,37 @@ const sky=(()=>{
     /* genre regions read from far away, artist constellations from close in:
        zoom out and the sky is a map of genres; zoom in and it is a map of
        who you actually collect. */
-    const artistZoom=clamp((cam.s-.42)/.3,0,1);
-    const genreZoom=clamp((.62-cam.s)/.24,0,1);
-    if(genreZoom>.02&&regions.length){
-      xW.textAlign="center";
+    /* The two label systems never speak at once: genres are the map you
+       read from orbit, artists the one you read on approach, and there is
+       a silent band between them. */
+    const artistZoom=clamp((cam.s-.66)/.26,0,1);
+    const genreZoom=clamp((.50-cam.s)/.14,0,1);
+    /* A region is a place, not a diagram. The dashed ring that used to
+       enclose each genre read as a wireframe and broke the illusion that
+       you were looking at a sky, so it is gone: what marks a region now is
+       a breath of its own light and, from far enough out, its name. */
+    if(regions.length){
       regions.forEach(G=>{
-        xW.globalAlpha=genreZoom*.5;
-        xW.strokeStyle=G.col;xW.lineWidth=.8/cam.s;
-        xW.setLineDash([6/cam.s,9/cam.s]);
-        xW.beginPath();xW.ellipse(G.lx,G.ly,G.r,G.r*SQ,0,0,Math.PI*2);xW.stroke();
-        xW.setLineDash([]);
-        xW.globalAlpha=genreZoom*.85;
-        xW.font=`${11/cam.s}px 'Audiowide','Space Grotesk',sans-serif`;
-        xW.fillStyle=G.col;
-        const lb=G.name;
-        let cxx=-lb.length*3.6/cam.s;
-        xW.save();xW.translate(G.lx,G.ly-G.r*SQ-16/cam.s);
-        for(const ch of lb){xW.fillText(ch,cxx,0);cxx+=8.4/cam.s}
-        xW.restore();
+        const haze=xW.createRadialGradient(G.lx,G.ly,0,G.lx,G.ly,G.r*1.15);
+        haze.addColorStop(0,hexA(G.col,.050+genreZoom*.030));
+        haze.addColorStop(.55,hexA(G.col,.018));
+        haze.addColorStop(1,"rgba(0,0,0,0)");
+        xW.fillStyle=haze;
+        xW.beginPath();xW.ellipse(G.lx,G.ly,G.r*1.15,G.r*1.15*SQ,0,0,6.283);xW.fill();
       });
-      xW.globalAlpha=1;
+      if(genreZoom>.02){
+        xW.textAlign="center";
+        regions.forEach(G=>{
+          xW.globalAlpha=genreZoom*.5;
+          xW.font=`${10.5/cam.s}px ui-monospace,'SF Mono',Menlo,monospace`;
+          xW.fillStyle=G.col;
+          let cxx=-G.name.length*3.1/cam.s;
+          xW.save();xW.translate(G.lx,G.ly-G.r*SQ-14/cam.s);
+          for(const ch of G.name){xW.fillText(ch,cxx,0);cxx+=6.9/cam.s}
+          xW.restore();
+        });
+        xW.globalAlpha=1;
+      }
     }
 
     // an artist's albums, strung together
@@ -3471,8 +3635,8 @@ const sky=(()=>{
       const pts=m.stars;
       if(!pts||pts.length<2)return;
       if(m.lineProg<1)m.lineProg=Math.min(1,m.lineProg+dt/2200);
-      const pulse=REDUCED?.8:(.6+Math.sin(t/1600+ci)*.2+bass*.3);
-      xW.lineWidth=1.1/cam.s;
+      const pulse=REDUCED?.55:(.42+Math.sin(t/2600+ci)*.10+bass*.20);
+      xW.lineWidth=.85/cam.s;
       xW.strokeStyle=m.col;xW.globalAlpha=pulse;
       const segs=pts.length-1, upTo=m.lineProg*segs;
       xW.beginPath();
@@ -3485,7 +3649,7 @@ const sky=(()=>{
       xW.stroke();
       // three or more albums close the loop — a shape you can recognise
       if(pts.length>2&&m.lineProg>=1){
-        xW.globalAlpha=pulse*.5;
+        xW.globalAlpha=pulse*.34;
         xW.beginPath();xW.moveTo(pts[pts.length-1].x,pts[pts.length-1].y);
         xW.lineTo(pts[0].x,pts[0].y);xW.stroke();
       }
@@ -3510,10 +3674,18 @@ const sky=(()=>{
     // planets
     planets.forEach(p=>drawPlanet(xW,p,t));
 
-    // stars — materialization ceremony, twinkle, spectrum glow
-    const glowMul=1+bass*1.1+mids*.35;
+    // stars — first light, materialisation, twinkle, spectrum glow
+    const glowMul=1+bass*.85+mids*.28;
+    const boot=REDUCED?1:clamp((t-bootAt)/2200,0,1);
     stars.forEach(s=>{
       let a=1,scale=1;
+      if(boot<1){
+        // the sky assembles outward from where you are looking
+        const lit=clamp((boot-(s.bd||0)*.55)/.42,0,1);
+        if(lit<=0)return;
+        a*=lit*lit*(3-2*lit);
+        scale*=.55+.45*lit;
+      }
       const b=births.get(s.album.id);
       if(b!==undefined){
         const age=(t-b)/1600;
@@ -3530,17 +3702,16 @@ const sky=(()=>{
       const playing=s.album.id===state.playingAlbumId;
       const sel=selected===s;
       const gr=s.rad*(4+(playing?5:0))*glowMul*scale/Math.sqrt(cam.s);
-      const spr=sprGlow[playing?"#f4eedb":s.col]||sprGlow[s.col];
-      xW.globalAlpha=a*tw*(playing?.9:.4)*(0.75+bass*.4);
+      const spr=sprGlow[playing?"#f4eedb":s.col]||sprGlow[s.col]||sprGlow[PALETTE[0]];
+      xW.globalAlpha=a*tw*(playing?.85:.32)*(0.78+bass*.30);
       xW.drawImage(spr,s.x-gr,s.y-gr,gr*2,gr*2);
       xW.globalAlpha=a;
       xW.fillStyle=playing?"#fff6e0":s.col;
       xW.beginPath();xW.arc(s.x,s.y,s.rad*tw*scale/Math.sqrt(cam.s)+(playing?.8:0),0,Math.PI*2);xW.fill();
       if(sel){
-        xW.strokeStyle="#c39dff";xW.lineWidth=1/cam.s;
-        xW.setLineDash([2/cam.s,3/cam.s]);
-        xW.beginPath();xW.arc(s.x,s.y,10/cam.s,0,Math.PI*2);xW.stroke();
-        xW.setLineDash([]);
+        // a held ring, not a marching dash — selection should feel calm
+        xW.strokeStyle="rgba(233,228,217,.75)";xW.lineWidth=.8/cam.s;
+        xW.beginPath();xW.arc(s.x,s.y,11/cam.s,0,Math.PI*2);xW.stroke();
       }
       xW.globalAlpha=1;
     });
@@ -3571,9 +3742,14 @@ const sky=(()=>{
     $("#libSub").textContent=n?skyCensus():"Every album here is a star in the sky.";
   }
 
-  function init(){resize();buildSprites();rebuild();requestAnimationFrame(frame)}
+  function init(){
+    resize();buildSprites();rebuild();
+    bootAt=performance.now()+140; // a beat of black before the sky arrives
+    requestAnimationFrame(frame);
+  }
   return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,flyTo,
-    constellations:()=>csts,regions:()=>regions,
+    constellations:()=>csts,regions:()=>regions,worlds:()=>planets,
+    look(x,y,scale){manual=true;cam.tcx=x;cam.tcy=y;cam.ts=scale},
     clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
 })();
 
@@ -4211,6 +4387,41 @@ $("#tglFft").addEventListener("click",()=>{
   $("#tglFft").classList.toggle("on",state.settings.fft);
   $("#tglFft").setAttribute("aria-checked",state.settings.fft);
 });
+
+/* ── glitch ──
+   The sky is a transmission, and once in a while it stutters. Two or three
+   hairline bands slip sideways for a few frames and are gone. Rare enough
+   that noticing it feels like catching something. */
+(function(){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const host=$("#glitch"), bars=[...host.querySelectorAll("i")];
+  function burst(){
+    const n=1+Math.floor(Math.random()*bars.length);
+    host.classList.add("on");
+    bars.forEach((b,i)=>{
+      if(i>=n){b.style.opacity=0;return}
+      b.style.top=(Math.random()*100).toFixed(2)+"%";
+      b.style.height=(1+Math.random()*2.5).toFixed(1)+"px";
+      b.style.transform="translateX("+((Math.random()*14-7)|0)+"px)";
+      b.style.opacity=(.05+Math.random()*.10).toFixed(3);
+    });
+    const flick=40+Math.random()*70;
+    setTimeout(()=>{
+      bars.forEach(b=>{b.style.transform="translateX("+((Math.random()*10-5)|0)+"px)";
+        b.style.opacity=(.03+Math.random()*.07).toFixed(3)});
+      setTimeout(()=>{
+        bars.forEach(b=>b.style.opacity=0);
+        host.classList.remove("on");
+      },flick);
+    },flick);
+  }
+  (function schedule(){
+    setTimeout(()=>{
+      if(!document.hidden&&document.body.dataset.tab==="sky")burst();
+      schedule();
+    },9000+Math.random()*17000);
+  })();
+})();
 
 /* ── sleep timer — a night-time app should be able to put itself out ── */
 let sleepTO=null,sleepAlbum=false;

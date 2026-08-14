@@ -27,6 +27,25 @@ not a quota. Because the folder is Documents, the whole collection appears
 in **Files → ISOLATION → Music** and can be copied in or out wholesale —
 the only workable way to move a library measured in hundreds of gigabytes.
 
+## How it looks
+
+One colour and one material. The interface is black and a single warm
+bone; the only saturated colour anywhere arrives with the record that is
+playing, which tints the seek line, the glow beneath the sleeve and the
+star of the album in the grid. Names are set in a tight grotesk, anything
+countable in monospace with tabular figures. Boxes were retired in favour
+of hairlines and space.
+
+The sky is a place rather than a diagram. Regions are marked by a breath
+of their own light instead of a drawn boundary; genre names read from
+orbit and artist names on approach, never both at once. Worlds are lit
+from a single sun shared by the whole sky — a dark sphere, a bright
+crescent along the lit limb, an atmosphere that dies at the terminator,
+and nothing else. The camera is a critically damped spring, so it settles
+without ever ringing, and on launch the collection assembles outward from
+the centre. There is no film grain; instead the transmission stutters
+every so often, a couple of hairline bands for a tenth of a second.
+
 ## What's in here
 
 ```
