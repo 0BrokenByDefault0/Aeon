@@ -964,8 +964,32 @@ input[type=range].hseek::-webkit-slider-thumb{
 .sheet-body{touch-action:pan-y}
 .sheet-body.dragging{animation:none;transition:none;will-change:transform}
 .sheet-body.settling{animation:none;transition:transform .3s var(--ease)}
-.grab{cursor:grab;transition:width .3s var(--ease),background .3s var(--ease)}
-.sheet-body.dragging .grab{cursor:grabbing;width:74px;background:var(--bone-3)}
+/* When a sheet's content fits, nothing on it scrolls, so the whole
+   surface belongs to the gesture. */
+.sheet-body.fits{overflow:hidden;touch-action:none}
+/* The handle is a band across the top of the sheet, not the hairline you
+   can see: a two-pixel target is not a target. touch-action:none on it
+   means the browser can never claim the gesture as a scroll first — the
+   one way to guarantee the pull works even on a sheet that does scroll. */
+.grab{width:auto;height:28px;margin:-8px 0 6px;background:none;border-radius:0;
+  position:relative;touch-action:none;cursor:grab}
+/* The player is one screen, never a scroll. On a short phone the sleeve
+   gives up the height rather than pushing the transport off the bottom —
+   a record you pull down on should not also be a list. */
+@media (max-height:760px){
+  #nowArt{width:min(72vw,300px,28vh)}
+  #nowSeekWrap{margin-top:14px}
+  #nowCtrls{margin:10px 0 4px;gap:20px}
+  #nowCtrls .pb-btn{width:46px;height:46px}
+  #volRow{margin:10px 6px 2px}
+}
+.grab::before{
+  content:"";position:absolute;left:50%;top:50%;
+  width:56px;height:2px;margin:-1px 0 0 -28px;background:#2c2c35;
+  transition:width .28s var(--ease),margin .28s var(--ease),background .28s var(--ease);
+}
+.sheet-body.dragging .grab{cursor:grabbing}
+.sheet-body.dragging .grab::before{width:84px;margin-left:-42px;background:var(--bone)}
 #playerBar{transition:transform .3s var(--ease)}
 .btn,.sortc,.tab,.tgl,.tgl::after{transition:color .3s var(--ease),
   background .3s var(--ease),border-color .3s var(--ease),transform .3s var(--ease)}
@@ -1186,7 +1210,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.1 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.2 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -3930,16 +3954,22 @@ function makeSheetsDraggable(){
   $$(".sheet").forEach(sh=>{
     const body=sh.querySelector(".sheet-body");
     if(!body)return;
-    let y0=0,x0=0,dy=0,armed=false,live=false,lastY=0,lastT=0,vel=0;
+    let y0=0,x0=0,dy=0,armed=false,live=false,lastY=0,lastT=0,vel=0,onHandle=false;
     const inert=el=>!!(el&&el.closest&&el.closest("input,textarea,select"));
     function reset(){
-      armed=live=false;dy=0;
+      armed=live=false;dy=0;onHandle=false;
       body.classList.remove("dragging","settling");
       body.style.transform="";sh.style.backgroundColor="";
+      /* a sheet only scrolls if it has somewhere to scroll to; otherwise
+         the surface is handed to the gesture whole */
+      requestAnimationFrame(()=>{
+        body.classList.toggle("fits",body.scrollHeight<=body.clientHeight+1);
+      });
     }
     sh._resetDrag=reset;
     function down(y,x,target){
       if(inert(target))return;
+      onHandle=!!(target&&target.closest&&target.closest(".grab"));
       armed=true;live=false;dy=0;vel=0;
       y0=lastY=y;x0=x;lastT=performance.now();
     }
@@ -3949,7 +3979,9 @@ function makeSheetsDraggable(){
       if(!live){
         // hand the gesture back the moment it reads as a scroll or a swipe
         if(d<-6||Math.abs(x-x0)>Math.abs(d)+6){armed=false;return false}
-        if(d<=7||body.scrollTop>0)return false;
+        // the handle answers immediately; elsewhere the sheet must be at its top
+        if(d<=(onHandle?3:7))return false;
+        if(!onHandle&&body.scrollTop>0)return false;
         live=true;body.classList.remove("settling");body.classList.add("dragging");
         /* take over from exactly where the finger is, so a gesture that
            began as a scroll and only then reached the top doesn't jump */
@@ -3986,7 +4018,12 @@ function makeSheetsDraggable(){
     },{passive:true});
     body.addEventListener("touchmove",e=>{
       if(e.touches.length!==1)return;
-      if(move(e.touches[0].clientY,e.touches[0].clientX))e.preventDefault();
+      /* If the browser has already committed the gesture to its own
+         scroller it stops letting us cancel it, and a half-engaged drag
+         would fight the scroll and lose. Stand down instead — the handle,
+         which the scroller can never claim, is always still there. */
+      if(!live&&!onHandle&&!e.cancelable){armed=false;return}
+      if(move(e.touches[0].clientY,e.touches[0].clientX)&&e.cancelable)e.preventDefault();
     },{passive:false});
     body.addEventListener("touchend",up);
     body.addEventListener("touchcancel",up);

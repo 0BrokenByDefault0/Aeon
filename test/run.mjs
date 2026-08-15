@@ -357,7 +357,21 @@ server.listen(PORT);
   await page.waitForTimeout(600);
   ok("a scrolled sheet scrolls instead of closing",
     scrolled > 0 && await isOpen("sheetGuide") === true, { scrolled });
-  await page.evaluate(() => closeSheet("sheetGuide"));
+
+  /* …but the handle is never the scroller's to take: pulling it must
+     close the sheet even mid-scroll, which is the guarantee that makes
+     the gesture trustworthy on a device */
+  await swipe("#sheetGuide .grab", 195, 120, 640);
+  await page.waitForTimeout(600);
+  ok("the handle closes a scrolled sheet anyway", await isOpen("sheetGuide") === false);
+  await page.waitForTimeout(400);
+
+  // a sheet whose content fits hands its whole surface to the gesture
+  await page.evaluate(() => openSheet("sheetNow"));
+  await page.waitForTimeout(700);
+  ok("a sheet that cannot scroll is draggable everywhere", await page.evaluate(() =>
+    document.querySelector("#sheetNow .sheet-body").classList.contains("fits")));
+  await page.evaluate(() => closeSheet("sheetNow"));
   await page.waitForTimeout(600);
 
   await swipe("#playerBar", 195, 700, 620);

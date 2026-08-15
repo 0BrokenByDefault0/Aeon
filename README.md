@@ -56,9 +56,16 @@ Sheets are objects, and the handle at the top of one is not decoration:
 pull down and the sheet tracks your finger while the dark behind it
 thins, let go past a quarter of its height — or throw it — and it
 leaves. Pull *up* on the player bar and the full player arrives; pull up
-on the sleeve inside it and the rest of the queue does. The gesture only
-takes over when a sheet is already scrolled to its top and the movement
-is clearly vertical, so lists still scroll and sliders still slide.
+on the sleeve inside it and the rest of the queue does.
+
+The handle is a band across the whole top of the sheet rather than the
+hairline you can see, and it is the one surface a scroller can never
+take, so pulling it works even on a sheet that is mid-scroll. Away from
+the handle the gesture defers: it engages only when the sheet is already
+at its top and the movement is clearly vertical, and stands down
+entirely if the browser has already committed the touch to scrolling.
+The player itself never scrolls — on a short phone the sleeve gives up
+height rather than pushing the transport off the bottom.
 
 ## What's in here
 
