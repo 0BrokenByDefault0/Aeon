@@ -20,6 +20,22 @@ they read your own library for artists you own exactly one record by — and
 link out to Bandcamp, so discovery ends in *owning* the music, not renting
 it.
 
+**Bring the whole collection at once.** No file picker survives a library
+of tens of thousands of files, so the installed app doesn't use one:
+copy your master folder into **Files → On My iPhone → ISOLATION →
+Music** — artist folders, album folders, nested as deep as you like —
+and tap **ADOPT LIBRARY**. Every folder holding audio becomes one album,
+tagged from the files themselves and named from the folder when the tags
+are silent. Folders are told apart by their whole path, so the several
+`Live` and `Disc 1` folders every big library contains never fuse into
+one impossible record.
+
+Adoption reads the files **where they lie**: nothing is copied, so a
+500 GB collection occupies 500 GB rather than a terabyte, and it takes
+as long as reading the tags, not as long as duplicating the audio.
+Because those files are yours and not the app's, removing an album later
+takes it out of the sky and leaves the file on disk untouched.
+
 **No storage cap.** In the native app the audio is written to the device's
 own filesystem rather than into browser storage, streamed from disk at
 playback, and never held in memory. The ceiling is the space on the phone,

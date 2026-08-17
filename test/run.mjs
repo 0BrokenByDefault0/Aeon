@@ -12,6 +12,7 @@ import { chromium } from "playwright";
 import http from "http";
 import fs from "fs";
 import path from "path";
+import zlib from "zlib";
 import { fileURLToPath } from "url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +20,27 @@ const APP = path.join(HERE, "..", "app");
 const PORT = 8917;
 
 let mode = "live";
+/* A pretend Documents folder, served with real byte-range support, so the
+   adoption path can be driven end to end: the app walks it, reads tags a
+   slice at a time over HTTP exactly as it does through the Capacitor
+   bridge, and adopts what it finds. */
+const disk = new Map();                        // "Music/Artist/Album/01.mp3" -> Buffer
 const server = http.createServer((req, res) => {
+  if (req.url.startsWith("/__file/DOCUMENTS/")) {
+    const key = decodeURIComponent(req.url.slice("/__file/DOCUMENTS/".length));
+    const buf = disk.get(key);
+    if (!buf) { res.statusCode = 404; return res.end(); }
+    const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range || "");
+    if (range) {
+      const a = Number(range[1]);
+      const b = range[2] === "" ? buf.length - 1 : Math.min(Number(range[2]), buf.length - 1);
+      if (a >= buf.length) { res.statusCode = 416; return res.end(); }
+      res.statusCode = 206;
+      res.setHeader("content-range", `bytes ${a}-${b}/${buf.length}`);
+      return res.end(buf.subarray(a, b + 1));
+    }
+    return res.end(buf);
+  }
   if (mode === "gone") {                       // a host that outlived its site
     res.statusCode = 404;
     res.setHeader("content-type", "text/html");
@@ -41,6 +62,33 @@ const ok = (name, cond, detail) => {
   else { failed++; console.log(`  ✗ ${name}${detail !== undefined ? `  →  ${JSON.stringify(detail)}` : ""}`); }
 };
 const fixture = f => path.join(HERE, f);
+
+/* Just enough zip to reuse the audio fixtures as loose files on the
+   pretend disk — central directory, then each local header. */
+function readZip(file) {
+  const b = fs.readFileSync(file);
+  let eocd = b.length - 22;
+  while (eocd >= 0 && b.readUInt32LE(eocd) !== 0x06054b50) eocd--;
+  if (eocd < 0) throw new Error("not a zip: " + file);
+  const count = b.readUInt16LE(eocd + 10);
+  let p = b.readUInt32LE(eocd + 16);
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const method = b.readUInt16LE(p + 10);
+    const csize = b.readUInt32LE(p + 20);
+    const nlen = b.readUInt16LE(p + 28);
+    const elen = b.readUInt16LE(p + 30);
+    const clen = b.readUInt16LE(p + 32);
+    const name = b.toString("utf8", p + 46, p + 46 + nlen);
+    const lho = b.readUInt32LE(p + 42);
+    const lnlen = b.readUInt16LE(lho + 26), lelen = b.readUInt16LE(lho + 28);
+    const start = lho + 30 + lnlen + lelen;
+    const raw = b.subarray(start, start + csize);
+    out.push({ name, data: method === 0 ? raw : zlib.inflateRawSync(raw) });
+    p += 46 + nlen + elen + clen;
+  }
+  return out;
+}
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM || "/opt/pw-browsers/chromium",
@@ -297,6 +345,128 @@ server.listen(PORT);
   ok("so does a total outage", await version() === live);
   await ctx.setOffline(false);
   await ctx.close();
+}
+
+/* ── a whole library dropped into the Music folder, adopted in place ── */
+{
+  console.log("\nadopting a library in place");
+  /* Lay out a master folder the way a collector's drive actually looks:
+     artist folders, album folders inside them, and two different albums
+     sharing the leaf name "Live" — the case that fuses two records into
+     one if folders are told apart by their last name only. */
+  disk.clear();
+  const put = (p, buf) => disk.set(p, buf);
+  const zip = readZip(fixture("library.zip"));
+  const grab = n => zip.find(e => e.name === n).data;
+  put("Music/Ken Carson/A Great Chaos/01 one.mp3", grab("Ken Carson - A Great Chaos/01 Track 1.mp3"));
+  put("Music/Ken Carson/A Great Chaos/02 two.mp3", grab("Ken Carson - A Great Chaos/02 Track 2.mp3"));
+  put("Music/Ken Carson/Live/01 one.mp3", grab("Ken Carson - X/01 Track 1.mp3"));
+  put("Music/Playboi Carti/Live/01 one.mp3", grab("Playboi Carti - Die Lit/01 Track 1.mp3"));
+  put("Music/Playboi Carti/Whole Lotta Red/01 one.mp3", grab("Playboi Carti - Whole Lotta Red/01 Track 1.mp3"));
+  put("Music/Playboi Carti/Whole Lotta Red/02 two.mp3", grab("Playboi Carti - Whole Lotta Red/02 Track 2.mp3"));
+  put("Music/.hidden/ignored.mp3", grab("Burial - Untrue/01 Track 1.mp3"));  // dotfolders are not albums
+  put("Music/Ken Carson/A Great Chaos/notes.txt", Buffer.from("not audio"));
+
+  const tree = {};
+  for (const key of disk.keys()) {
+    const parts = key.split("/");
+    for (let i = 0; i < parts.length; i++) {
+      const dir = parts.slice(0, i).join("/");
+      (tree[dir] = tree[dir] || new Map()).set(parts[i],
+        i === parts.length - 1 ? { type: "file", size: disk.get(key).length } : { type: "directory", size: 0 });
+    }
+  }
+  const listing = {};
+  for (const [dir, entries] of Object.entries(tree))
+    listing[dir] = [...entries].map(([name, v]) => ({ name, type: v.type, size: v.size, uri: "file:///DOCUMENTS/" + (dir ? dir + "/" : "") + name }));
+
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.addInitScript(l => {
+    const written = {};
+    window.__written = written;
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      convertFileSrc: u => u.replace("file://", "http://localhost:8917/__file"),
+      Plugins: {
+        Filesystem: {
+          async readdir({ path }) {
+            if (!(path in l)) throw new Error("no such directory");
+            return { files: l[path] };
+          },
+          async getUri({ path }) { return { uri: "file:///DOCUMENTS/" + path }; },
+          async writeFile({ path, data }) { written[path] = data === "" ? [] : [data]; return {}; },
+          async appendFile({ path, data }) { (written[path] = written[path] || []).push(data); return {}; },
+          async deleteFile({ path }) { delete written[path]; return {}; },
+        },
+        Share: { async share() { return {}; } },
+      },
+    };
+  }, listing);
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.route("**://itunes.apple.com/**", r => r.abort());
+  await page.route("**://musicbrainz.org/**", r => r.abort());
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForTimeout(900);
+
+  ok("the adopt button is offered on device", await page.evaluate(() =>
+    document.querySelector("#btnAdopt").style.display !== "none"));
+
+  await page.evaluate(() => adoptLibrary());
+  await page.waitForTimeout(9000);
+  const res = await page.evaluate(() => {
+    const all = state.albums.map(a => ({
+      title: a.title, artist: a.artist,
+      tracks: (state.tracks.get(a.id) || []).map(t => ({ path: t.path, adopted: !!t.adopted, blob: !!t.blob, bytes: t.bytes })),
+    }));
+    return { albums: all.length, all, copied: Object.keys(window.__written).length };
+  });
+  const dirOf = p => p.split("/").slice(0, -1).join("/");
+  ok("every folder holding audio became one album", res.albums === 4, res.all.map(a => a.title));
+  ok("no album straddles two folders",
+    res.all.every(a => new Set(a.tracks.map(t => dirOf(t.path))).size === 1), res.all);
+  ok("two folders sharing a name under different artists stay apart",
+    res.all.filter(a => a.tracks.some(t => t.path.includes("/Live/"))).length === 2, res.all);
+  ok("tracks point at the files where they already were",
+    res.all.every(a => a.tracks.every(t => t.path && t.path.startsWith("Music/") && t.adopted)), res.all);
+  ok("nothing was copied", res.copied === 0, res.copied);
+  ok("no audio is held in memory", res.all.every(a => a.tracks.every(t => !t.blob)), res.all);
+  ok("byte sizes came from the filesystem", res.all.every(a => a.tracks.every(t => t.bytes > 0)), res.all);
+  ok("a dotfolder is not a collection", res.all.every(a => !a.tracks.some(t => t.path.includes("/.hidden/"))), res.all);
+
+  // running it twice must not double the library
+  await page.evaluate(() => adoptLibrary());
+  await page.waitForTimeout(5000);
+  ok("adopting again finds nothing new", await page.evaluate(() => state.albums.length) === 4);
+
+  // removing an adopted album must never delete the collector's file
+  ok("removing an adopted album leaves the file alone", await page.evaluate(async () => {
+    const a = state.albums[0];
+    const t = (state.tracks.get(a.id) || [])[0];
+    await dropAudio(t);
+    const res = await fetch("http://localhost:8917/__file/DOCUMENTS/" + t.path);
+    return res.ok;
+  }));
+
+  /* the grouping rule itself, stated plainly: the leaf name is a label,
+     the path is the identity — and items that only ever carried a leaf
+     name still group the way they always did */
+  const grouping = await page.evaluate(() => {
+    const mk = (folder, folderKey) => ({ folder, folderKey, meta: {} });
+    return {
+      byPath: AeonCore.groupItems([
+        mk("Live", "Music/A/Live"), mk("Live", "Music/B/Live"),
+      ], "folder").length,
+      byLeaf: AeonCore.groupItems([mk("Live"), mk("Live")], "folder").length,
+    };
+  });
+  ok("same folder name, different paths, different albums", grouping.byPath === 2, grouping);
+  ok("a bare folder name still groups as one", grouping.byLeaf === 1, grouping);
+
+  ok("no errors while adopting", errors.length === 0, errors.slice(0, 3));
+  await ctx.close();
+  disk.clear();
 }
 
 /* ── the handle on every sheet is real, and the figures are figures ── */

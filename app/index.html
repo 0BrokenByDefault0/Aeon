@@ -1055,6 +1055,10 @@ input[type=range].hseek::-webkit-slider-thumb{
   <div class="btnrow">
     <button class="btn hot" id="btnImport"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span>IMPORT ALBUMS</button>
     <button class="btn" id="btnImportFolder" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/></svg></span>IMPORT FOLDER</button>
+    <button class="btn" id="btnAdopt" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/><path d="M12 10.5v5M9.5 13h5"/></svg></span>ADOPT LIBRARY</button>
+  </div>
+  <div class="c-note" id="adoptNote" style="display:none;margin:-4px 0 14px">
+    Copy your whole collection into <b>Files &#8594; On My iPhone &#8594; ISOLATION &#8594; Music</b> &#8212; a master folder of album folders is exactly right, and it can be dragged there from a computer at full speed. Then tap <b>ADOPT LIBRARY</b>: each folder holding audio becomes one album, read where it lies. Nothing is copied, so it takes no extra space, and removing an album later never deletes your files.
   </div>
   <div id="libSearch">
     <span class="ls-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>
@@ -1210,7 +1214,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.2 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.3 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1383,6 +1387,7 @@ input[type=range].hseek::-webkit-slider-thumb{
     <div class="card">
       <h3>2 &#183; Raid what you already own</h3>
       <div class="c-note">Old CDs rip to MP3 or FLAC with free tools (fre:ac, Exact Audio Copy). Files sitting on an old laptop or drive can be dropped into iCloud/Files and imported from there. Every one becomes a star.</div>
+      <div class="c-note" style="margin-top:8px"><b>Already have a whole library?</b> Don't use the picker. Plug the phone into a computer (or open the Files app) and copy the entire collection into <b>ISOLATION &#8594; Music</b> &#8212; a master folder full of album folders, as deep as you like. Then tap <b>ADOPT LIBRARY</b> in Library: each folder holding audio becomes one album, read where it sits. Nothing is copied, so hundreds of gigabytes take up exactly what they already take up.</div>
     </div>
     <div class="card">
       <h3>3 &#183; Keep it safe</h3>
@@ -1403,6 +1408,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <div id="toasts" aria-live="polite"></div>
 <input type="file" id="artInput" accept="image/*" style="display:none">
 <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.flac,.aac,.wav,.ogg,.opus,.zip,application/zip" multiple style="display:none">
+<input type="file" id="dirInput" webkitdirectory directory multiple style="display:none">
 
 <script>
 "use strict";
@@ -1484,10 +1490,16 @@ const AeonCore=(()=>{
 
   function groupItems(items,mode){
     if(!items.length)return[];
-    const folders=new Set(items.map(it=>(it.folder||"").toLowerCase()).filter(Boolean));
+    /* Folders are told apart by their whole path, not their last name.
+       A library of any size has several "Live", "Disc 1" and "Bonus"
+       folders under different artists, and grouping on the leaf name
+       alone would fuse them into one impossible record. Items that
+       carry only a leaf name still group by it, exactly as before. */
+    const keyOf=it=>String(it.folderKey||it.folder||"").toLowerCase();
+    const folders=new Set(items.map(keyOf).filter(Boolean));
     if(mode==="folder"||(mode!=="smart"&&folders.size>1)){
       const byFolder=new Map();
-      items.forEach(item=>{const key=(item.folder||"").toLowerCase();
+      items.forEach(item=>{const key=keyOf(item);
         if(!byFolder.has(key))byFolder.set(key,[]);byFolder.get(key).push(item)});
       return[...byFolder.values()];
     }
@@ -2211,6 +2223,10 @@ function extOf(file,fallback){
 }
 function safeName(v){return String(v||"").replace(/[^\w\-. ]+/g,"_").slice(0,60).trim()||"untitled"}
 async function storeAudio(alb,trk,file){
+  /* A file the collector put into the app's own Music folder is already
+     exactly where it belongs. Adopt it where it lies: copying would
+     double a library measured in hundreds of gigabytes and buy nothing. */
+  if(file&&file.adoptPath)return{path:file.adoptPath,bytes:file.size||0,adopted:true};
   if(!NATIVE)return{blob:file,bytes:file.size};
   const path=`${AUDIO_DIR}/${safeName(alb.artist)} - ${safeName(alb.title)}/`
     +String(trk.idx).padStart(2,"0")+" "+safeName(trk.title)+extOf(file,".mp3");
@@ -2229,6 +2245,10 @@ async function trackURL(t){
   return null;
 }
 async function dropAudio(t){
+  /* An adopted file was placed there by the collector, not written by us.
+     Removing the album takes it out of the sky; the file stays on disk,
+     because deleting someone's own music is not ours to do. */
+  if(t.adopted)return;
   if(t.path&&NATIVE){try{await FS().deleteFile({path:t.path,directory:"DOCUMENTS"})}catch(e){}}
 }
 function librarySize(){
@@ -2301,11 +2321,148 @@ if(window.showDirectoryPicker){
     }catch(e){/* user cancelled */}
   });
 }
+/* Where there are no directory handles there is still the plain folder
+   picker — Safari, Firefox, and any browser Chrome's API skipped. */
+const dirInput=$("#dirInput");
+if(!window.showDirectoryPicker&&dirInput&&"webkitdirectory" in dirInput){
+  $("#btnImportFolder").style.display="";
+  $("#btnImportFolder").addEventListener("click",()=>dirInput.click());
+  dirInput.addEventListener("change",async()=>{
+    const files=[...dirInput.files];
+    dirInput.value="";
+    if(files.length)await importFiles(files,{perFolder:true});
+    else toast("No audio files found in that folder");
+  });
+}
 fileInput.addEventListener("change",async()=>{
   const files=[...fileInput.files];
   fileInput.value="";
   if(files.length)await importFiles(files);
 });
+
+/* ════════════════════════════════════════════════════════════════
+   ADOPTING A LIBRARY THAT IS ALREADY HERE
+   No picker carries five hundred gigabytes, and no phone should be
+   asked to copy it twice. Because the app's Music folder is Documents,
+   a whole collection can be dragged into Files → ISOLATION → Music
+   from a Mac, a PC, or an external drive — every artist folder, every
+   album folder, at full speed and with no app running.
+
+   Adoption then walks what is there and takes each folder holding
+   audio as one album, reading tags a few kilobytes at a time and
+   registering the files exactly where they lie. Nothing is copied,
+   so the library occupies the space it already occupies, and nothing
+   is deleted later: a file the collector put there is theirs.
+   ════════════════════════════════════════════════════════════════ */
+async function walkMusic(rel,out,depth){
+  if(depth>8)return;
+  let listing;
+  try{listing=await FS().readdir({path:rel,directory:"DOCUMENTS"})}catch(e){return}
+  for(const ent of(listing.files||[])){
+    const name=ent.name||"";
+    if(!name||name.startsWith("."))continue;
+    const path=rel?rel+"/"+name:name;
+    if(ent.type==="directory"){await walkMusic(path,out,depth+1);continue}
+    const rec={path,name,size:Number(ent.size)||0,uri:ent.uri||""};
+    if(AUD_RE.test(name))out.audio.push(rec);
+    else if(IMG_RE.test(name))out.images.push(rec);
+  }
+}
+async function diskURL(rec){
+  if(rec.uri)return Capacitor.convertFileSrc(rec.uri);
+  const {uri}=await FS().getUri({path:rec.path,directory:"DOCUMENTS"});
+  return Capacitor.convertFileSrc(uri);
+}
+/* A file on disk, read in pieces — enough of a File for the tag parsers
+   without ever holding a whole record in memory. */
+function diskFile(rec,url){
+  const size=rec.size;
+  const grab=async(a,b)=>{
+    const end=Math.min(b===undefined?size:b,size||Infinity);
+    const res=await fetch(url,{headers:{Range:"bytes="+a+"-"+Math.max(a,end-1)}});
+    if(!res.ok)throw new Error("could not read "+rec.name+" ("+res.status+")");
+    const buf=await res.arrayBuffer();
+    // a server that ignores Range hands back the whole file instead
+    if(res.status!==206&&buf.byteLength>end-a)return buf.slice(a,end);
+    return buf;
+  };
+  return{
+    name:rec.name,size,adoptPath:rec.path,webkitRelativePath:rec.path,
+    slice:(a,b)=>({arrayBuffer:()=>grab(a,b)}),
+    arrayBuffer:()=>grab(0,size),
+  };
+}
+async function adoptLibrary(){
+  if(!NATIVE){toast("Adoption needs the installed app — its Music folder is what Files writes into");return}
+  toast("Reading Files → ISOLATION → Music…");
+  const found={audio:[],images:[]};
+  await walkMusic(AUDIO_DIR,found,0);
+  if(!found.audio.length){
+    toast("No audio in Files → ISOLATION → Music yet — copy your folders in there first");
+    return;
+  }
+  // a file this app already catalogued is not a discovery
+  const known=new Set();
+  state.tracks.forEach(list=>list.forEach(t=>{if(t.path)known.add(t.path)}));
+  const fresh=found.audio.filter(a=>!known.has(a.path));
+  if(!fresh.length){toast("Everything in that folder is already in your sky");return}
+
+  // one album per folder that holds audio, in the order they were found
+  const dirOf=p=>p.split("/").slice(0,-1).join("/");
+  const dirs=new Map();
+  fresh.forEach(rec=>{
+    const d=dirOf(rec.path);
+    if(!dirs.has(d))dirs.set(d,[]);
+    dirs.get(d).push(rec);
+  });
+  const imagesByDir=new Map();
+  found.images.forEach(rec=>{
+    const d=dirOf(rec.path);
+    if(!imagesByDir.has(d))imagesByDir.set(d,[]);
+    imagesByDir.get(d).push(rec);
+  });
+
+  /* Taken in chunks: a few dozen folders at a time keeps memory flat
+     however large the collection is, and the sky fills as it goes
+     rather than after an hour of nothing. */
+  const order=[...dirs.keys()];
+  const CHUNK=20, before=state.albums.length;
+  for(let i=0;i<order.length;i+=CHUNK){
+    const slice=order.slice(i,i+CHUNK);
+    const files=[];
+    for(const d of slice){
+      for(const rec of dirs.get(d)){
+        try{files.push(diskFile(rec,await diskURL(rec)))}catch(e){}
+      }
+      // the folder's own cover, if the tags don't carry one
+      for(const im of(imagesByDir.get(d)||[]).slice(0,3)){
+        if(im.size>12e6)continue;
+        try{
+          const blob=await(await fetch(await diskURL(im))).blob();
+          const f=new File([blob],im.name,{type:blob.type||"image/jpeg"});
+          Object.defineProperty(f,"webkitRelativePath",{value:im.path});
+          files.push(f);
+        }catch(e){}
+      }
+    }
+    toast(`Adopting folders ${i+1}–${Math.min(order.length,i+CHUNK)} of ${order.length}…`);
+    if(files.length)await importFiles(files,{perFolder:true,quiet:true});
+  }
+  const added=state.albums.length-before;
+  toast(added?`${added} album${added>1?"s":""} adopted — nothing was copied, nothing moved`
+             :"Nothing new to adopt",!!added);
+}
+if(NATIVE){
+  $("#btnAdopt").style.display="";
+  $("#adoptNote").style.display="";
+  $("#btnAdopt").addEventListener("click",async()=>{
+    const b=$("#btnAdopt");
+    b.disabled=true;
+    try{await adoptLibrary()}
+    catch(e){toast("Adoption stopped — "+((e&&e.message)||e))}
+    finally{b.disabled=false;importProgress(1,1)}
+  });
+}
 
 const AUD_RE=/\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i, IMG_RE=/\.(jpe?g|png|gif|webp)$/i;
 /* zips unpack in place; loose images ride along as candidate album art;
@@ -2361,11 +2518,13 @@ function folderArt(images,folder){
   return c[0].blob;
 }
 async function importFiles(rawFiles,opts={}){
-  toast(`Reading ${rawFiles.length} file${rawFiles.length>1?"s":""}\u2026`);
+  // an adoption run calls this many times over; it speaks for itself
+  const say=(msg,gold)=>{if(!opts.quiet)toast(msg,gold)};
+  say(`Reading ${rawFiles.length} file${rawFiles.length>1?"s":""}\u2026`);
   const {batches,backup,images}=await expandInputFiles(rawFiles);
   if(backup){await restoreBackup(backup);return}
   const total=batches.reduce((n,b)=>n+b.files.length,0);
-  if(!total){toast("No audio found in that selection");return}
+  if(!total){say("No audio found in that selection");return}
   const mode=opts.perFolder?"folder":(state.settings.groupMode||"single");
   const before=state.albums.length;
   const newAlbums=[];
@@ -2377,8 +2536,10 @@ async function importFiles(rawFiles,opts={}){
     for(const f of batch.files){
       let meta={};
       try{meta=await readMeta(f)}catch(e){meta={title:f.name.replace(/\.[^.]+$/,"")}}
-      const folder=(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||"";
-      items.push({file:f,meta,folder});
+      const rel=(f.webkitRelativePath||"").split("/");
+      const folder=rel.slice(-2,-1)[0]||"";              // the name you'd read
+      const folderKey=rel.slice(0,-1).join("/")||"";     // the one that's unique
+      items.push({file:f,meta,folder,folderKey});
       if(++parsed%8===0)await new Promise(r=>setTimeout(r,0)); // breathe
     }
     for(const g of groupItems(items,mode)){
@@ -2458,8 +2619,8 @@ async function importFiles(rawFiles,opts={}){
   onAlbumsAdded(newAlbums,before);
   renderLibrary();updateStorage();
   if(failed.length)toast(`${failed.length} album${failed.length>1?"s":""} could not be stored — ${(lastErr&&lastErr.message)||lastErr||"unknown error"}`);
-  if(skipped.length)toast(`${skipped.length} album${skipped.length>1?"s":""} already in your sky — skipped`);
-  if(newAlbums.length)toast(`${newAlbums.length} album${newAlbums.length>1?"s":""} catalogued — ${newAlbums.length} new star${newAlbums.length>1?"s":""}`,true);
+  if(skipped.length)say(`${skipped.length} album${skipped.length>1?"s":""} already in your sky — skipped`);
+  if(newAlbums.length)say(`${newAlbums.length} album${newAlbums.length>1?"s":""} catalogued — ${newAlbums.length} new star${newAlbums.length>1?"s":""}`,true);
   requestPersist(); // a real collection exists now — ask the OS to protect it
   if(AeonCore.shouldAutoEnrich(state.settings,newAlbums))enrichAlbums(newAlbums);
 }
