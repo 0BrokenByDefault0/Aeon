@@ -587,6 +587,41 @@ server.listen(PORT);
       kept: before.every((p, i) => Math.abs(p[0] - after[i][0]) < 2 && Math.abs(p[1] - after[i][1]) < 2),
     };
   });
+  /* Worlds are the largest things in the sky, so where they are put is
+     the whole of whether they belong there. A world must never sit on a
+     genre's region, in the band above it where its name is set, or on
+     another world — the failure that made them look dropped in. */
+  const worlds = await page.evaluate(() => {
+    for (let i = 0; i < 90; i++) {
+      const a = { id: "w-" + i, title: "R" + i, artist: "A" + (i % 11), genre: ["a", "b", "c", "d"][i % 4],
+        year: 2000, seq: ++seqCounter, added: Date.now(), mock: true, tracks: 1 };
+      state.albums.push(a); state.tracks.set(a.id, []);
+    }
+    sky.rebuild();
+    const ws = sky.worlds(), rs = sky.regions();
+    const hits = { onRegion: 0, onName: 0, onEachOther: 0 };
+    for (const w of ws) {
+      for (const G of rs) {
+        if (Math.hypot(w.x - G.lx, w.y - G.ly) < G.r + w.r) hits.onRegion++;
+        const overhead = Math.abs(w.x - G.lx) < G.r * .9;
+        const top = G.ly - G.r * .9;
+        if (overhead && w.y < top + w.r && w.y > top - 110 - w.r) hits.onName++;
+      }
+      for (const v of ws) if (v !== w && Math.hypot(v.x - w.x, v.y - w.y) < v.r + w.r) hits.onEachOther++;
+    }
+    /* the sky's own reach — a world should be within it, in the dark
+       between the clusters, not banished to a rim nobody pans to */
+    const skyR = Math.max(320, ...rs.map(G => Math.hypot(G.lx, G.ly) + G.r));
+    const outside = ws.filter(w => Math.hypot(w.x, w.y) - w.r > skyR * 1.05).length;
+    return { n: ws.length, ...hits, outside, skyR: Math.round(skyR),
+      kinds: new Set(ws.map(w => w.type)).size };
+  });
+  ok("a world never sits on a genre's region", worlds.onRegion === 0, worlds);
+  ok("nor under its name", worlds.onName === 0, worlds);
+  ok("nor on another world", worlds.onEachOther === 0, worlds);
+  ok("worlds stay within the sky, not exiled past it", worlds.outside === 0, worlds);
+  ok("and there are several kinds of them", worlds.kinds >= 3, worlds);
+
   ok("a figure is a tree, one line per new record", fig.edges === fig.stars - 1, fig);
   ok("it is lopsided, not a ring", fig.spreadDeep > 0.15 && fig.spreadShallow > 0.15, fig);
   ok("a large figure branches", fig.junctions >= 1, fig);

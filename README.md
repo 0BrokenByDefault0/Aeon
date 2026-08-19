@@ -60,10 +60,16 @@ name rather than laid out on a circle: a spine that wanders, limbs that
 branch off it once the artist runs deep enough, no two arms the same
 length, and nothing closing back on itself. Because it grows in
 sequence, buying their next record extends the figure instead of
-rearranging the shape you already recognise. Worlds are lit
-from a single sun shared by the whole sky — a dark sphere, a bright
-crescent along the lit limb, an atmosphere that dies at the terminator,
-and nothing else. The camera is a critically damped spring, so it settles
+rearranging the shape you already recognise. Worlds are not painted, they
+are drawn — in the same colour at the same hairline weight as everything
+else, and their mass shows in what they hide rather than in what they
+put on screen: a world is a place the stars are not. One line closes it,
+bright where the sun strikes and gone by the terminator, with a
+graticule engraved across it like a globe on an atlas plate. They differ
+in what is ruled on them, never in colour, and they stand in the dark
+between the genre clusters — never over a region, never under its name.
+
+The camera is a critically damped spring, so it settles
 without ever ringing, and on launch the collection assembles outward from
 the centre. There is no film grain; instead the transmission stutters
 every so often, a couple of hairline bands for a tenth of a second.

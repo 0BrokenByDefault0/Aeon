@@ -1214,7 +1214,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.3 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.4 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -3476,18 +3476,54 @@ const sky=(()=>{
         lineProg:old?old.lineProg:1,nameA:old?old.nameA:0});
     }));
 
-    // planets — one wakes for every twenty albums
+    /* ── planets — one wakes for every twenty albums ──
+       A world belongs at the rim, out past the collection it presides
+       over. The old placement put the first ones at a fraction of the
+       sky's radius, which dropped them into the middle of the regions
+       and underneath their names. Now a world is only ever placed where
+       it clears every region, every region's name, and every other
+       world — searching outward until it finds such a place. */
     const nP=Math.floor(stars.length/20);
     const oldN=planets.length,oldP=planets;
     planets=[];
     const skyR=Math.max(320,...regions.map(G=>Math.hypot(G.x,G.y)+G.r));
+    /* a genre's name is set above its region and read from far out, so
+       the space over a region is spoken for even though nothing is
+       drawn there */
+    const clearOfSky=(x,y,r)=>regions.every(G=>{
+      if(Math.hypot(x-G.lx,y-G.ly)<G.r*1.12+r+70)return false;
+      const overhead=Math.abs(x-G.lx)<G.r*.95+r*.6;
+      return!(overhead&&y<G.ly-G.r*SQ+r*.4&&y>G.ly-G.r*SQ-130-r*.5);
+    });
     for(let p=0;p<nP;p++){
-      const ang=p*2.1+2.6+spin, rad=(skyR+190)*Math.sqrt((p+1)/Math.max(1,nP));
+      const r=96+((hashStr("p"+p+skySeed)%48));
+      const spinP=spin+(hashStr("orb"+p+skySeed)%628)/100;
+      const free=(x,y)=>clearOfSky(x,y,r)
+        &&planets.every(q=>Math.hypot(q.x-x,q.y-y)>(q.r+r)*2.1);
+      let pos=null;
+      /* A world belongs in the sky's own empty space — the dark between
+         the genre clusters — where a large body has room and nothing to
+         crowd. Only if the sky has no such gap left does one take up a
+         place beyond the rim. */
+      for(let g=0;g<320&&!pos;g++){
+        const ang=spinP+g*2.39996;                       // the same golden turn
+        const rad=skyR*(.34+.72*((g%46)/46))+r*.15;
+        const x=Math.cos(ang)*rad, y=Math.sin(ang)*rad*.92;
+        if(free(x,y))pos={x,y};
+      }
+      for(let g=0;g<120&&!pos;g++){
+        const ang=spinP+g*2.39996;
+        const rad=(skyR+r*1.2+40)*(1+g*.014);
+        const x=Math.cos(ang)*rad*.8, y=Math.sin(ang)*rad;
+        if(free(x,y))pos={x,y};
+      }
+      if(!pos){const a=spinP,d=skyR+r*1.2+40+p*r*3;pos={x:Math.cos(a)*d*.8,y:Math.sin(a)*d}}
       planets.push({
-        x:Math.cos(ang)*rad, y:Math.sin(ang)*rad*.7,
-        type:(p+skySeed)%5, r:96+((hashStr("p"+p+skySeed)%48)),
-        ring:hashStr("ring"+p+skySeed)%4===0,
-        tilt:(hashStr("tilt"+p+skySeed)%628)/100,
+        x:pos.x, y:pos.y,
+        type:(p+skySeed)%5, r,
+        /* worlds in one scene lean by a little, not by anything: a
+           wild tilt turns ruled latitudes into diagonal hatching */
+        tilt:((hashStr("tilt"+p+skySeed)%100)/100-.5)*.85,
         born:p<oldN?(oldP[p]&&oldP[p].born||0):performance.now()
       });
     }
@@ -3506,7 +3542,9 @@ const sky=(()=>{
       x0=Math.min(x0,G.lx-G.r);x1=Math.max(x1,G.lx+G.r);
       y0=Math.min(y0,G.ly-G.r*SQ-30);y1=Math.max(y1,G.ly+G.r*SQ);
     });
-    planets.forEach(p=>{x0=Math.min(x0,p.x-p.r*2);y0=Math.min(y0,p.y-p.r*2);x1=Math.max(x1,p.x+p.r*2);y1=Math.max(y1,p.y+p.r*2)});
+    // a world takes up its own width now, not the width of a halo
+    planets.forEach(p=>{const w=p.r*1.15;
+      x0=Math.min(x0,p.x-w);y0=Math.min(y0,p.y-w);x1=Math.max(x1,p.x+w);y1=Math.max(y1,p.y+w)});
     const pad=90;x0-=pad;y0-=pad;x1+=pad;y1+=pad;
     let cx=(x0+x1)/2, cy=(y0+y1)/2;
     /* The sky is a place you stand in, not a diagram you fit on a page.
@@ -3692,90 +3730,106 @@ const sky=(()=>{
     if(selected)openAlbum(selected.album.id);
   });
 
-  /* ── planets: five textured worlds, prerendered, rotating for real ──
-        the texture strip scrolls behind a clipped disk; shading, rings,
-        atmosphere and moons are composited live on top.               */
   /* ── worlds ──
-     Not drawings of planets: photographs of them. Every world in the sky is
-     lit from the same direction, so the whole collection reads as one scene
-     under one sun. A world is a dark sphere, a thin bright crescent along
-     the lit limb, an atmosphere that catches the light and dies before it
-     reaches the far side, and nothing else. No bands, no craters, no moons.
-     The restraint is what makes it look expensive. */
+     Nothing here is painted. A world is drawn the way everything else in
+     this sky is drawn — in one colour, at one hairline weight — and its
+     mass is shown by what it hides rather than by what it puts on the
+     screen: it is a place the stars are not. A single line closes it,
+     bright where the sun strikes and gone by the terminator, and a
+     graticule is engraved across it like a globe on an atlas plate.
+     It is the largest thing in the sky and the quietest. */
   const LIGHT={x:-.56,y:-.63};
   const LANG=Math.atan2(LIGHT.y,LIGHT.x);
+  const BONE="233,228,217";
+  /* Worlds differ in what is engraved on them, never in colour: how many
+     latitudes are ruled, how many meridians, how firmly, and whether a
+     ring passes behind and in front. */
   const PLANET_KINDS=[
-    {name:"a rust world",   core:"#4a2419", rim:"#ffbe93", halo:"255,163,112"},
-    {name:"an ice world",   core:"#1c2c3e", rim:"#cbe4ff", halo:"158,205,255"},
-    {name:"an ember world", core:"#3e1b14", rim:"#ffa679", halo:"255,132,88"},
-    {name:"a pale world",   core:"#2f2c27", rim:"#f6efe1", halo:"244,236,219"},
-    {name:"a deep world",   core:"#211d33", rim:"#d3c8ff", halo:"188,176,255"},
+    {name:"a quiet world",  lat:[0],              mer:2, eng:.115, ring:false},
+    {name:"a banded world", lat:[-58,-29,0,29,58],mer:0, eng:.130, ring:false},
+    {name:"a ringed world", lat:[0],              mer:2, eng:.105, ring:true },
+    {name:"a pale world",   lat:[],               mer:3, eng:.095, ring:false},
+    {name:"a far world",    lat:[-29,29],         mer:1, eng:.085, ring:true },
   ];
-  function ringHalf(x2,R,K,alpha,front){
+  /* the ring, in halves, so it passes behind the world and then in front */
+  function ringHalf(x2,R,alpha,front){
     x2.save();
-    x2.globalAlpha=alpha;
-    x2.strokeStyle=K.rim;
     for(let i=0;i<2;i++){
-      x2.lineWidth=Math.max(.45,R*(.010-i*.004));
-      x2.globalAlpha=alpha*(1-i*.45);
+      x2.globalAlpha=alpha*(1-i*.55);
+      x2.strokeStyle="rgba("+BONE+",1)";
+      x2.lineWidth=Math.max(.5/cam.s,R*(.007-i*.0025));
       x2.beginPath();
-      x2.ellipse(0,0,R*(1.62+i*.17),R*(.40+i*.05),0,
+      x2.ellipse(0,0,R*(1.58+i*.16),R*(.38+i*.045),0,
         front?0:Math.PI, front?Math.PI:Math.PI*2);
       x2.stroke();
     }
     x2.restore();
   }
+  /* latitudes foreshorten toward the poles, meridians close at them —
+     the minimum that reads as a sphere rather than a circle */
+  function graticule(x2,R,tilt,K,a){
+    if(!K.lat.length&&!K.mer)return;
+    x2.save();
+    x2.rotate(tilt);
+    x2.globalAlpha=a*K.eng;
+    x2.strokeStyle="rgba("+BONE+",1)";
+    x2.lineWidth=Math.max(.5/cam.s,R*.0038);
+    for(const d of K.lat){
+      const rad=d*Math.PI/180;
+      const rx=Math.cos(rad)*R, y=-Math.sin(rad)*R;
+      x2.beginPath();x2.ellipse(0,y,rx,rx*.21,0,0,6.283);x2.stroke();
+    }
+    /* A meridian and its opposite project to one and the same ellipse,
+       so they are ruled by how wide they appear rather than by longitude
+       — otherwise half of them are drawn twice on top of each other. */
+    for(let k=1;k<=K.mer;k++){
+      const rx=Math.cos(k*Math.PI/(2*(K.mer+1)))*R;
+      x2.beginPath();x2.ellipse(0,0,rx,R,0,0,6.283);x2.stroke();
+    }
+    x2.restore();
+  }
   function drawPlanet(x2,p,t){
     const K=PLANET_KINDS[p.type];
-    const age=REDUCED?1:clamp((t-p.born)/2800,0,1);
+    const age=REDUCED?1:clamp((t-p.born)/3400,0,1);
     if(age<=0)return;
     const ease=1-Math.pow(1-age,4);
-    const R=p.r*(.88+.12*ease);
+    const R=p.r*(.92+.08*ease);
     x2.save();
     x2.translate(p.x,p.y);
-    x2.globalAlpha=ease;
 
-    // the ring passes behind the world before it passes in front
-    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,K,.30,false);x2.restore()}
+    if(K.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.15*ease,false);x2.restore()}
 
-    // the body: dark, with the faintest interior falloff away from the sun
-    const body=x2.createRadialGradient(LIGHT.x*R*.7,LIGHT.y*R*.7,R*.04,0,0,R);
-    body.addColorStop(0,K.core);
-    body.addColorStop(.62,"#08080c");
-    body.addColorStop(1,"#040407");
-    x2.fillStyle=body;
-    x2.beginPath();x2.arc(0,0,R,0,6.283);x2.fill();
-
-    // the lit crescent, clipped to the sphere
+    /* the body occludes — everything behind it stops here */
     x2.save();
     x2.beginPath();x2.arc(0,0,R,0,6.283);x2.clip();
-    const lit=x2.createRadialGradient(
-      LIGHT.x*R*1.04,LIGHT.y*R*1.04,R*.02,
-      LIGHT.x*R*1.04,LIGHT.y*R*1.04,R*1.72);
-    lit.addColorStop(0,K.rim);
-    lit.addColorStop(.26,`rgba(${K.halo},.30)`);
-    lit.addColorStop(.58,"rgba(0,0,0,0)");
-    x2.fillStyle=lit;x2.fillRect(-R,-R,R*2,R*2);
+    x2.globalAlpha=ease;
+    x2.fillStyle="#050506";
+    x2.fillRect(-R,-R,R*2,R*2);
+    // the faintest sense of a sunlit side, in bone, never in colour
+    const lift=x2.createRadialGradient(LIGHT.x*R*.72,LIGHT.y*R*.72,R*.05,0,0,R*1.18);
+    lift.addColorStop(0,"rgba("+BONE+",.075)");
+    lift.addColorStop(.5,"rgba("+BONE+",.020)");
+    lift.addColorStop(1,"rgba("+BONE+",0)");
+    x2.fillStyle=lift;x2.fillRect(-R,-R,R*2,R*2);
+    graticule(x2,R,p.tilt,K,ease);
     x2.restore();
 
-    // atmosphere: a hairline that burns at the limb and dies at the terminator
-    const rim=x2.createLinearGradient(
+    /* one line closes the world: it burns at the limb the sun strikes and
+       has died by the time it reaches the terminator */
+    const g=x2.createLinearGradient(
       Math.cos(LANG)*R,Math.sin(LANG)*R,-Math.cos(LANG)*R,-Math.sin(LANG)*R);
-    rim.addColorStop(0,`rgba(${K.halo},.95)`);
-    rim.addColorStop(.38,`rgba(${K.halo},.24)`);
-    rim.addColorStop(.70,"rgba(0,0,0,0)");
-    x2.strokeStyle=rim;
-    x2.lineWidth=Math.max(.55,R*.013);
-    x2.beginPath();x2.arc(0,0,R*.996,0,6.283);x2.stroke();
+    g.addColorStop(0,"rgba("+BONE+",.95)");
+    g.addColorStop(.30,"rgba("+BONE+",.44)");
+    g.addColorStop(.62,"rgba("+BONE+",.11)");
+    g.addColorStop(1,"rgba("+BONE+",0)");
+    x2.globalAlpha=ease;
+    x2.strokeStyle=g;
+    /* a hairline is a hairline at every zoom — the same rule the
+       constellations follow, so a world never thins into nothing */
+    x2.lineWidth=Math.max(1.15/cam.s,R*.0062);
+    x2.beginPath();x2.arc(0,0,R*.997,0,6.283);x2.stroke();
 
-    // the light it throws into the dark around it
-    const halo=x2.createRadialGradient(0,0,R*.97,0,0,R*1.62);
-    halo.addColorStop(0,`rgba(${K.halo},.13)`);
-    halo.addColorStop(1,"rgba(0,0,0,0)");
-    x2.fillStyle=halo;
-    x2.beginPath();x2.arc(0,0,R*1.62,0,6.283);x2.fill();
-
-    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,K,.55,true);x2.restore()}
+    if(K.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.34*ease,true);x2.restore()}
     x2.restore();
   }
 
@@ -3911,9 +3965,6 @@ const sky=(()=>{
       }
     });
 
-    // planets
-    planets.forEach(p=>drawPlanet(xW,p,t));
-
     // stars — first light, materialisation, twinkle, spectrum glow
     const glowMul=1+bass*.85+mids*.28;
     const boot=REDUCED?1:clamp((t-bootAt)/2200,0,1);
@@ -3955,6 +4006,11 @@ const sky=(()=>{
       }
       xW.globalAlpha=1;
     });
+
+    /* Worlds come last, so they stand in front of the sky rather than
+       having it painted over them: a world you can see stars through is
+       not a world. */
+    planets.forEach(p=>drawPlanet(xW,p,t));
     xW.restore();
 
     // keep the tapped-star label pinned to its star
@@ -3989,6 +4045,8 @@ const sky=(()=>{
   }
   return{init,rebuild,materialize,ceremonyConstellation,ceremonyPlanet,focusAlbum,updateHUD,banner,flyTo,
     constellations:()=>csts,regions:()=>regions,worlds:()=>planets,
+    // where the camera actually is, so a test can ask what is in frame
+    frame:()=>({cx:cam.cx,cy:cam.cy,s:cam.s,w:W,h:H}),
     look(x,y,scale){manual=true;cam.tcx=x;cam.tcy=y;cam.ts=scale},
     clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
 })();
