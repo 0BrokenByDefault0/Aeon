@@ -210,6 +210,8 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
 
 /* ── LIBRARY grid ── */
 #libGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+/* the mark that asks for the next page of the grid; it draws nothing */
+#libMore{height:1px}
 @media(min-width:560px){#libGrid{grid-template-columns:repeat(3,1fr)}}
 .alb{
   border:1px solid var(--line-soft);border-radius:var(--r-md);overflow:hidden;
@@ -1073,6 +1075,7 @@ input[type=range].hseek::-webkit-slider-thumb{
     <button class="sortc" data-sort="plays">PLAYED</button>
   </div>
   <div id="libGrid"></div>
+  <div id="libMore" aria-hidden="true"></div>
   <div id="libNoMatch" class="empty" style="display:none">
     <div class="e-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></div>
     <i>Nothing in the catalog answers to that.</i><br>Try fewer words, or another spelling.
@@ -1214,7 +1217,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.4 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.5 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -2211,9 +2214,17 @@ const B64_STEP=4194303; // a multiple of 3, so chunks concatenate cleanly
 async function writeFileChunked(path,blob){
   const fs=FS();
   await fs.writeFile({path,data:"",directory:"DOCUMENTS",recursive:true});
-  for(let off=0;off<blob.size;off+=B64_STEP){
-    const end=Math.min(blob.size,off+B64_STEP);
-    await fs.appendFile({path,data:await blobSliceB64(blob,off,end),directory:"DOCUMENTS"});
+  try{
+    for(let off=0;off<blob.size;off+=B64_STEP){
+      const end=Math.min(blob.size,off+B64_STEP);
+      await fs.appendFile({path,data:await blobSliceB64(blob,off,end),directory:"DOCUMENTS"});
+    }
+  }catch(e){
+    /* A write that fails part way — most often a full disk — used to
+       leave its half a file behind, taking up the very space that was
+       short. Take the fragment back out before reporting the failure. */
+    try{await fs.deleteFile({path,directory:"DOCUMENTS"})}catch(_){}
+    throw e;
   }
 }
 /* keep a file's real extension so iOS picks the right decoder */
@@ -3087,7 +3098,22 @@ function togglePlay(){
   if(audio.paused)audio.play().catch(()=>{});else audio.pause();
 }
 audio.addEventListener("ended",()=>{
+  badTracks=0;                               // a track that finished is a good track
   if(state.settings.repeat==="one"){audio.currentTime=0;audio.play().catch(()=>{});return}
+  nextTrack();
+});
+/* A file the device cannot decode — a missing path, a codec iOS will not
+   take, a truncated download — used to stop the queue dead and say
+   nothing. Now it says which record it was and moves on; if a whole run
+   of them fails, it stops rather than racing through the queue. */
+let badTracks=0;
+audio.addEventListener("error",()=>{
+  if(!audio.src||audio.src==="")return;
+  const q=state.queue[state.qIndex];
+  const trk=q&&trackById(q.albumId,q.trackId);
+  const name=(trk&&trk.title)||"That track";
+  if(++badTracks>=4){badTracks=0;toast(`${name} won't play, and nor would the last few — stopping`);return}
+  toast(`${name} won't play on this device — skipping`);
   nextTrack();
 });
 audio.addEventListener("play",()=>{
@@ -3471,8 +3497,15 @@ const sky=(()=>{
     regions.forEach(G=>G.artists.forEach(A=>{
       if(A.albums.length<2)return;
       const old=prev.get(A.key);
+      /* the figure's own extent, worked out once, so a frame can skip a
+         constellation that is nowhere near the screen without touching
+         each of its stars to find out */
+      let bx0=1e9,by0=1e9,bx1=-1e9,by1=-1e9;
+      A.stars.forEach(s=>{bx0=Math.min(bx0,s.x);by0=Math.min(by0,s.y);
+        bx1=Math.max(bx1,s.x);by1=Math.max(by1,s.y)});
       csts.push({key:A.key,name:A.name,col:G.col,stars:A.stars,
         edges:A.fig.edges,cx:A.cx,cy:A.cy,region:G,
+        bx0,by0,bx1,by1,
         lineProg:old?old.lineProg:1,nameA:old?old.nameA:0});
     }));
 
@@ -3834,11 +3867,30 @@ const sky=(()=>{
   }
 
   /* ── main loop ── */
-  let last=0;
+  let last=0, drawn=0;
   function frame(t){
     requestAnimationFrame(frame);
     const dt=Math.min(33,t-last);last=t;
     const onSky=document.body.dataset.tab==="sky";
+    /* Nothing is drawn for a sky nobody is looking at. Standing on the
+       Library tab used to cost a full sky render sixty times a second —
+       every star, every gradient — for pixels behind an opaque panel.
+       The canvases keep their last frame, so coming back is instant. */
+    if(!onSky)return;
+    drawn++;
+    /* A single bad number would blank the sky for good, since every
+       frame after it multiplies by it. The target is checked as well as
+       the position: cleaning the position alone would leave the spring
+       pulling towards the bad number and spoiling it again next frame. */
+    if(!isFinite(cam.tcx))cam.tcx=0;
+    if(!isFinite(cam.tcy))cam.tcy=0;
+    if(!isFinite(cam.ts)||cam.ts<=0)cam.ts=1;
+    if(ceremonyTarget&&!(isFinite(ceremonyTarget.cx)&&isFinite(ceremonyTarget.cy)
+      &&isFinite(ceremonyTarget.s)&&ceremonyTarget.s>0))ceremonyTarget=null;
+    if(!isFinite(cam.cx)||!isFinite(cam.cy)||!isFinite(cam.s)||cam.s<=0){
+      cam.cx=cam.tcx;cam.cy=cam.tcy;cam.s=cam.ts;
+      cam.v_cx=cam.v_cy=cam.v_s=0;
+    }
     // fft — the universe pulses with the bass
     if(state.settings.fft&&analyser&&!audio.paused){
       analyser.getByteFrequencyData(fftBuf);
@@ -3890,12 +3942,24 @@ const sky=(()=>{
        a silent band between them. */
     const artistZoom=clamp((cam.s-.66)/.26,0,1);
     const genreZoom=clamp((.50-cam.s)/.14,0,1);
+    /* What the screen actually covers, in world units. A collection of a
+       few thousand albums puts most of itself off-frame at any moment;
+       everything below asks this first and draws nothing it cannot see. */
+    const halfW=W/(2*cam.s), halfH=H/(2*cam.s);
+    const vx0=cam.cx-halfW, vx1=cam.cx+halfW, vy0=cam.cy-halfH, vy1=cam.cy+halfH;
+    const inView=(x0,y0,x1,y1)=>x1>=vx0&&x0<=vx1&&y1>=vy0&&y0<=vy1;
     /* A region is a place, not a diagram. The dashed ring that used to
        enclose each genre read as a wireframe and broke the illusion that
        you were looking at a sky, so it is gone: what marks a region now is
        a breath of its own light and, from far enough out, its name. */
     if(regions.length){
-      regions.forEach(G=>{
+      /* a region reaches r*1.15, plus the band overhead where its name is
+         set — measured generously so a label never pops in at the edge */
+      const seen=regions.filter(G=>{
+        const R=G.r*1.15, Ry=R*SQ+(genreZoom>.02?40/cam.s:0);
+        return inView(G.lx-R,G.ly-Ry,G.lx+R,G.ly+Ry);
+      });
+      seen.forEach(G=>{
         const haze=xW.createRadialGradient(G.lx,G.ly,0,G.lx,G.ly,G.r*1.15);
         haze.addColorStop(0,hexA(G.col,.050+genreZoom*.030));
         haze.addColorStop(.55,hexA(G.col,.018));
@@ -3905,7 +3969,7 @@ const sky=(()=>{
       });
       if(genreZoom>.02){
         xW.textAlign="center";
-        regions.forEach(G=>{
+        seen.forEach(G=>{
           xW.globalAlpha=genreZoom*.5;
           xW.font=`${10.5/cam.s}px ui-monospace,'SF Mono',Menlo,monospace`;
           xW.fillStyle=G.col;
@@ -3927,7 +3991,11 @@ const sky=(()=>{
     csts.forEach((m,ci)=>{
       const pts=m.stars;
       if(!pts||pts.length<2)return;
+      // the line keeps drawing itself whether or not anyone is watching
       if(m.lineProg<1)m.lineProg=Math.min(1,m.lineProg+dt/2200);
+      // …but a figure off the edge of the screen costs nothing to skip
+      const pad=44/cam.s;
+      if(!inView(m.bx0-pad,m.by0-pad,m.bx1+pad,m.by1+pad)){m.nameA=0;return}
       const pulse=REDUCED?.55:(.42+Math.sin(t/2600+ci)*.10+bass*.20);
       xW.lineWidth=.85/cam.s;
       xW.strokeStyle=m.col;xW.globalAlpha=pulse;
@@ -3968,7 +4036,14 @@ const sky=(()=>{
     // stars — first light, materialisation, twinkle, spectrum glow
     const glowMul=1+bass*.85+mids*.28;
     const boot=REDUCED?1:clamp((t-bootAt)/2200,0,1);
+    /* Materialisation records used to be cleared by the star that drew
+       them; a star off the edge of the screen no longer draws, so they
+       are swept by age instead and cannot accumulate. */
+    if(births.size)for(const [id,b] of births)if(t-b>2600)births.delete(id);
+    /* the widest a star's glow can reach, so culling never clips one */
+    const spad=90/Math.sqrt(cam.s)+24/cam.s;
     stars.forEach(s=>{
+      if(s.x<vx0-spad||s.x>vx1+spad||s.y<vy0-spad||s.y>vy1+spad)return;
       let a=1,scale=1;
       if(boot<1){
         // the sky assembles outward from where you are looking
@@ -4010,7 +4085,10 @@ const sky=(()=>{
     /* Worlds come last, so they stand in front of the sky rather than
        having it painted over them: a world you can see stars through is
        not a world. */
-    planets.forEach(p=>drawPlanet(xW,p,t));
+    planets.forEach(p=>{
+      const R=p.r*1.75;                 // the ring reaches wider than the body
+      if(inView(p.x-R,p.y-R,p.x+R,p.y+R))drawPlanet(xW,p,t);
+    });
     xW.restore();
 
     // keep the tapped-star label pinned to its star
@@ -4047,7 +4125,13 @@ const sky=(()=>{
     constellations:()=>csts,regions:()=>regions,worlds:()=>planets,
     // where the camera actually is, so a test can ask what is in frame
     frame:()=>({cx:cam.cx,cy:cam.cy,s:cam.s,w:W,h:H}),
-    look(x,y,scale){manual=true;cam.tcx=x;cam.tcy=y;cam.ts=scale},
+    // how many frames have actually been painted, so idling is provable
+    framesDrawn:()=>drawn,
+    look(x,y,scale){
+      // a caller with a bad number does not get to poison the camera
+      if(!(isFinite(x)&&isFinite(y)&&isFinite(scale)&&scale>0))return;
+      manual=true;cam.tcx=x;cam.tcy=y;cam.ts=scale;
+    },
     clearSelection(){selected=null;$("#starLabel").classList.remove("show")}};
 })();
 
@@ -4304,11 +4388,19 @@ makeSheetsDraggable();
       accents, and word order ("dark floyd" finds Pink Floyd's album) ── */
 let libQuery="";
 const foldSearch=s=>(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+/* The same answer, reached the cheap way first. Every keystroke used to
+   flatten each album's whole tracklist into a string before it could
+   rule the album out — thousands of joins per letter typed on a large
+   library. Almost every search is answered by the album's own fields,
+   so the tracklist is only read when they are not enough. */
 function libMatches(a){
   if(!libQuery)return true;
-  const hay=foldSearch(a.title+" "+a.artist+" "+(a.genre||"")+" "+(a.year||"")+" "
-    +(state.tracks.get(a.id)||[]).map(t=>t.title).join(" "));
-  return libQuery.split(/\s+/).every(tok=>hay.includes(tok));
+  const toks=libQuery.split(/\s+/).filter(Boolean);
+  const head=foldSearch(a.title+" "+a.artist+" "+(a.genre||"")+" "+(a.year||""));
+  const rest=toks.filter(tok=>!head.includes(tok));
+  if(!rest.length)return true;
+  const deep=foldSearch((state.tracks.get(a.id)||[]).map(t=>t.title).join(" "));
+  return rest.every(tok=>deep.includes(tok));
 }
 {
   const inp=$("#libSearchIn"),clr=$("#libSearchClr");
@@ -4341,18 +4433,17 @@ function sortAlbums(list){
   };
   return list.sort(by[libSortMode]||by.added);
 }
-function renderLibrary(){
-  const g=$("#libGrid");
-  const all=sortAlbums([...state.albums]);
-  const albs=all.filter(libMatches);
-  $("#libSearch").style.display=all.length?"":"none";
-  $("#libEmpty").style.display=all.length?"none":"";
-  $("#libNoMatch").style.display=(all.length&&!albs.length)?"":"none";
-  if(libQuery)$("#libSub").textContent=`${albs.length} of ${all.length} album${all.length>1?"s":""} answer`;
-  else $("#libSub").textContent=all.length?skyCensus():"Every album here is a star in the sky.";
-  g.innerHTML=albs.map(a=>{
-    const art=artURL(a);
-    return`<div class="albwrap">
+/* ── the grid, a page at a time ──
+   A library of a few thousand records used to be built as one enormous
+   string, parsed into thousands of nodes, and given a click handler per
+   card, every time anything changed. The grid looks exactly the same;
+   it is simply filled a page at a time as it is scrolled, and the whole
+   thing answers to one handler instead of thousands. */
+const LIB_PAGE=90;
+let libRows=[], libShown=0, libIO=null;
+function albumCard(a){
+  const art=artURL(a);
+  return`<div class="albwrap">
       <button class="alb${a.id===state.playingAlbumId?" playing":""}" data-alb="${a.id}" aria-label="${esc(a.title)} by ${esc(a.artist)}">
         <img class="art" src="${art||ART_PH}" alt="" loading="lazy">
         <div class="meta">
@@ -4363,10 +4454,60 @@ function renderLibrary(){
       </button>
       ${a.mock?'<div class="mockchip">MOCK</div>':""}
     </div>`;
-  }).join("");
-  g.querySelectorAll("img.art").forEach(im=>im.onerror=()=>{if(im.getAttribute("src")!==ART_PH)im.src=ART_PH});
-  g.querySelectorAll("[data-alb]").forEach(b=>b.addEventListener("click",()=>openAlbum(b.dataset.alb)));
 }
+function libPage(){
+  if(libShown>=libRows.length)return false;
+  const next=libRows.slice(libShown,libShown+LIB_PAGE);
+  libShown+=next.length;
+  $("#libGrid").insertAdjacentHTML("beforeend",next.map(albumCard).join(""));
+  return libShown<libRows.length;
+}
+function renderLibrary(){
+  const g=$("#libGrid");
+  const all=sortAlbums([...state.albums]);
+  libRows=all.filter(libMatches);
+  libShown=0;
+  $("#libSearch").style.display=all.length?"":"none";
+  $("#libEmpty").style.display=all.length?"none":"";
+  $("#libNoMatch").style.display=(all.length&&!libRows.length)?"":"none";
+  if(libQuery)$("#libSub").textContent=`${libRows.length} of ${all.length} album${all.length>1?"s":""} answer`;
+  else $("#libSub").textContent=all.length?skyCensus():"Every album here is a star in the sky.";
+  g.innerHTML="";
+  if(!window.IntersectionObserver){
+    while(libPage());                    // no observer: build it all, as before
+    return;
+  }
+  fillWhileVisible();
+  if(!libIO){
+    libIO=new IntersectionObserver(es=>{
+      if(es.some(e=>e.isIntersecting))fillWhileVisible();
+    },{rootMargin:"600px 0px"});
+    libIO.observe($("#libMore"));
+  }
+}
+/* An observer only speaks when the answer changes, so one page at a time
+   would stall on a tall screen where the mark never leaves the view.
+   Keep laying pages down while it is still in sight. */
+function fillWhileVisible(){
+  const mark=$("#libMore");
+  for(let guard=0;guard<200;guard++){
+    if(!libPage())return;
+    const r=mark.getBoundingClientRect();
+    if(!r.height&&!r.top&&!r.bottom)return;   // the panel is not on screen
+    if(r.top>innerHeight+600)return;
+  }
+}
+/* One handler for the whole grid, however many cards it holds. */
+$("#libGrid").addEventListener("click",e=>{
+  const b=e.target.closest&&e.target.closest("[data-alb]");
+  if(b&&$("#libGrid").contains(b))openAlbum(b.dataset.alb);
+});
+/* Covers stay covered: a broken image falls back wherever it appears,
+   including cards that had not been built when the grid was drawn. */
+$("#libGrid").addEventListener("error",e=>{
+  const im=e.target;
+  if(im&&im.classList&&im.classList.contains("art")&&im.getAttribute("src")!==ART_PH)im.src=ART_PH;
+},true);
 
 /* ── album sheet + tag editor ── */
 let sheetAlbumId=null;

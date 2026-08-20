@@ -89,6 +89,29 @@ entirely if the browser has already committed the touch to scrolling.
 The player itself never scrolls — on a short phone the sleeve gives up
 height rather than pushing the transport off the bottom.
 
+## What it costs to run
+
+The sky is not drawn for anyone who is not looking at it — standing on
+the Library tab used to cost a full render sixty times a second — and
+nothing off the edge of the screen is drawn at all. The grid is built a
+page at a time as it is scrolled rather than as one enormous string of
+every record at once, and the whole grid answers to one handler instead
+of one per card. Search settles what it can from an album's own fields
+before it will read a tracklist.
+
+Measured on a simulated 2,000-album library at a sixth of normal CPU
+speed, against the version before these changes:
+
+| | before | after |
+|---|---|---|
+| Library first paint | 8320 ms | 1264 ms |
+| Frame rate on the sky | 7.6 fps | 17.0 fps |
+| Frame rate on other tabs | 8.0 fps | 59.8 fps |
+
+Rendered frames were compared pixel by pixel against the previous build
+to confirm none of it changed the picture: the differences fall inside
+the same range the suite produces running the *same* build twice.
+
 ## What's in here
 
 ```

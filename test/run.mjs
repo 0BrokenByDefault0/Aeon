@@ -469,6 +469,135 @@ server.listen(PORT);
   disk.clear();
 }
 
+/* ── one unplayable file must not take the queue down with it ── */
+{
+  console.log("\nbad files");
+  const { ctx, page } = await session();
+  await page.setInputFiles("#fileInput", fixture("split.zip"));
+  await page.waitForTimeout(3500);
+  const res = await page.evaluate(async () => {
+    const a = state.albums[0];
+    const tracks = (state.tracks.get(a.id) || []).slice().sort((x, y) => x.idx - y.idx);
+    playQueue(tracks.map(t => ({ albumId: a.id, trackId: t.id })), 0);
+    await new Promise(r => setTimeout(r, 700));
+    const before = state.qIndex;
+    // a file the device cannot decode, exactly as a bad download behaves
+    audio.src = "data:audio/mpeg;base64,QUJD";
+    audio.load();
+    await new Promise(r => setTimeout(r, 1400));
+    return { before, after: state.qIndex, queue: state.queue.length };
+  });
+  ok("a file that will not play is skipped, not a dead end",
+    res.after === res.before + 1, res);
+  // …but a queue of nothing but bad files stops instead of racing to the end
+  const stopped = await page.evaluate(async () => {
+    for (let i = 0; i < 8; i++) {
+      audio.src = "data:audio/mpeg;base64,QUJD";
+      audio.load();
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return { qIndex: state.qIndex, queue: state.queue.length };
+  });
+  ok("a queue of bad files stops rather than racing through",
+    stopped.qIndex < stopped.queue, stopped);
+  await ctx.close();
+}
+
+/* ── a large collection stays cheap ── */
+{
+  console.log("\nscale");
+  const { ctx, page } = await session();
+  const N = 1200;
+  await page.evaluate(n => {
+    const G = ["electronic", "ambient", "post-rock", "jazz", "dubstep", "industrial"];
+    for (let i = 0; i < n; i++) {
+      const a = { id: "s-" + i, title: "Record " + i, artist: "Artist " + (i % 150),
+        genre: G[i % 6], year: 1990 + (i % 30), seq: ++seqCounter, added: Date.now(),
+        mock: true, trackCount: 9, tracks: 1 };
+      state.albums.push(a);
+      state.tracks.set(a.id, [{ id: a.id + "-t1", albumId: a.id, idx: 1, title: "Bellwether Hymn " + i }]);
+    }
+    sky.rebuild(); renderLibrary();
+  }, N);
+  await page.waitForTimeout(1200);
+
+  /* the grid is built a page at a time — the whole library as one string
+     was what made a big collection take seconds to show anything */
+  const first = await page.evaluate(() => document.querySelectorAll("#libGrid [data-alb]").length);
+  ok("the grid builds a page at a time", first > 0 && first < N, { first, N });
+
+  // and everything is still reachable by scrolling
+  const grown = await page.evaluate(async () => {
+    switchTab("library");
+    for (let i = 0; i < 40; i++) { fillWhileVisible(); await new Promise(r => setTimeout(r, 10)); }
+    while (libShown < libRows.length) libPage();
+    return document.querySelectorAll("#libGrid [data-alb]").length;
+  });
+  ok("scrolling reaches every album", grown === N, { grown, N });
+
+  // one handler for the whole grid, however many cards
+  ok("a card still opens its album", await page.evaluate(async () => {
+    document.querySelector("#libGrid [data-alb]").click();
+    await new Promise(r => setTimeout(r, 400));
+    return document.querySelector("#sheetAlbum").classList.contains("open");
+  }));
+  await page.evaluate(() => closeSheet("sheetAlbum"));
+  await page.waitForTimeout(400);
+
+  /* Search now answers from the album's own fields first and only reads
+     tracklists when it must. The point is that the answer is the same as
+     the one the single-haystack version gave, so it is checked against
+     that original rule directly, album by album, query by query. */
+  const search = await page.evaluate(() => {
+    const original = (a, q) => {
+      const hay = foldSearch(a.title + " " + a.artist + " " + (a.genre || "") + " " + (a.year || "")
+        + " " + (state.tracks.get(a.id) || []).map(t => t.title).join(" "));
+      return q.split(/\s+/).filter(Boolean).every(tok => hay.includes(tok));
+    };
+    const queries = ["record 7", "artist 12", "bellwether hymn 42", "zzzznotathing",
+      "artist 12 bellwether", "", "  ", "RECORD 100", "hymn", "jazz 1994"];
+    const out = { disagreements: 0, counts: {} };
+    for (const q of queries) {
+      libQuery = foldSearch(q).trim();
+      let n = 0;
+      for (const a of state.albums) {
+        const mine = libMatches(a), theirs = original(a, libQuery);
+        if (mine !== theirs) out.disagreements++;
+        if (mine) n++;
+      }
+      out.counts[q || "(empty)"] = n;
+    }
+    libQuery = ""; renderLibrary();
+    return out;
+  });
+  ok("search returns exactly what it always did", search.disagreements === 0, search);
+  ok("and still finds titles, artists and track names",
+    search.counts["record 7"] > 0 && search.counts["artist 12"] > 0
+    && search.counts["hymn"] === N && search.counts["zzzznotathing"] === 0, search.counts);
+
+  /* nothing is drawn for a sky nobody is looking at */
+  const idle = await page.evaluate(async () => {
+    const at = t => new Promise(r => setTimeout(r, t));
+    switchTab("library"); await at(500);
+    const a = sky.framesDrawn(); await at(700);
+    const off = sky.framesDrawn() - a;
+    switchTab("sky"); await at(300);
+    const b = sky.framesDrawn(); await at(700);
+    return { off, on: sky.framesDrawn() - b };
+  });
+  ok("the sky idles when it is off screen", idle.off === 0, idle);
+  ok("and paints again the moment it is back", idle.on > 10, idle);
+
+  /* a bad camera number would blank the sky for every frame after it */
+  ok("the camera recovers from a bad number", await page.evaluate(async () => {
+    sky.look(NaN, NaN, NaN);
+    await new Promise(r => setTimeout(r, 600));
+    const f = sky.frame();
+    return isFinite(f.cx) && isFinite(f.cy) && isFinite(f.s) && f.s > 0;
+  }));
+  await ctx.close();
+}
+
 /* ── the handle on every sheet is real, and the figures are figures ── */
 {
   console.log("\ngestures");
@@ -562,6 +691,8 @@ server.listen(PORT);
     };
     for (let i = 1; i <= 9; i++) add("Deep", i);
     for (let i = 1; i <= 3; i++) add("Shallow", i);
+    // a dozen more deep artists, because branching is a chance per album
+    for (let d = 0; d < 12; d++) for (let i = 1; i <= 9; i++) add("Deep" + d, i);
     sky.rebuild();
     const of = n => sky.constellations().find(c => c.name === n);
     const spread = c => {
@@ -570,11 +701,16 @@ server.listen(PORT);
       return Math.sqrt(d.reduce((a, b) => a + (b - m) ** 2, 0) / d.length) / (m || 1);
     };
     const deep = of("Deep");
-    const junctions = () => {
+    const junctionsOf = c => {
       const deg = {};
-      deep.edges.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
+      c.edges.forEach(([a, b]) => { deg[a] = (deg[a] || 0) + 1; deg[b] = (deg[b] || 0) + 1; });
       return Object.values(deg).filter(v => v > 2).length;
     };
+    /* Whether any one figure branches is a roll of the dice — about one
+       in seventeen nine-album artists never does. What must hold is that
+       branching happens across a sky, so it is counted over all of them. */
+    const branched = Array.from({ length: 12 }, (_, d) => of("Deep" + d))
+      .filter(c => c && junctionsOf(c) >= 1).length;
     const rel = c => { const s = c.stars; return s.slice(1).map(p => [Math.round(p.x - s[0].x), Math.round(p.y - s[0].y)]); };
     const before = rel(deep);
     add("Deep", 10); sky.rebuild();
@@ -582,7 +718,7 @@ server.listen(PORT);
     return {
       edges: deep.edges.length, stars: deep.stars.length,
       spreadDeep: spread(deep), spreadShallow: spread(of("Shallow")),
-      junctions: junctions(),
+      branched,
       grew: after.length === before.length + 1,
       kept: before.every((p, i) => Math.abs(p[0] - after[i][0]) < 2 && Math.abs(p[1] - after[i][1]) < 2),
     };
@@ -624,7 +760,7 @@ server.listen(PORT);
 
   ok("a figure is a tree, one line per new record", fig.edges === fig.stars - 1, fig);
   ok("it is lopsided, not a ring", fig.spreadDeep > 0.15 && fig.spreadShallow > 0.15, fig);
-  ok("a large figure branches", fig.junctions >= 1, fig);
+  ok("large figures branch", fig.branched >= 4, fig);
   ok("a new record extends the figure", fig.grew && fig.kept, fig);
 
   ok("no errors while gesturing", errors.length === 0, errors);
