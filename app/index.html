@@ -1217,7 +1217,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.5 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.6 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1491,6 +1491,217 @@ const AeonCore=(()=>{
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .replace(/[^\p{L}\p{N}]+/gu," ").replace(/\s+/g," ").trim();
 
+  /* ── one genre, however it was spelled ──
+     Tags are written by hundreds of different rippers and shops, and a
+     region of the sky is far too big a thing to hang on punctuation.
+     "Hip-Hop", "hip hop", "HipHop" and "Hip-Hop/Rap" are one place, and
+     so are "Drum & Bass" and "Drum and Bass". Everything mechanical —
+     case, accents, punctuation, spacing, plurals, a leading "the",
+     ID3v1's numeric codes, and the second half of a multi-value tag —
+     is folded away first; only then is a short table of genuine
+     synonyms applied. The collector's own spelling is never rewritten,
+     it is only used to decide what belongs together. */
+  const ID3V1_GENRES=["blues","classic rock","country","dance","disco","funk","grunge",
+    "hip-hop","jazz","metal","new age","oldies","other","pop","r&b","rap","reggae","rock",
+    "techno","industrial","alternative","ska","death metal","pranks","soundtrack",
+    "euro-techno","ambient","trip-hop","vocal","jazz+funk","fusion","trance","classical",
+    "instrumental","acid","house","game","sound clip","gospel","noise","alt. rock","bass",
+    "soul","punk","space","meditative","instrumental pop","instrumental rock","ethnic",
+    "gothic","darkwave","techno-industrial","electronic","pop-folk","eurodance","dream",
+    "southern rock","comedy","cult","gangsta rap","top 40","christian rap","pop/funk",
+    "jungle","native american","cabaret","new wave","psychedelic","rave","showtunes",
+    "trailer","lo-fi","tribal","acid punk","acid jazz","polka","retro","musical",
+    "rock & roll","hard rock"];
+  const GENRE_SYNONYMS=Object.freeze({
+    rap:"hip hop", hiphop:"hip hop", hiphoprap:"hip hop", raphiphop:"hip hop",
+    rnb:"r&b", randb:"r&b", rb:"r&b", rhythmandblues:"r&b", rhythmblues:"r&b",
+    electronica:"electronic", edm:"electronic", electro:"electronic",
+    altrock:"alternative rock", alternativerock:"alternative rock",
+    alt:"alternative", indierock:"indie rock",
+    ost:"soundtrack", score:"soundtrack", originalsoundtrack:"soundtrack",
+    filmscore:"soundtrack", videogamemusic:"soundtrack",
+    dnb:"drum & bass", drumnbass:"drum & bass", drumandbass:"drum & bass",
+    drumbass:"drum & bass",
+    heavymetal:"metal", hardrock:"rock", rocknroll:"rock & roll",
+    rockroll:"rock & roll", rockandroll:"rock & roll",
+    singersongwriter:"singer-songwriter", worldmusic:"world",
+    classicalmusic:"classical", nujazz:"jazz", vocaljazz:"jazz",
+    triphop:"trip-hop", lofi:"lo-fi", lofihiphop:"lo-fi",
+    postrock:"post-rock", postpunk:"post-punk", synthpop:"synth-pop",
+    newage:"new age", newwave:"new wave", downtempo:"downtempo",
+  });
+  /* The table is keyed by the folded form of its own keys, so a rule
+     inside the fold — stripping a plural, dropping punctuation — can
+     never quietly stop the lookup matching ("drumnbass" folds to
+     "drumnbas", which is what an incoming tag folds to as well). */
+  const foldGenre=value=>String(value||"").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/&/g,"and")
+    .replace(/[^a-z0-9]+/g,"")
+    .replace(/s$/,"");                       // "ballads" and "ballad" are one
+  const SYNONYM_BY_FOLD=new Map(
+    Object.entries(GENRE_SYNONYMS).map(([k,v])=>[foldGenre(k),v]));
+  function genreKey(value){
+    let raw=String(value||"").trim();
+    if(!raw)return"";
+    // ID3v1 wrote genres as "(17)" or "(17)Rock" — take the word, or look it up
+    const numbered=raw.match(/^\((\d{1,3})\)\s*(.*)$/);
+    if(numbered){
+      raw=numbered[2].trim()||ID3V1_GENRES[+numbered[1]]||"";
+      if(!raw)return"";
+    }else if(/^\d{1,3}$/.test(raw)){
+      raw=ID3V1_GENRES[+raw]||"";
+      if(!raw)return"";
+    }
+    // a multi-value tag names its first genre first
+    raw=raw.split(/[\/;,|]|\s+-\s+/)[0].trim();
+    raw=raw.replace(/^the\s+/i,"");
+    const folded=foldGenre(raw);
+    if(!folded)return"";
+    return foldGenre(SYNONYM_BY_FOLD.get(folded)||raw);
+  }
+
+  /* ── what an artist usually makes ──
+     A ripped CD or a Bandcamp download often carries no genre at all,
+     and a sky full of UNCHARTED tells the collector nothing. Blanks are
+     filled from what is already known, never guessed over: a tag in the
+     file always wins, and nothing here overwrites one.
+
+     First from the artist themselves — if you own five of their records
+     and three say "Ambient", the other two are ambient. Then, only for
+     an artist the library says nothing about, from a table of names
+     whose work is not in dispute. Anything still unknown stays unknown,
+     which is honest and leaves it open to the archive lookup. */
+  const ARTIST_GENRES=Object.freeze({
+    // hip hop
+    "playboi carti":"Hip-Hop","ken carson":"Hip-Hop","destroy lonely":"Hip-Hop",
+    "yeat":"Hip-Hop","lil uzi vert":"Hip-Hop","future":"Hip-Hop","travis scott":"Hip-Hop",
+    "drake":"Hip-Hop","kendrick lamar":"Hip-Hop","j cole":"Hip-Hop","tyler the creator":"Hip-Hop",
+    "earl sweatshirt":"Hip-Hop","mf doom":"Hip-Hop","madvillain":"Hip-Hop","danny brown":"Hip-Hop",
+    "jpegmafia":"Hip-Hop","denzel curry":"Hip-Hop","a tribe called quest":"Hip-Hop",
+    "wu tang clan":"Hip-Hop","nas":"Hip-Hop","jay z":"Hip-Hop","the notorious big":"Hip-Hop",
+    "2pac":"Hip-Hop","outkast":"Hip-Hop","kanye west":"Hip-Hop","asap rocky":"Hip-Hop",
+    "young thug":"Hip-Hop","gucci mane":"Hip-Hop","chief keef":"Hip-Hop","lil wayne":"Hip-Hop",
+    "clipse":"Hip-Hop","pusha t":"Hip-Hop","freddie gibbs":"Hip-Hop","griselda":"Hip-Hop",
+    "westside gunn":"Hip-Hop","mach hommy":"Hip-Hop","navy blue":"Hip-Hop","mavi":"Hip-Hop",
+    "billy woods":"Hip-Hop","aesop rock":"Hip-Hop","run the jewels":"Hip-Hop",
+    // electronic
+    "aphex twin":"Electronic","boards of canada":"Electronic","autechre":"Electronic",
+    "squarepusher":"Electronic","four tet":"Electronic","oval":"Electronic",
+    "flying lotus":"Electronic","daft punk":"Electronic","justice":"Electronic",
+    "the chemical brothers":"Electronic","fatboy slim":"Electronic","moderat":"Electronic",
+    "apparat":"Electronic","jon hopkins":"Electronic","caribou":"Electronic",
+    "bonobo":"Electronic","kraftwerk":"Electronic","orbital":"Electronic",
+    "underworld":"Electronic","the prodigy":"Electronic","floating points":"Electronic",
+    "arca":"Electronic","sophie":"Electronic","oneohtrix point never":"Electronic",
+    "com truise":"Electronic","tycho":"Electronic","rustie":"Electronic","hudson mohawke":"Electronic",
+    // ambient
+    "brian eno":"Ambient","stars of the lid":"Ambient","grouper":"Ambient",
+    "tim hecker":"Ambient","william basinski":"Ambient","harold budd":"Ambient",
+    "gas":"Ambient","biosphere":"Ambient","huerco s":"Ambient","fennesz":"Ambient",
+    "loscil":"Ambient","hiroshi yoshimura":"Ambient","steve roach":"Ambient",
+    "the caretaker":"Ambient","leyland kirby":"Ambient",
+    // dubstep / bass
+    "burial":"Dubstep","skream":"Dubstep","mala":"Dubstep","zomby":"Dubstep",
+    "kode9":"Dubstep","goth trad":"Dubstep",
+    "roni size":"Drum & Bass","goldie":"Drum & Bass","photek":"Drum & Bass",
+    "ltj bukem":"Drum & Bass","alix perez":"Drum & Bass",
+    // rock / alternative / indie
+    "radiohead":"Alternative","nirvana":"Grunge","pearl jam":"Grunge",
+    "soundgarden":"Grunge","alice in chains":"Grunge","the beatles":"Rock",
+    "the rolling stones":"Rock","led zeppelin":"Rock","pink floyd":"Rock",
+    "david bowie":"Rock","the who":"Rock","queen":"Rock","fleetwood mac":"Rock",
+    "the velvet underground":"Rock","talking heads":"New Wave","joy division":"Post-Punk",
+    "new order":"New Wave","the cure":"Post-Punk","the smiths":"Alternative",
+    "sonic youth":"Alternative","pixies":"Alternative","weezer":"Alternative",
+    "arcade fire":"Indie Rock","the strokes":"Indie Rock","interpol":"Indie Rock",
+    "modest mouse":"Indie Rock","built to spill":"Indie Rock","pavement":"Indie Rock",
+    "wilco":"Indie Rock","the national":"Indie Rock","vampire weekend":"Indie Rock",
+    "tame impala":"Psychedelic","king gizzard and the lizard wizard":"Psychedelic",
+    "beach house":"Dream Pop","cocteau twins":"Dream Pop","mazzy star":"Dream Pop",
+    "my bloody valentine":"Shoegaze","slowdive":"Shoegaze","ride":"Shoegaze",
+    "duster":"Slowcore","low":"Slowcore","codeine":"Slowcore","bedhead":"Slowcore",
+    "red house painters":"Slowcore","american football":"Emo","sunny day real estate":"Emo",
+    "godspeed you black emperor":"Post-Rock","explosions in the sky":"Post-Rock",
+    "mogwai":"Post-Rock","sigur ros":"Post-Rock","slint":"Post-Rock",
+    "bark psychosis":"Post-Rock","talk talk":"Post-Rock","swans":"Experimental",
+    "coil":"Industrial","nine inch nails":"Industrial","ministry":"Industrial",
+    "throbbing gristle":"Industrial","einsturzende neubauten":"Industrial",
+    // metal / punk
+    "black sabbath":"Metal","metallica":"Metal","slayer":"Metal","iron maiden":"Metal",
+    "megadeth":"Metal","pantera":"Metal","tool":"Metal","opeth":"Metal",
+    "mastodon":"Metal","gojira":"Metal","deftones":"Metal","sunn o)))":"Drone",
+    "boris":"Metal","electric wizard":"Metal","sleep":"Metal",
+    "black flag":"Punk","the ramones":"Punk","dead kennedys":"Punk","misfits":"Punk",
+    "minor threat":"Punk","fugazi":"Post-Hardcore","the clash":"Punk","bad brains":"Punk",
+    // jazz
+    "miles davis":"Jazz","john coltrane":"Jazz","charles mingus":"Jazz",
+    "thelonious monk":"Jazz","bill evans":"Jazz","herbie hancock":"Jazz",
+    "sun ra":"Jazz","ornette coleman":"Jazz","alice coltrane":"Jazz",
+    "duke ellington":"Jazz","dave brubeck":"Jazz","art blakey":"Jazz",
+    "kamasi washington":"Jazz","robert glasper":"Jazz","bill frisell":"Jazz",
+    // soul / r&b / funk
+    "marvin gaye":"Soul","stevie wonder":"Soul","curtis mayfield":"Soul",
+    "aretha franklin":"Soul","al green":"Soul","sam cooke":"Soul",
+    "otis redding":"Soul","donny hathaway":"Soul","dangelo":"R&B",
+    "erykah badu":"R&B","frank ocean":"R&B","sza":"R&B","the weeknd":"R&B",
+    "solange":"R&B","james brown":"Funk","parliament":"Funk","funkadelic":"Funk",
+    "sly and the family stone":"Funk","prince":"Funk",
+    // folk / country / singer-songwriter
+    "bob dylan":"Folk","neil young":"Folk","joni mitchell":"Folk",
+    "nick drake":"Folk","leonard cohen":"Folk","simon and garfunkel":"Folk",
+    "sufjan stevens":"Folk","fleet foxes":"Folk","bon iver":"Folk",
+    "elliott smith":"Singer-Songwriter","jeff buckley":"Singer-Songwriter",
+    "townes van zandt":"Country","johnny cash":"Country","willie nelson":"Country",
+    "dolly parton":"Country","hank williams":"Country","gram parsons":"Country",
+    // reggae / world
+    "bob marley":"Reggae","the wailers":"Reggae","lee scratch perry":"Dub",
+    "king tubby":"Dub","augustus pablo":"Dub","fela kuti":"Afrobeat",
+    "tinariwen":"World","ali farka toure":"World",
+    // classical
+    "johann sebastian bach":"Classical","ludwig van beethoven":"Classical",
+    "wolfgang amadeus mozart":"Classical","claude debussy":"Classical",
+    "erik satie":"Classical","frederic chopin":"Classical","philip glass":"Classical",
+    "steve reich":"Classical","arvo part":"Classical","max richter":"Classical",
+    "olafur arnalds":"Classical","nils frahm":"Classical",
+    // pop
+    "michael jackson":"Pop","madonna":"Pop","abba":"Pop","taylor swift":"Pop",
+    "lana del rey":"Pop","billie eilish":"Pop","charli xcx":"Pop",
+    "robyn":"Pop","carly rae jepsen":"Pop","the 1975":"Pop",
+  });
+  /* Blanks only, and the library's own evidence before the table. */
+  function inferGenres(albums){
+    const list=Array.isArray(albums)?albums:[];
+    const byArtist=new Map();
+    for(const a of list){
+      const key=normPerson(a&&a.artist);
+      if(!key)continue;
+      if(!byArtist.has(key))byArtist.set(key,{counts:{},spelling:{}});
+      const bucket=byArtist.get(key);
+      const g=genreKey(a.genre);
+      if(!g)continue;
+      bucket.counts[g]=(bucket.counts[g]||0)+1;
+      const raw=String(a.genre||"").trim();
+      if(raw)bucket.spelling[raw]=(bucket.spelling[raw]||0)+1;
+    }
+    const best=obj=>{
+      const top=Object.entries(obj).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0]))[0];
+      return top?top[0]:"";
+    };
+    const out=[];
+    for(const a of list){
+      if(!a||genreKey(a.genre))continue;          // a real tag is never touched
+      const key=normPerson(a.artist);
+      if(!key||key==="unknown artist")continue;
+      const bucket=byArtist.get(key);
+      const fromLibrary=bucket&&Object.keys(bucket.counts).length
+        ?best(bucket.spelling):"";
+      const genre=fromLibrary||ARTIST_GENRES[key]||"";
+      if(genre)out.push({id:a.id,genre,from:fromLibrary?"artist":"table"});
+    }
+    return out;
+  }
+
   function groupItems(items,mode){
     if(!items.length)return[];
     /* Folders are told apart by their whole path, not their last name.
@@ -1724,11 +1935,11 @@ const AeonCore=(()=>{
     }
     return entries;
   }
-  return{mimeForFilename,extensionForBlob,normAlbum,groupItems,validateBackupCatalog,
+  return{mimeForFilename,extensionForBlob,normAlbum,genreKey,inferGenres,groupItems,validateBackupCatalog,
     mergeLogEntries,scrubQueueForAlbum,shouldAutoEnrich,saveBackup,zipWrite,unzip};
 })();
 /* AEON_CORE_END */
-const{mimeForFilename,extensionForBlob,normAlbum,groupItems,zipWrite,unzip}=AeonCore;
+const{mimeForFilename,extensionForBlob,normAlbum,genreKey,inferGenres,groupItems,zipWrite,unzip}=AeonCore;
 function skyCensus(){
   const n=state.albums.length;
   const c=sky.constellations().length, g=sky.regions().length, p=Math.floor(n/20);
@@ -2627,7 +2838,12 @@ async function importFiles(rawFiles,opts={}){
     }
   }
   await kvSet("seq",seqCounter);
-  onAlbumsAdded(newAlbums,before);
+  await fillMissingGenres();
+  /* Adoption walks a whole collection in chunks; every chunk crossing a
+     twenty would otherwise queue its own ceremony, and a large library
+     would spend an hour flying the camera about. Bulk arrivals are
+     silent — discovery is for the records you add one at a time. */
+  onAlbumsAdded(newAlbums,before,{quiet:!!opts.quiet});
   renderLibrary();updateStorage();
   if(failed.length)toast(`${failed.length} album${failed.length>1?"s":""} could not be stored — ${(lastErr&&lastErr.message)||lastErr||"unknown error"}`);
   if(skipped.length)say(`${skipped.length} album${skipped.length>1?"s":""} already in your sky — skipped`);
@@ -2814,7 +3030,8 @@ async function restoreBackup(b){
   state.queue=restoredLastPlayed?restoredLastPlayed.queue:[];
   state.qIndex=restoredLastPlayed?restoredLastPlayed.qIndex:-1;
   state.playingAlbumId=restoredLastPlayed?restoredLastPlayed.albumId:null;
-  onAlbumsAdded(newAlbums,before);
+  // a restore is not a discovery: the sky comes back as it was, in silence
+  onAlbumsAdded(newAlbums,before,{quiet:true});
   renderLibrary();renderPlaylists();renderLog();renderEQ();syncGroupUI();syncMetaUI();
   setHud(!!state.settings.hud);$("#tglFft").classList.toggle("on",state.settings.fft!==false);
   if(gainNode)gainNode.gain.value=state.settings.volume;else audio.volume=state.settings.volume;
@@ -2917,6 +3134,28 @@ function needsEnrich(a){
   return !a.mock&&(!a.genre||!a.year||!a.art
     ||a.artist==="Unknown Artist"||a.title==="Untitled Transmission");
 }
+/* Fill in the genres nothing else knows, from what the library already
+   says about each artist and then from the built-in table. Only blanks
+   are touched, so it is safe to run after every arrival and at launch;
+   an album filled this way is marked, so it is clear the tag came from
+   here rather than from the file. Returns how many were filled. */
+async function fillMissingGenres(){
+  let picks=[];
+  try{picks=inferGenres(state.albums)}catch(e){return 0}
+  if(!picks.length)return 0;
+  const byId=new Map(state.albums.map(a=>[a.id,a]));
+  let filled=0;
+  for(const pick of picks){
+    const album=byId.get(pick.id);
+    if(!album||album.genre)continue;
+    album.genre=pick.genre;
+    album.genreAuto=pick.from;
+    try{await dbPut("albums",album);filled++}
+    catch(e){album.genre="";delete album.genreAuto}   // don't claim what we couldn't store
+  }
+  return filled;
+}
+
 async function enrichAlbums(albums){
   const targets=(albums||[]).filter(needsEnrich);
   if(!targets.length||navigator.onLine===false)return;
@@ -3433,13 +3672,24 @@ const sky=(()=>{
       if(!artists.has(k))artists.set(k,{key:k,name:a.artist||"Unknown Artist",albums:[],seq:a.seq});
       artists.get(k).albums.push(a);
     });
-    // each artist belongs to whichever genre most of their albums claim
+    /* Each artist belongs to whichever genre most of their albums claim,
+       counted on the folded key so that six spellings of one genre are
+       six votes for one place rather than six regions of one artist. */
     artists.forEach(A=>{
-      const c={};
-      A.albums.forEach(a=>{const g=normKey(a.genre);if(g)c[g]=(c[g]||0)+1});
+      const c={},spelling={};
+      A.albums.forEach(a=>{
+        const g=genreKey(a.genre);
+        if(!g)return;
+        c[g]=(c[g]||0)+1;
+        // remember how the collector actually writes it, most common first
+        const raw=String(a.genre||"").trim();
+        if(raw){(spelling[g]=spelling[g]||{})[raw]=(spelling[g][raw]||0)+1}
+      });
       const top=Object.entries(c).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0]))[0];
       A.genreKey=top?top[0]:"\u2014uncharted";
-      A.genreName=top?(A.albums.find(a=>normKey(a.genre)===top[0]).genre||"").toUpperCase():"UNCHARTED";
+      A.genreName=top
+        ?(Object.entries(spelling[top[0]]||{}).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0]))[0]||[""])[0].toUpperCase()
+        :"UNCHARTED";
       A.fig=growFigure(A.key,A.albums.length);
       A.r=A.albums.length<2?11:A.fig.r+15;
     });
@@ -3554,6 +3804,9 @@ const sky=(()=>{
       planets.push({
         x:pos.x, y:pos.y,
         type:(p+skySeed)%5, r,
+        /* a step coprime with the palette, so the first twelve worlds a
+           collector wakes are twelve different colours */
+        ink:(p*5+skySeed)%WORLD_INKS.length,
         /* worlds in one scene lean by a little, not by anything: a
            wild tilt turns ruled latitudes into diagonal hatching */
         tilt:((hashStr("tilt"+p+skySeed)%100)/100-.5)*.85,
@@ -3622,8 +3875,8 @@ const sky=(()=>{
     const pl=planets[p];if(!pl)return;
     pl.born=performance.now();
     ceremonyTarget={cx:pl.x,cy:pl.y,s:clamp(Math.min(W,H)/(pl.r*14),.4,2.4),until:performance.now()+5200};
-    banner("A PLANET WAKES",PLANET_KINDS[pl.type].name.toUpperCase());
-    addLog("\u25CD","g-violet",`Twenty more albums — ${PLANET_KINDS[pl.type].name} woke at the rim of the sky`);
+    banner("A PLANET WAKES",worldName(pl).toUpperCase());
+    addLog("\u25CD","g-violet",`Twenty more albums — ${worldName(pl)} woke at the rim of the sky`);
   }
   let bannerTO=null;
   function banner(tag,name){
@@ -3708,7 +3961,7 @@ const sky=(()=>{
       const pr=Math.max(30,p.r*cam.s+10);
       if((sx-px)**2+(sy-py)**2<pr*pr){
         lastEmptyTap=null;
-        openPlanet(i,PLANET_KINDS[p.type].name);
+        openPlanet(i,worldName(p));
         return;
       }
     }
@@ -3774,22 +4027,49 @@ const sky=(()=>{
   const LIGHT={x:-.56,y:-.63};
   const LANG=Math.atan2(LIGHT.y,LIGHT.x);
   const BONE="233,228,217";
-  /* Worlds differ in what is engraved on them, never in colour: how many
-     latitudes are ruled, how many meridians, how firmly, and whether a
-     ring passes behind and in front. */
+  /* Worlds differ in what is engraved on them: how many latitudes are
+     ruled, how many meridians, how firmly, and whether a ring passes
+     behind and then in front. */
   const PLANET_KINDS=[
-    {name:"a quiet world",  lat:[0],              mer:2, eng:.115, ring:false},
-    {name:"a banded world", lat:[-58,-29,0,29,58],mer:0, eng:.130, ring:false},
-    {name:"a ringed world", lat:[0],              mer:2, eng:.105, ring:true },
-    {name:"a pale world",   lat:[],               mer:3, eng:.095, ring:false},
-    {name:"a far world",    lat:[-29,29],         mer:1, eng:.085, ring:true },
+    {lat:[0],              mer:2, eng:.115, ring:false},
+    {lat:[-58,-29,0,29,58],mer:0, eng:.130, ring:false},
+    {lat:[0],              mer:2, eng:.105, ring:true },
+    {lat:[],               mer:3, eng:.095, ring:false},
+    {lat:[-29,29],         mer:1, eng:.085, ring:true },
   ];
+  /* ── the ink a world is drawn in ──
+     Colour arrives the way it would on an engraving: as the ink, not as
+     paint. The body stays dark and still occludes; what carries the hue
+     is the light along the limb, the ruled lines, and the ring. Twelve
+     pigments spaced evenly around the wheel and kept soft, so no two are
+     ever mistaken for each other and none of them shouts. */
+  const WORLD_INKS=[
+    {name:"amber",    rgb:[240,196,110]},
+    {name:"ember",    rgb:[235,146,104]},
+    {name:"rose",     rgb:[238,152,170]},
+    {name:"orchid",   rgb:[218,152,206]},
+    {name:"amethyst", rgb:[182,160,235]},
+    {name:"indigo",   rgb:[150,168,240]},
+    {name:"ice",      rgb:[150,203,246]},
+    {name:"lagoon",   rgb:[134,214,224]},
+    {name:"jade",     rgb:[132,214,176]},
+    {name:"moss",     rgb:[168,212,140]},
+    {name:"citron",   rgb:[214,214,132]},
+    {name:"bone",     rgb:[233,228,217]},
+  ];
+  // the sun-struck edge is nearly white, but never loses the world's hue
+  const towardWhite=(rgb,t)=>rgb.map(v=>Math.round(v+(255-v)*t)).join(",");
+  WORLD_INKS.forEach(k=>{k.ink=k.rgb.join(",");k.lit=towardWhite(k.rgb,.62)});
+  const worldName=p=>{
+    const n=WORLD_INKS[p.ink].name;
+    return(/^[aeiou]/.test(n)?"an ":"a ")+n+" world";
+  };
   /* the ring, in halves, so it passes behind the world and then in front */
-  function ringHalf(x2,R,alpha,front){
+  function ringHalf(x2,R,alpha,front,K){
     x2.save();
     for(let i=0;i<2;i++){
       x2.globalAlpha=alpha*(1-i*.55);
-      x2.strokeStyle="rgba("+BONE+",1)";
+      x2.strokeStyle="rgba("+K.ink+",1)";
       x2.lineWidth=Math.max(.5/cam.s,R*(.007-i*.0025));
       x2.beginPath();
       x2.ellipse(0,0,R*(1.58+i*.16),R*(.38+i*.045),0,
@@ -3800,12 +4080,12 @@ const sky=(()=>{
   }
   /* latitudes foreshorten toward the poles, meridians close at them —
      the minimum that reads as a sphere rather than a circle */
-  function graticule(x2,R,tilt,K,a){
+  function graticule(x2,R,tilt,K,a,ink){
     if(!K.lat.length&&!K.mer)return;
     x2.save();
     x2.rotate(tilt);
     x2.globalAlpha=a*K.eng;
-    x2.strokeStyle="rgba("+BONE+",1)";
+    x2.strokeStyle="rgba("+ink.ink+",1)";
     x2.lineWidth=Math.max(.5/cam.s,R*.0038);
     for(const d of K.lat){
       const rad=d*Math.PI/180;
@@ -3822,7 +4102,7 @@ const sky=(()=>{
     x2.restore();
   }
   function drawPlanet(x2,p,t){
-    const K=PLANET_KINDS[p.type];
+    const K=PLANET_KINDS[p.type], INK=WORLD_INKS[p.ink];
     const age=REDUCED?1:clamp((t-p.born)/3400,0,1);
     if(age<=0)return;
     const ease=1-Math.pow(1-age,4);
@@ -3830,7 +4110,7 @@ const sky=(()=>{
     x2.save();
     x2.translate(p.x,p.y);
 
-    if(K.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.15*ease,false);x2.restore()}
+    if(K.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.15*ease,false,INK);x2.restore()}
 
     /* the body occludes — everything behind it stops here */
     x2.save();
@@ -3838,23 +4118,25 @@ const sky=(()=>{
     x2.globalAlpha=ease;
     x2.fillStyle="#050506";
     x2.fillRect(-R,-R,R*2,R*2);
-    // the faintest sense of a sunlit side, in bone, never in colour
+    /* the sunlit side, carrying the world's own colour — still faint
+       enough that the body reads as dark rather than as painted */
     const lift=x2.createRadialGradient(LIGHT.x*R*.72,LIGHT.y*R*.72,R*.05,0,0,R*1.18);
-    lift.addColorStop(0,"rgba("+BONE+",.075)");
-    lift.addColorStop(.5,"rgba("+BONE+",.020)");
-    lift.addColorStop(1,"rgba("+BONE+",0)");
+    lift.addColorStop(0,"rgba("+INK.ink+",.115)");
+    lift.addColorStop(.5,"rgba("+INK.ink+",.032)");
+    lift.addColorStop(1,"rgba("+INK.ink+",0)");
     x2.fillStyle=lift;x2.fillRect(-R,-R,R*2,R*2);
-    graticule(x2,R,p.tilt,K,ease);
+    graticule(x2,R,p.tilt,K,ease,INK);
     x2.restore();
 
     /* one line closes the world: it burns at the limb the sun strikes and
        has died by the time it reaches the terminator */
     const g=x2.createLinearGradient(
       Math.cos(LANG)*R,Math.sin(LANG)*R,-Math.cos(LANG)*R,-Math.sin(LANG)*R);
-    g.addColorStop(0,"rgba("+BONE+",.95)");
-    g.addColorStop(.30,"rgba("+BONE+",.44)");
-    g.addColorStop(.62,"rgba("+BONE+",.11)");
-    g.addColorStop(1,"rgba("+BONE+",0)");
+    g.addColorStop(0,"rgba("+INK.lit+",.96)");
+    g.addColorStop(.22,"rgba("+INK.ink+",.72)");
+    g.addColorStop(.48,"rgba("+INK.ink+",.30)");
+    g.addColorStop(.72,"rgba("+INK.ink+",.08)");
+    g.addColorStop(1,"rgba("+INK.ink+",0)");
     x2.globalAlpha=ease;
     x2.strokeStyle=g;
     /* a hairline is a hairline at every zoom — the same rule the
@@ -3862,7 +4144,7 @@ const sky=(()=>{
     x2.lineWidth=Math.max(1.15/cam.s,R*.0062);
     x2.beginPath();x2.arc(0,0,R*.997,0,6.283);x2.stroke();
 
-    if(K.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.34*ease,true);x2.restore()}
+    if(K.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.34*ease,true,INK);x2.restore()}
     x2.restore();
   }
 
@@ -4144,10 +4426,15 @@ const MILESTONES=[
   [5,"FIVE STARS STRONG","THE VOID IS LOSING"],
   [10,"TEN STARS","HALFWAY TO A WORLD"],
 ];
-function onAlbumsAdded(newAlbums,countBefore){
+/* `quiet` is for conjured stars: filling the sky to see what a large
+   collection looks like should not cost you a queue of five-second
+   ceremonies you have to sit through. The stars still arrive — only the
+   banners, the camera flights and the log entries are skipped. */
+function onAlbumsAdded(newAlbums,countBefore,opts={}){
   sky.rebuild();
   sky.materialize(newAlbums);
   const after=state.albums.length;
+  if(opts.quiet){$("#shareSky").style.display=after?"":"none";return}
   const plBefore=Math.floor(countBefore/20), plAfter=Math.floor(after/20);
   let delay=Math.min(newAlbums.length,20)*260+900;
   /* an artist crossing from one album to two is the moment their
@@ -5107,7 +5394,7 @@ async function runMock(n,label){
   const before=state.albums.length;
   const made=await makeMockAlbums(n);
   await kvSet("seq",seqCounter);
-  onAlbumsAdded(made,before);
+  onAlbumsAdded(made,before,{quiet:true});
   renderLibrary();updateStorage();
   switchTab("sky");
 }
@@ -5281,6 +5568,10 @@ $("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInp
     skySeed=(crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(1))[0]:(Math.random()*4294967296))>>>0;
     await kvSet("skySeed",skySeed);
   }
+
+  /* A library that arrived before any of this existed gets the same
+     treatment once, quietly, on the way in — blanks only. */
+  await fillMissingGenres();
 
   sky.init();
   $("#shareSky").style.display=state.albums.length?"":"none";

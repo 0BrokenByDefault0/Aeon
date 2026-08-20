@@ -598,6 +598,128 @@ server.listen(PORT);
   await ctx.close();
 }
 
+/* ── genres survive the way people actually write tags ── */
+{
+  console.log("\ngenre sanity");
+  const { ctx, page } = await session();
+
+  const fold = await page.evaluate(() => {
+    const k = AeonCore.genreKey;
+    const same = (...v) => new Set(v.map(k)).size === 1;
+    return {
+      spelling: same("Hip-Hop", "hip hop", "HipHop", "HIP HOP", " Hip-Hop "),
+      multi: same("Hip-Hop", "Hip-Hop/Rap", "Hip-Hop; Rap", "Hip-Hop, Rap"),
+      synonym: same("Hip-Hop", "Rap", "rap"),
+      ampersand: same("Drum & Bass", "Drum and Bass", "drum n bass", "DnB"),
+      accents: same("Bossa Nova", "Bossa Nová"),
+      plural: same("Ballad", "Ballads"),
+      numeric: k("(17)") === k("Rock") && k("(17)Rock") === k("Rock"),
+      leadingThe: same("The Blues", "Blues"),
+      blank: k("") === "" && k(null) === "" && k("   ") === "",
+      // genuinely different genres must stay different
+      distinct: new Set(["Rock", "Post-Rock", "Metal", "Jazz", "Ambient", "Techno"].map(k)).size === 6,
+    };
+  });
+  for (const [name, pass] of Object.entries(fold))
+    ok(`genre keys agree on ${name}`, pass === true, fold);
+
+  /* the point of all that: one region, not six */
+  const regions = await page.evaluate(() => {
+    const spellings = ["Hip-Hop", "hip hop", "HipHop", "Hip-Hop/Rap", "Rap", "HIP HOP"];
+    spellings.forEach((g, i) => {
+      const a = { id: "g-" + i, title: "R" + i, artist: "Artist " + i, genre: g,
+        year: 2000, seq: ++seqCounter, added: Date.now(), mock: true, tracks: 1 };
+      state.albums.push(a); state.tracks.set(a.id, []);
+    });
+    sky.rebuild();
+    return sky.regions().map(r => r.name);
+  });
+  ok("six spellings of one genre make one region", regions.length === 1, regions);
+  ok("and it is labelled the way the collector writes it",
+    /HIP/.test(regions[0] || ""), regions);
+
+  /* blanks are filled from the artist's own records, then the table */
+  const filled = await page.evaluate(async () => {
+    state.albums.length = 0; state.tracks.clear();
+    const add = (id, artist, genre) => {
+      const a = { id, title: id, artist, genre, year: 2000,
+        seq: ++seqCounter, added: Date.now(), mock: true, tracks: 1 };
+      state.albums.push(a); state.tracks.set(a.id, []);
+      return a;
+    };
+    add("k1", "Some Local Band", "Slowcore");
+    add("k2", "Some Local Band", "Slowcore");
+    const fromArtist = add("k3", "Some Local Band", "");
+    // an artist the library has no other evidence about
+    const fromTable = add("k4", "Boards of Canada", "");
+    const untouched = add("k5", "Aphex Twin", "Field Recording");
+    const unknown = add("k6", "Nobody At All Here", "");
+    await fillMissingGenres();
+    return {
+      fromArtist: fromArtist.genre, fromArtistMark: fromArtist.genreAuto,
+      fromTable: fromTable.genre, fromTableMark: fromTable.genreAuto,
+      untouched: untouched.genre, untouchedMark: untouched.genreAuto,
+      unknown: unknown.genre,
+    };
+  });
+  ok("a blank inherits the artist's own genre", filled.fromArtist === "Slowcore", filled);
+  ok("and is marked as inferred, not tagged", filled.fromArtistMark === "artist", filled);
+  ok("an artist the library knows nothing about uses the table",
+    filled.fromTable === "Electronic" && filled.fromTableMark === "table", filled);
+  ok("a real tag is never overwritten", filled.untouched === "Field Recording"
+    && filled.untouchedMark === undefined, filled);
+  ok("an unknown artist stays honestly unknown", filled.unknown === "", filled);
+
+  await ctx.close();
+}
+
+/* ── conjured stars fill the sky without a queue of ceremonies ── */
+{
+  console.log("\nmock stars");
+  const { ctx, page } = await session();
+  const run = await page.evaluate(async () => {
+    const banners = [], flights = [];
+    const realBanner = sky.banner, realCst = sky.ceremonyConstellation, realPlanet = sky.ceremonyPlanet;
+    sky.banner = (...a) => { banners.push(a[0]); };
+    sky.ceremonyConstellation = k => flights.push("cst:" + k);
+    sky.ceremonyPlanet = p => flights.push("planet:" + p);
+    const logBefore = state.log.length;
+    await runMock(60, "test");
+    // ceremonies are queued on timers, so give them every chance to fire
+    await new Promise(r => setTimeout(r, 4000));
+    const out = { banners: banners.length, flights: flights.length,
+      albums: state.albums.length, logAdded: state.log.length - logBefore };
+    sky.banner = realBanner; sky.ceremonyConstellation = realCst; sky.ceremonyPlanet = realPlanet;
+    return out;
+  });
+  ok("sixty conjured stars arrive", run.albums === 60, run);
+  ok("with no banners to sit through", run.banners === 0, run);
+  ok("no camera flights", run.flights === 0, run);
+  ok("and no ceremony spam in the log", run.logAdded === 0, run);
+  await ctx.close();
+}
+
+/* ── every world a collector wakes is its own colour ── */
+{
+  console.log("\nworlds");
+  const { ctx, page } = await session();
+  const inks = await page.evaluate(() => {
+    for (let i = 0; i < 250; i++) {
+      const a = { id: "p-" + i, title: "R" + i, artist: "A" + (i % 30), genre: "test",
+        year: 2000, seq: ++seqCounter, added: Date.now(), mock: true, tracks: 1 };
+      state.albums.push(a); state.tracks.set(a.id, []);
+    }
+    sky.rebuild();
+    const ws = sky.worlds();
+    return { n: ws.length, distinct: new Set(ws.map(w => w.ink)).size,
+      allHaveInk: ws.every(w => Number.isInteger(w.ink)) };
+  });
+  ok("twelve worlds wake for a large library", inks.n >= 12, inks);
+  ok("and the first twelve are twelve different colours",
+    inks.distinct >= 12 && inks.allHaveInk, inks);
+  await ctx.close();
+}
+
 /* ── the handle on every sheet is real, and the figures are figures ── */
 {
   console.log("\ngestures");

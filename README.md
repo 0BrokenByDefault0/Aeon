@@ -36,6 +36,21 @@ as long as reading the tags, not as long as duplicating the audio.
 Because those files are yours and not the app's, removing an album later
 takes it out of the sky and leaves the file on disk untouched.
 
+**One genre, however it was spelled.** A region of the sky is far too
+big a thing to hang on punctuation, so tags are folded before they are
+compared: case, accents, spacing, plurals, `&` against `and`, a leading
+`the`, ID3v1's numeric codes and the second half of a multi-value tag
+all go, and then a short table of genuine synonyms is applied. `Hip-Hop`,
+`hip hop`, `HipHop`, `Hip-Hop/Rap` and `Rap` are one place; `Drum & Bass`
+and `DnB` are another. The label keeps whichever spelling the collector
+uses most — nothing they wrote is ever rewritten.
+
+Albums that carry **no genre at all** are filled in rather than left as
+UNCHARTED: first from the artist's own records elsewhere in the library,
+then from a built-in table of artists whose work is not in dispute. A tag
+in the file always wins, a filled-in genre is marked as inferred, and an
+artist nothing is known about stays honestly unknown.
+
 **No storage cap.** In the native app the audio is written to the device's
 own filesystem rather than into browser storage, streamed from disk at
 playback, and never held in memory. The ceiling is the space on the phone,
@@ -60,14 +75,23 @@ name rather than laid out on a circle: a spine that wanders, limbs that
 branch off it once the artist runs deep enough, no two arms the same
 length, and nothing closing back on itself. Because it grows in
 sequence, buying their next record extends the figure instead of
-rearranging the shape you already recognise. Worlds are not painted, they
-are drawn — in the same colour at the same hairline weight as everything
-else, and their mass shows in what they hide rather than in what they
-put on screen: a world is a place the stars are not. One line closes it,
-bright where the sun strikes and gone by the terminator, with a
-graticule engraved across it like a globe on an atlas plate. They differ
-in what is ruled on them, never in colour, and they stand in the dark
-between the genre clusters — never over a region, never under its name.
+rearranging the shape you already recognise.
+
+Worlds are not painted, they are drawn — at the same hairline weight as
+everything else, and their mass shows in what they hide rather than in
+what they put on screen: a world is a place the stars are not. One line
+closes it, bright where the sun strikes and gone by the terminator, with
+a graticule engraved across it like a globe on an atlas plate. They
+stand in the dark between the genre clusters — never over a region,
+never under its name.
+
+Each one is drawn in **its own ink**: twelve pigments spaced evenly
+around the wheel and kept soft, so the first twelve worlds a collector
+wakes are twelve different colours. The colour arrives the way it would
+on an engraving — carried by the light along the limb, the ruled lines
+and the ring, never smeared across the body — so a world stays dark,
+still occludes, and none of them shouts. No two worlds share both a
+colour and an engraving.
 
 The camera is a critically damped spring, so it settles
 without ever ringing, and on launch the collection assembles outward from
