@@ -18,7 +18,11 @@ on:
 
 jobs:
   ipa:
-    runs-on: macos-14
+    # macos-14 stopped being allocated — a job asking for it is failed in a
+    # few seconds with no runner and no log. macos-latest always names an
+    # image GitHub is currently serving, so the build survives the next
+    # retirement too.
+    runs-on: macos-latest
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
