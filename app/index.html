@@ -221,7 +221,12 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
 .alb:active{transform:scale(.97)}
 .alb .art{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--plush)}
 .alb .meta{padding:10px 11px 12px}
-.alb .a-t{font-size:13px;font-weight:400;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* Every record is the same size on the shelf. A one-line title used to
+   make a shorter card than a two-line one, so the grid read as a wall of
+   mismatched tiles; the title now always keeps its two lines, whether it
+   needs them or not, and the sleeve is the same square everywhere. */
+.alb .a-t{font-size:13px;font-weight:400;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  min-height:2.6em}
 .alb .a-a{font-size:11.5px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .alb .a-x{font-family:'Audiowide',sans-serif;font-size:8px;color:var(--faint);letter-spacing:.16em;margin-top:6px}
 .alb.playing{border-color:var(--amber);box-shadow:0 0 20px rgba(255,122,31,.3), inset 0 0 20px rgba(255,122,31,.06)}
@@ -229,7 +234,8 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
   font-size:8px;letter-spacing:.2em;color:#200800;
   background:var(--amber);padding:3px 8px;border-radius:999px;
   box-shadow:0 0 12px rgba(255,150,60,.6)}
-.albwrap{position:relative}
+.albwrap{position:relative;display:flex}
+.albwrap>.alb{flex:1;min-width:0}
 
 /* ── PLAYLISTS ── */
 .pl-row{
@@ -424,15 +430,25 @@ body[data-tab]:not([data-tab="sky"]) #skyChrome{opacity:0}
   letter-spacing:.1em;text-align:center;line-height:1.4;color:var(--starlight)}
 #nowArtist{text-align:center;color:var(--dim);font-size:11px;letter-spacing:.18em;margin-top:6px;
   font-family:'Audiowide',sans-serif}
-#nowSeekWrap{margin:20px 4px 4px}
-/* segmented tick seek — straight off the console */
-input[type=range].hseek{appearance:none;-webkit-appearance:none;width:100%;height:30px;background:transparent}
+/* ── the scrub ──
+   The playhead is a hairline, but the thing you reach for is the whole
+   band: the wrapper carries the touch, so the target is the full width
+   of the sheet and a finger's height tall, and the gesture belongs to it
+   rather than to the scroller behind it. */
+#nowSeekWrap{margin:14px 4px 4px;padding:8px 0 2px;touch-action:none;cursor:pointer;
+  -webkit-user-select:none;user-select:none}
+input[type=range].hseek{appearance:none;-webkit-appearance:none;width:100%;height:30px;background:transparent;
+  pointer-events:none}
+#volRow input[type=range].hseek{pointer-events:auto}
 input[type=range].hseek::-webkit-slider-runnable-track{height:6px;border-radius:999px;
   background:rgba(255,176,87,.18)}
 input[type=range].hseek::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;
   margin-top:-7px;
   background:radial-gradient(circle at 36% 30%, #ffd08a, #ff7a1f 60%, #d43414);
   box-shadow:0 0 14px rgba(255,122,31,.75);border:1px solid #2a1004}
+/* under the finger the playhead grows, so you can see what you are moving */
+#nowSeekWrap.scrubbing #nowSeek::-webkit-slider-thumb{transform:scale(1.5)}
+#nowSeek::-webkit-slider-thumb{transition:transform .12s ease}
 #nowTimes{display:flex;justify-content:space-between;font-family:'Audiowide',sans-serif;
   font-size:8.5px;color:var(--faint);letter-spacing:.14em;margin-top:2px}
 #nowCtrls{display:flex;align-items:center;justify-content:center;gap:24px;margin:16px 0 8px}
@@ -924,9 +940,9 @@ body[data-tab]:not([data-tab="sky"]) #skyDim{background:var(--ink)}
 .trk.playing .t-title{color:var(--tint,var(--bone))}
 #nowArt{border:none;box-shadow:0 26px 90px -20px rgba(0,0,0,.9),0 0 120px -30px var(--tint,#000)}
 #albArtBig,#pbArt{border:none}
-input[type=range].hseek::-webkit-slider-runnable-track{height:1px;background:#26272e}
+input[type=range].hseek::-webkit-slider-runnable-track{height:2px;background:#26272e}
 input[type=range].hseek::-webkit-slider-thumb{
-  width:9px;height:9px;border-radius:50%;margin-top:-4px;border:none;
+  width:14px;height:14px;border-radius:50%;margin-top:-6px;border:none;
   background:var(--bone);box-shadow:none}
 .band input[type=range]::-webkit-slider-thumb{
   background:var(--bone);border:none;box-shadow:none;border-radius:0}
@@ -954,10 +970,13 @@ input[type=range].hseek::-webkit-slider-thumb{
    One easing curve for everything that moves, and a considered opening:
    the chrome arrives after the sky, never with it. */
 :root{--ease:cubic-bezier(.16,.84,.28,1)}
-.panel.active{animation:panelIn .46s var(--ease)}
-@keyframes panelIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.sheet-body{animation:sheetUp .5s var(--ease)}
-@keyframes sheetUp{from{transform:translateY(38px);opacity:0}to{transform:none;opacity:1}}
+/* Both of these move a whole screen of content, so they are asked for on
+   the compositor — translate3d, not translateY — and kept short enough
+   that a frame lost to a decoding cover is not a visible hitch. */
+.panel.active{animation:panelIn .32s var(--ease)}
+@keyframes panelIn{from{opacity:0;transform:translate3d(0,12px,0)}to{opacity:1;transform:none}}
+.sheet-body{animation:sheetUp .38s var(--ease)}
+@keyframes sheetUp{from{transform:translate3d(0,38px,0);opacity:0}to{transform:none;opacity:1}}
 
 /* ── the sheet is an object, not a page ──
    The handle at the top is a promise the sheet keeps: pull down and it
@@ -1935,8 +1954,62 @@ const AeonCore=(()=>{
     }
     return entries;
   }
+  /* ── the order a record is meant to play in ──
+     A folder of files is not a shuffle, and it was being read like one:
+     an album whose tags carried no track numbers fell back to comparing
+     filenames as bytes, so it played alphabetically, and a double album
+     interleaved its two discs because nothing read the disc number.
+     Tags lead — disc, then track. Where a file carries neither, its name
+     is read for them ("03 - Title", "1-04 Title", the vinyl "A2"), and
+     only then does the name itself decide, compared the way a person
+     reads numbers: 2 before 10, never "10" before "2". */
+  function trackNumbersFromName(name){
+    const base=String(name||"").replace(/\.[A-Za-z0-9]{1,5}$/,"").trim();
+    let m=base.match(/^[\(\[]?(\d{1,2})\s*[-_.]\s*(\d{1,3})[\)\]]?(?=\D|$)/); // 1-04, 2.07
+    if(m)return{disc:+m[1],track:+m[2]};
+    m=base.match(/^[\(\[]?(\d{1,3})[\)\]]?(?=\s*[-_.\)\]]|\s|$)/);            // 03 - Title
+    if(m)return{disc:0,track:+m[1]};
+    m=base.match(/^([A-Fa-f])\s*[-_.]?\s*(\d{1,2})(?=\D|$)/);                 // a vinyl side
+    if(m)return{disc:m[1].toUpperCase().charCodeAt(0)-64,track:+m[2]};
+    return{disc:0,track:0};
+  }
+  /* "2" before "10", and "Pt. 2" before "Pt. 10" */
+  function naturalCompare(a,b){
+    const ax=String(a==null?"":a).toLowerCase().match(/\d+|\D+/g)||[];
+    const bx=String(b==null?"":b).toLowerCase().match(/\d+|\D+/g)||[];
+    for(let i=0;i<Math.max(ax.length,bx.length);i++){
+      const x=ax[i],y=bx[i];
+      if(x===undefined)return -1;
+      if(y===undefined)return 1;
+      if(/^\d/.test(x)&&/^\d/.test(y)){if(+x!==+y)return +x<+y?-1:1}
+      else if(x!==y)return x<y?-1:1;
+    }
+    return 0;
+  }
+  function trackOrderKey(item){
+    const meta=(item&&item.meta)||{};
+    const name=(item&&item.file&&item.file.name)||"";
+    const mined=trackNumbersFromName(name);
+    return{
+      disc:Number(meta.disc)>0?Number(meta.disc):mined.disc,
+      track:Number(meta.track)>0?Number(meta.track):mined.track,
+      name,
+    };
+  }
+  /* A record that numbers nothing still has to play in some order, so it
+     plays in the order the folder shows it in — and a file that carries
+     a number always comes before one that carries none. */
+  function sortAlbumItems(items){
+    return (items||[]).map((item,i)=>({item,i,k:trackOrderKey(item)}))
+      .sort((a,b)=>(a.k.disc-b.k.disc)
+        ||((a.k.track||Infinity)-(b.k.track||Infinity))
+        ||naturalCompare(a.k.name,b.k.name)
+        ||(a.i-b.i))
+      .map(x=>x.item);
+  }
   return{mimeForFilename,extensionForBlob,normAlbum,genreKey,inferGenres,groupItems,validateBackupCatalog,
-    mergeLogEntries,scrubQueueForAlbum,shouldAutoEnrich,saveBackup,zipWrite,unzip};
+    mergeLogEntries,scrubQueueForAlbum,shouldAutoEnrich,saveBackup,zipWrite,unzip,
+    trackNumbersFromName,naturalCompare,sortAlbumItems};
 })();
 /* AEON_CORE_END */
 const{mimeForFilename,extensionForBlob,normAlbum,genreKey,inferGenres,groupItems,zipWrite,unzip}=AeonCore;
@@ -2185,6 +2258,7 @@ function parseID3(buf){
         else if(id==="TDRC"||id==="TYER")out.year=(txt.match(/\d{4}/)||[""])[0];
         else if(id==="TCON")out.genre=txt.replace(/^\(\d+\)/,"").trim();
         else if(id==="TRCK")out.track=parseInt(txt)||undefined;
+        else if(id==="TPOS")out.disc=parseInt(txt)||undefined;
       }
     }
   }
@@ -2230,6 +2304,7 @@ function parseMP4(buf){
       else if(nm==="\u00A9gen")out.genre=txt();
       else if(nm==="gnre"&&pay.length>=2){const g=(pay[0]<<8|pay[1])-1;if(GENRES[g])out.genre=GENRES[g]}
       else if(nm==="trkn"&&pay.length>=4)out.track=(pay[2]<<8)|pay[3];
+      else if(nm==="disk"&&pay.length>=4)out.disc=(pay[2]<<8)|pay[3];
       else if(nm==="covr"&&!out.art)out.art=new Blob([pay.slice()],{type:type===14?"image/png":"image/jpeg"});
     }
     o+=sz;
@@ -2264,6 +2339,7 @@ function parseFLAC(buf){
         else if(k==="DATE"||k==="YEAR")out.year=(v.match(/\d{4}/)||[""])[0];
         else if(k==="GENRE")out.genre=v;
         else if(k==="TRACKNUMBER")out.track=parseInt(v)||undefined;
+        else if(k==="DISCNUMBER")out.disc=parseInt(v)||undefined;
       }
     }else if(type===6&&!out.art){ // PICTURE — big-endian
       let p=o+4;
@@ -2764,8 +2840,9 @@ async function importFiles(rawFiles,opts={}){
       items.push({file:f,meta,folder,folderKey});
       if(++parsed%8===0)await new Promise(r=>setTimeout(r,0)); // breathe
     }
-    for(const g of groupItems(items,mode)){
-    g.sort((a,b)=>(a.meta.track||999)-(b.meta.track||999)||a.file.name.localeCompare(b.file.name));
+    for(const rawGroup of groupItems(items,mode)){
+    // disc, then track, then the filename read as a person reads numbers
+    const g=AeonCore.sortAlbumItems(rawGroup);
     // majority vote on every album-level field
     const most=f=>{const c={};g.forEach(it=>{const v=it.meta[f];if(v)c[v]=(c[v]||0)+1});
       const top=Object.entries(c).sort((x,y)=>y[1]-x[1])[0];return top?top[0]:""};
@@ -3192,6 +3269,11 @@ async function enrichAlbums(albums){
 const audio=new Audio();
 audio.preload="auto";
 let actx=null,eqNodes=[],analyser=null,gainNode=null,fftBuf=null,curURL=null;
+/* What the collector asked for, as opposed to what the element managed.
+   A track chosen while its file was still opening, or refused because
+   the gesture had expired, is still a track that was asked for: when the
+   audio becomes playable it is started, rather than sitting silent. */
+let wantPlaying=false;
 const EQ_FREQS=[31,62,125,250,500,1000,2000,4000,8000,16000];
 const EQ_PRESETS={
   "FLAT":        [0,0,0,0,0,0,0,0,0,0],
@@ -3220,6 +3302,44 @@ function ensureAudioGraph(){
     actx.onstatechange=()=>reviveAudio(); // OS suspended us mid-song? come back
   }catch(e){/* graph optional — plain playback still works */}
 }
+/* ── the first tap ──
+   iOS hands out permission to play only inside a gesture, and it hands
+   it to the element, once. Choosing a track has to read the file off
+   disk first, and by the time that await returns the gesture is over —
+   so the very first song of a session was asked to play with no
+   permission, was refused, and said nothing about it. Closing the app
+   and coming back appeared to fix it only because the restored track was
+   then started by a plain tap on the transport, with no await in front
+   of it.
+   The permission is claimed instead on the first touch anywhere, with a
+   frame of silence nobody hears, and after that the element may be
+   started from anywhere. */
+let audioUnlocked=false;
+/* one sample of silence — a real WAV, so no decoder has an opinion */
+const SILENCE="data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
+function unlockAudio(){
+  if(audioUnlocked)return;
+  audioUnlocked=true;
+  ensureAudioGraph();
+  if(actx&&actx.state==="suspended")actx.resume().catch(()=>{});
+  if(audio.src)return;                      // a real track already holds it
+  audio.src=SILENCE;
+  const started=audio.play();
+  const done=()=>{
+    /* only ever clear the silence — a real track may have claimed the
+       element while this was resolving, and taking its source away would
+       stop the music the tap asked for */
+    if(audio.src!==SILENCE)return;
+    wantPlaying=false;
+    audio.pause();audio.removeAttribute("src");
+    try{audio.load()}catch(e){}
+  };
+  if(started&&started.then)started.then(done,()=>{audioUnlocked=false;done()});
+  else done();
+}
+["pointerdown","touchstart","keydown"].forEach(ev=>
+  addEventListener(ev,unlockAudio,{capture:true,passive:true}));
+
 function applyEQ(){
   if(!eqNodes.length)return;
   state.settings.eqGains.forEach((g,i)=>{eqNodes[i].gain.value=g});
@@ -3230,6 +3350,7 @@ function setVolume(v){
   saveSettings();
 }
 function clearPlaybackSource(){
+  wantPlaying=false;
   audio.pause();
   if(curURL){if(curURL.startsWith("blob:"))URL.revokeObjectURL(curURL);curURL=null}
   audio.removeAttribute("src");
@@ -3302,12 +3423,20 @@ async function playCurrent(autoplay){
   curURL=await trackURL(trk); // a file stream on device, a blob in a browser
   if(!curURL){toast("That track's audio is missing");return}
   audio.src=curURL;
+  /* Playing comes before the bookkeeping. Writing the resume point first
+     put a database round-trip between the tap and the sound — the pause
+     the collector heard as "it didn't take" — and none of what follows
+     needs to happen before the music starts. */
+  if(autoplay){
+    wantPlaying=true;
+    const started=audio.play();          // not awaited: the sleeve should not
+    if(started&&started.catch)started.catch(()=>{}); // wait on the first sample
+  }
   state.playingAlbumId=alb.id;
   updatePlayerUI(alb,trk,true);
   sky.focusAlbum(alb.id);
-  await kvSet("lastPlayed",{albumId:alb.id,trackId:trk.id,qIndex:state.qIndex,
-    queue:state.queue});
-  if(autoplay){try{await audio.play()}catch(e){/* gesture needed */}}
+  kvSet("lastPlayed",{albumId:alb.id,trackId:trk.id,qIndex:state.qIndex,
+    queue:state.queue}).catch(()=>{});
   if("mediaSession" in navigator){
     const art=artURL(alb);
     navigator.mediaSession.metadata=new MediaMetadata({
@@ -3321,7 +3450,7 @@ async function playCurrent(autoplay){
 function nextTrack(){
   if(state.qIndex<state.queue.length-1){state.qIndex++;playCurrent(true)}
   else if(state.settings.repeat==="all"&&state.queue.length){state.qIndex=0;playCurrent(true)}
-  else audio.pause();
+  else{wantPlaying=false;audio.pause()}
 }
 function prevTrack(){
   if(audio.currentTime>3){audio.currentTime=0;return}
@@ -3334,7 +3463,8 @@ function togglePlay(){
   if(trk&&!hasAudio(trk)){toast("Mock star — no audio to play");return}
   ensureAudioGraph();
   if(actx&&actx.state==="suspended")actx.resume();
-  if(audio.paused)audio.play().catch(()=>{});else audio.pause();
+  if(audio.paused){wantPlaying=true;audio.play().catch(()=>{})}
+  else{wantPlaying=false;audio.pause()}
 }
 audio.addEventListener("ended",()=>{
   badTracks=0;                               // a track that finished is a good track
@@ -3347,7 +3477,7 @@ audio.addEventListener("ended",()=>{
    of them fails, it stops rather than racing through the queue. */
 let badTracks=0;
 audio.addEventListener("error",()=>{
-  if(!audio.src||audio.src==="")return;
+  if(!audio.src||audio.src===""||audio.src===SILENCE)return;
   const q=state.queue[state.qIndex];
   const trk=q&&trackById(q.albumId,q.trackId);
   const name=(trk&&trk.title)||"That track";
@@ -3355,7 +3485,11 @@ audio.addEventListener("error",()=>{
   toast(`${name} won't play on this device — skipping`);
   nextTrack();
 });
+audio.addEventListener("canplay",()=>{
+  if(wantPlaying&&audio.paused&&audio.src&&audio.src!==SILENCE)audio.play().catch(()=>{});
+});
 audio.addEventListener("play",()=>{
+  if(audio.src!==SILENCE)wantPlaying=true;
   syncPlayGlyphs(true);
   if("mediaSession" in navigator)navigator.mediaSession.playbackState="playing";
 });
@@ -3379,9 +3513,9 @@ addEventListener("pageshow",reviveAudio);
 if("mediaSession" in navigator){ // lock screen + control-center transport
   try{
     navigator.mediaSession.setActionHandler("play",()=>{
-      ensureAudioGraph();reviveAudio();audio.play().catch(()=>{});
+      wantPlaying=true;ensureAudioGraph();reviveAudio();audio.play().catch(()=>{});
     });
-    navigator.mediaSession.setActionHandler("pause",()=>audio.pause());
+    navigator.mediaSession.setActionHandler("pause",()=>{wantPlaying=false;audio.pause()});
   }catch(e){}
 }
 audio.addEventListener("timeupdate",()=>{
@@ -3478,13 +3612,69 @@ function renderQueue(){
     renderQueue();
   }));
 }
+/* ── scrubbing ──
+   A native range only answers to its own thumb, and that thumb is nine
+   pixels of a fifty-pixel band: the miss rate is the design, not the
+   user. The band itself now takes the press — anywhere along it puts the
+   playhead there, and the drag continues wherever the finger travels,
+   because the pointer is captured the moment it goes down. The position
+   is painted once a frame and the decoder is only asked to move when the
+   finger lifts, so dragging stays smooth instead of seeking sixty times
+   a second. */
 let seekHeld=false;
-$("#nowSeek").addEventListener("input",()=>{seekHeld=true;
-  if(audio.duration)$("#tCur").textContent=fmtT($("#nowSeek").value/1000*audio.duration)});
-$("#nowSeek").addEventListener("change",()=>{
-  if(audio.duration)audio.currentTime=$("#nowSeek").value/1000*audio.duration;
-  seekHeld=false;
-});
+(function wireSeek(){
+  const wrap=$("#nowSeekWrap"), sl=$("#nowSeek");
+  let dragging=false, want=null, raf=0;
+  const fracAt=x=>{
+    const r=sl.getBoundingClientRect();
+    return r.width?clamp((x-r.left)/r.width,0,1):0;
+  };
+  function paint(){
+    raf=0;
+    if(want===null)return;
+    sl.value=Math.round(want*1000);
+    if(audio.duration)$("#tCur").textContent=fmtT(want*audio.duration);
+  }
+  function to(f){want=f;if(!raf)raf=requestAnimationFrame(paint)}
+  function begin(e){
+    if(e.button>0)return;
+    dragging=true;seekHeld=true;
+    wrap.classList.add("scrubbing");
+    try{wrap.setPointerCapture(e.pointerId)}catch(err){}
+    to(fracAt(e.clientX));
+    e.preventDefault();
+  }
+  function drag(e){
+    if(!dragging)return;
+    to(fracAt(e.clientX));
+    e.preventDefault();
+  }
+  function end(e){
+    if(!dragging)return;
+    dragging=false;
+    wrap.classList.remove("scrubbing");
+    try{wrap.releasePointerCapture(e.pointerId)}catch(err){}
+    if(raf){cancelAnimationFrame(raf);raf=0}
+    paint();
+    if(want!==null&&audio.duration&&isFinite(audio.duration))audio.currentTime=want*audio.duration;
+    want=null;seekHeld=false;
+  }
+  wrap.addEventListener("pointerdown",begin);
+  wrap.addEventListener("pointermove",drag);
+  wrap.addEventListener("pointerup",end);
+  wrap.addEventListener("pointercancel",end);
+  /* the keyboard still drives the range directly, as it always did */
+  sl.addEventListener("input",()=>{
+    if(dragging)return;
+    seekHeld=true;
+    if(audio.duration)$("#tCur").textContent=fmtT(sl.value/1000*audio.duration);
+  });
+  sl.addEventListener("change",()=>{
+    if(dragging)return;
+    if(audio.duration)audio.currentTime=sl.value/1000*audio.duration;
+    seekHeld=false;
+  });
+})();
 $("#volSlider").addEventListener("input",e=>setVolume(e.target.value/100));
 /* shuffle + repeat — the queue bends, the library never does */
 $("#nowShuffle").addEventListener("click",()=>{
@@ -4153,11 +4343,16 @@ const sky=(()=>{
   function frame(t){
     requestAnimationFrame(frame);
     const dt=Math.min(33,t-last);last=t;
-    const onSky=document.body.dataset.tab==="sky";
+    const onSky=document.body.dataset.tab==="sky"
+      &&!document.body.classList.contains("sheet-open");
     /* Nothing is drawn for a sky nobody is looking at. Standing on the
        Library tab used to cost a full sky render sixty times a second —
        every star, every gradient — for pixels behind an opaque panel.
-       The canvases keep their last frame, so coming back is instant. */
+       A sheet is the same bargain and a dearer one: the player sits over
+       the sky behind a blur, and every sky frame underneath forced that
+       blur to be computed again, which is exactly why scrubbing and the
+       sheet's own animations stuttered. The canvases keep their last
+       frame, so coming back is instant. */
     if(!onSky)return;
     drawn++;
     /* A single bad number would blank the sky for good, since every
@@ -4471,7 +4666,7 @@ function switchTab(name){
   $$(".tab").forEach(b=>b.classList.toggle("on",b.dataset.go===name));
   $$(".panel").forEach(p=>p.classList.toggle("active",p.id==="panel-"+name));
   if(name!=="sky")sky.clearSelection();
-  if(name==="library")renderLibrary();
+  if(name==="library")refreshLibrary();
   if(name==="playlists")renderPlaylists();
   if(name==="log")renderLog();
   if(name==="settings"){renderEQ();updateStorage()}
@@ -4492,7 +4687,13 @@ function openSheet(id){
   if(el._resetDrag)el._resetDrag();
   el.classList.add("open");
   sheetStack.push(id);
+  markSheetDepth();
   try{history.pushState({sheetDepth:sheetStack.length},"")}catch(e){}
+}
+/* one class the whole app can read: while a sheet is up, the sky beneath
+   it stops painting frames nobody can see through the blur */
+function markSheetDepth(){
+  document.body.classList.toggle("sheet-open",sheetStack.length>0);
 }
 /* Giving the history entry back is deferred by a tick on purpose. Code
    that swaps one sheet for another closes the first and opens the second
@@ -4516,6 +4717,7 @@ function closeSheet(id){
   el.classList.remove("open");
   const i=sheetStack.lastIndexOf(id);
   if(i>=0)sheetStack.splice(i,1);
+  markSheetDepth();
   syncSheetDepth();
 }
 addEventListener("popstate",()=>{
@@ -4524,6 +4726,7 @@ addEventListener("popstate",()=>{
     const id=sheetStack.pop();
     const el=$("#"+id);if(el)el.classList.remove("open");
   }
+  markSheetDepth();
 });
 $$(".sheet").forEach(sh=>sh.addEventListener("click",e=>{if(e.target===sh)closeSheet(sh.id)}));
 $$(".sheet-close").forEach(b=>b.addEventListener("click",()=>closeSheet(b.closest(".sheet").id)));
@@ -4545,9 +4748,28 @@ function makeSheetsDraggable(){
     const body=sh.querySelector(".sheet-body");
     if(!body)return;
     let y0=0,x0=0,dy=0,armed=false,live=false,lastY=0,lastT=0,vel=0,onHandle=false;
-    const inert=el=>!!(el&&el.closest&&el.closest("input,textarea,select"));
+    /* A touch stream can outrun the display. Writing the transform and
+       the backdrop on every move meant several layouts and several blur
+       passes per frame, which is what made the pull feel like it was
+       catching. The finger's position is recorded as fast as it arrives
+       and painted once, when the frame is actually due. */
+    let dragRAF=0;
+    function paintDrag(){
+      dragRAF=0;
+      if(!live)return;
+      const h=body.offsetHeight||600;
+      body.style.transform="translate3d(0,"+dy.toFixed(1)+"px,0)";
+      sh.style.backgroundColor="rgba(4,3,7,"+(.78*(1-Math.min(1,dy/h))).toFixed(3)+")";
+    }
+    function scheduleDrag(){if(!dragRAF)dragRAF=requestAnimationFrame(paintDrag)}
+    function stopDrag(){if(dragRAF){cancelAnimationFrame(dragRAF);dragRAF=0}}
+    /* a control that owns its own gesture is never a handle for the
+       sheet: the scrub band takes vertical slop as scrubbing, not as a
+       pull, so a thumb that wanders while it travels never dismisses the
+       player mid-song */
+    const inert=el=>!!(el&&el.closest&&el.closest("input,textarea,select,#nowSeekWrap,#volRow"));
     function reset(){
-      armed=live=false;dy=0;onHandle=false;
+      armed=live=false;dy=0;onHandle=false;stopDrag();
       body.classList.remove("dragging","settling");
       body.style.transform="";sh.style.backgroundColor="";
       /* a sheet only scrolls if it has somewhere to scroll to; otherwise
@@ -4580,16 +4802,14 @@ function makeSheetsDraggable(){
       const now=performance.now();
       if(now>lastT){vel=(y-lastY)/(now-lastT);lastY=y;lastT=now}
       dy=Math.max(0,d);
-      const h=body.offsetHeight||600;
-      body.style.transform="translateY("+dy.toFixed(1)+"px)";
-      sh.style.backgroundColor="rgba(4,3,7,"+(.78*(1-Math.min(1,dy/h))).toFixed(3)+")";
+      scheduleDrag();
       return true;
     }
     function up(){
       if(!armed)return;
       armed=false;
       if(!live){reset();return}
-      live=false;
+      live=false;stopDrag();
       body.classList.remove("dragging");
       body.classList.add("settling");
       const h=body.offsetHeight||600;
@@ -4771,6 +4991,15 @@ function renderLibrary(){
     },{rootMargin:"600px 0px"});
     libIO.observe($("#libMore"));
   }
+}
+/* Everything that changes the library redraws the grid on the spot, so
+   merely arriving at the tab is not a reason to tear down every card and
+   build it again. That rebuild used to land in the same frames as the
+   panel's own animation — which is precisely why sliding into a large
+   library stuttered. */
+function refreshLibrary(){
+  if(libShown&&$("#libGrid").children.length)return;
+  renderLibrary();
 }
 /* An observer only speaks when the answer changes, so one page at a time
    would stall on a tall screen where the mark never leaves the view.
@@ -5535,6 +5764,33 @@ $("#inviteGuide").addEventListener("click",()=>openSheet("sheetGuide"));
 $("#emptyGuide").addEventListener("click",()=>openSheet("sheetGuide"));
 $("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInput.click()});
 
+/* A library adopted before the order was read properly kept whatever
+   order the folder happened to be walked in, which plays like a shuffle
+   nobody asked for. Only adopted records can be put right without
+   touching a byte of audio — their files still carry their own names —
+   and only where every file in the record names its own number, so a
+   record that never numbered its files is left exactly as it is. */
+async function repairAdoptedTrackOrder(){
+  if(await kvGet("trackOrderFix"))return;
+  let fixed=0;
+  for(const [albumId,list] of state.tracks){
+    if(list.length<2)continue;
+    if(!list.every(t=>t.adopted&&t.path))continue;
+    const keyed=list.map(t=>({t,k:AeonCore.trackNumbersFromName(t.path.split("/").pop())}));
+    if(!keyed.every(x=>x.k.track>0))continue;
+    const seen=new Set(keyed.map(x=>x.k.disc+"/"+x.k.track));
+    if(seen.size!==keyed.length)continue;              // numbers that repeat prove nothing
+    keyed.sort((a,b)=>(a.k.disc-b.k.disc)||(a.k.track-b.k.track));
+    if(keyed.every((x,i)=>x.t===list[i]))continue;     // already in order
+    const ordered=keyed.map((x,i)=>{x.t.idx=i+1;return x.t});
+    state.tracks.set(albumId,ordered);
+    for(const t of ordered)await dbPut("tracks",t);
+    fixed++;
+  }
+  await kvSet("trackOrderFix",1);
+  if(fixed)toast(`${fixed} record${fixed>1?"s":""} put back in track order`);
+}
+
 /* ════════════════════════════════════════════════════════════════
    INIT — the reload test: kill the tab, reopen, nothing is lost.
    ════════════════════════════════════════════════════════════════ */
@@ -5552,6 +5808,7 @@ $("#guideImport").addEventListener("click",()=>{closeSheet("sheetGuide");fileInp
     state.tracks.get(t.albumId).push(t);
   });
   state.tracks.forEach(l=>l.sort((a,b)=>a.idx-b.idx));
+  await repairAdoptedTrackOrder();
   state.playlists=playlists||[];
   if(settings)state.settings={...state.settings,...settings,
     eqGains:(settings.eqGains&&settings.eqGains.length===10)?settings.eqGains:new Array(10).fill(0)};
