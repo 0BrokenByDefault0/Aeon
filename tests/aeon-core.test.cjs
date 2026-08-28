@@ -225,3 +225,64 @@ test("writes and reads a stored ZIP without materializing whole source blobs", a
 test("the shipped app contains no executable JSONP path", () => {
   assert.doesNotMatch(html, /createElement\(["']script["']\)|output=jsonp|callback=/i);
 });
+
+function item(name, meta = {}) {
+  return { file: { name }, meta };
+}
+const names = (items) => core().sortAlbumItems(items).map((i) => i.file.name);
+
+test("tagged track numbers order a record before anything else does", () => {
+  const items = [
+    item("zebra.mp3", { track: 2 }),
+    item("apple.mp3", { track: 10 }),
+    item("mango.mp3", { track: 1 }),
+  ];
+  assert.deepEqual(names(items), ["mango.mp3", "zebra.mp3", "apple.mp3"]);
+});
+
+test("a double album keeps its discs apart instead of interleaving them", () => {
+  const items = [
+    item("d2t1.flac", { disc: 2, track: 1 }),
+    item("d1t2.flac", { disc: 1, track: 2 }),
+    item("d2t2.flac", { disc: 2, track: 2 }),
+    item("d1t1.flac", { disc: 1, track: 1 }),
+  ];
+  assert.deepEqual(names(items), ["d1t1.flac", "d1t2.flac", "d2t1.flac", "d2t2.flac"]);
+});
+
+test("untagged files are ordered by the numbers their names carry, not alphabetically", () => {
+  const items = [
+    item("10 Zebra.mp3"),
+    item("02 Apple.mp3"),
+    item("1 Mango.mp3"),
+    item("09 Quince.mp3"),
+  ];
+  assert.deepEqual(names(items), ["1 Mango.mp3", "02 Apple.mp3", "09 Quince.mp3", "10 Zebra.mp3"]);
+});
+
+test("names read numbers in every shape a collection uses", () => {
+  const n = core().trackNumbersFromName;
+  assert.deepEqual(n("03 - Title.mp3"), { disc: 0, track: 3 });
+  assert.deepEqual(n("1-04 Title.flac"), { disc: 1, track: 4 });
+  assert.deepEqual(n("(7) Title.m4a"), { disc: 0, track: 7 });
+  assert.deepEqual(n("B3 Title.wav"), { disc: 2, track: 3 });
+  assert.deepEqual(n("Title.mp3"), { disc: 0, track: 0 });
+  assert.deepEqual(n("1979.mp3"), { disc: 0, track: 0 });
+});
+
+test("a record that numbers nothing falls back to the order its folder shows", () => {
+  const items = [item("Intro.mp3"), item("Anthem.mp3"), item("Coda.mp3")];
+  assert.deepEqual(names(items), ["Anthem.mp3", "Coda.mp3", "Intro.mp3"]);
+});
+
+test("a numbered file always precedes an unnumbered one", () => {
+  const items = [item("Hidden Track.mp3"), item("02 Second.mp3"), item("01 First.mp3")];
+  assert.deepEqual(names(items), ["01 First.mp3", "02 Second.mp3", "Hidden Track.mp3"]);
+});
+
+test("numbers inside a name compare as numbers", () => {
+  const c = core().naturalCompare;
+  assert.ok(c("Part 2", "Part 10") < 0);
+  assert.ok(c("Part 10", "Part 2") > 0);
+  assert.equal(c("Same", "same"), 0);
+});

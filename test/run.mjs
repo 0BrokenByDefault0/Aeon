@@ -889,6 +889,92 @@ server.listen(PORT);
   await ctx.close();
 }
 
+/* ── the transport answers the finger, and the shelf is level ──
+   Every one of these was reported from a phone: a scrub thumb too small
+   to hit, a player that stuttered while the sky burned frames behind it,
+   and a grid of mismatched tiles. */
+{
+  console.log("\nthe transport");
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.route("**://itunes.apple.com/**", r => r.abort());
+  await page.route("**://musicbrainz.org/**", r => r.abort());
+  await page.goto(`http://localhost:${PORT}/`);
+  await page.waitForTimeout(900);
+
+  await page.evaluate(() => makeMockAlbums(8).then(m => onAlbumsAdded(m, 0, { quiet: true })));
+  await page.waitForTimeout(3000);
+  await page.evaluate(() => switchTab("library"));
+  await page.waitForTimeout(600);
+
+  const heights = await page.evaluate(() =>
+    [...document.querySelectorAll("#libGrid .alb")].map(e => Math.round(e.getBoundingClientRect().height)));
+  ok("every record is the same size on the shelf",
+    heights.length > 3 && new Set(heights).size === 1, heights);
+
+  ok("returning to the library keeps the cards it already built",
+    await page.evaluate(async () => {
+      const first = document.querySelector("#libGrid .alb");
+      switchTab("sky");
+      await new Promise(r => setTimeout(r, 200));
+      switchTab("library");
+      await new Promise(r => setTimeout(r, 300));
+      return document.querySelector("#libGrid .alb") === first;
+    }) === true);
+  ok("an emptied grid is still rebuilt on arrival",
+    await page.evaluate(async () => {
+      document.querySelector("#libGrid").innerHTML = "";
+      libShown = 0;
+      switchTab("sky"); switchTab("library");
+      await new Promise(r => setTimeout(r, 300));
+      return document.querySelectorAll("#libGrid .alb").length;
+    }) === 8);
+
+  await page.evaluate(() => {
+    const a = state.albums[0], trks = state.tracks.get(a.id);
+    state.queue = trks.map(t => ({ albumId: a.id, trackId: t.id }));
+    state.qIndex = 0; state.playingAlbumId = a.id;
+    updatePlayerUI(a, trks[0], true);
+    openSheet("sheetNow");
+  });
+  await page.waitForTimeout(500);
+
+  const before = await page.evaluate(() => { switchTab("sky"); return sky.framesDrawn(); });
+  await page.waitForTimeout(700);
+  ok("the sky stops painting behind an open sheet",
+    await page.evaluate(() => sky.framesDrawn()) === before);
+
+  // a duration to scrub through, without needing a decodable file
+  await page.evaluate(() =>
+    Object.defineProperty(audio, "duration", { configurable: true, get: () => 200 }));
+  const band = await page.evaluate(() => {
+    const r = document.querySelector("#nowSeekWrap").getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height };
+  });
+  ok("the scrub band is a target a thumb can hit", band.h >= 36, band);
+  // press near the band's top edge, three quarters along — nowhere near the thumb
+  await page.mouse.move(band.x + band.w * 0.75, band.y + 4);
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  const held = await page.evaluate(() => +document.querySelector("#nowSeek").value);
+  ok("pressing the band puts the playhead there", Math.abs(held - 750) < 40, held);
+  await page.mouse.move(band.x + band.w * 0.25, band.y + 20, { steps: 8 });
+  await page.waitForTimeout(120);
+  const dragged = await page.evaluate(() => +document.querySelector("#nowSeek").value);
+  ok("the playhead follows the finger anywhere on the band", Math.abs(dragged - 250) < 40, dragged);
+  ok("scrubbing never pulls the sheet away",
+    await page.evaluate(() => document.querySelector("#sheetNow").classList.contains("open")) === true);
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+  const landed = await page.evaluate(() => Math.round(audio.currentTime));
+  ok("letting go commits the seek", Math.abs(landed - 50) < 10, landed);
+
+  ok("no errors at the transport", errors.length === 0, errors);
+  await ctx.close();
+}
+
 /* ── nothing reaches for a third-party script any more ── */
 {
   console.log("\nprivacy");
