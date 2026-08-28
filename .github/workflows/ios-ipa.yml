@@ -18,10 +18,10 @@ on:
 
 jobs:
   ipa:
-    # macos-14 stopped being allocated — a job asking for it is failed in a
-    # few seconds with no runner and no log. macos-latest always names an
-    # image GitHub is currently serving, so the build survives the next
-    # retirement too.
+    # macos-latest rather than a pinned image, so the build is not broken
+    # by the retirement of whichever version was current when it was
+    # written. (This was not what stopped the 2026-08-28 builds: every job
+    # on the account, Linux included, was being refused a runner.)
     runs-on: macos-latest
     timeout-minutes: 40
     steps:
