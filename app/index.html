@@ -2532,8 +2532,34 @@ async function storeAudio(alb,trk,file){
   return{path,bytes:file.size};
 }
 const hasAudio=t=>!!(t&&(t.blob||t.path));
-async function trackURL(t){
+/* ── starting a track inside the tap that asked for it ──
+   iOS grants permission to play only while a gesture is still running,
+   and asking the plugin bridge where a file lives is asynchronous, so
+   the permission had always expired by the time playback was requested:
+   the first song of a session simply did not start, and the refusal was
+   swallowed. The answer is not to trick the element into being unlocked
+   — it is to stop asking a question we already know the answer to.
+   Documents does not move, so its location is resolved once and every
+   track URL after that is plain string work: synchronous, inside the
+   gesture, permission intact. */
+let docsBase=null;
+async function primeDocsBase(){
+  if(!NATIVE||docsBase)return;
+  try{
+    const {uri}=await FS().getUri({path:AUDIO_DIR,directory:"DOCUMENTS"});
+    // keep the folder above AUDIO_DIR, since track paths include it
+    docsBase=String(uri).replace(/\/+$/,"").slice(0,-AUDIO_DIR.length).replace(/\/+$/,"");
+  }catch(e){docsBase=null}
+}
+function trackURLSync(t){
   if(t.blob)return URL.createObjectURL(t.blob);
+  if(t.path&&NATIVE&&docsBase)
+    return Capacitor.convertFileSrc(docsBase+"/"+String(t.path).replace(/^\/+/,""));
+  return null;
+}
+async function trackURL(t){
+  const quick=trackURLSync(t);
+  if(quick)return quick;
   if(t.path&&NATIVE){
     try{
       const {uri}=await FS().getUri({path:t.path,directory:"DOCUMENTS"});
@@ -3269,11 +3295,22 @@ async function enrichAlbums(albums){
 const audio=new Audio();
 audio.preload="auto";
 let actx=null,eqNodes=[],analyser=null,gainNode=null,fftBuf=null,curURL=null;
-/* What the collector asked for, as opposed to what the element managed.
-   A track chosen while its file was still opening, or refused because
-   the gesture had expired, is still a track that was asked for: when the
-   audio becomes playable it is started, rather than sitting silent. */
-let wantPlaying=false;
+/* ── one attempt to start, never a standing order ──
+   A track asked for before its file was ready deserves a second attempt
+   once the audio is decodable. What it must never become is a rule that
+   playback should be running, because then every pause the collector did
+   not make through this app — the lock screen, Control Center, a call,
+   another app taking the speaker — gets undone the moment the element
+   readies itself again, and the record fights the hand on it.
+   So the intent is one pending start, tied to one load, and it is
+   abandoned the instant playback begins or anything at all pauses. */
+let pendingStart=null;   // {token} — the load still waiting to begin
+let loadToken=0;         // bumped by every new source
+function startPlayback(){
+  pendingStart={token:loadToken};
+  const started=audio.play();   // not awaited: the sleeve must not wait
+  if(started&&started.catch)started.catch(()=>{});
+}
 const EQ_FREQS=[31,62,125,250,500,1000,2000,4000,8000,16000];
 const EQ_PRESETS={
   "FLAT":        [0,0,0,0,0,0,0,0,0,0],
@@ -3302,44 +3339,6 @@ function ensureAudioGraph(){
     actx.onstatechange=()=>reviveAudio(); // OS suspended us mid-song? come back
   }catch(e){/* graph optional — plain playback still works */}
 }
-/* ── the first tap ──
-   iOS hands out permission to play only inside a gesture, and it hands
-   it to the element, once. Choosing a track has to read the file off
-   disk first, and by the time that await returns the gesture is over —
-   so the very first song of a session was asked to play with no
-   permission, was refused, and said nothing about it. Closing the app
-   and coming back appeared to fix it only because the restored track was
-   then started by a plain tap on the transport, with no await in front
-   of it.
-   The permission is claimed instead on the first touch anywhere, with a
-   frame of silence nobody hears, and after that the element may be
-   started from anywhere. */
-let audioUnlocked=false;
-/* one sample of silence — a real WAV, so no decoder has an opinion */
-const SILENCE="data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
-function unlockAudio(){
-  if(audioUnlocked)return;
-  audioUnlocked=true;
-  ensureAudioGraph();
-  if(actx&&actx.state==="suspended")actx.resume().catch(()=>{});
-  if(audio.src)return;                      // a real track already holds it
-  audio.src=SILENCE;
-  const started=audio.play();
-  const done=()=>{
-    /* only ever clear the silence — a real track may have claimed the
-       element while this was resolving, and taking its source away would
-       stop the music the tap asked for */
-    if(audio.src!==SILENCE)return;
-    wantPlaying=false;
-    audio.pause();audio.removeAttribute("src");
-    try{audio.load()}catch(e){}
-  };
-  if(started&&started.then)started.then(done,()=>{audioUnlocked=false;done()});
-  else done();
-}
-["pointerdown","touchstart","keydown"].forEach(ev=>
-  addEventListener(ev,unlockAudio,{capture:true,passive:true}));
-
 function applyEQ(){
   if(!eqNodes.length)return;
   state.settings.eqGains.forEach((g,i)=>{eqNodes[i].gain.value=g});
@@ -3350,7 +3349,7 @@ function setVolume(v){
   saveSettings();
 }
 function clearPlaybackSource(){
-  wantPlaying=false;
+  pendingStart=null;
   audio.pause();
   if(curURL){if(curURL.startsWith("blob:"))URL.revokeObjectURL(curURL);curURL=null}
   audio.removeAttribute("src");
@@ -3419,19 +3418,20 @@ async function playCurrent(autoplay){
   }
   ensureAudioGraph();
   if(actx&&actx.state==="suspended")actx.resume();
-  if(curURL&&curURL.startsWith("blob:"))URL.revokeObjectURL(curURL);
-  curURL=await trackURL(trk); // a file stream on device, a blob in a browser
+  const prevURL=curURL;
+  /* The synchronous answer first: on device it is string work, so the
+     source is set and playback requested while the tap that asked for it
+     is still the current gesture. Only a track we cannot place without
+     asking falls back to the await, and that one may still need a second
+     tap — as it always did. */
+  curURL=trackURLSync(trk)||await trackURL(trk);
+  if(prevURL&&prevURL.startsWith("blob:"))URL.revokeObjectURL(prevURL);
   if(!curURL){toast("That track's audio is missing");return}
+  loadToken++;                 // a new source: any older pending start is void
   audio.src=curURL;
-  /* Playing comes before the bookkeeping. Writing the resume point first
-     put a database round-trip between the tap and the sound — the pause
-     the collector heard as "it didn't take" — and none of what follows
-     needs to happen before the music starts. */
-  if(autoplay){
-    wantPlaying=true;
-    const started=audio.play();          // not awaited: the sleeve should not
-    if(started&&started.catch)started.catch(()=>{}); // wait on the first sample
-  }
+  /* Playing comes before the bookkeeping: writing the resume point first
+     put a database round-trip between the tap and the sound. */
+  if(autoplay)startPlayback();
   state.playingAlbumId=alb.id;
   updatePlayerUI(alb,trk,true);
   sky.focusAlbum(alb.id);
@@ -3450,7 +3450,7 @@ async function playCurrent(autoplay){
 function nextTrack(){
   if(state.qIndex<state.queue.length-1){state.qIndex++;playCurrent(true)}
   else if(state.settings.repeat==="all"&&state.queue.length){state.qIndex=0;playCurrent(true)}
-  else{wantPlaying=false;audio.pause()}
+  else{pendingStart=null;audio.pause()}
 }
 function prevTrack(){
   if(audio.currentTime>3){audio.currentTime=0;return}
@@ -3463,8 +3463,8 @@ function togglePlay(){
   if(trk&&!hasAudio(trk)){toast("Mock star — no audio to play");return}
   ensureAudioGraph();
   if(actx&&actx.state==="suspended")actx.resume();
-  if(audio.paused){wantPlaying=true;audio.play().catch(()=>{})}
-  else{wantPlaying=false;audio.pause()}
+  if(audio.paused)startPlayback();
+  else{pendingStart=null;audio.pause()}
 }
 audio.addEventListener("ended",()=>{
   badTracks=0;                               // a track that finished is a good track
@@ -3477,7 +3477,7 @@ audio.addEventListener("ended",()=>{
    of them fails, it stops rather than racing through the queue. */
 let badTracks=0;
 audio.addEventListener("error",()=>{
-  if(!audio.src||audio.src===""||audio.src===SILENCE)return;
+  if(!audio.src||audio.src==="")return;
   const q=state.queue[state.qIndex];
   const trk=q&&trackById(q.albumId,q.trackId);
   const name=(trk&&trk.title)||"That track";
@@ -3485,15 +3485,21 @@ audio.addEventListener("error",()=>{
   toast(`${name} won't play on this device — skipping`);
   nextTrack();
 });
+/* the one retry: only for the load that is still waiting, only once */
 audio.addEventListener("canplay",()=>{
-  if(wantPlaying&&audio.paused&&audio.src&&audio.src!==SILENCE)audio.play().catch(()=>{});
+  if(!pendingStart||pendingStart.token!==loadToken||!audio.paused)return;
+  pendingStart=null;
+  audio.play().catch(()=>{});
 });
 audio.addEventListener("play",()=>{
-  if(audio.src!==SILENCE)wantPlaying=true;
+  pendingStart=null;                 // it started; nothing is owed
   syncPlayGlyphs(true);
   if("mediaSession" in navigator)navigator.mediaSession.playbackState="playing";
 });
 audio.addEventListener("pause",()=>{
+  /* whoever paused it — this app, the lock screen, a phone call — the
+     record stays paused; a pending start is never carried over one */
+  pendingStart=null;
   syncPlayGlyphs(false);
   if("mediaSession" in navigator)navigator.mediaSession.playbackState="paused";
 });
@@ -3513,9 +3519,9 @@ addEventListener("pageshow",reviveAudio);
 if("mediaSession" in navigator){ // lock screen + control-center transport
   try{
     navigator.mediaSession.setActionHandler("play",()=>{
-      wantPlaying=true;ensureAudioGraph();reviveAudio();audio.play().catch(()=>{});
+      ensureAudioGraph();reviveAudio();startPlayback();
     });
-    navigator.mediaSession.setActionHandler("pause",()=>{wantPlaying=false;audio.pause()});
+    navigator.mediaSession.setActionHandler("pause",()=>{pendingStart=null;audio.pause()});
   }catch(e){}
 }
 audio.addEventListener("timeupdate",()=>{
@@ -5795,6 +5801,7 @@ async function repairAdoptedTrackOrder(){
    INIT — the reload test: kill the tab, reopen, nothing is lost.
    ════════════════════════════════════════════════════════════════ */
 (async function init(){
+  primeDocsBase();          // asked once, so no track ever has to ask again
   db=await openDB();
   await dbDel("kv","transits").catch(()=>{});
   const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays]=await Promise.all([

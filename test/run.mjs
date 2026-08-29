@@ -971,6 +971,53 @@ server.listen(PORT);
   const landed = await page.evaluate(() => Math.round(audio.currentTime));
   ok("letting go commits the seek", Math.abs(landed - 50) < 10, landed);
 
+  /* Nothing may ever put its own source on the shared element. A frame of
+     silence pushed through it to "unlock" playback fired play and ended
+     like any track would: the glyph flickered to pause and back, the
+     ended handler advanced the queue, and the record the collector
+     actually tapped never got the element at all. */
+  ok("no source but the record's own ever reaches the element",
+    await page.evaluate(async () => {
+      const before = audio.src;
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      document.body.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
+      await new Promise(r => setTimeout(r, 250));
+      return audio.src === before && !/^data:/.test(audio.src);
+    }) === true);
+
+  /* A pause the app did not make — the lock screen, Control Center, a
+     call — must stay a pause. A standing "should be playing" intent turned
+     every one of them into a restart, and the record fought the hand. */
+  const resume = await page.evaluate(async () => {
+    let plays = 0;
+    const real = audio.play.bind(audio);
+    audio.play = () => { plays++; return Promise.resolve(); };
+    const fire = e => audio.dispatchEvent(new Event(e));
+
+    loadToken++; pendingStart = { token: loadToken };
+    fire("pause");                       // paused from outside the app
+    fire("canplay");                     // and the element readies itself
+    const afterOutsidePause = plays;
+
+    pendingStart = { token: loadToken };  // a start still owed, nothing paused
+    fire("canplay");
+    const afterRetry = plays;
+    fire("canplay");                     // the retry is one attempt, not a loop
+    const afterSecondCanplay = plays;
+
+    pendingStart = { token: loadToken };
+    loadToken++;                         // a newer source supersedes it
+    fire("canplay");
+    const afterStaleToken = plays;
+
+    audio.play = real;
+    return { afterOutsidePause, afterRetry, afterSecondCanplay, afterStaleToken };
+  });
+  ok("a pause from outside the app is never undone", resume.afterOutsidePause === 0, resume);
+  ok("a track that could not start gets one more attempt", resume.afterRetry === 1, resume);
+  ok("and only one", resume.afterSecondCanplay === 1, resume);
+  ok("a superseded load never starts itself", resume.afterStaleToken === 1, resume);
+
   ok("no errors at the transport", errors.length === 0, errors);
   await ctx.close();
 }
