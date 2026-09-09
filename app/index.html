@@ -3347,7 +3347,7 @@ const EQ_PRESETS={
 function ensureAudioGraph(){
   if(actx&&actx.state!=="closed")return;
   if(actx)resetAudioEngine();
-  let ctx=null;
+  let ctx=null,source=null;
   try{
     ctx=new (window.AudioContext||window.webkitAudioContext)();
     // Build the output before taking ownership of the media element.
@@ -3362,13 +3362,14 @@ function ensureAudioGraph(){
       return b;
     });
     bands.forEach((b,i)=>b.connect(bands[i+1]||meter));
-    ctx.createMediaElementSource(audio).connect(bands[0]);
+    source=ctx.createMediaElementSource(audio);source.connect(bands[0]);
     actx=ctx;eqNodes=bands;analyser=meter;gainNode=gain;
     fftBuf=new Uint8Array(meter.frequencyBinCount);
     audio.volume=1;
     // Recovery belongs to foreground/user actions, never an OS interruption loop.
   }catch(e){
-    if(ctx)ctx.close().catch(()=>{});
+    if(source){actx=ctx;resetAudioEngine()}
+    else if(ctx)ctx.close().catch(()=>{});
     audio.volume=state.settings.volume;
   }
 }
@@ -3535,7 +3536,8 @@ function togglePlay(){
   const q=state.queue[state.qIndex];
   if(!q)return;
   const trk=q&&trackById(q.albumId,q.trackId);
-  if(trk&&!hasAudio(trk)){toast("Mock star — no audio to play");return}
+  if(!trk)return;
+  if(!hasAudio(trk)){toast("Mock star — no audio to play");return}
   if(sourceLoading){loadToken++;sourceLoading=false;pendingStart=null;audio.pause();return}
   if(!audio.getAttribute("src")||loadedTrackId!==trk.id||audio.error){playCurrent(true);return}
   if(audio.paused)startPlayback();
@@ -3602,11 +3604,6 @@ function reviveAudio(){
 document.addEventListener("visibilitychange",reviveAudio);
 addEventListener("focus",reviveAudio);
 addEventListener("pageshow",reviveAudio);
-addEventListener("aeon-foreground",reviveAudio);
-addEventListener("aeon-interruption",()=>{pendingStart=null;loadToken++;sourceLoading=false;audio.pause()});
-addEventListener("aeon-media-reset",()=>{
-  pendingStart=null;loadToken++;sourceLoading=false;resetAudioEngine();syncPlayGlyphs(false);
-});
 if("mediaSession" in navigator){ // lock screen + control-center transport
   try{
     navigator.mediaSession.setActionHandler("play",()=>{

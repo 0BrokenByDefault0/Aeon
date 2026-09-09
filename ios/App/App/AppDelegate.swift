@@ -8,11 +8,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        configureAudioSession()
-        let center = NotificationCenter.default
-        center.addObserver(self, selector: #selector(audioInterrupted(_:)), name: AVAudioSession.interruptionNotification, object: nil)
-        center.addObserver(self, selector: #selector(audioRouteChanged(_:)), name: AVAudioSession.routeChangeNotification, object: nil)
-        center.addObserver(self, selector: #selector(audioServicesReset), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
+        // Playback category: music keeps playing when the app backgrounds or
+        // the screen locks, ducks nothing, and yields only when another app
+        // takes the audio session (interruption pauses the WKWebView player).
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+        try? AVAudioSession.sharedInstance().setActive(true)
         return true
     }
 
@@ -30,56 +30,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
     }
 
-    private func configureAudioSession() {
-        do {
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-        } catch {
-            NSLog("Aeon audio session configuration failed: %@", error.localizedDescription)
-        }
-    }
-
-    private func notifyPlayer(_ event: String) {
-        DispatchQueue.main.async { [weak self] in
-            guard let controller = self?.window?.rootViewController as? CAPBridgeViewController else { return }
-            controller.webView?.evaluateJavaScript("window.dispatchEvent(new Event('\(event)'))", completionHandler: nil)
-        }
-    }
-
-    @objc private func audioInterrupted(_ notification: Notification) {
-        guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-              AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
-        notifyPlayer("aeon-interruption")
-    }
-
-    @objc private func audioRouteChanged(_ notification: Notification) {
-        guard let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable else { return }
-        // Disconnecting headphones must not unexpectedly move music to the speaker.
-        notifyPlayer("aeon-interruption")
-    }
-
-    @objc private func audioServicesReset() {
-        configureAudioSession()
-        notifyPlayer("aeon-media-reset")
-    }
-
     func applicationDidBecomeActive(_ application: UIApplication) {
-        guard let controller = window?.rootViewController as? CAPBridgeViewController else { return }
-        controller.webView?.evaluateJavaScript("typeof audio !== 'undefined' && !audio.paused") { [weak self] result, _ in
-            guard let playing = result as? Bool, playing else { return }
-            let session = AVAudioSession.sharedInstance()
-            if session.isOtherAudioPlaying {
-                self?.notifyPlayer("aeon-interruption")
-                return
-            }
-            do {
-                try session.setActive(true)
-                self?.notifyPlayer("aeon-foreground")
-            } catch {
-                self?.notifyPlayer("aeon-interruption")
-                NSLog("Aeon audio session activation failed: %@", error.localizedDescription)
-            }
-        }
+        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

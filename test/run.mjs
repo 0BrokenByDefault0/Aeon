@@ -96,6 +96,7 @@ const browser = await chromium.launch({
 
 async function session() {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -229,6 +230,7 @@ server.listen(PORT);
 {
   console.log("\nnative storage path");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   await ctx.addInitScript(() => {
     const disk = {};
     window.__disk = disk;
@@ -381,6 +383,7 @@ server.listen(PORT);
     listing[dir] = [...entries].map(([name, v]) => ({ name, type: v.type, size: v.size, uri: "file:///DOCUMENTS/" + (dir ? dir + "/" : "") + name }));
 
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   await ctx.addInitScript(l => {
     const written = {};
     window.__written = written;
@@ -734,6 +737,7 @@ server.listen(PORT);
 {
   console.log("\ngestures");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -916,6 +920,7 @@ server.listen(PORT);
 {
   console.log("\nthe transport");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -1075,6 +1080,25 @@ server.listen(PORT);
   ok("returning to the app honors a paused track",await page.evaluate(t=>audio.paused&&Math.abs(audio.currentTime-t)<.1,held));
   // The paused state is the contract; a foreground event cannot start music.
   ok("foreground never starts a paused transport",await page.evaluate(()=>audio.paused));
+  await page.evaluate(async()=>{await actx.close()});
+  await page.click("#pbPlay");
+  await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2&&actx?.state==="running");
+  await page.waitForTimeout(200);
+  ok("a replaced output engine carries a real signal",await page.evaluate(()=>{
+    analyser.getByteFrequencyData(fftBuf);return fftBuf.some(v=>v>0);
+  }));
+  await page.evaluate(async()=>{
+    Object.defineProperty(document,"hidden",{configurable:true,value:true});
+    document.dispatchEvent(new Event("visibilitychange"));
+    await actx.suspend();
+    Object.defineProperty(document,"hidden",{configurable:true,value:false});
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForFunction(()=>actx.state==="running");
+  await page.waitForTimeout(200);
+  ok("foreground recovery restores the audio signal",await page.evaluate(()=>{
+    analyser.getByteFrequencyData(fftBuf);return !audio.paused&&fftBuf.some(v=>v>0);
+  }));
   ok("no errors during real audio restoration",errors.length===0,errors);
   await ctx.close();
 }
