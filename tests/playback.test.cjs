@@ -68,3 +68,23 @@ test('an external pause clears every pending start',()=>{
   const c=player();c.run('audio.src="file:one.mp3";pendingStart={token:loadToken};audio.fire("pause");audio.fire("canplay")');
   assert.equal(c.run('audio.playCalls'),0);
 });
+test('native paths encode #, ?, percent signs and non-ASCII names',()=>{
+  const c=vm.createContext({NATIVE:true,Capacitor:{convertFileSrc:s=>s},URL:{}});
+  const a=html.indexOf('function trackURLSync(t){'),b=html.indexOf('async function trackURL(t)',a);
+  vm.runInContext('const docsBase="file:///Documents";'+html.slice(a,b),c);
+  const url=vm.runInContext('trackURLSync({path:"Music/100%/01 #why? café.mp3"})',c);
+  assert.equal(url,'file:///Documents/Music/100%25/01%20%23why%3F%20caf%C3%A9.mp3');
+});
+test('a closed audio engine is replaced without losing position or listeners',async()=>{
+  const c=player();await c.run('playCurrent(false)');c.run('audio.currentTime=42;actx.state="closed";togglePlay()');
+  c.run('audio.fire("loadedmetadata")');await Promise.resolve();
+  assert.equal(c.run('audio.currentTime'),42);assert.equal(c.run('audio.paused'),false);
+  c.run('pendingStart={token:loadToken};audio.fire("pause")');assert.equal(c.run('pendingStart'),null);
+});
+test('a failed context recovery stops silent playback and permits a fresh retry',async()=>{
+  const c=player();await c.run('playCurrent(true)');
+  c.run('actx.state="suspended";actx.resume=()=>Promise.reject(new Error("interrupted"));resumeAudioContext()');
+  await new Promise(r=>setImmediate(r));
+  assert.equal(c.run('audio.paused'),true);assert.equal(c.run('actx'),null);
+  c.run('togglePlay()');await Promise.resolve();assert.equal(c.run('audio.paused'),false);
+});

@@ -2561,7 +2561,7 @@ async function primeDocsBase(){
 function trackURLSync(t){
   if(t.blob)return URL.createObjectURL(t.blob);
   if(t.path&&NATIVE&&docsBase)
-    return Capacitor.convertFileSrc(docsBase+"/"+String(t.path).replace(/^\/+/,""));
+    return Capacitor.convertFileSrc(docsBase+"/"+String(t.path).replace(/^\/+/,"").split("/").map(encodeURIComponent).join("/"));
   return null;
 }
 async function trackURL(t){
