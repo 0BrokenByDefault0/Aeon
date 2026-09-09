@@ -91,7 +91,7 @@ function readZip(file) {
 }
 
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM || "/opt/pw-browsers/chromium",
+  executablePath: process.env.CHROMIUM || chromium.executablePath(),
 });
 
 async function session() {
@@ -1042,6 +1042,40 @@ server.listen(PORT);
   ok("a superseded load never starts itself", resume.afterStaleToken === 1, resume);
 
   ok("no errors at the transport", errors.length === 0, errors);
+  await ctx.close();
+}
+
+/* Real PCM through the complete graph after restoring a cold session. */
+{
+  console.log("\nrestored audio output");
+  const {ctx,page,errors}=await session();
+  await page.evaluate(async()=>{
+    const rate=16000,frames=rate*8,bytes=new ArrayBuffer(44+frames*2),v=new DataView(bytes);
+    const text=(p,s)=>[...s].forEach((c,i)=>v.setUint8(p+i,c.charCodeAt(0)));
+    text(0,"RIFF");v.setUint32(4,36+frames*2,true);text(8,"WAVEfmt ");
+    v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+    v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+    text(36,"data");v.setUint32(40,frames*2,true);
+    for(let i=0;i<frames;i++)v.setInt16(44+i*2,Math.sin(i*440*2*Math.PI/rate)*8000,true);
+    await dbPut("albums",{id:"tone-album",title:"Recovery",artist:"Test",seq:1});
+    await dbPut("tracks",{id:"tone",albumId:"tone-album",idx:1,title:"Tone",blob:new Blob([bytes],{type:"audio/wav"})});
+    await kvSet("lastPlayed",{albumId:"tone-album",trackId:"tone",qIndex:0,queue:[{albumId:"tone-album",trackId:"tone"}]});
+  });
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector("#playerBar").classList.contains("show"));
+  await page.click("#pbPlay");
+  await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2&&actx?.state==="running");
+  ok("first Play after a cold restore produces a real signal",await page.evaluate(()=>{
+    analyser.getByteFrequencyData(fftBuf);return fftBuf.some(v=>v>0);
+  }));
+  await page.click("#pbPlay");
+  const held=await page.evaluate(()=>audio.currentTime);
+  await page.evaluate(()=>window.dispatchEvent(new Event("pageshow")));
+  await page.waitForTimeout(250);
+  ok("returning to the app honors a paused track",await page.evaluate(t=>audio.paused&&Math.abs(audio.currentTime-t)<.1,held));
+  // The paused state is the contract; a foreground event cannot start music.
+  ok("foreground never starts a paused transport",await page.evaluate(()=>audio.paused));
+  ok("no errors during real audio restoration",errors.length===0,errors);
   await ctx.close();
 }
 

@@ -1046,6 +1046,18 @@ input[type=range].hseek::-webkit-slider-thumb{
   #glitch{display:none}
   #skyChrome,#voidInvite{animation:none}
 }
+/* Quick, quiet feedback with a stable layout under the finger. */
+.btn,.alb,.rec,.pb-btn,.t-main,.tab,.sortc,.pick-row{
+  -webkit-tap-highlight-color:transparent;
+  transition:opacity 120ms ease-out,background-color 120ms ease-out,color 120ms ease-out,border-color 120ms ease-out;
+}
+.btn:active,.alb:active,.rec:active{transform:none;opacity:.78}
+.pb-btn:active,.t-main:active,.tab:active,.sortc:active,.pick-row:active{opacity:.7}
+.panel.active{animation:panelIn 180ms ease-out}
+@keyframes panelIn{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
 </style>
 </head>
 <body data-tab="sky">
@@ -3287,8 +3299,15 @@ async function enrichAlbums(albums){
    AUDIO ENGINE — <audio> → 10× BiquadFilter (peaking, ±12 dB)
    → analyser → gain → out. The analyser feeds the sky.
    ════════════════════════════════════════════════════════════════ */
-const audio=new Audio();
+let audio=new Audio();
 audio.preload="auto";
+const audioListeners=[];
+function onAudio(event,handler){
+  audioListeners.push([event,handler]);
+  audio.addEventListener(event,handler);
+}
+try{if(navigator.audioSession)navigator.audioSession.type="playback"}catch(e){}
+
 let actx=null,eqNodes=[],analyser=null,gainNode=null,fftBuf=null,curURL=null;
 /* ── one attempt to start, never a standing order ──
    A track asked for before its file was ready deserves a second attempt
@@ -3300,11 +3319,22 @@ let actx=null,eqNodes=[],analyser=null,gainNode=null,fftBuf=null,curURL=null;
    So the intent is one pending start, tied to one load, and it is
    abandoned the instant playback begins or anything at all pauses. */
 let pendingStart=null;   // {token} — the load still waiting to begin
+let sourceLoading=false,loadedTrackId=null,recovery=null;
 let loadToken=0;         // bumped by every new source
 function startPlayback(){
-  pendingStart={token:loadToken};
-  const started=audio.play();   // not awaited: the sleeve must not wait
-  if(started&&started.catch)started.catch(()=>{});
+  if(!audio.getAttribute("src")){playCurrent(true);return}
+  ensureAudioGraph();
+  resumeAudioContext();
+  const token=loadToken;
+  pendingStart={token};
+  const started=audio.play();
+  if(started&&started.catch)started.catch(error=>{
+    if(token!==loadToken||error.name==="AbortError")return;
+    pendingStart=null;
+    syncPlayGlyphs(false);
+    if(error.name==="NotAllowedError")toast("Tap Play to start this track");
+    else if(error.name!=="NotSupportedError")toast("Playback could not start. Tap Play to retry.");
+  });
 }
 const EQ_FREQS=[31,62,125,250,500,1000,2000,4000,8000,16000];
 const EQ_PRESETS={
@@ -3315,24 +3345,69 @@ const EQ_PRESETS={
   "TUNNEL":      [5,4,1,-3,-5,-5,-3,0,3,4],
 };
 function ensureAudioGraph(){
-  if(actx)return;
+  if(actx&&actx.state!=="closed")return;
+  if(actx)resetAudioEngine();
+  let ctx=null;
   try{
-    actx=new (window.AudioContext||window.webkitAudioContext)();
-    const src=actx.createMediaElementSource(audio);
-    let node=src;
-    eqNodes=EQ_FREQS.map((f,i)=>{
-      const b=actx.createBiquadFilter();
-      b.type= i===0?"lowshelf": i===EQ_FREQS.length-1?"highshelf":"peaking";
-      b.frequency.value=f;b.Q.value=1.0;
-      b.gain.value=state.settings.eqGains[i]||0;
-      node.connect(b);node=b;return b;
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    // Build the output before taking ownership of the media element.
+    const gain=ctx.createGain();gain.gain.value=state.settings.volume;
+    gain.connect(ctx.destination);
+    const meter=ctx.createAnalyser();meter.fftSize=256;meter.smoothingTimeConstant=.78;
+    meter.connect(gain);
+    const bands=EQ_FREQS.map((f,i)=>{
+      const b=ctx.createBiquadFilter();
+      b.type=i===0?"lowshelf":i===EQ_FREQS.length-1?"highshelf":"peaking";
+      b.frequency.value=f;b.Q.value=1;b.gain.value=state.settings.eqGains[i]||0;
+      return b;
     });
-    analyser=actx.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.78;
-    fftBuf=new Uint8Array(analyser.frequencyBinCount);
-    gainNode=actx.createGain();gainNode.gain.value=state.settings.volume;
-    node.connect(analyser);analyser.connect(gainNode);gainNode.connect(actx.destination);
-    actx.onstatechange=()=>reviveAudio(); // OS suspended us mid-song? come back
-  }catch(e){/* graph optional — plain playback still works */}
+    bands.forEach((b,i)=>b.connect(bands[i+1]||meter));
+    ctx.createMediaElementSource(audio).connect(bands[0]);
+    actx=ctx;eqNodes=bands;analyser=meter;gainNode=gain;
+    fftBuf=new Uint8Array(meter.frequencyBinCount);
+    audio.volume=1;
+    // Recovery belongs to foreground/user actions, never an OS interruption loop.
+  }catch(e){
+    if(ctx)ctx.close().catch(()=>{});
+    audio.volume=state.settings.volume;
+  }
+}
+function resetAudioEngine(){
+  const old=audio,src=old.getAttribute("src"),position=old.currentTime;
+  audioListeners.forEach(([event,handler])=>old.removeEventListener(event,handler));
+  old.pause();old.removeAttribute("src");old.load();
+  if(actx){actx.onstatechange=null;actx.close().catch(()=>{})}
+  actx=null;eqNodes=[];analyser=null;gainNode=null;fftBuf=null;recovery=null;
+  audio=new Audio();audio.preload="auto";audio.volume=state.settings.volume;
+  audioListeners.forEach(([event,handler])=>audio.addEventListener(event,handler));
+  if(src){
+    const replacement=audio;
+    replacement.addEventListener("loadedmetadata",()=>{
+      if(replacement!==audio||replacement.getAttribute("src")!==src)return;
+      if(Number.isFinite(position)&&position>0)replacement.currentTime=position;
+    },{once:true});
+    replacement.src=src;
+  }
+}
+function resumeAudioContext(cycle=false){
+  if(!actx||recovery||(!cycle&&actx.state==="running"))return;
+  if(actx.state==="closed"){ensureAudioGraph();return}
+  const ctx=actx;
+  const work=(cycle||ctx.state==="interrupted")?ctx.suspend().then(()=>ctx.resume()):ctx.resume();
+  // A broken output must not leave a silently advancing transport indefinitely.
+  const timeout=setTimeout(()=>{
+    if(ctx!==actx)return;
+    pendingStart=null;audio.pause();resetAudioEngine();syncPlayGlyphs(false);
+    toast("Audio output was interrupted. Tap Play to reconnect.");
+  },1800);
+  recovery=work;
+  work.then(()=>{
+    if(ctx===actx&&ctx.state!=="running")throw new Error("Audio output unavailable");
+  }).catch(()=>{
+    if(ctx!==actx)return;
+    pendingStart=null;audio.pause();resetAudioEngine();syncPlayGlyphs(false);
+    toast("Audio output was interrupted. Tap Play to reconnect.");
+  }).finally(()=>{clearTimeout(timeout);if(recovery===work)recovery=null});
 }
 function applyEQ(){
   if(!eqNodes.length)return;
@@ -3344,6 +3419,7 @@ function setVolume(v){
   saveSettings();
 }
 function clearPlaybackSource(){
+  loadToken++;sourceLoading=false;loadedTrackId=null;pendingPlay=null;
   pendingStart=null;
   audio.pause();
   if(curURL){if(curURL.startsWith("blob:"))URL.revokeObjectURL(curURL);curURL=null}
@@ -3375,7 +3451,8 @@ async function scrubAlbumPlayback(albumID){
 }
 
 function playQueue(items,startIdx=0){
-  state.queue=items;state.qIndex=clamp(startIdx,0,items.length-1);
+  if(!items.length)return;
+  badTracks=0;state.queue=items.slice();state.qIndex=clamp(startIdx,0,items.length-1);
   playCurrent(true);
 }
 /* listening history — a light tally per track, kept in kv (not on the
@@ -3403,8 +3480,10 @@ async function playCurrent(autoplay){
   if(!q)return;
   const alb=albumById(q.albumId), trk=trackById(q.albumId,q.trackId);
   if(!alb||!trk)return;
-  armPlayCount(trk.id);
+  const token=++loadToken;
+  pendingStart=null;sourceLoading=true;audio.pause();
   if(!hasAudio(trk)){
+    clearPlaybackSource();
     state.playingAlbumId=alb.id;
     updatePlayerUI(alb,trk,false);
     sky.focusAlbum(alb.id);
@@ -3412,20 +3491,21 @@ async function playCurrent(autoplay){
     return;
   }
   ensureAudioGraph();
-  if(actx&&actx.state==="suspended")actx.resume();
+  // Claim the context inside the tap, even if the file URL needs a bridge call.
+  if(autoplay)resumeAudioContext();
   const prevURL=curURL;
-  /* The synchronous answer first: on device it is string work, so the
-     source is set and playback requested while the tap that asked for it
-     is still the current gesture. Only a track we cannot place without
-     asking falls back to the await, and that one may still need a second
-     tap — as it always did. */
-  curURL=trackURLSync(trk)||await trackURL(trk);
-  if(prevURL&&prevURL.startsWith("blob:"))URL.revokeObjectURL(prevURL);
-  if(!curURL){toast("That track's audio is missing");return}
-  loadToken++;                 // a new source: any older pending start is void
+  let nextURL=null;
+  try{nextURL=trackURLSync(trk)||await trackURL(trk)}catch(e){}
+  if(token!==loadToken){
+    if(nextURL&&nextURL.startsWith("blob:"))URL.revokeObjectURL(nextURL);
+    return;
+  }
+  sourceLoading=false;
+  if(!nextURL){clearPlaybackSource();toast("That track's audio is missing");return}
+  curURL=nextURL;loadedTrackId=trk.id;
   audio.src=curURL;
-  /* Playing comes before the bookkeeping: writing the resume point first
-     put a database round-trip between the tap and the sound. */
+  if(prevURL&&prevURL.startsWith("blob:"))URL.revokeObjectURL(prevURL);
+  armPlayCount(trk.id);
   if(autoplay)startPlayback();
   state.playingAlbumId=alb.id;
   updatePlayerUI(alb,trk,true);
@@ -3456,14 +3536,14 @@ function togglePlay(){
   if(!q)return;
   const trk=q&&trackById(q.albumId,q.trackId);
   if(trk&&!hasAudio(trk)){toast("Mock star — no audio to play");return}
-  ensureAudioGraph();
-  if(actx&&actx.state==="suspended")actx.resume();
+  if(sourceLoading){loadToken++;sourceLoading=false;pendingStart=null;audio.pause();return}
+  if(!audio.getAttribute("src")||loadedTrackId!==trk.id||audio.error){playCurrent(true);return}
   if(audio.paused)startPlayback();
   else{pendingStart=null;audio.pause()}
 }
-audio.addEventListener("ended",()=>{
+onAudio("ended",()=>{
   badTracks=0;                               // a track that finished is a good track
-  if(state.settings.repeat==="one"){audio.currentTime=0;audio.play().catch(()=>{});return}
+  if(state.settings.repeat==="one"){audio.currentTime=0;startPlayback();return}
   nextTrack();
 });
 /* A file the device cannot decode — a missing path, a codec iOS will not
@@ -3471,27 +3551,28 @@ audio.addEventListener("ended",()=>{
    nothing. Now it says which record it was and moves on; if a whole run
    of them fails, it stops rather than racing through the queue. */
 let badTracks=0;
-audio.addEventListener("error",()=>{
-  if(!audio.src||audio.src==="")return;
+onAudio("error",()=>{
+  if(sourceLoading||!audio.src||audio.src==="")return;
   const q=state.queue[state.qIndex];
   const trk=q&&trackById(q.albumId,q.trackId);
+  pendingStart=null;
   const name=(trk&&trk.title)||"That track";
-  if(++badTracks>=4){badTracks=0;toast(`${name} won't play, and nor would the last few — stopping`);return}
+  if(++badTracks>=4){badTracks=0;pendingStart=null;audio.pause();syncPlayGlyphs(false);toast(`${name} won't play, and nor would the last few — stopping`);return}
   toast(`${name} won't play on this device — skipping`);
   nextTrack();
 });
 /* the one retry: only for the load that is still waiting, only once */
-audio.addEventListener("canplay",()=>{
+onAudio("canplay",()=>{
   if(!pendingStart||pendingStart.token!==loadToken||!audio.paused)return;
   pendingStart=null;
   audio.play().catch(()=>{});
 });
-audio.addEventListener("play",()=>{
+onAudio("play",()=>{
   pendingStart=null;                 // it started; nothing is owed
   syncPlayGlyphs(true);
   if("mediaSession" in navigator)navigator.mediaSession.playbackState="playing";
 });
-audio.addEventListener("pause",()=>{
+onAudio("pause",()=>{
   /* whoever paused it — this app, the lock screen, a phone call — the
      record stays paused; a pending start is never carried over one */
   pendingStart=null;
@@ -3505,21 +3586,36 @@ audio.addEventListener("pause",()=>{
    app hides mid-song — if the element still intends to play, revive it.
    An interruption (call, other app's audio) pauses the element; that
    pause is honored and playback waits for the user, like any player. */
+let wasHidden=false;
 function reviveAudio(){
-  if(actx&&actx.state!=="running"&&!audio.paused)actx.resume().catch(()=>{});
+  if(document.hidden){
+    wasHidden=true;
+    if(audio.paused&&actx&&actx.state==="running")actx.suspend().catch(()=>{});
+    return;
+  }
+  if(!audio.paused){
+    // WebKit can report running after an inactive output route. Reopen it once.
+    const cycle=wasHidden;wasHidden=false;
+    resumeAudioContext(cycle);
+  }else wasHidden=false;
 }
 document.addEventListener("visibilitychange",reviveAudio);
 addEventListener("focus",reviveAudio);
 addEventListener("pageshow",reviveAudio);
+addEventListener("aeon-foreground",reviveAudio);
+addEventListener("aeon-interruption",()=>{pendingStart=null;loadToken++;sourceLoading=false;audio.pause()});
+addEventListener("aeon-media-reset",()=>{
+  pendingStart=null;loadToken++;sourceLoading=false;resetAudioEngine();syncPlayGlyphs(false);
+});
 if("mediaSession" in navigator){ // lock screen + control-center transport
   try{
     navigator.mediaSession.setActionHandler("play",()=>{
-      ensureAudioGraph();reviveAudio();startPlayback();
+      startPlayback();
     });
-    navigator.mediaSession.setActionHandler("pause",()=>{pendingStart=null;audio.pause()});
+    navigator.mediaSession.setActionHandler("pause",()=>{loadToken++;sourceLoading=false;pendingStart=null;audio.pause()});
   }catch(e){}
 }
-audio.addEventListener("timeupdate",()=>{
+onAudio("timeupdate",()=>{
   creditListening();
   const p=audio.duration?audio.currentTime/audio.duration:0;
   $("#pbSeekFill").style.width=(p*100)+"%";
@@ -3539,10 +3635,15 @@ function syncPlayGlyphs(playing){
 }
 /* Pull a usable colour out of the cover and let the room take it on:
    the seek fill, the glow under the art, the ring on the playing card. */
+let tintAlbum=null,tintArt=null,tintRequest=0;
 function applyTint(album){
+  if(album&&tintAlbum===album.id&&tintArt===album.art)return;
+  tintAlbum=album&&album.id;tintArt=album&&album.art;
+  const request=++tintRequest;
   const root=document.documentElement;
   if(!album||!album.art){root.style.setProperty("--tint","#c39dff");return}
-  createImageBitmap(album.art).then(bmp=>{
+  createImageBitmap(album.art,{resizeWidth:8,resizeHeight:8}).then(bmp=>{
+    if(request!==tintRequest){bmp.close();return}
     const c=document.createElement("canvas");c.width=c.height=8;
     const x=c.getContext("2d");x.drawImage(bmp,0,0,8,8);
     if(bmp.close)bmp.close();
@@ -3665,7 +3766,7 @@ function renderQueue(){
     x.globalAlpha=1;
   }
   function alive(){
-    return sheet.classList.contains("open")&&!audio.paused&&!REDUCED;
+    return !document.hidden&&sheet.classList.contains("open")&&!audio.paused&&!REDUCED;
   }
   function kick(){
     if(raf||!alive())return;
@@ -3677,8 +3778,9 @@ function renderQueue(){
     lvl.fill(0);
     x.clearRect(0,0,cv.width,cv.height);
   }
-  audio.addEventListener("play",kick);
-  audio.addEventListener("pause",clear);
+  document.addEventListener("visibilitychange",()=>document.hidden?clear():kick());
+  onAudio("play",kick);
+  onAudio("pause",clear);
   // opening and closing the player is the other half of "am I being looked at"
   new MutationObserver(()=>{sheet.classList.contains("open")?kick():clear()})
     .observe(sheet,{attributes:true,attributeFilter:["class"]});
@@ -3833,7 +3935,7 @@ const sky=(()=>{
   }
 
   function resize(){
-    DPR=Math.min(devicePixelRatio||1,3);
+    DPR=Math.min(devicePixelRatio||1,2);
     W=innerWidth;H=innerHeight;
     [cvN,cvW].forEach(c=>{c.width=W*DPR;c.height=H*DPR;
       c.getContext("2d").setTransform(DPR,0,0,DPR,0,0)});
@@ -4592,7 +4694,7 @@ const sky=(()=>{
        blur to be computed again, which is exactly why scrubbing and the
        sheet's own animations stuttered. The canvases keep their last
        frame, so coming back is instant. */
-    if(!onSky)return;
+    if(document.hidden||!onSky)return;
     drawn++;
     /* A single bad number would blank the sky for good, since every
        frame after it multiplies by it. The target is checked as well as
@@ -5969,7 +6071,7 @@ async function repairAdoptedTrackOrder(){
    INIT — the reload test: kill the tab, reopen, nothing is lost.
    ════════════════════════════════════════════════════════════════ */
 (async function init(){
-  primeDocsBase();          // asked once, so no track ever has to ask again
+  await primeDocsBase(); // finish before exposing a restored library
   db=await openDB();
   await dbDel("kv","transits").catch(()=>{});
   const [albums,tracks,playlists,settings,log,seq,lastPlayed,plays]=await Promise.all([
@@ -6020,7 +6122,8 @@ async function repairAdoptedTrackOrder(){
     const valid=lastPlayed.queue.filter(q=>trackById(q.albumId,q.trackId));
     if(valid.length){
       state.queue=valid;
-      state.qIndex=clamp(lastPlayed.qIndex||0,0,valid.length-1);
+      const restored=valid.findIndex(q=>q.albumId===lastPlayed.albumId&&q.trackId===lastPlayed.trackId);
+      state.qIndex=restored>=0?restored:clamp(lastPlayed.qIndex||0,0,valid.length-1);
       const q=state.queue[state.qIndex];
       const alb=albumById(q.albumId),trk=trackById(q.albumId,q.trackId);
       if(alb&&trk){
