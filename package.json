@@ -11,7 +11,8 @@
     "ios": "cap add ios || true && cap sync ios && cap open ios",
     "sync": "cap sync ios",
     "test:browser": "node test/run.mjs",
-    "fixtures": "python3 test/fixtures.py"
+    "fixtures": "python3 test/fixtures.py",
+    "test:interface": "node test/interface.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0",

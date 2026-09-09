@@ -43,6 +43,7 @@ jobs:
           npm run check
           npx playwright install chromium
           npm run test:browser
+          npm run test:interface
 
       - name: Sync web assets into the iOS shell
         run: npx cap sync ios
@@ -73,12 +74,12 @@ jobs:
           test -d "$APP" || { echo "App.app was not produced"; ls -R build/Build/Products || true; exit 1; }
           mkdir -p Payload
           cp -R "$APP" Payload/
-          zip -qry Aeon-3.9-unsigned.ipa Payload
-          ls -lh Aeon-3.9-unsigned.ipa
+          zip -qry Aeon-4.0-unsigned.ipa Payload
+          ls -lh Aeon-4.0-unsigned.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Aeon-3.9-unsigned-ipa
-          path: ios/App/Aeon-3.9-unsigned.ipa
+          name: Aeon-4.0-unsigned-ipa
+          path: ios/App/Aeon-4.0-unsigned.ipa
           if-no-files-found: error
           retention-days: 30

@@ -88,3 +88,22 @@ test('a failed context recovery stops silent playback and permits a fresh retry'
   assert.equal(c.run('audio.paused'),true);assert.equal(c.run('actx'),null);
   c.run('togglePlay()');await Promise.resolve();assert.equal(c.run('audio.paused'),false);
 });
+test('resume position is saved only for the loaded track',async()=>{
+ const c=player();await c.run('playCurrent(true)');c.run('audio.currentTime=37');
+ const writes=[];c.kvSet=async(k,v)=>writes.push([k,v]);
+ await c.run('rememberPosition()');assert.equal(writes.at(-1)[1].time,37);
+ c.state.qIndex=1;await c.run('rememberPosition()');assert.equal(writes.length,1);
+});
+test('Play after reopening restores the saved seek position',async()=>{
+ const c=player();c.run('resumePoint={albumId:"a",trackId:"1",time:37};togglePlay();audio.fire("loadedmetadata")');
+ await Promise.resolve();assert.equal(c.run('audio.currentTime'),37);
+});
+test('explicitly selecting a track starts from its beginning',async()=>{
+ const c=player();c.run('resumePoint={albumId:"a",trackId:"1",time:37}');
+ await c.run('playCurrent(true)');c.run('audio.fire("loadedmetadata")');assert.equal(c.run('audio.currentTime'),0);
+});
+test('Play next inserts after the live track without restarting it',async()=>{
+ const c=player();await c.run('playCurrent(true)');const calls=c.run('audio.playCalls');
+ c.run('enqueueTrack("a","2",true)');assert.equal(c.state.queue[1].trackId,'2');
+ assert.equal(c.state.queue.length,3);assert.equal(c.run('audio.playCalls'),calls);
+});

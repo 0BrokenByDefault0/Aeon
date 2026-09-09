@@ -51,6 +51,7 @@ const server = http.createServer((req, res) => {
     res.setHeader("content-type",
       file.endsWith(".html") ? "text/html" :
       file.endsWith(".js") ? "text/javascript" :
+      file.endsWith(".css") ? "text/css" :
       file.endsWith(".webmanifest") ? "application/manifest+json" : "application/octet-stream");
     res.end(fs.readFileSync(file));
   } catch { res.statusCode = 404; res.end(); }

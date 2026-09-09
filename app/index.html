@@ -9,10 +9,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png?v=2">
 <link rel="icon" type="image/png" href="icon-180.png?v=2">
-<meta name="theme-color" content="#000000">
-<title>ISOLATION</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Audiowide&family=Space+Grotesk:wght@300;400;500&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#101211">
+<title>Aeon</title>
 <style>
 /* ═══════════════ RETRO SPACE CONSOLE — DESIGN TOKENS ═══════════════
    amber CRT glow + scanlines (ref: retro space UI set)
@@ -1059,6 +1057,7 @@ input[type=range].hseek::-webkit-slider-thumb{
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
 </style>
+<link rel="stylesheet" href="interface.css">
 </head>
 <body data-tab="sky">
 
@@ -1092,28 +1091,31 @@ input[type=range].hseek::-webkit-slider-thumb{
 <!-- ═══ LIBRARY ═══ -->
 <div class="panel" id="panel-library" role="region" aria-label="Library">
   <div class="p-head">
-    <h1>Li<em>b</em>rary</h1>
+    <div class="collection-kicker">AEON / YOUR COLLECTION</div><div class="collection-heading"><h1>Library</h1><button id="libraryImport" class="round-action" aria-label="Import music">+</button></div>
     <div class="p-sub" id="libSub">Every album here is a star in the sky.</div>
   </div>
-  <div class="btnrow">
-    <button class="btn hot" id="btnImport"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span>IMPORT ALBUMS</button>
-    <button class="btn" id="btnImportFolder" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/></svg></span>IMPORT FOLDER</button>
-    <button class="btn" id="btnAdopt" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/><path d="M12 10.5v5M9.5 13h5"/></svg></span>ADOPT LIBRARY</button>
-  </div>
-  <div class="c-note" id="adoptNote" style="display:none;margin:-4px 0 14px">
-    <b>Files &#8594; ISOLATION &#8594; Music</b>, then ADOPT LIBRARY. Nothing is copied.
-  </div>
+  <section id="listeningCard" aria-label="Continue listening" hidden>
+    <button id="listeningOpen" aria-label="Open featured album"><img id="listeningArt" alt=""></button>
+    <div class="listening-copy"><div id="listeningLabel" class="collection-kicker">FROM YOUR COLLECTION</div>
+      <button id="listeningDetails"><span id="listeningTitle"></span><span id="listeningArtist"></span></button>
+      <button id="listeningPlay" class="listening-play"><span id="listeningPlayLabel">Listen</span><span aria-hidden="true">↗</span></button>
+    </div>
+  </section>
+  <div class="library-tools"><span id="libraryCount"></span><div class="view-switch" aria-label="Library layout">
+    <button id="viewGrid" aria-label="Artwork grid" aria-pressed="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg></button>
+    <button id="viewList" aria-label="Compact list" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  </div></div>
   <div id="libSearch">
     <span class="ls-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>
     <input type="search" id="libSearchIn" placeholder="Search albums, artists, songs" aria-label="Search library by artist or album" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
     <button id="libSearchClr" aria-label="Clear search" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div id="libSort">
-    <button class="sortc on" data-sort="added">RECENT</button>
-    <button class="sortc" data-sort="artist">ARTIST</button>
-    <button class="sortc" data-sort="title">TITLE</button>
-    <button class="sortc" data-sort="year">YEAR</button>
-    <button class="sortc" data-sort="plays">PLAYED</button>
+    <button class="sortc on" data-sort="added">Recent</button>
+    <button class="sortc" data-sort="artist">Artist</button>
+    <button class="sortc" data-sort="title">Title</button>
+    <button class="sortc" data-sort="year">Year</button>
+    <button class="sortc" data-sort="plays">Played</button>
   </div>
   <div id="libGrid"></div>
   <div id="libMore" aria-hidden="true"></div>
@@ -1138,8 +1140,8 @@ input[type=range].hseek::-webkit-slider-thumb{
 <!-- ═══ PLAYLISTS ═══ -->
 <div class="panel" id="panel-playlists" role="region" aria-label="Playlists">
   <div class="p-head">
-    <h1>Pla<em>y</em>lists</h1>
-    <div class="p-sub">Sequences you draw between the stars.</div>
+    <div class="collection-kicker">YOUR OWN SEQUENCE</div><h1>Playlists</h1>
+    <div class="p-sub">Records meet in a different order.</div>
   </div>
   <div class="card">
     <div id="newPlRow">
@@ -1153,7 +1155,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <!-- ═══ LOG ═══ -->
 <div class="panel" id="panel-log" role="region" aria-label="Log">
   <div class="p-head">
-    <h1>L<em>o</em>g</h1>
+    <h1>Activity</h1>
     <div class="p-sub">Everything the sky has done while you watched.</div>
   </div>
   <div class="card"><div id="logList"></div></div>
@@ -1162,7 +1164,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <!-- ═══ SETTINGS ═══ -->
 <div class="panel" id="panel-settings" role="region" aria-label="Settings">
   <div class="p-head">
-    <h1>Se<em>t</em>tings</h1>
+    <div class="collection-kicker">MAKE IT YOURS</div><h1>Settings</h1><button class="text-action" id="activityBtn">Listening activity ↗</button>
   </div>
 
   <div class="card">
@@ -1255,7 +1257,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">ISOLATION &#183; v3.6 &#183; YOUR MUSIC, YOUR DEVICE, YOUR SKY</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.0 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1272,22 +1274,36 @@ input[type=range].hseek::-webkit-slider-thumb{
     <button class="pb-btn" id="pbNext" aria-label="Next track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M17 5v14"/><path d="M5 5l9 7-9 7Z"/></svg></button>
   </div>
   <nav id="dock" aria-label="Tabs">
-    <button class="tab on" data-go="sky"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span><span class="tl">SKY</span></button>
-    <button class="tab" data-go="library"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6.6" height="6.6"/><rect x="13.4" y="4" width="6.6" height="6.6"/><rect x="4" y="13.4" width="6.6" height="6.6"/><rect x="13.4" y="13.4" width="6.6" height="6.6" fill="currentColor" stroke="none"/></svg></span><span class="tl">LIBRARY</span></button>
-    <button class="tab" data-go="playlists"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="17" r="2.6"/><path d="M9.6 17V6.2L19 4.4v10.4"/><circle cx="16.4" cy="14.8" r="2.6"/></svg></span><span class="tl">LISTS</span></button>
-    <button class="tab" data-go="log"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"><path d="M5 6l4.5 5L5 16"/><path d="M12 17h7"/><path d="M12 7h7" opacity=".35"/></svg></span><span class="tl">LOG</span></button>
-    <button class="tab" data-go="settings"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 12V4a8 8 0 0 1 8 8Z" fill="currentColor" stroke="none"/></svg></span><span class="tl">SET</span></button>
+    <button class="tab on" data-go="sky"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span><span class="tl">Sky</span></button>
+    <button class="tab" data-go="library"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="6.6" height="6.6"/><rect x="13.4" y="4" width="6.6" height="6.6"/><rect x="4" y="13.4" width="6.6" height="6.6"/><rect x="13.4" y="13.4" width="6.6" height="6.6" fill="currentColor" stroke="none"/></svg></span><span class="tl">Library</span></button>
+    <button class="tab" data-go="playlists"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="17" r="2.6"/><path d="M9.6 17V6.2L19 4.4v10.4"/><circle cx="16.4" cy="14.8" r="2.6"/></svg></span><span class="tl">Playlists</span></button>
+
+    <button class="tab" data-go="settings"><span class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="8"/><path d="M12 12V4a8 8 0 0 1 8 8Z" fill="currentColor" stroke="none"/></svg></span><span class="tl">Settings</span></button>
   </nav>
 </div>
 
+<div class="sheet" id="sheetImport" aria-modal="true" role="dialog" aria-label="Import music"><div class="sheet-body">
+  <div class="grab"></div><button class="sheet-close" aria-label="Close">×</button>
+  <div class="collection-kicker">BUILD YOUR COLLECTION</div><h2>Bring your records.</h2>
+  <p class="import-intro">Albums, loose tracks, or a whole folder. Your music stays on this device.</p>
+  <div class="btnrow">
+    <button class="btn hot" id="btnImport"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></span>IMPORT ALBUMS</button>
+    <button class="btn" id="btnImportFolder" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/></svg></span>IMPORT FOLDER</button>
+    <button class="btn" id="btnAdopt" style="display:none"><span class="bi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 6h6l2 2.5h10V19H3Z"/><path d="M12 10.5v5M9.5 13h5"/></svg></span>ADOPT LIBRARY</button>
+  </div>
+  <div class="c-note" id="adoptNote" style="display:none;margin:-4px 0 14px">
+    <b>Files &#8594; ISOLATION &#8594; Music</b>, then ADOPT LIBRARY. Nothing is copied.
+  </div>
+</div></div>
 <!-- ═══ now playing sheet ═══ -->
 <div class="sheet" id="sheetNow" aria-modal="true" role="dialog" aria-label="Now playing">
   <div class="sheet-body">
     <div class="grab"></div>
     <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <div id="nowStage"><canvas id="nowOrbit" aria-hidden="true"></canvas><img id="nowArt" alt="Album art"></div>
+    <div class="player-heading"><span class="collection-kicker">NOW PLAYING</span><span id="nowPosition"></span></div>
+    <div id="nowStage"><img id="nowArt" alt="Album art"></div>
     <div id="nowTitle">&#8212;</div>
-    <div id="nowArtist">&#8212;</div>
+    <div id="nowArtist">&#8212;</div><div id="playbackStatus" role="status" aria-live="polite"></div>
     <div id="nowSeekWrap">
       <input type="range" class="hseek" id="nowSeek" min="0" max="1000" value="0" aria-label="Seek">
       <div id="nowTimes"><span id="tCur">0:00</span><span id="tDur">0:00</span></div>
@@ -1318,7 +1334,7 @@ input[type=range].hseek::-webkit-slider-thumb{
     <div class="alb-head">
       <img id="albArtBig" alt="Album art">
       <div class="ah-meta">
-        <h2 id="albTitle"></h2>
+        <div class="collection-kicker">IN YOUR COLLECTION</div><h2 id="albTitle"></h2>
         <div class="s-sub" id="albSub"></div>
         <div class="btnrow">
           <button class="btn hot small" id="albPlay"><span class="bi"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7Z"/></svg></span>PLAY</button>
@@ -1397,6 +1413,12 @@ input[type=range].hseek::-webkit-slider-thumb{
   </div>
 </div>
 
+<div class="sheet" id="sheetTrack" aria-modal="true" role="dialog" aria-label="Track options"><div class="sheet-body">
+ <div class="grab"></div><button class="sheet-close" aria-label="Close">×</button>
+ <div class="collection-kicker">TRACK OPTIONS</div><h2 id="trackMenuTitle"></h2><div id="trackMenuArtist" class="s-sub"></div>
+ <form id="trackRenameForm" hidden><label for="trackRenameInput">Track name</label><div><input id="trackRenameInput" required maxlength="300"><button class="btn hot" type="submit">Save</button></div></form>
+ <div class="track-actions"><button id="trackPlayNext">Play next <span>↗</span></button><button id="trackQueue">Add to queue <span>+</span></button><button id="trackPlaylist">Add to playlist <span>+</span></button><button id="trackRename">Rename track <span>↗</span></button></div>
+</div></div>
 <!-- ═══ collector's guide sheet — the on-ramp ═══ -->
 <div class="sheet" id="sheetGuide" aria-modal="true" role="dialog" aria-label="How to start collecting">
   <div class="sheet-body">
@@ -3320,9 +3342,10 @@ let actx=null,eqNodes=[],analyser=null,gainNode=null,fftBuf=null,curURL=null;
    abandoned the instant playback begins or anything at all pauses. */
 let pendingStart=null;   // {token} — the load still waiting to begin
 let sourceLoading=false,loadedTrackId=null,recovery=null;
+let resumePoint=null,positionSavedAt=0,seekAfterLoad=null;
 let loadToken=0;         // bumped by every new source
 function startPlayback(){
-  if(!audio.getAttribute("src")){playCurrent(true);return}
+  if(!audio.getAttribute("src")){playCurrent(true,{resume:true});return}
   ensureAudioGraph();
   resumeAudioContext();
   const token=loadToken;
@@ -3476,12 +3499,14 @@ function bumpPlays(trkId){
   clearTimeout(playsFlushTO);
   playsFlushTO=setTimeout(()=>kvSet("plays",playCounts),800);
 }
-async function playCurrent(autoplay){
+async function playCurrent(autoplay,options={}){
   const q=state.queue[state.qIndex];
   if(!q)return;
   const alb=albumById(q.albumId), trk=trackById(q.albumId,q.trackId);
   if(!alb||!trk)return;
+  const restore=options.resume&&resumePoint&&resumePoint.albumId===q.albumId&&resumePoint.trackId===q.trackId?resumePoint.time:0;
   const token=++loadToken;
+  seekAfterLoad=null;
   pendingStart=null;sourceLoading=true;audio.pause();
   if(!hasAudio(trk)){
     clearPlaybackSource();
@@ -3504,6 +3529,7 @@ async function playCurrent(autoplay){
   sourceLoading=false;
   if(!nextURL){clearPlaybackSource();toast("That track's audio is missing");return}
   curURL=nextURL;loadedTrackId=trk.id;
+  seekAfterLoad=Number.isFinite(restore)&&restore>0?{token,time:restore}:null;
   audio.src=curURL;
   if(prevURL&&prevURL.startsWith("blob:"))URL.revokeObjectURL(prevURL);
   armPlayCount(trk.id);
@@ -3523,6 +3549,30 @@ async function playCurrent(autoplay){
     navigator.mediaSession.setActionHandler("nexttrack",nextTrack);
   }
 }
+async function rememberPosition(){
+  const q=state.queue[state.qIndex];
+  if(sourceLoading||!q||q.trackId!==loadedTrackId||!Number.isFinite(audio.currentTime))return;
+  resumePoint={albumId:q.albumId,trackId:q.trackId,time:audio.ended?0:audio.currentTime};
+  positionSavedAt=Date.now();
+  await kvSet("playbackPosition",resumePoint).catch(()=>{});
+}
+onAudio("loadedmetadata",()=>{
+  const seek=seekAfterLoad;seekAfterLoad=null;
+  if(!seek||seek.token!==loadToken||!Number.isFinite(audio.duration))return;
+  audio.currentTime=Math.max(0,Math.min(seek.time,Math.max(0,audio.duration-.25)));
+});
+onAudio("pause",()=>rememberPosition());
+onAudio("seeked",()=>rememberPosition());
+addEventListener("pagehide",()=>rememberPosition());
+function enqueueTrack(albumId,trackId,next=false){
+  const track=trackById(albumId,trackId);
+  if(!track||!hasAudio(track))return false;
+  const item={albumId,trackId};
+  if(!state.queue.length){state.queue=[item];state.qIndex=0;playCurrent(false)}
+  else state.queue.splice(next?state.qIndex+1:state.queue.length,0,item);
+  persistLastPlayedState().catch(()=>{});
+  return true;
+}
 function nextTrack(){
   if(state.qIndex<state.queue.length-1){state.qIndex++;playCurrent(true)}
   else if(state.settings.repeat==="all"&&state.queue.length){state.qIndex=0;playCurrent(true)}
@@ -3539,7 +3589,7 @@ function togglePlay(){
   if(!trk)return;
   if(!hasAudio(trk)){toast("Mock star — no audio to play");return}
   if(sourceLoading){loadToken++;sourceLoading=false;pendingStart=null;audio.pause();return}
-  if(!audio.getAttribute("src")||loadedTrackId!==trk.id||audio.error){playCurrent(true);return}
+  if(!audio.getAttribute("src")||loadedTrackId!==trk.id||audio.error){playCurrent(true,{resume:true});return}
   if(audio.paused)startPlayback();
   else{pendingStart=null;audio.pause()}
 }
@@ -3591,6 +3641,7 @@ onAudio("pause",()=>{
 let wasHidden=false;
 function reviveAudio(){
   if(document.hidden){
+    rememberPosition();
     wasHidden=true;
     if(audio.paused&&actx&&actx.state==="running")actx.suspend().catch(()=>{});
     return;
@@ -3614,6 +3665,7 @@ if("mediaSession" in navigator){ // lock screen + control-center transport
 }
 onAudio("timeupdate",()=>{
   creditListening();
+  if(!audio.paused&&Date.now()-positionSavedAt>5000)rememberPosition();
   const p=audio.duration?audio.currentTime/audio.duration:0;
   $("#pbSeekFill").style.width=(p*100)+"%";
   if($("#sheetNow").classList.contains("open")&&!seekHeld){
@@ -3627,8 +3679,10 @@ function markPlayingCard(){
     el.classList.toggle("playing",el.dataset.alb===state.playingAlbumId));
 }
 function syncPlayGlyphs(playing){
+  document.body.dataset.playing=String(playing);
   $("#pbPlay").innerHTML=playing?ICO.pause:ICO.play;
   $("#nowPlay").innerHTML=playing?ICO.pause:ICO.play;
+  ["#pbPlay","#nowPlay"].forEach(id=>$(id).setAttribute("aria-label",playing?"Pause":"Play"));
 }
 /* Pull a usable colour out of the cover and let the room take it on:
    the seek fill, the glow under the art, the ring on the playing card. */
@@ -3667,12 +3721,20 @@ function updatePlayerUI(alb,trk){
   $("#pbArtist").textContent=(trk.artist||alb.artist)+" \u2014 "+alb.title;
   artImg($("#nowArt"),alb);
   $("#nowTitle").textContent=trk.title;
-  $("#nowArtist").textContent=(trk.artist||alb.artist).toUpperCase()+" \u2014 "+alb.title.toUpperCase();
+  $("#nowArtist").textContent=trk.artist||alb.artist;
   $("#hudNow").style.display="";
   $("#hudNow").textContent="\u266A "+trk.title;
-  markPlayingCard(); // a class, not a rebuild of every album card
+  markPlayingCard();
+  refreshListeningCard();
+  $("#nowPosition").textContent=`${state.qIndex+1} / ${state.queue.length}`;
+  if($("#sheetQueue").classList.contains("open"))renderQueue();
+  if($("#sheetAlbum").classList.contains("open")&&sheetAlbumId===alb.id)renderAlbumTracks(alb);
 }
 
+onAudio("waiting",()=>{$("#playbackStatus").textContent="Loading audio…"});
+onAudio("playing",()=>{$("#playbackStatus").textContent=""});
+onAudio("pause",()=>{$("#playbackStatus").textContent="";refreshListeningCard()});
+onAudio("play",()=>refreshListeningCard());
 /* transport wiring */
 $("#pbPlay").addEventListener("click",togglePlay);
 $("#pbPrev").addEventListener("click",prevTrack);
@@ -3708,81 +3770,9 @@ function renderQueue(){
     if(i===state.qIndex){toast("That one is playing now");return}
     state.queue.splice(i,1);
     if(i<state.qIndex)state.qIndex--;
-    renderQueue();
+    persistLastPlayedState().catch(()=>{});renderQueue();
   }));
 }
-/* ── the orbit ──
-   What the record is doing, drawn rather than described. Sixty-four
-   spokes of the spectrum turning slowly around the sleeve, in the
-   record's own colour. It runs only while the player is open and the
-   music is playing: closed sheet, paused song, or a device that asked
-   for less motion, and the loop is not scheduled at all — so this costs
-   exactly nothing except when it is the thing you are looking at. */
-(function wireOrbit(){
-  const cv=$("#nowOrbit"), sheet=$("#sheetNow");
-  if(!cv)return;
-  const x=cv.getContext("2d");
-  let raf=0, spin=0, last=0;
-  const lvl=new Float32Array(64);
-  function size(){
-    const d=Math.min(2,devicePixelRatio||1), r=cv.getBoundingClientRect();
-    const w=Math.max(1,Math.round(r.width*d)), h=Math.max(1,Math.round(r.height*d));
-    if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
-    return d;
-  }
-  function frame(t){
-    if(!alive()){raf=0;return}
-    raf=requestAnimationFrame(frame);
-    const dt=Math.min(50,t-last);last=t;
-    const d=size(), W=cv.width, H=cv.height;
-    x.clearRect(0,0,W,H);
-    const cx=W/2, cy=H/2, R=Math.min(W,H)*.5-2*d;
-    spin+=dt*.00013;
-    if(analyser&&fftBuf&&state.settings.fft!==false)analyser.getByteFrequencyData(fftBuf);
-    const bins=fftBuf?fftBuf.length:0;
-    const tint=getComputedStyle(document.documentElement).getPropertyValue("--tint").trim()||"#c39dff";
-    x.strokeStyle=tint;x.lineCap="round";
-    /* the sleeve is a square, so where its edge lies depends on the
-       angle — each spoke starts exactly at the border of the record and
-       goes outward from there, and none of them ever crosses the art */
-    const half=R/1.44*1.02;
-    for(let i=0;i<64;i++){
-      // the spectrum is read low-to-high across half the ring and mirrored
-      const b=bins?fftBuf[Math.min(bins-1,2+((i<32?i:63-i)*3))]/255:0;
-      lvl[i]+=(b-lvl[i])*.28;                 // never jumps, always settles
-      const a=spin+i/64*6.283;
-      const edge=half/Math.max(Math.abs(Math.cos(a)),Math.abs(Math.sin(a)));
-      const inner=edge+R*.02, outer=inner+R*(.03+lvl[i]*.12);
-      x.globalAlpha=.20+lvl[i]*.72;
-      x.lineWidth=Math.max(1,R*.012);
-      x.beginPath();
-      x.moveTo(cx+Math.cos(a)*inner,cy+Math.sin(a)*inner);
-      x.lineTo(cx+Math.cos(a)*outer,cy+Math.sin(a)*outer);
-      x.stroke();
-    }
-    x.globalAlpha=1;
-  }
-  function alive(){
-    return !document.hidden&&sheet.classList.contains("open")&&!audio.paused&&!REDUCED;
-  }
-  function kick(){
-    if(raf||!alive())return;
-    last=performance.now();
-    raf=requestAnimationFrame(frame);
-  }
-  function clear(){
-    if(raf){cancelAnimationFrame(raf);raf=0}
-    lvl.fill(0);
-    x.clearRect(0,0,cv.width,cv.height);
-  }
-  document.addEventListener("visibilitychange",()=>document.hidden?clear():kick());
-  onAudio("play",kick);
-  onAudio("pause",clear);
-  // opening and closing the player is the other half of "am I being looked at"
-  new MutationObserver(()=>{sheet.classList.contains("open")?kick():clear()})
-    .observe(sheet,{attributes:true,attributeFilter:["class"]});
-})();
-
 /* ── scrubbing ──
    A native range only answers to its own thumb, and that thumb is nine
    pixels of a fifty-pixel band: the miss rate is the design, not the
@@ -3854,6 +3844,7 @@ $("#nowShuffle").addEventListener("click",()=>{
   const rest=state.queue.filter((_,i)=>i!==state.qIndex);
   for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]]}
   state.queue=[cur,...rest];state.qIndex=0;
+  persistLastPlayedState().catch(()=>{});
   toast("Queue shuffled — current track leads");
 });
 const REPEATS=["off","all","one"];
@@ -5004,17 +4995,17 @@ function onAlbumsAdded(newAlbums,countBefore,opts={}){
    ════════════════════════════════════════════════════════════════ */
 function switchTab(name){
   document.body.dataset.tab=name;
-  $$(".tab").forEach(b=>b.classList.toggle("on",b.dataset.go===name));
+  $$(".tab").forEach(b=>{b.classList.toggle("on",b.dataset.go===name);if(b.dataset.go===name)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
   $$(".panel").forEach(p=>p.classList.toggle("active",p.id==="panel-"+name));
   if(name!=="sky")sky.clearSelection();
-  if(name==="library")refreshLibrary();
+  if(name==="library"){refreshLibrary();refreshListeningCard()}
   if(name==="playlists")renderPlaylists();
   if(name==="log")renderLog();
   if(name==="settings"){renderEQ();updateStorage()}
 }
 $$(".tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.go)));
 $$("#libSort .sortc").forEach(b=>b.addEventListener("click",()=>{
-  libSortMode=b.dataset.sort;
+  libSortMode=b.dataset.sort;state.settings.librarySort=libSortMode;saveSettings();
   $$("#libSort .sortc").forEach(x=>x.classList.toggle("on",x===b));
   renderLibrary();
 }));
@@ -5025,6 +5016,7 @@ $$("#libSort .sortc").forEach(b=>b.addEventListener("click",()=>{
 const sheetStack=[];
 function openSheet(id){
   const el=$("#"+id);
+  if(!el||el.classList.contains("open"))return;
   if(el._resetDrag)el._resetDrag();
   el.classList.add("open");
   sheetStack.push(id);
@@ -5231,6 +5223,79 @@ makeSheetsDraggable();
   art.addEventListener("touchend",()=>{on=false});
 })();
 
+/* Collection controls keep one source of truth: the live queue and catalog. */
+let featuredAlbumId=null,trackMenuItem=null;
+function syncLibraryView(){
+  const list=state.settings.libraryView==="list";
+  $("#libGrid").classList.toggle("compact",list);
+  $("#viewGrid").setAttribute("aria-pressed",String(!list));
+  $("#viewList").setAttribute("aria-pressed",String(list));
+}
+function refreshListeningCard(){
+  const card=$("#listeningCard");if(!card)return;
+  const q=state.queue[state.qIndex];
+  const current=q&&albumById(q.albumId),track=q&&trackById(q.albumId,q.trackId);
+  const active=current&&hasAudio(track);
+  const album=active?current:[...state.albums].sort((a,b)=>b.seq-a.seq).find(a=>(state.tracks.get(a.id)||[]).some(hasAudio));
+  featuredAlbumId=album&&album.id;
+  card.hidden=!album||!!libQuery;
+  if(!album)return;
+  const src=artURL(album)||ART_PH;
+  if($("#listeningArt").getAttribute("src")!==src)artImg($("#listeningArt"),album);
+  $("#listeningLabel").textContent=active?(!audio.paused?"NOW PLAYING":"CONTINUE LISTENING"):"FROM YOUR COLLECTION";
+  $("#listeningTitle").textContent=active?track.title:album.title;
+  $("#listeningArtist").textContent=active?(track.artist||album.artist):album.artist;
+  $("#listeningPlayLabel").textContent=active?(!audio.paused?"Pause":"Resume"):"Listen";
+  $("#listeningPlay").setAttribute("aria-label",active?(!audio.paused?"Pause playback":"Resume playback"):"Play "+album.title);
+}
+$("#libraryImport").addEventListener("click",()=>openSheet("sheetImport"));
+$("#activityBtn").addEventListener("click",()=>switchTab("log"));
+[["#viewGrid","grid"],["#viewList","list"]].forEach(([id,value])=>{
+  $(id).addEventListener("click",()=>{state.settings.libraryView=value;syncLibraryView();saveSettings();fillWhileVisible()});
+});
+$("#listeningOpen").addEventListener("click",()=>{if(featuredAlbumId)openAlbum(featuredAlbumId)});
+$("#listeningDetails").addEventListener("click",()=>{if(featuredAlbumId)openAlbum(featuredAlbumId)});
+$("#listeningPlay").addEventListener("click",()=>{
+  const q=state.queue[state.qIndex];
+  if(q&&q.albumId===featuredAlbumId){togglePlay();return}
+  const tracks=(state.tracks.get(featuredAlbumId)||[]).filter(hasAudio);
+  if(tracks.length)playQueue(tracks.map(t=>({albumId:featuredAlbumId,trackId:t.id})),0);
+});
+function openTrackMenu(albumId,trackId){
+  const t=trackById(albumId,trackId),a=albumById(albumId);if(!t||!a)return;
+  trackMenuItem={albumId,trackId};
+  $("#trackMenuTitle").textContent=t.title;$("#trackMenuArtist").textContent=t.artist||a.artist;
+  $("#trackPlayNext").disabled=$("#trackQueue").disabled=!hasAudio(t);
+  $("#trackRenameForm").hidden=true;
+  openSheet("sheetTrack");
+}
+[["#trackPlayNext",true],["#trackQueue",false]].forEach(([id,next])=>$(id).addEventListener("click",()=>{
+  if(!trackMenuItem)return;
+  const {albumId,trackId}=trackMenuItem;
+  if(enqueueTrack(albumId,trackId,next)){closeSheet("sheetTrack");toast(next?"Playing next":"Added to queue");refreshListeningCard()}
+}));
+$("#trackPlaylist").addEventListener("click",()=>{
+  if(!trackMenuItem)return;
+  const item={...trackMenuItem};closeSheet("sheetTrack");pickPlaylist([item]);
+});
+$("#trackRename").addEventListener("click",()=>{
+  if(!trackMenuItem)return;
+  const t=trackById(trackMenuItem.albumId,trackMenuItem.trackId);if(!t)return;
+  $("#trackRenameForm").hidden=false;$("#trackRenameInput").value=t.title;$("#trackRenameInput").focus();
+});
+$("#trackRenameForm").addEventListener("submit",async e=>{
+  e.preventDefault();if(!trackMenuItem)return;
+  const {albumId,trackId}=trackMenuItem,t=trackById(albumId,trackId),value=$("#trackRenameInput").value.trim();
+  if(!t||!value)return;
+  const updated={...t,title:value};
+  try{await dbPut("tracks",updated)}catch(e){toast("Could not save the track name");return}
+  t.title=value;
+  $("#trackMenuTitle").textContent=value;$("#trackRenameForm").hidden=true;
+  if(sheetAlbumId===albumId)renderAlbumTracks(albumById(albumId));
+  if(loadedTrackId===trackId)updatePlayerUI(albumById(albumId),t);
+  renderLibrary();toast("Track renamed");
+});
+
 /* ── LIBRARY ── */
 /* ── library search — filter by artist or album, forgiving of case,
       accents, and word order ("dark floyd" finds Pink Floyd's album) ── */
@@ -5287,7 +5352,7 @@ function sortAlbums(list){
    card, every time anything changed. The grid looks exactly the same;
    it is simply filled a page at a time as it is scrolled, and the whole
    thing answers to one handler instead of thousands. */
-const LIB_PAGE=90;
+const LIB_PAGE=48;
 let libRows=[], libShown=0, libIO=null;
 function albumCard(a){
   const art=artURL(a);
@@ -5312,14 +5377,16 @@ function libPage(){
 }
 function renderLibrary(){
   const g=$("#libGrid");
+  syncLibraryView();refreshListeningCard();
   const all=sortAlbums([...state.albums]);
   libRows=all.filter(libMatches);
   libShown=0;
+  $("#libraryCount").textContent=libQuery?`${libRows.length} results`:`${all.length} record${all.length===1?"":"s"}`;
   $("#libSearch").style.display=all.length?"":"none";
   $("#libEmpty").style.display=all.length?"none":"";
   $("#libNoMatch").style.display=(all.length&&!libRows.length)?"":"none";
   if(libQuery)$("#libSub").textContent=`${libRows.length} / ${all.length}`;
-  else $("#libSub").textContent=all.length?skyCensus():"";
+  else $("#libSub").textContent=all.length?`${new Set(all.map(a=>normKey(a.artist))).size} artists · On this device`:"A place for the records you keep.";
   g.innerHTML="";
   if(!window.IntersectionObserver){
     while(libPage());                    // no observer: build it all, as before
@@ -5400,8 +5467,8 @@ function renderAlbumTracks(a){
         <button class="t-btn" data-up="${i}" aria-label="Move up"${i===0?" disabled style=\"opacity:.3\"":""}>&#9650;</button>
         <button class="t-btn" data-down="${i}" aria-label="Move down"${i===last?" disabled style=\"opacity:.3\"":""}>&#9660;</button>`
       :`
-        <button class="t-btn" data-rename="${t.id}" aria-label="Rename track">${ICO.edit}</button>
-        <button class="t-btn" data-pl="${t.id}" aria-label="Add track to playlist">${ICO.plus}</button>`}
+        <button class="t-btn" data-track-menu="${t.id}" aria-label="Track options">⋯</button>
+        `}
     </div>`).join("");
   const T=$("#albTracks");
   /* reordering rewrites idx for the whole album, so the numbers stay a
@@ -5425,19 +5492,8 @@ function renderAlbumTracks(a){
   }));
   T.querySelectorAll("[data-pl]").forEach(b=>b.addEventListener("click",()=>
     pickPlaylist([{albumId:a.id,trackId:b.dataset.pl}])));
-  T.querySelectorAll("[data-rename]").forEach(b=>b.addEventListener("click",()=>{
-    const t=trackById(a.id,b.dataset.rename);if(!t)return;
-    const row=b.closest(".trk"), main=row.querySelector(".t-main");
-    main.innerHTML=`<input class="t-edit" value="${esc(t.title)}" aria-label="Track title">`;
-    const inp=main.querySelector("input");inp.focus();inp.select();
-    const commit=async()=>{
-      const v=inp.value.trim();
-      if(v&&v!==t.title){t.title=v;await dbPut("tracks",t);toast("Track renamed — file untouched")}
-      renderAlbumTracks(a);
-    };
-    inp.addEventListener("blur",commit);
-    inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()});
-  }));
+  T.querySelectorAll("[data-track-menu]").forEach(b=>b.addEventListener("click",()=>openTrackMenu(a.id,b.dataset.trackMenu)));
+
 }
 $("#albFind").addEventListener("click",()=>{
   const a=albumById(sheetAlbumId);if(!a)return;
@@ -6075,6 +6131,7 @@ async function repairAdoptedTrackOrder(){
     dbAll("albums"),dbAll("tracks"),dbAll("playlists"),
     kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays")
   ]);
+  resumePoint=await kvGet("playbackPosition").catch(()=>null);
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{
@@ -6086,6 +6143,8 @@ async function repairAdoptedTrackOrder(){
   state.playlists=playlists||[];
   if(settings)state.settings={...state.settings,...settings,
     eqGains:(settings.eqGains&&settings.eqGains.length===10)?settings.eqGains:new Array(10).fill(0)};
+  libSortMode=state.settings.librarySort||"added";
+  $$("#libSort .sortc").forEach(b=>b.classList.toggle("on",b.dataset.sort===libSortMode));
   state.log=log||[];
   seqCounter=seq||state.albums.reduce((m,a)=>Math.max(m,a.seq||0),0);
 
