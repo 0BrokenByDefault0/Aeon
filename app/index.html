@@ -1060,6 +1060,13 @@ input[type=range].hseek::-webkit-slider-thumb{
 <link rel="stylesheet" href="interface.css">
 </head>
 <body data-tab="sky">
+<div id="airlock" role="region" aria-label="Spaceship door opening">
+  <div class="airlock-jamb" aria-hidden="true"></div>
+  <div class="airlock-door port" aria-hidden="true"><div class="door-inset"></div><div class="door-rib"></div><div class="door-latch"></div><span class="door-id">AEON / 042</span></div>
+  <div class="airlock-door starboard" aria-hidden="true"><div class="door-inset"></div><div class="door-rib"></div><div class="door-latch"></div><span class="door-id">OBSERVATION BAY</span></div>
+  <div class="airlock-caption"><span>AEON</span><small id="airlockStatus">PRESSURIZING</small></div>
+  <button id="airlockSkip" aria-label="Skip opening animation">ENTER SKY</button>
+</div>
 
 <!-- ═══ sky canvas layers ═══ -->
 <canvas id="cvNebula" class="sky-layer"></canvas>
@@ -1265,7 +1272,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.1 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.2 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1303,6 +1310,17 @@ input[type=range].hseek::-webkit-slider-thumb{
     <b>Files &#8594; ISOLATION &#8594; Music</b>, then ADOPT LIBRARY. Nothing is copied.
   </div>
 </div></div>
+<div class="sheet" id="sheetFolder" aria-modal="true" role="dialog" aria-label="Import a folder">
+ <div class="sheet-body"><div class="grab"></div><button class="sheet-close" aria-label="Close">×</button>
+ <h2>Import a folder</h2>
+ <p class="import-intro">In Files, copy your album folders to <b>On My iPhone → ISOLATION → Music</b>. Then return here and scan. Your folders stay intact.</p>
+ <div class="btnrow"><button class="btn hot" id="folderScan">SCAN MUSIC FOLDER</button></div>
+ <p class="import-intro">Or in Files, hold a folder → Compress, then import its ZIP here. Each album folder stays separate.</p>
+ <div class="btnrow"><button class="btn" id="folderZip">IMPORT FOLDER ZIP</button></div>
+ <p id="folderStatus" class="c-note" role="status" aria-live="polite"></p>
+ </div>
+</div>
+<input type="file" id="folderZipInput" accept=".zip,application/zip" multiple hidden>
 <!-- ═══ now playing sheet ═══ -->
 <div class="sheet" id="sheetNow" aria-modal="true" role="dialog" aria-label="Now playing">
   <div class="sheet-body">
@@ -1486,6 +1504,21 @@ if("serviceWorker" in navigator&&location.protocol.startsWith("http")){
 /* ───────── utils ───────── */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const airlockStarted=performance.now();let airlockDone=false;
+function dismissAirlock(){airlockDone=true;$("#airlock").hidden=true}
+function revealSky(){
+  if(airlockDone)return;
+  if(REDUCED){dismissAirlock();return}
+  setTimeout(()=>{
+    if(airlockDone)return;
+    $("#airlockStatus").textContent="SEAL RELEASED";
+    $("#airlock").classList.add("opening");
+    setTimeout(dismissAirlock,1700);
+  },Math.max(0,450-(performance.now()-airlockStarted)));
+}
+$("#airlockSkip").addEventListener("click",dismissAirlock);
+setTimeout(dismissAirlock,5500); // never trap a listener behind a failed launch
+
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
 /* How many records it takes to wake a world. A world should be rare
@@ -2661,40 +2694,63 @@ async function saveBlob(blob,name){
 const fileInput=$("#fileInput");
 $("#btnImport").addEventListener("click",()=>fileInput.click());
 $("#inviteImport").addEventListener("click",()=>fileInput.click());
-if(window.showDirectoryPicker){
-  $("#btnImportFolder").style.display="";
-  $("#btnImportFolder").addEventListener("click",async()=>{
+const dirInput=$("#dirInput");
+async function prepareMusicFolder(){
+  if(!NATIVE)return;
+  try{await FS().mkdir({path:AUDIO_DIR,directory:"DOCUMENTS",recursive:true})}
+  catch(e){await FS().readdir({path:AUDIO_DIR,directory:"DOCUMENTS"})}
+}
+function showFolderImport(message=""){
+  openSheet("sheetFolder");
+  $("#folderScan").hidden=!NATIVE;
+  $("#sheetFolder .import-intro").hidden=!NATIVE;
+  $("#folderStatus").textContent=message;
+  if(NATIVE)prepareMusicFolder().catch(e=>{
+    $("#folderStatus").textContent="Couldn't prepare Music: "+(e.message||e);
+  });
+}
+$("#btnImportFolder").style.display="";
+$("#btnImportFolder").addEventListener("click",async()=>{
+  // A DOM property does not prove WKWebView has a native directory picker.
+  if(NATIVE){showFolderImport();return}
+  if(window.showDirectoryPicker){
     try{
-      const dir=await showDirectoryPicker();
-      const files=[];
+      const dir=await window.showDirectoryPicker(),files=[];
       async function walk(d,path){
         for await(const [nm,h] of d.entries()){
-          if(h.kind==="file"&&/\.(mp3|m4a|aac|flac|wav|ogg)$/i.test(nm)){
-            const f=await h.getFile();
-            Object.defineProperty(f,"webkitRelativePath",{value:path+"/"+nm});
-            files.push(f);
-          }else if(h.kind==="directory")await walk(h,path+"/"+nm);
+          if(nm.startsWith("."))continue;
+          if(h.kind==="directory")await walk(h,path+"/"+nm);
+          else if(/\.(mp3|m4a|aac|flac|wav|ogg|opus|jpe?g|png|webp)$/i.test(nm)){
+            const f=await h.getFile();Object.defineProperty(f,"webkitRelativePath",{value:path+"/"+nm});files.push(f);
+          }
         }
       }
       await walk(dir,dir.name);
       if(files.length)await importFiles(files,{perFolder:true});
-      else toast("No audio files found in that folder");
-    }catch(e){/* user cancelled */}
-  });
-}
-/* Where there are no directory handles there is still the plain folder
-   picker — Safari, Firefox, and any browser Chrome's API skipped. */
-const dirInput=$("#dirInput");
-if(!window.showDirectoryPicker&&dirInput&&"webkitdirectory" in dirInput){
-  $("#btnImportFolder").style.display="";
-  $("#btnImportFolder").addEventListener("click",()=>dirInput.click());
-  dirInput.addEventListener("change",async()=>{
-    const files=[...dirInput.files];
-    dirInput.value="";
-    if(files.length)await importFiles(files,{perFolder:true});
-    else toast("No audio files found in that folder");
-  });
-}
+      else showFolderImport("No audio found. Try another folder or import its ZIP.");
+    }catch(e){if(e.name!=="AbortError")showFolderImport("Couldn't open that folder: "+(e.message||e))}
+  }else if(dirInput&&"webkitdirectory" in dirInput)dirInput.click();
+  else showFolderImport();
+});
+dirInput.addEventListener("change",async()=>{
+  const files=[...dirInput.files];dirInput.value="";
+  try{if(files.length)await importFiles(files,{perFolder:true})}
+  catch(e){showFolderImport("Folder import stopped: "+(e.message||e))}
+});
+$("#folderZip").addEventListener("click",()=>$("#folderZipInput").click());
+$("#folderZipInput").addEventListener("change",async e=>{
+  const files=[...e.target.files];e.target.value="";if(!files.length)return;
+  $("#folderStatus").textContent="Reading your folder ZIP…";
+  try{const before=state.albums.length;await importFiles(files,{perFolder:true});
+    $("#folderStatus").textContent=`${state.albums.length-before} new albums imported.`;
+  }catch(err){$("#folderStatus").textContent="Import stopped: "+(err.message||err)}
+});
+$("#folderScan").addEventListener("click",async()=>{
+  const button=$("#folderScan");button.disabled=true;$("#folderStatus").textContent="Scanning Music…";
+  try{await prepareMusicFolder();$("#folderStatus").textContent=await adoptLibrary()}
+  catch(e){$("#folderStatus").textContent="Scan stopped: "+(e.message||e)}
+  finally{button.disabled=false;importProgress(1,1)}
+});
 fileInput.addEventListener("change",async()=>{
   const files=[...fileInput.files];
   fileInput.value="";
@@ -2718,7 +2774,7 @@ fileInput.addEventListener("change",async()=>{
 async function walkMusic(rel,out,depth){
   if(depth>8)return;
   let listing;
-  try{listing=await FS().readdir({path:rel,directory:"DOCUMENTS"})}catch(e){return}
+  try{listing=await FS().readdir({path:rel,directory:"DOCUMENTS"})}catch(e){throw new Error("Could not read "+rel+": "+(e.message||e))}
   for(const ent of(listing.files||[])){
     const name=ent.name||"";
     if(!name||name.startsWith("."))continue;
@@ -2753,20 +2809,26 @@ function diskFile(rec,url){
     arrayBuffer:()=>grab(0,size),
   };
 }
+let adoptionBusy=false;
 async function adoptLibrary(){
+  if(adoptionBusy)return "A folder scan is already running.";
+  adoptionBusy=true;
+  try{return await adoptLibraryRun()}finally{adoptionBusy=false}
+}
+async function adoptLibraryRun(){
   if(!NATIVE){toast("Adoption needs the installed app — its Music folder is what Files writes into");return}
   toast("Reading Files → ISOLATION → Music…");
   const found={audio:[],images:[]};
   await walkMusic(AUDIO_DIR,found,0);
   if(!found.audio.length){
-    toast("No audio in Files → ISOLATION → Music yet — copy your folders in there first");
-    return;
+    const message="No audio in Files → ISOLATION → Music yet — copy your folders in there first";
+    toast(message);return message;
   }
   // a file this app already catalogued is not a discovery
   const known=new Set();
   state.tracks.forEach(list=>list.forEach(t=>{if(t.path)known.add(t.path)}));
   const fresh=found.audio.filter(a=>!known.has(a.path));
-  if(!fresh.length){toast("Everything in that folder is already in your sky");return}
+  if(!fresh.length){const message="Everything in that folder is already in your sky";toast(message);return message}
 
   // one album per folder that holds audio, in the order they were found
   const dirOf=p=>p.split("/").slice(0,-1).join("/");
@@ -2810,8 +2872,8 @@ async function adoptLibrary(){
     if(files.length)await importFiles(files,{perFolder:true,quiet:true});
   }
   const added=state.albums.length-before;
-  toast(added?`${added} album${added>1?"s":""} adopted — nothing was copied, nothing moved`
-             :"Nothing new to adopt",!!added);
+  const message=added?`${added} album${added>1?"s":""} imported — files stay in Music`:"Nothing new to import";
+  toast(message,!!added);return message;
 }
 if(NATIVE){
   $("#btnAdopt").style.display="";
@@ -4172,10 +4234,13 @@ const sky=(()=>{
       planets.push({
         x:pos.x, y:pos.y, r,
         seed:p+"-"+skySeed,
+        revealStyle:(p+skySeed)%8,
+        effectPhase:(hashStr("fx"+p+skySeed)%628)/100,
         type:(p*3+skySeed)%SURFACES.length,
         ink:(p*5+skySeed)%WORLD_PAL.length,
         ring:((p*7+skySeed)%3)===0,
         tilt:((hashStr("tilt"+p+skySeed)%100)/100-.5)*1.9,
+        thumbnail:kept?oldP[p].thumbnail:null,
         sprite:kept?oldP[p].sprite:null,   // a world keeps the face it was painted with
         born:kept?(oldP[p].born||0):performance.now()
       });
@@ -4559,42 +4624,93 @@ const sky=(()=>{
   /* Painted once, at a size that survives being zoomed into, and never
      touched again. The night side and the sun-struck rim are baked in
      with it, so the light on a world costs nothing to keep. */
-  const SPRITE=240;
-  function bakeWorld(p){
-    const c=document.createElement("canvas");c.width=c.height=SPRITE;
-    const x=c.getContext("2d"), S=SPRITE, P=WORLD_PAL[p.ink];
-    const r=mulberry(hashStr("skin"+p.seed));
-    x.save();
-    x.beginPath();x.arc(S/2,S/2,S/2,0,6.283);x.clip();
-    SURFACES[p.type](x,S,r,P);
-    /* Grain. Flat colour reads as a sticker; a surface has to have some
-       tooth to it. Baked in with everything else, so it is free. */
-    x.globalAlpha=1;
-    for(let i=0;i<2600;i++){
-      const gx=r()*S, gy=r()*S, v=r();
-      x.fillStyle=v>.5?"rgba(255,255,255,"+(.03+r()*.09).toFixed(3)+")"
-                      :"rgba(0,0,0,"+(.04+r()*.12).toFixed(3)+")";
-      x.fillRect(gx,gy,1+r()*1.6,1+r()*1.6);
+  const SPRITE=640;
+  // High-resolution discs only for nearby worlds; distant worlds use a smaller
+  // surface. A bounded cache prevents large libraries accumulating texture RAM.
+  const worldCache=new Map();
+  function bakeWorld(p,size=SPRITE){
+    const texture=document.createElement("canvas");texture.width=texture.height=size;
+    const tx=texture.getContext("2d",{willReadFrequently:true}),P=WORLD_PAL[p.ink];
+    const random=mulberry(hashStr("skin"+p.seed));
+    tx.fillStyle=P.a;tx.fillRect(0,0,size,size);
+    SURFACES[p.type](tx,size,random,P);tx.globalAlpha=1;
+    // Fine sediment lines and mineral inclusions enrich the original painted face.
+    tx.lineWidth=.5;
+    for(let i=0;i<180;i++){
+      tx.strokeStyle=i%4?P.a:P.c;tx.globalAlpha=.08+random()*.14;
+      const y=random()*size;tx.beginPath();tx.moveTo(0,y);
+      for(let j=1;j<=24;j++)tx.lineTo(j*size/24,y+Math.sin(j*.55+i)*size*.008);
+      tx.stroke();
     }
-    x.globalAlpha=1;
-    /* the half turned away from the sun keeps its colour but loses its
-       light, so a world reads as a body rather than as a disc */
-    const sh=x.createRadialGradient(
-      S/2+LIGHT.x*S*.34,S/2+LIGHT.y*S*.34,S*.06,S/2,S/2,S*.72);
-    sh.addColorStop(0,"rgba(0,0,0,0)");
-    sh.addColorStop(.55,"rgba(0,0,0,.42)");
-    sh.addColorStop(1,"rgba(2,2,6,.93)");
-    x.fillStyle=sh;x.fillRect(0,0,S,S);
-    const rim=x.createLinearGradient(
-      S/2+Math.cos(LANG)*S/2,S/2+Math.sin(LANG)*S/2,
-      S/2-Math.cos(LANG)*S/2,S/2-Math.sin(LANG)*S/2);
-    rim.addColorStop(0,"rgba(255,255,255,.85)");
-    rim.addColorStop(.3,P.c);
-    rim.addColorStop(.75,"rgba(0,0,0,0)");
-    x.strokeStyle=rim;x.lineWidth=S*.02;
-    x.beginPath();x.arc(S/2,S/2,S/2-S*.01,0,6.283);x.stroke();
-    x.restore();
+    tx.globalAlpha=1;
+    const src=tx.getImageData(0,0,size,size).data;
+    const c=document.createElement("canvas");c.width=c.height=size;
+    const x=c.getContext("2d"),out=x.createImageData(size,size),dst=out.data;
+    const tint=parseInt(P.c.slice(1),16),rim=[tint>>16&255,tint>>8&255,tint&255];
+    const salt=hashStr(p.seed),R=size/2-1;
+    const field=new Float32Array(4096);for(let i=0;i<field.length;i++)field[i]=random();
+    function noise(u,v){
+      const a=Math.floor(u),b=Math.floor(v);let fx=u-a,fy=v-b;
+      fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
+      const row=(b&63)*64,next=((b+1)&63)*64;
+      return lerp(lerp(field[row+(a&63)],field[row+((a+1)&63)],fx),lerp(field[next+(a&63)],field[next+((a+1)&63)],fx),fy);
+    }
+    const rgb=hex=>{const n=parseInt(hex.slice(1),16);return[n>>16&255,n>>8&255,n&255]};
+    const base=rgb(P.a),dark=rgb(P.b);
+    for(let y=0;y<size;y++){
+      const ny=(y-size/2)/R,lat=Math.asin(clamp(ny,-1,1))/Math.PI+.5;
+      const span=Math.sqrt(Math.max(0,1-ny*ny));
+      for(let xx=0;xx<size;xx++){
+        const nx=(xx-size/2)/R,d=nx*nx+ny*ny;if(d>=1)continue;
+        const nz=Math.sqrt(1-d);
+        // Orthographic sphere projection curves every band, crater and fault.
+        const u=.5+Math.asin(clamp(nx/Math.max(.0001,span),-1,1))/Math.PI;
+        const n=noise(u*7,lat*7)*.54+noise(u*19,lat*19)*.28+noise(u*53,lat*53)*.13+noise(u*127,lat*127)*.05;
+        const warp=(n-.5)*.16;
+        const sx=Math.min(size-1,Math.max(0,Math.floor((u+warp)*(size-1))));
+        const sy=Math.min(size-1,Math.max(0,Math.floor((lat+warp*.6)*(size-1))));
+        const si=(sy*size+sx)*4,di=(y*size+xx)*4;
+        let h=Math.imul(xx+salt,374761393)^Math.imul(y,668265263);h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;
+        const grain=(h>>>0)/4294967295;
+        const diffuse=Math.max(0,-.56*nx-.63*ny+.54*nz),light=.24+diffuse*.96;
+        const tooth=.94+grain*.10;
+        const edge=Math.pow(1-nz,5)*(.1+diffuse*.62);
+        const shine=Math.pow(Math.max(0,-.32*nx-.36*ny+.88*nz),42)*diffuse*18;
+        const vein=Math.pow(1-Math.abs(Math.sin(n*19+u*15+lat*11)),10);
+        const band=.5+.5*Math.sin(lat*48+n*14+u*3);
+        for(let k=0;k<3;k++){
+          let color=src[si+k]*(.66+n*.65);
+          if(p.type===3)color=dark[k]*.22+base[k]*vein*.85+rim[k]*vein*vein*.8;
+          else if(p.type===0)color=lerp(color,lerp(dark[k],base[k],band)+rim[k]*Math.pow(band,14)*.2,.6);
+          else if(p.type===2||p.type===4)color+=rim[k]*vein*.28;
+          else if(p.type===6)color=lerp(color,lerp(dark[k],base[k],.5+.5*Math.sin(u*36+lat*19+n*14)),.75);
+          else if(p.type===5||p.type===7)color+=rim[k]*(n-.35)*.3;
+          dst[di+k]=Math.min(255,color*light*tooth+rim[k]*edge+shine);
+        }
+        dst[di+3]=Math.min(255,(1-d)*R*255);
+      }
+    }
+    x.putImageData(out,0,0);texture.width=texture.height=0;
     return c;
+  }
+  let textureBudget=1;
+  function worldSprite(p){
+    const size=p.r*cam.s*DPR>140?SPRITE:256,key=p.seed+":"+size;
+    let sprite=worldCache.get(key);
+    if(!sprite){
+      const oldest=worldCache.values().next().value;
+      if(!textureBudget||(worldCache.size>=24&&oldest._seen>=drawn-1)){
+        if(!p.thumbnail)p.thumbnail=bakeWorld(p,96);
+        p.sprite=p.thumbnail;return p.thumbnail;
+      }
+      textureBudget--;sprite=bakeWorld(p,size);worldCache.set(key,sprite);
+    }else{worldCache.delete(key);worldCache.set(key,sprite)}
+    sprite._seen=drawn;
+    while(worldCache.size>24){
+      const first=worldCache.keys().next().value,old=worldCache.get(first);worldCache.delete(first);
+      for(const world of planets)if(world.sprite===old)world.sprite=null;
+    }
+    p.sprite=sprite;return sprite;
   }
   /* the ring, in halves, so it passes behind the world and then in front */
   function ringHalf(x2,R,alpha,front,P){
@@ -4611,68 +4727,77 @@ const sky=(()=>{
     x2.restore();
   }
   function drawPlanet(x2,p,t){
-    const age=REDUCED?1:clamp((t-p.born)/2600,0,1);
+    const age=REDUCED?1:clamp((t-p.born)/(2200+p.revealStyle*110),0,1);
     if(age<=0)return;
-    const ease=1-Math.pow(1-age,4);
-    const R=p.r*(.92+.08*ease), P=WORLD_PAL[p.ink];
-    if(!p.sprite)p.sprite=bakeWorld(p);
+    const ease=1-Math.pow(1-age,4),P=WORLD_PAL[p.ink],style=p.revealStyle;
+    const R=p.r*(style===3?.65+.35*ease:.94+.06*ease);
+    const sprite=worldSprite(p);
+    x2.save();x2.translate(p.x,p.y);x2.globalAlpha=ease;
+    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.42*ease,false,P);x2.restore()}
     x2.save();
-    x2.translate(p.x,p.y);
-    x2.globalAlpha=ease;
-    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.34*ease,false,P);x2.restore()}
-    /* the body occludes — everything behind it stops here */
-    x2.save();
-    x2.rotate(p.tilt*.5);
-    x2.drawImage(p.sprite,-R,-R,R*2,R*2);
-    x2.restore();
-    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.62*ease,true,P);x2.restore()}
-    /* a breath of the world's own colour on the dark it sits in */
-    x2.globalAlpha=ease*.5;
-    x2.strokeStyle=P.a;
-    x2.lineWidth=Math.max(1/cam.s,R*.012);
-    x2.beginPath();x2.arc(0,0,R*1.035,0,6.283);x2.stroke();
+    // Eight reveal families, with per-world timing, angle and palette.
+    if(age<1){
+      x2.beginPath();
+      if(style===0)x2.rect(-R,-R,2*R,2*R*ease); // polar sunrise
+      else if(style===1)x2.arc(0,0,R*ease,0,Math.PI*2); // iris
+      else if(style===2){x2.moveTo(0,0);x2.arc(0,0,R*1.45,p.effectPhase,p.effectPhase+Math.PI*2*ease);x2.closePath()} // orbital sweep
+      else if(style===4){for(let i=0;i<12;i++)x2.rect(-R,-R+i*R/6,2*R*clamp(ease*1.5-i*.035,0,1),R/6+1)} // accretion bands
+      else if(style===5)x2.rect(-R*ease,-R,2*R*ease,2*R); // split eclipse
+      else if(style===6){for(let i=0;i<12;i++)x2.rect(-R+i*R/6,-R, R/6+1,2*R*clamp(ease*1.5-(i%3)*.15,0,1))} // crystal growth
+      else x2.rect(-R,-R,2*R,2*R);
+      x2.clip();
+    }
+    x2.rotate(p.tilt*.5+(style===7?(1-ease)*.8:0));
+    x2.imageSmoothingEnabled=true;x2.imageSmoothingQuality="high";
+    x2.drawImage(sprite,-R,-R,R*2,R*2);x2.restore();
+    if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.78*ease,true,P);x2.restore()}
+    // A thin atmosphere: light gathers on the sunward limb, not a neon outline.
+    x2.globalAlpha=ease*.35;x2.strokeStyle=P.c;x2.lineWidth=Math.max(.5/cam.s,R*.008);
+    x2.beginPath();x2.arc(0,0,R*1.01,Math.PI*.92,Math.PI*1.8);x2.stroke();
+    if(age<1&&style===3){x2.globalAlpha=(1-age)*.5;x2.strokeStyle=P.a;x2.lineWidth=2/cam.s;x2.beginPath();x2.arc(0,0,R*(1+age*.8),0,Math.PI*2);x2.stroke()}
     x2.restore();
   }
 
-  /* ── colour thrown off a world that has been touched ──
-     A tap is answered in the only language the sky speaks. The burst is
-     a small pool of motes drawn straight onto the star canvas; it lives
-     about a second, and when none are alive the loop does not spend a
-     cycle on it. */
   const MOTES=[];
   function burstWorld(p){
-    if(MOTES.length>160)return;               // a hammered world stays cheap
-    const P=WORLD_PAL[p.ink], cols=[P.a,P.c,P.c,"#ffffff"];
-    for(let i=0;i<72;i++){
-      /* thrown off the limb rather than out of the middle, so what you
-         see is the world shedding colour and not confetti on top of it */
-      const a=Math.random()*6.283, sp=p.r*(1.7+Math.random()*3.4);
-      const d=p.r*(.72+Math.random()*.34);
+    if(REDUCED)return;
+    const P=WORLD_PAL[p.ink],cols=[P.a,P.c,P.c,"#ffffff"];
+    const mode=p.revealStyle??0,random=mulberry(hashStr(p.seed+"burst"));
+    const count=Math.min(64,192-MOTES.length);if(count<=0)return;
+    for(let i=0;i<count;i++){
+      let a=random()*Math.PI*2;
+      if(mode===3)a=p.effectPhase+(i%2?Math.PI:0)+(random()-.5)*.25;
+      const speed=p.r*(.8+random()*2.8),d=p.r*(.88+random()*.16);
+      const tangent=mode===2||mode===7;
       MOTES.push({x:p.x+Math.cos(a)*d,y:p.y+Math.sin(a)*d,
-        vx:Math.cos(a)*sp,vy:Math.sin(a)*sp*.92,
-        r:p.r*(.018+Math.random()*.055),
-        c:cols[(Math.random()*cols.length)|0],
-        life:0,ttl:.6+Math.random()*.8});
+        cx:p.x,cy:p.y,angle:a,orbit:d,spin:(.65+random())*(mode===7?-1:1),
+        vx:Math.cos(a+(tangent?Math.PI/2:0))*speed,vy:Math.sin(a+(tangent?Math.PI/2:0))*speed,
+        r:p.r*(.007+random()*.025),c:cols[(random()*cols.length)|0],mode,
+        life:0,ttl:.8+random()*.85,phase:p.effectPhase});
     }
   }
   function drawMotes(x2,dt){
     if(!MOTES.length)return;
-    const s=Math.min(.05,dt/1000);
-    x2.save();
-    x2.globalCompositeOperation="lighter";
+    const step=Math.min(.05,dt/1000);x2.save();x2.globalCompositeOperation="lighter";
     for(let i=MOTES.length-1;i>=0;i--){
-      const m=MOTES[i];
-      m.life+=s;
+      const m=MOTES[i];m.life+=step;
       if(m.life>=m.ttl){MOTES.splice(i,1);continue}
-      m.x+=m.vx*s;m.y+=m.vy*s;
-      m.vx*=.965;m.vy*=.965;
-      const k=1-m.life/m.ttl;
-      x2.globalAlpha=k*.9;
-      x2.fillStyle=m.c;
-      x2.beginPath();x2.arc(m.x,m.y,m.r*(.5+k*.5),0,6.283);x2.fill();
+      const k=1-m.life/m.ttl,ox=m.x,oy=m.y;
+      if(m.mode===2||m.mode===7){
+        m.angle+=m.spin*step*3;m.orbit+=step*(m.mode===7?-m.orbit*.32:m.orbit*.55);
+        m.x=m.cx+Math.cos(m.angle)*m.orbit;m.y=m.cy+Math.sin(m.angle)*m.orbit;
+      }else{m.x+=m.vx*step;m.y+=m.vy*step;m.vx*=.972;m.vy*=.972}
+      x2.globalAlpha=k*.82;x2.fillStyle=m.c;x2.strokeStyle=m.c;x2.lineWidth=Math.max(.6/cam.s,m.r*.6);
+      x2.beginPath();
+      if(m.mode===1||m.mode===6){ // faceted ice / mineral shards
+        x2.moveTo(m.x,m.y-m.r*2);x2.lineTo(m.x+m.r,m.y);x2.lineTo(m.x,m.y+m.r*2);x2.lineTo(m.x-m.r,m.y);x2.closePath();x2.fill();
+      }else if(m.mode===3||m.mode===4||m.mode===7){ // jets, meteor trails, vortex filaments
+        x2.moveTo(ox,oy);x2.lineTo(m.x,m.y);x2.stroke();
+      }else if(m.mode===5){ // expanding orbital arcs
+        x2.arc(m.cx,m.cy,Math.hypot(m.x-m.cx,m.y-m.cy),m.angle,m.angle+.035+k*.07);x2.stroke();
+      }else{x2.arc(m.x,m.y,m.r*(.4+k*.6),0,Math.PI*2);x2.fill()}
     }
     x2.restore();
-    x2.globalAlpha=1;
   }
 
   /* ── main loop ── */
@@ -4691,7 +4816,7 @@ const sky=(()=>{
        sheet's own animations stuttered. The canvases keep their last
        frame, so coming back is instant. */
     if(document.hidden||!onSky)return;
-    drawn++;
+    drawn++;textureBudget=1;
     /* A single bad number would blank the sky for good, since every
        frame after it multiplies by it. The target is checked as well as
        the position: cleaning the position alone would leave the spring
@@ -6196,6 +6321,7 @@ async function repairAdoptedTrackOrder(){
   await fillMissingGenres();
 
   sky.init();
+  requestAnimationFrame(()=>requestAnimationFrame(revealSky));
   $("#shareSky").style.display=state.albums.length?"":"none";
   syncRepeatUI();
   setHud(!!state.settings.hud);

@@ -187,7 +187,7 @@ button{transition:background-color 100ms ease-out,opacity 100ms ease-out!importa
 button:active{transform:none!important}
 button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:3px}
 input::placeholder{color:#fff!important;opacity:.85}
-.sky-layer{filter:grayscale(1)}
+.sky-layer{filter:none}
 #skyDim{background:#000}
 .panel{background:rgba(180,186,197,.98);padding-left:22px;padding-right:22px}
 .panel :is(p,.c-note,.set-d,.p-sub,.s-sub,.collection-kicker){text-shadow:0 1px 1px #41495780!important}
@@ -280,3 +280,24 @@ input[type=range]::-webkit-slider-thumb{background:#fff!important;border-radius:
 #ibFill{background:#fff}
 #sheetNow input[type=range].hseek::-moz-range-thumb,.band input[type=range]::-moz-range-thumb{background:#fff;border-radius:0}
 #sheetNow input[type=range].hseek::-moz-range-track,.band input[type=range]::-moz-range-track{background:#747d8b}
+
+/* First-person airlock: compositor-only travel, no video or startup download. */
+#airlock{position:fixed;inset:0;z-index:100;overflow:hidden;perspective:1000px;isolation:isolate}
+.airlock-jamb{position:absolute;inset:0;border:12px solid #1b1e24!important;box-shadow:inset 0 0 0 2px #777f8c,inset 0 0 0 18px #050608!important;pointer-events:none;z-index:3}
+.airlock-door{position:absolute;top:0;bottom:0;width:50.5%;background:repeating-linear-gradient(0deg,#ffffff03 0 1px,transparent 1px 4px),linear-gradient(105deg,#1e222a 0%,#5d6672 4%,#292f3a 8%,#363e49 45%,#151920 94%,#b8c7d5 98%,#eaf4ff 99%,#181d26 100%);border:2px solid #090c11!important;will-change:transform;transition:transform 1.5s cubic-bezier(.64,0,.2,1)}
+.airlock-door.port{left:0}.airlock-door.starboard{right:0;transform:scaleX(-1)}
+.door-inset{position:absolute;inset:12% 14% 14% 8%;clip-path:polygon(0 0,78% 0,100% 8%,100% 92%,78% 100%,0 100%);background:linear-gradient(125deg,#080b11,#414955 2%,#1b2029 3%,#303744 78%,#11151c);border:1px solid #778493!important}
+.door-inset::after{content:"";position:absolute;inset:8%;background:repeating-linear-gradient(0deg,transparent 0 42px,#75839333 43px,#06090e 44px,transparent 46px)}
+.door-rib{position:absolute;top:9%;bottom:9%;right:8%;width:5%;background:linear-gradient(90deg,#05070b,#79818d 32%,#2a323e 42%,#12161e);clip-path:polygon(0 0,100% 3%,100% 97%,0 100%)}
+.door-latch{position:absolute;right:-2px;top:46%;width:28%;height:8%;background:linear-gradient(135deg,#86909e,#2e3542 30%,#171b23 74%,#8b96a7);border:2px solid #080b12!important;clip-path:polygon(20% 0,100% 0,100% 100%,20% 100%,0 70%,0 30%);transition:transform .25s ease-out}
+.door-id{position:absolute;left:18%;bottom:10%;font-size:10px;letter-spacing:.16em;writing-mode:vertical-rl;opacity:.7}.starboard .door-id{transform:scaleX(-1)}
+.airlock-caption{position:absolute;left:50%;top:28%;transform:translateX(-50%);z-index:4;text-align:center;white-space:nowrap;pointer-events:none;transition:opacity .2s}
+.airlock-caption>span{display:block;font-size:38px;letter-spacing:.24em;padding-left:.24em}.airlock-caption small{display:block;font-size:9px;letter-spacing:.18em;margin-top:12px}
+#airlockSkip{position:absolute;bottom:calc(var(--safe-b) + 38px);left:50%;transform:translateX(-50%);z-index:4;padding:13px 22px;border:1px solid #ffffff60!important;background:#141923dd;font-size:11px;letter-spacing:.12em}
+#airlock.opening .port{transform:translateX(-103%);transition-delay:.16s}#airlock.opening .starboard{transform:translateX(103%) scaleX(-1);transition-delay:.16s}
+#airlock.opening .door-latch{transform:translateX(-18%)}
+#airlock.opening .airlock-caption{opacity:0}
+#airlock.opening #airlockSkip{opacity:0;pointer-events:none}
+#airlock.opening .airlock-jamb{opacity:0;transition:opacity .5s 1.1s}
+#folderStatus{margin-top:18px;min-height:24px;font-size:14px}
+@media(prefers-reduced-motion:reduce){#airlock{display:none}}

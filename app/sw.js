@@ -4,7 +4,7 @@
    when offline. Static assets are cache-first. Bump CACHE on release so
    old caches are swept. Audio and library data live in IndexedDB, never
    here — updating the shell can't touch a user's collection. */
-const CACHE = "aeon-v4.1";
+const CACHE = "aeon-v4.2";
 const SHELL = ["./", "./index.html", "./interface.css", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
