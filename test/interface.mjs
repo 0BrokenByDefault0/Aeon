@@ -43,4 +43,22 @@ for(const [width,height] of [[390,844],[320,568],[430,932]]){
 }
 assert.deepEqual(errors,[]);console.log('PASS no page errors');
 if(process.env.AEON_SCREENSHOT){await page.setViewportSize({width:390,height:844});await page.screenshot({path:process.env.AEON_SCREENSHOT})}
+
+await page.evaluate(()=>{closeSheet('sheetNow');switchTab('settings')});
+const rounded=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().width&&getComputedStyle(e).borderTopLeftRadius!=='0px').map(e=>e.id||e.tagName));
+assert.deepEqual(rounded,[]);console.log('PASS square borders throughout visible settings');
+assert.equal(await page.locator('#panel-settings').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(180, 186, 197, 0.98)');
+assert.equal(await page.locator('#panel-settings h1').evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');
+console.log('PASS cool gray panels and white text');
+await page.setInputFiles('#fontFile',{name:'invalid.otf',mimeType:'font/otf',buffer:Buffer.from('not a font')});
+await page.waitForFunction(()=>document.querySelector('#fontStatus').textContent.includes("Couldn't load"));
+assert.equal(await page.evaluate(async()=>!!await kvGet('arthemysFont')),false);console.log('PASS invalid font does not persist');
+if(process.env.AEON_TEST_FONT){
+ await page.setInputFiles('#fontFile',process.env.AEON_TEST_FONT);
+ await page.waitForFunction(()=>document.querySelector('#fontStatus').textContent.startsWith('Arthemys active'));
+ assert(await page.evaluate(()=>document.fonts.check('16px AeonArthemys')));
+ await page.reload();await page.waitForFunction(()=>document.querySelector('#fontStatus').textContent.startsWith('Arthemys active'));
+ assert(await page.evaluate(()=>document.fonts.check('16px AeonArthemys')));
+ console.log('PASS valid font loads and restores after restart (test fixture, not bundled Arthemys)');
+}
 await browser.close();server.close();

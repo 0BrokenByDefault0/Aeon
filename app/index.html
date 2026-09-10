@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png?v=2">
 <link rel="icon" type="image/png" href="icon-180.png?v=2">
-<meta name="theme-color" content="#101211">
+<meta name="theme-color" content="#000000">
 <title>Aeon</title>
 <style>
 /* ═══════════════ RETRO SPACE CONSOLE — DESIGN TOKENS ═══════════════
@@ -1168,6 +1168,14 @@ input[type=range].hseek::-webkit-slider-thumb{
   </div>
 
   <div class="card">
+    <h3>Typography</h3>
+    <div class="c-note">Use your Arthemys font file throughout Aeon.</div>
+    <div class="btnrow"><button class="btn" id="fontImport">Import Arthemys</button></div>
+    <input id="fontFile" type="file" accept=".otf,.ttf,.woff,.woff2" hidden>
+    <div id="fontStatus" role="status">Arthemys file needed · serif fallback active</div>
+  </div>
+
+  <div class="card">
     <h3>Equalizer</h3>
     <div class="c-note">Ten bands, &#177;12&#8201;dB.</div>
     <div id="eqPresets"></div>
@@ -1257,7 +1265,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.0 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.1 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -2136,8 +2144,8 @@ const trackById=(albumId,trackId)=>(state.tracks.get(albumId)||[]).find(t=>t.id=
 /* a star-glyph placeholder: art that is missing or refuses to decode shows
    this, never the browser's broken-image icon */
 const ART_PH="data:image/svg+xml,"+encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#0d0c16"/>'
- +'<path d="M32 15l3.4 13.6L49 32l-13.6 3.4L32 49l-3.4-13.6L15 32l13.6-3.4Z" fill="none" stroke="#34305a" stroke-width="1.4" stroke-linejoin="round"/></svg>');
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#000000"/>'
+ +'<path d="M32 15l3.4 13.6L49 32l-13.6 3.4L32 49l-3.4-13.6L15 32l13.6-3.4Z" fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linejoin="miter"/></svg>');
 const artURLs=new Map();
 function artURL(album){
   if(!album||!album.art)return null;
@@ -4777,7 +4785,7 @@ const sky=(()=>{
         xW.textAlign="center";
         seen.forEach(G=>{
           xW.globalAlpha=genreZoom*.5;
-          xW.font=`${10.5/cam.s}px ui-monospace,'SF Mono',Menlo,monospace`;
+          xW.font=`${10.5/cam.s}px AeonArthemys,Arthemys,Georgia,serif`;
           xW.fillStyle=G.col;
           let cxx=-G.name.length*3.1/cam.s;
           xW.save();xW.translate(G.lx,G.ly-G.r*SQ-14/cam.s);
@@ -4826,7 +4834,7 @@ const sky=(()=>{
       m.nameA=lerp(m.nameA||0,want,REDUCED?1:.06);
       if(m.nameA>.02){
         xW.globalAlpha=m.nameA*.9;
-        xW.font=`${9.5/cam.s}px 'Audiowide','Space Grotesk',sans-serif`;
+        xW.font=`${9.5/cam.s}px AeonArthemys,Arthemys,Georgia,serif`;
         xW.textAlign="center";
         xW.fillStyle="rgba(196,186,255,.9)";
         const label=m.name.toUpperCase();
@@ -5792,6 +5800,27 @@ function renderEQ(){
   }));
 }
 const fmtDb=v=>v>0?"+"+v:v===0?"0":String(v);
+let customFontFace=null;
+async function applyArthemys(bytes){
+  const face=new FontFace("AeonArthemys",bytes);
+  await face.load();
+  if(customFontFace)document.fonts.delete(customFontFace);
+  document.fonts.add(face);customFontFace=face;
+  $("#fontStatus").textContent="Arthemys active · saved on this device";
+}
+$("#fontImport").addEventListener("click",()=>$("#fontFile").click());
+$("#fontFile").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    if(file.size>20*1024*1024)throw new Error("Choose a font smaller than 20 MB.");
+    const bytes=await file.arrayBuffer();
+    // Validate before replacing the persisted font.
+    await new FontFace("ArthemysValidation",bytes).load();
+    await kvSet("arthemysFont",bytes);await applyArthemys(bytes);
+    toast("Arthemys applied throughout Aeon.");
+  }catch(err){$("#fontStatus").textContent="Couldn't load that font. Choose an OTF, TTF, WOFF or WOFF2 file."}
+  finally{e.target.value=""}
+});
 function saveSettings(){kvSet("settings",state.settings)}
 
 $("#tglHud").addEventListener("click",()=>setHud(!state.settings.hud));
@@ -6070,9 +6099,9 @@ async function shareSky(){
   x.fillStyle=g;x.fillRect(0,cv.height-cap-80,cv.width,100);
   x.fillStyle="rgba(0,0,0,.85)";x.fillRect(0,cv.height-cap,cv.width,cap);
   x.textAlign="center";
-  x.fillStyle="#eef0f8";x.font="44px 'Audiowide', sans-serif";
+  x.fillStyle="#eef0f8";x.font="44px AeonArthemys,Arthemys,Georgia,serif";
   x.fillText("I S O L A T I O N",cv.width/2,cv.height-cap+68);
-  x.fillStyle="#8d86b8";x.font="30px 'Space Grotesk', sans-serif";
+  x.fillStyle="#ffffff";x.font="30px AeonArthemys,Arthemys,Georgia,serif";
   const cst=sky.constellations().length,pl=Math.floor(n/PER_WORLD);
   x.fillText(`${n} album${n>1?"s":""} · ${cst} constellation${cst!==1?"s":""} · ${pl} planet${pl!==1?"s":""}`,
     cv.width/2,cv.height-cap+122);
@@ -6132,6 +6161,9 @@ async function repairAdoptedTrackOrder(){
     kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays")
   ]);
   resumePoint=await kvGet("playbackPosition").catch(()=>null);
+  kvGet("arthemysFont").then(bytes=>bytes&&applyArthemys(bytes)).catch(()=>{
+    $("#fontStatus").textContent="Reimport your Arthemys font to restore it.";
+  });
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{
