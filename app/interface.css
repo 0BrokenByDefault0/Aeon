@@ -313,3 +313,29 @@ input[type=range]::-webkit-slider-thumb{background:#fff!important;border-radius:
 #songResults{margin:14px 0 28px}#songResults h2,#albumResultsTitle{font-size:19px;font-weight:400;letter-spacing:.04em;margin:12px 0}
 #songResults .trk{background:#8b94a2;border:1px solid #fff;padding:8px 12px}#songResults .trk+.trk{border-top:0}
 #songResults .t-main{text-align:left;width:100%}#songResultsMore{margin-top:12px}
+
+/* 4.4 — near-clear cool glass and an offline interlocking display face. */
+@font-face{font-family:"Aeon Nocturne";src:url("fonts/AeonNocturne-Regular.woff") format("woff");font-style:normal;font-weight:100 900;font-display:swap}
+:root{--type:AeonArthemys,"Aeon Nocturne",Georgia,serif;--mono:var(--type);--glass:rgba(180,186,197,.08);--glass-control:rgba(180,186,197,.045)}
+body,body *{font-family:var(--type)!important;font-synthesis:none;font-weight:400!important;font-feature-settings:"liga" 1,"kern" 1;letter-spacing:0}
+body{background:#000!important}
+#skyDim,body[data-tab]:not([data-tab="sky"]) #skyDim{opacity:0!important;background:transparent!important}
+.panel,.sheet-body,#sheetNow .sheet-body,#playerBar,#dock,#hud,#importBar,#voidInvite{background:var(--glass)!important;backdrop-filter:none!important}
+.sheet{background:transparent!important;backdrop-filter:none!important}
+.p-head,.card,#listeningCard,.alb .meta,#libGrid.compact .alb,#songResults .trk,.track-actions button,#qName,#libSearch input,#newPlName,#trackRenameInput,#eqBands,#libSort,.view-switch{background:var(--glass-control)!important}
+.btn,.btn.hot,.btn.ghost,.round-action,.pb-btn,.sheet-close,.eqp,#hudToggle,#shareSky,#pbPlay,#nowPlay,.q-drag,.tgl,.tgl.on{background:var(--glass-control)!important}
+.tab{background:transparent!important}.tab.on,.sortc.on,.eqp.on,.view-switch button[aria-pressed=true],.trk.playing,.queue-row.q-target{background:rgba(180,186,197,.12)!important}
+.btn:active,.round-action:active,.pb-btn:active,.sheet-close:active{background:rgba(180,186,197,.16)!important}
+#dockWrap::before{background:transparent!important}
+.toast{background:rgba(12,14,18,.8)!important}
+body.sheet-open .panel,body.sheet-open #dockWrap,body.sheet-open #skyChrome{visibility:hidden}
+.sheet.sheet-under{visibility:hidden;pointer-events:none}
+.p-head h1,.sheet h2,#nowTitle,#albTitle{letter-spacing:0;font-weight:400}
+.collection-kicker,.tab .tl,.collection-kicker~h1{font-feature-settings:"liga" 1}
+.collection-kicker{letter-spacing:.035em}.p-head h1{font-size:42px}
+#nowTitle{font-size:30px}.sheet h2{font-size:30px}
+#libSub,.p-sub,.c-note,.set-d,.sheet .s-sub{font-size:14px}
+.btn{font-size:14px}.btn.small{font-size:12px}.tab .tl{font-size:13px}
+#listeningLabel{font-size:11px}#pbTitle{font-size:16px}#pbArtist{font-size:13px}
+.panel :is(p,.c-note,.set-d,.p-sub,.s-sub,.collection-kicker){text-shadow:none!important}
+@media(max-height:640px){#nowTitle{font-size:23px}#nowArtist{font-size:13px}}

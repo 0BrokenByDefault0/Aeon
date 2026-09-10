@@ -47,7 +47,7 @@ if(process.env.AEON_SCREENSHOT){await page.setViewportSize({width:390,height:844
 await page.evaluate(()=>{closeSheet('sheetNow');switchTab('settings')});
 const rounded=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().width&&getComputedStyle(e).borderTopLeftRadius!=='0px').map(e=>e.id||e.tagName));
 assert.deepEqual(rounded,[]);console.log('PASS square borders throughout visible settings');
-assert.equal(await page.locator('#panel-settings').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(180, 186, 197, 0.98)');
+assert.equal(await page.locator('#panel-settings').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(180, 186, 197, 0.08)');
 assert.equal(await page.locator('#panel-settings h1').evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');
 console.log('PASS cool gray panels and white text');
 await page.setInputFiles('#fontFile',{name:'invalid.otf',mimeType:'font/otf',buffer:Buffer.from('not a font')});
@@ -89,5 +89,14 @@ assert((await page.locator('#songResultsList').textContent()).includes('Renamed 
 if(process.env.AEON_SCREENSHOT)await page.screenshot({path:'../build/v4.3-search.png'});
 await page.click('[data-song-play="0"]');await page.waitForFunction(()=>loadedTrackId==='two'&&!audio.paused);console.log('PASS song search plays the matching track directly');
 await page.fill('#libSearchIn','no-match');await page.click('#libSearchClr');await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>libQuery),'');console.log('PASS clear search cancels pending debounce');
+assert.deepEqual(errors,[]);
+await page.evaluate(async()=>{await document.fonts.load('32px "Aeon Nocturne"');while(sheetStack.length)closeSheet(sheetStack[sheetStack.length-1]);openSheet('sheetNow');openSheet('sheetQueue')});
+assert(await page.evaluate(()=>document.fonts.check('32px "Aeon Nocturne"')));console.log('PASS bundled font loads offline');
+assert(await page.evaluate(()=>{const x=document.createElement('canvas').getContext('2d');x.font='64px "Aeon Nocturne"';return x.measureText('OU').width<(x.measureText('O').width+x.measureText('U').width)*.7}));console.log('PASS nested OU ligature is active');
+assert.equal(await page.locator('#skyDim').evaluate(e=>getComputedStyle(e).opacity),'0');
+assert.equal(await page.locator('#sheetNow').evaluate(e=>getComputedStyle(e).visibility),'hidden');
+assert.equal(await page.locator('#sheetQueue .sheet-body').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(180, 186, 197, 0.08)');
+await page.evaluate(()=>closeSheet('sheetQueue'));assert.equal(await page.locator('#sheetNow').evaluate(e=>getComputedStyle(e).visibility),'visible');
+console.log('PASS clear silver glass and clean stacked sheets');
 assert.deepEqual(errors,[]);
 await browser.close();server.close();

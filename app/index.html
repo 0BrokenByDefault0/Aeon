@@ -1177,10 +1177,10 @@ input[type=range].hseek::-webkit-slider-thumb{
 
   <div class="card">
     <h3>Typography</h3>
-    <div class="c-note">Use your Arthemys font file throughout Aeon.</div>
+    <div class="c-note">Aeon Nocturne is built in. You can also import your own Arthemys font.</div>
     <div class="btnrow"><button class="btn" id="fontImport">Import Arthemys</button></div>
     <input id="fontFile" type="file" accept=".otf,.ttf,.woff,.woff2" hidden>
-    <div id="fontStatus" role="status">Arthemys file needed · serif fallback active</div>
+    <div id="fontStatus" role="status">Aeon Nocturne · built-in interlocking serif</div>
   </div>
 
   <div class="card">
@@ -1273,7 +1273,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.3 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.4 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -4990,7 +4990,7 @@ const sky=(()=>{
         xW.textAlign="center";
         seen.forEach(G=>{
           xW.globalAlpha=genreZoom*.5;
-          xW.font=`${10.5/cam.s}px AeonArthemys,Arthemys,Georgia,serif`;
+          xW.font=`${10.5/cam.s}px AeonArthemys,'Aeon Nocturne',Arthemys,Georgia,serif`;
           xW.fillStyle=G.col;
           let cxx=-G.name.length*3.1/cam.s;
           xW.save();xW.translate(G.lx,G.ly-G.r*SQ-14/cam.s);
@@ -5039,7 +5039,7 @@ const sky=(()=>{
       m.nameA=lerp(m.nameA||0,want,REDUCED?1:.06);
       if(m.nameA>.02){
         xW.globalAlpha=m.nameA*.9;
-        xW.font=`${9.5/cam.s}px AeonArthemys,Arthemys,Georgia,serif`;
+        xW.font=`${9.5/cam.s}px AeonArthemys,'Aeon Nocturne',Arthemys,Georgia,serif`;
         xW.textAlign="center";
         xW.fillStyle="rgba(196,186,255,.9)";
         const label=m.name.toUpperCase();
@@ -5240,6 +5240,8 @@ function openSheet(id){
    it stops painting frames nobody can see through the blur */
 function markSheetDepth(){
   document.body.classList.toggle("sheet-open",sheetStack.length>0);
+  const top=sheetStack[sheetStack.length-1];
+  document.querySelectorAll(".sheet").forEach(sheet=>sheet.classList.toggle("sheet-under",sheet.classList.contains("open")&&sheet.id!==top));
 }
 /* Giving the history entry back is deferred by a tick on purpose. Code
    that swaps one sheet for another closes the first and opens the second
@@ -6336,9 +6338,9 @@ async function shareSky(){
   x.fillStyle=g;x.fillRect(0,cv.height-cap-80,cv.width,100);
   x.fillStyle="rgba(0,0,0,.85)";x.fillRect(0,cv.height-cap,cv.width,cap);
   x.textAlign="center";
-  x.fillStyle="#eef0f8";x.font="44px AeonArthemys,Arthemys,Georgia,serif";
+  x.fillStyle="#eef0f8";x.font="44px AeonArthemys,'Aeon Nocturne',Arthemys,Georgia,serif";
   x.fillText("I S O L A T I O N",cv.width/2,cv.height-cap+68);
-  x.fillStyle="#ffffff";x.font="30px AeonArthemys,Arthemys,Georgia,serif";
+  x.fillStyle="#ffffff";x.font="30px AeonArthemys,'Aeon Nocturne',Arthemys,Georgia,serif";
   const cst=sky.constellations().length,pl=Math.floor(n/PER_WORLD);
   x.fillText(`${n} album${n>1?"s":""} · ${cst} constellation${cst!==1?"s":""} · ${pl} planet${pl!==1?"s":""}`,
     cv.width/2,cv.height-cap+122);
@@ -6432,6 +6434,7 @@ async function repairAdoptedTrackOrder(){
      treatment once, quietly, on the way in — blanks only. */
   await fillMissingGenres();
 
+  await document.fonts.load('16px "Aeon Nocturne"').catch(()=>{});
   sky.init();
   requestAnimationFrame(()=>requestAnimationFrame(revealSky));
   $("#shareSky").style.display=state.albums.length?"":"none";
