@@ -50,17 +50,11 @@ assert.deepEqual(rounded,[]);console.log('PASS square borders throughout visible
 assert.equal(await page.locator('#panel-settings').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(180, 186, 197, 0.08)');
 assert.equal(await page.locator('#panel-settings h1').evaluate(e=>getComputedStyle(e).color),'rgb(255, 255, 255)');
 console.log('PASS cool gray panels and white text');
-await page.setInputFiles('#fontFile',{name:'invalid.otf',mimeType:'font/otf',buffer:Buffer.from('not a font')});
-await page.waitForFunction(()=>document.querySelector('#fontStatus').textContent.includes("Couldn't load"));
-assert.equal(await page.evaluate(async()=>!!await kvGet('arthemysFont')),false);console.log('PASS invalid font does not persist');
-if(process.env.AEON_TEST_FONT){
- await page.setInputFiles('#fontFile',process.env.AEON_TEST_FONT);
- await page.waitForFunction(()=>document.querySelector('#fontStatus').textContent.startsWith('Arthemys active'));
- assert(await page.evaluate(()=>document.fonts.check('16px AeonArthemys')));
- await page.reload();await page.waitForFunction(()=>document.querySelector('#fontStatus').textContent.startsWith('Arthemys active'));
- assert(await page.evaluate(()=>document.fonts.check('16px AeonArthemys')));
- console.log('PASS valid font loads and restores after restart (test fixture, not bundled Arthemys)');
-}
+assert.equal(await page.locator('#fontImport,#fontFile,#fontStatus').count(),0);
+assert.equal(await page.locator('#panel-settings').innerText().then(t=>t.includes('Typography')),false);
+assert.equal(await page.locator('#activityBtn').innerText(),'Listening activity');
+assert.equal(/\p{Extended_Pictographic}/u.test(fs.readFileSync(new URL('../app/index.html',import.meta.url),'utf8')),false);
+console.log('PASS typography controls removed and no emoji in app markup');
 
 await page.evaluate(async()=>{
  while(sheetStack.length)closeSheet(sheetStack[sheetStack.length-1]);

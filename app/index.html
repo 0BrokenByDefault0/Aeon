@@ -1105,7 +1105,7 @@ input[type=range].hseek::-webkit-slider-thumb{
     <button id="listeningOpen" aria-label="Open featured album"><img id="listeningArt" alt=""></button>
     <div class="listening-copy"><div id="listeningLabel" class="collection-kicker">FROM YOUR COLLECTION</div>
       <button id="listeningDetails"><span id="listeningTitle"></span><span id="listeningArtist"></span></button>
-      <button id="listeningPlay" class="listening-play"><span id="listeningPlayLabel">Listen</span><span aria-hidden="true">↗</span></button>
+      <button id="listeningPlay" class="listening-play"><span id="listeningPlayLabel">Listen</span></button>
     </div>
   </section>
   <div class="library-tools"><span id="libraryCount"></span><div class="view-switch" aria-label="Library layout">
@@ -1172,15 +1172,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <!-- ═══ SETTINGS ═══ -->
 <div class="panel" id="panel-settings" role="region" aria-label="Settings">
   <div class="p-head">
-    <div class="collection-kicker">MAKE IT YOURS</div><h1>Settings</h1><button class="text-action" id="activityBtn">Listening activity ↗</button>
-  </div>
-
-  <div class="card">
-    <h3>Typography</h3>
-    <div class="c-note">Aeon Nocturne is built in. You can also import your own Arthemys font.</div>
-    <div class="btnrow"><button class="btn" id="fontImport">Import Arthemys</button></div>
-    <input id="fontFile" type="file" accept=".otf,.ttf,.woff,.woff2" hidden>
-    <div id="fontStatus" role="status">Aeon Nocturne · built-in interlocking serif</div>
+    <div class="collection-kicker">MAKE IT YOURS</div><h1>Settings</h1><button class="text-action" id="activityBtn">Listening activity</button>
   </div>
 
   <div class="card">
@@ -1273,7 +1265,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.4.1 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.4.2 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1447,7 +1439,7 @@ input[type=range].hseek::-webkit-slider-thumb{
  <div class="grab"></div><button class="sheet-close" aria-label="Close">×</button>
  <div class="collection-kicker">TRACK OPTIONS</div><h2 id="trackMenuTitle"></h2><div id="trackMenuArtist" class="s-sub"></div>
  <form id="trackRenameForm" hidden><label for="trackRenameInput">Track name</label><div><input id="trackRenameInput" required maxlength="300"><button class="btn hot" type="submit">Save</button></div></form>
- <div class="track-actions"><button id="trackPlayNext">Play next <span>↗</span></button><button id="trackQueue">Add to queue <span>+</span></button><button id="trackPlaylist">Add to playlist <span>+</span></button><button id="trackRename">Rename track <span>↗</span></button></div>
+ <div class="track-actions"><button id="trackPlayNext">Play next</button><button id="trackQueue">Add to queue <span>+</span></button><button id="trackPlaylist">Add to playlist <span>+</span></button><button id="trackRename">Rename track</button></div>
 </div></div>
 <!-- ═══ collector's guide sheet — the on-ramp ═══ -->
 <div class="sheet" id="sheetGuide" aria-modal="true" role="dialog" aria-label="How to start collecting">
@@ -6045,21 +6037,7 @@ async function applyArthemys(bytes){
   await face.load();
   if(customFontFace)document.fonts.delete(customFontFace);
   document.fonts.add(face);customFontFace=face;
-  $("#fontStatus").textContent="Arthemys active · saved on this device";
 }
-$("#fontImport").addEventListener("click",()=>$("#fontFile").click());
-$("#fontFile").addEventListener("change",async e=>{
-  const file=e.target.files[0];if(!file)return;
-  try{
-    if(file.size>20*1024*1024)throw new Error("Choose a font smaller than 20 MB.");
-    const bytes=await file.arrayBuffer();
-    // Validate before replacing the persisted font.
-    await new FontFace("ArthemysValidation",bytes).load();
-    await kvSet("arthemysFont",bytes);await applyArthemys(bytes);
-    toast("Arthemys applied throughout Aeon.");
-  }catch(err){$("#fontStatus").textContent="Couldn't load that font. Choose an OTF, TTF, WOFF or WOFF2 file."}
-  finally{e.target.value=""}
-});
 function saveSettings(){kvSet("settings",state.settings)}
 
 $("#tglHud").addEventListener("click",()=>setHud(!state.settings.hud));
@@ -6400,9 +6378,7 @@ async function repairAdoptedTrackOrder(){
     kvGet("settings"),kvGet("log"),kvGet("seq"),kvGet("lastPlayed"),kvGet("plays")
   ]);
   resumePoint=await kvGet("playbackPosition").catch(()=>null);
-  kvGet("arthemysFont").then(bytes=>bytes&&applyArthemys(bytes)).catch(()=>{
-    $("#fontStatus").textContent="Reimport your Arthemys font to restore it.";
-  });
+  kvGet("arthemysFont").then(bytes=>bytes&&applyArthemys(bytes)).catch(()=>{});
   playCounts=plays||{};
   state.albums=albums||[];
   (tracks||[]).forEach(t=>{

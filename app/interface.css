@@ -272,7 +272,6 @@ input[type=range]::-webkit-slider-thumb{background:#fff!important;border-radius:
 #storBar,#eqBands{background:#747d8b!important}
 #storFill,#storFill.warn{background:#fff!important}
 .mockchip,.rec .r-tag{background:#747d8b!important}
-#fontStatus{margin-top:12px;font-size:13px}
 @media(max-width:360px){.panel{padding-left:16px;padding-right:16px}#listeningCard{grid-template-columns:88px minmax(0,1fr);gap:12px;padding:10px}#listeningTitle{font-size:20px}.sortc{padding:8px 7px}#nowTitle{font-size:23px}#sheetNow .btnrow .btn{font-size:11px}}
 @media(max-height:640px){#nowArtist{font-size:13px}#nowTitle{font-size:23px}#nowCtrls{gap:25px}#sheetNow .btnrow .btn{font-size:10px}}
 
