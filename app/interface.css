@@ -301,3 +301,15 @@ input[type=range]::-webkit-slider-thumb{background:#fff!important;border-radius:
 #airlock.opening .airlock-jamb{opacity:0;transition:opacity .5s 1.1s}
 #folderStatus{margin-top:18px;min-height:24px;font-size:14px}
 @media(prefers-reduced-motion:reduce){#airlock{display:none}}
+
+/* Queue editing and direct song search; the same square instrument controls. */
+.queue-tools{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 10px}
+#qSaveForm{margin:12px 0}#qSaveForm label{display:block;font-size:13px;margin-bottom:6px}
+#qSaveForm>div{display:flex;gap:8px}#qName{min-width:0;width:100%;background:#747d8b;border:1px solid #fff;padding:10px;font-size:16px}
+#qStatus{font-size:12px;min-height:20px;margin-bottom:5px}
+.queue-row{position:relative}.queue-row .t-main{touch-action:pan-y;text-align:left}
+.q-drag{touch-action:none;min-width:44px;height:44px;border:1px solid #fff;background:#747d8b;font-size:24px;cursor:grab}
+.queue-row.q-target{outline:2px solid #fff;outline-offset:-2px;background:#626d7d}.queue-row.q-moving{opacity:.6}
+#songResults{margin:14px 0 28px}#songResults h2,#albumResultsTitle{font-size:19px;font-weight:400;letter-spacing:.04em;margin:12px 0}
+#songResults .trk{background:#8b94a2;border:1px solid #fff;padding:8px 12px}#songResults .trk+.trk{border-top:0}
+#songResults .t-main{text-align:left;width:100%}#songResultsMore{margin-top:12px}

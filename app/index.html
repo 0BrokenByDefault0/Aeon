@@ -1114,7 +1114,7 @@ input[type=range].hseek::-webkit-slider-thumb{
   </div></div>
   <div id="libSearch">
     <span class="ls-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span>
-    <input type="search" id="libSearchIn" placeholder="Search albums, artists, songs" aria-label="Search library by artist or album" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+    <input type="search" id="libSearchIn" placeholder="Search albums, artists, songs" aria-label="Search songs, artists, albums and genres" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
     <button id="libSearchClr" aria-label="Clear search" style="display:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
   <div id="libSort">
@@ -1124,7 +1124,8 @@ input[type=range].hseek::-webkit-slider-thumb{
     <button class="sortc" data-sort="year">Year</button>
     <button class="sortc" data-sort="plays">Played</button>
   </div>
-  <div id="libGrid"></div>
+  <section id="songResults" hidden aria-label="Song search results"><h2 id="songResultsTitle">Songs</h2><div id="songResultsList"></div><button class="btn" id="songResultsMore">MORE SONGS</button></section>
+  <h2 id="albumResultsTitle" hidden>Albums</h2><div id="libGrid"></div>
   <div id="libMore" aria-hidden="true"></div>
   <div id="libNoMatch" class="empty" style="display:none">
     <div class="e-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></div>
@@ -1272,7 +1273,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.2 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.3 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -1435,6 +1436,9 @@ input[type=range].hseek::-webkit-slider-thumb{
     <button class="sheet-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <h2>Up next</h2>
     <div class="s-sub" id="qSub"></div>
+    <div class="queue-tools"><button class="btn small" id="qSave">SAVE AS PLAYLIST</button><button class="btn small" id="qClearNext">CLEAR UPCOMING</button></div>
+    <form id="qSaveForm" hidden><label for="qName">Playlist name</label><div><input id="qName" required maxlength="120" placeholder="Name this queue"><button class="btn hot" type="submit">Save</button></div></form>
+    <p id="qStatus" class="c-note" role="status" aria-live="polite"></p>
     <div id="qList" style="margin-top:6px"></div>
   </div>
 </div>
@@ -1939,6 +1943,12 @@ const AeonCore=(()=>{
     }
     return{queue:filtered,qIndex:Math.min(Math.max(Number(qIndex)||0,0),filtered.length-1),removedCurrent};
   }
+  function moveQueue(queue,qIndex,from,to){
+    if(!Number.isInteger(from)||!Number.isInteger(to)||from<0||to<0||from>=queue.length||to>=queue.length)return{queue,qIndex};
+    const result=queue.slice(),item=result.splice(from,1)[0];result.splice(to,0,item);
+    const current=qIndex===from?to:qIndex>from&&qIndex<=to?qIndex-1:qIndex<from&&qIndex>=to?qIndex+1:qIndex;
+    return{queue:result,qIndex:current};
+  }
   const shouldAutoEnrich=(settings,albums)=>!!(settings&&settings.metadataLookups===true&&albums&&albums.length);
   async function saveBackup(saver,blob,name){return(await saver(blob,name))===true}
 
@@ -2075,7 +2085,7 @@ const AeonCore=(()=>{
       .map(x=>x.item);
   }
   return{mimeForFilename,extensionForBlob,normAlbum,genreKey,inferGenres,groupItems,validateBackupCatalog,
-    mergeLogEntries,scrubQueueForAlbum,shouldAutoEnrich,saveBackup,zipWrite,unzip,
+    mergeLogEntries,scrubQueueForAlbum,moveQueue,shouldAutoEnrich,saveBackup,zipWrite,unzip,
     trackNumbersFromName,naturalCompare,sortAlbumItems};
 })();
 /* AEON_CORE_END */
@@ -3171,7 +3181,9 @@ function sanitizeLastPlayed(value,tracks){
   const queue=value.queue.filter(item=>item&&tracks.has(item.albumId)
     &&tracks.get(item.albumId).some(track=>track.id===item.trackId));
   if(!queue.length)return null;
-  let qIndex=queue.findIndex(item=>item.albumId===value.albumId&&item.trackId===value.trackId);
+  const preferred=value.queue[value.qIndex];
+  let qIndex=preferred&&preferred.albumId===value.albumId&&preferred.trackId===value.trackId?queue.indexOf(preferred):-1;
+  if(qIndex<0)qIndex=queue.findIndex(item=>item.albumId===value.albumId&&item.trackId===value.trackId);
   if(qIndex<0)qIndex=Math.min(Math.max(Number(value.qIndex)||0,0),queue.length-1);
   return{albumId:queue[qIndex].albumId,trackId:queue[qIndex].trackId,qIndex,queue};
 }
@@ -3816,33 +3828,101 @@ $("#pbMain").addEventListener("click",()=>openSheet("sheetNow"));
 $("#pbArt").addEventListener("click",()=>openSheet("sheetNow"));
 $("#nowQueue").addEventListener("click",openQueue);
 function openQueue(){renderQueue();openSheet("sheetQueue")}
+function queueEdited(message){
+  persistLastPlayedState().catch(()=>toast("Couldn't save the queue. Try again."));
+  renderQueue();$("#nowPosition").textContent=state.queue.length?`${state.qIndex+1} / ${state.queue.length}`:"";
+  $("#qStatus").textContent=message;
+}
+function moveQueueItem(from,to){
+  if(from===to)return;
+  const moved=AeonCore.moveQueue(state.queue,state.qIndex,from,to);
+  state.queue=moved.queue;state.qIndex=moved.qIndex;
+  queueEdited(`Moved to position ${to+1}. Playback continues.`);
+}
+function removeQueueItem(i){
+  if(!Number.isInteger(i)||i<0||i>=state.queue.length)return;
+  if(i===state.qIndex){$("#qStatus").textContent="The current track stays in the queue. Skip it to move on.";return}
+  state.queue.splice(i,1);if(i<state.qIndex)state.qIndex--;
+  queueEdited("Removed from queue.");
+}
+$("#qClearNext").addEventListener("click",()=>{
+  state.queue=state.queue.slice(0,state.qIndex+1);queueEdited("Upcoming tracks cleared. Current track keeps playing.");
+});
+$("#qSave").addEventListener("click",()=>{
+  $("#qSaveForm").hidden=!$("#qSaveForm").hidden;if(!$("#qSaveForm").hidden)$("#qName").focus();
+});
+$("#qSaveForm").addEventListener("submit",async e=>{
+  e.preventDefault();const name=$("#qName").value.trim();if(!name||!state.queue.length)return;
+  const button=e.submitter||$("#qSaveForm button");if(button.disabled)return;button.disabled=true;
+  const playlist={id:uid(),name,items:state.queue.map(q=>({...q}))};
+  try{await dbPut("playlists",playlist);state.playlists.push(playlist);renderPlaylists();
+    $("#qSaveForm").hidden=true;$("#qName").value="";$("#qStatus").textContent=`Saved “${name}” with ${playlist.items.length} tracks.`;
+  }catch(err){$("#qStatus").textContent="Couldn't save the playlist. Try again."}
+  finally{button.disabled=false}
+});
 function renderQueue(){
   const q=state.queue;
+  $("#qSave").disabled=!q.length;$("#qClearNext").disabled=state.qIndex>=q.length-1;
   $("#qSub").textContent=q.length?`${state.qIndex+1} of ${q.length}`:"";
   $("#qList").innerHTML=q.length?q.map((it,i)=>{
     const a=albumById(it.albumId), t=a&&trackById(it.albumId,it.trackId);
     if(!t)return"";
     const now=i===state.qIndex;
-    return`<div class="trk${now?" playing":""}">
+    return`<div class="trk queue-row${now?" playing":""}" data-queue-row="${i}">
       <div class="t-no">${now?"\u25B6":i+1}</div>
       <button class="t-main" data-q="${i}" style="text-align:left" aria-label="Play ${esc(t.title)}">
         <div class="t-title">${esc(t.title)}</div>
         <div class="t-sub">${esc(t.artist||a.artist)} \u2014 ${esc(a.title)}</div>
       </button>
-      <button class="t-btn" data-qrm="${i}" aria-label="Remove from queue">${ICO.x}</button>
+      <button class="q-drag" data-qdrag="${i}" aria-label="Reorder ${esc(t.title)}. Drag or use arrow keys." title="Drag to reorder; arrow keys also work">≡</button>
+      <button class="t-btn" data-qrm="${i}" aria-label="Remove from queue" ${now?'disabled':''}>${ICO.x}</button>
     </div>`;
   }).join(""):`<div class="empty"><i>Nothing queued.</i></div>`;
   $("#qList").querySelectorAll("[data-q]").forEach(b=>b.addEventListener("click",()=>{
     state.qIndex=+b.dataset.q;playCurrent(true);renderQueue();
   }));
-  $("#qList").querySelectorAll("[data-qrm]").forEach(b=>b.addEventListener("click",()=>{
-    const i=+b.dataset.qrm;
-    if(i===state.qIndex){toast("That one is playing now");return}
-    state.queue.splice(i,1);
-    if(i<state.qIndex)state.qIndex--;
-    persistLastPlayedState().catch(()=>{});renderQueue();
+  $("#qList").querySelectorAll("[data-qrm]").forEach(b=>b.addEventListener("click",()=>removeQueueItem(+b.dataset.qrm)));
+  $("#qList").querySelectorAll("[data-qdrag]").forEach(b=>b.addEventListener("keydown",e=>{
+    const from=+b.dataset.qdrag,to=from+(e.key==="ArrowUp"?-1:e.key==="ArrowDown"?1:0);
+    if(to===from||to<0||to>=state.queue.length)return;e.preventDefault();moveQueueItem(from,to);
+    $("#qList").querySelector(`[data-qdrag="${to}"]`)?.focus();
   }));
 }
+(function wireQueueGestures(){
+  const list=$("#qList"),body=$("#sheetQueue .sheet-body");let gesture=null,raf=0,suppressUntil=0;
+  function cancel(){
+    if(raf)cancelAnimationFrame(raf);raf=0;gesture=null;
+    list.querySelectorAll(".q-target,.q-moving").forEach(e=>e.classList.remove("q-target","q-moving"));
+  }
+  function paint(){
+    raf=0;if(!gesture||!gesture.drag)return;
+    const bounds=body.getBoundingClientRect(),y=gesture.y;
+    const scroll=y<bounds.top+65?-9:y>bounds.bottom-65?9:0;if(scroll)body.scrollTop+=scroll;
+    const rows=[...list.querySelectorAll('[data-queue-row]')];
+    const hit=rows.find(row=>{const r=row.getBoundingClientRect();return y>=r.top&&y<r.bottom});
+    if(hit){gesture.to=+hit.dataset.queueRow;rows.forEach(row=>row.classList.toggle('q-target',row===hit))}
+    raf=requestAnimationFrame(paint);
+  }
+  list.addEventListener('pointerdown',e=>{
+    if(gesture||e.button!==0)return;
+    suppressUntil=0; // a fresh press is intentional, not the drag's synthetic click
+    const row=e.target.closest('[data-queue-row]');if(!row)return;
+    const drag=!!e.target.closest('[data-qdrag]');
+    if(!drag&&!e.target.closest('[data-q]'))return;
+    gesture={id:e.pointerId,from:+row.dataset.queueRow,to:+row.dataset.queueRow,x:e.clientX,y0:e.clientY,y:e.clientY,drag,queue:state.queue.slice()};
+    if(drag){e.preventDefault();list.setPointerCapture(e.pointerId);row.classList.add('q-moving');raf=requestAnimationFrame(paint)}
+  });
+  list.addEventListener('pointermove',e=>{if(gesture&&gesture.id===e.pointerId)gesture.y=e.clientY});
+  list.addEventListener('pointerup',e=>{
+    if(!gesture||gesture.id!==e.pointerId)return;const g=gesture;
+    const valid=g.queue.length===state.queue.length&&g.queue.every((q,i)=>q===state.queue[i]);
+    cancel();if(!valid)return;
+    if(g.drag){moveQueueItem(g.from,g.to);suppressUntil=Date.now()+350}
+    else if(e.clientX-g.x<-70&&Math.abs(e.clientY-g.y0)<35){removeQueueItem(g.from);suppressUntil=Date.now()+350;e.preventDefault()}
+  });
+  list.addEventListener('pointercancel',cancel);list.addEventListener('lostpointercapture',cancel);
+  list.addEventListener('click',e=>{if(Date.now()<suppressUntil){e.preventDefault();e.stopImmediatePropagation()}},true);
+})();
 /* ── scrubbing ──
    A native range only answers to its own thumb, and that thumb is nine
    pixels of a fifty-pixel band: the miss rate is the design, not the
@@ -5233,7 +5313,7 @@ function makeSheetsDraggable(){
        sheet: the scrub band takes vertical slop as scrubbing, not as a
        pull, so a thumb that wanders while it travels never dismisses the
        player mid-song */
-    const inert=el=>!!(el&&el.closest&&el.closest("input,textarea,select,#nowSeekWrap,#volRow"));
+    const inert=el=>!!(el&&el.closest&&el.closest("input,textarea,select,#nowSeekWrap,#volRow,#qList"));
     function reset(){
       armed=live=false;dy=0;onHandle=false;stopDrag();
       body.classList.remove("dragging","settling");
@@ -5445,8 +5525,9 @@ function libMatches(a){
   const head=foldSearch(a.title+" "+a.artist+" "+(a.genre||"")+" "+(a.year||""));
   const rest=toks.filter(tok=>!head.includes(tok));
   if(!rest.length)return true;
-  const deep=foldSearch((state.tracks.get(a.id)||[]).map(t=>t.title).join(" "));
-  return rest.every(tok=>deep.includes(tok));
+  return(state.tracks.get(a.id)||[]).some(t=>{
+    const deep=foldSearch(t.title+" "+(t.artist||""));return rest.every(tok=>deep.includes(tok));
+  });
 }
 {
   const inp=$("#libSearchIn"),clr=$("#libSearchClr");
@@ -5460,11 +5541,42 @@ function libMatches(a){
     },120);
   });
   clr.addEventListener("click",()=>{
-    inp.value="";libQuery="";clr.style.display="none";
+    clearTimeout(debounceTO);inp.value="";libQuery="";clr.style.display="none";
     renderLibrary();inp.focus();
   });
   inp.addEventListener("keydown",e=>{if(e.key==="Enter")inp.blur()}); // dismiss keyboard
 }
+let songMatches=[],songShown=40;
+function renderSongResults(reset=true){
+  if(reset){
+    songShown=40;songMatches=[];
+    if(libQuery){const tokens=libQuery.split(/\s+/).filter(Boolean);
+      for(const album of state.albums){
+        const head=foldSearch(album.title+" "+album.artist+" "+(album.genre||""));
+        for(const track of(state.tracks.get(album.id)||[])){
+          const value=head+" "+foldSearch(track.title+" "+(track.artist||""));
+          if(tokens.every(t=>value.includes(t)))songMatches.push({album,track});
+        }
+      }
+    }
+  }
+  $("#songResults").hidden=!libQuery||!songMatches.length;
+  $("#albumResultsTitle").hidden=!libQuery;
+  $("#songResultsTitle").textContent=`Songs · ${songMatches.length}`;
+  $("#songResultsList").innerHTML=songMatches.slice(0,songShown).map(({album:a,track:t},i)=>`
+    <div class="trk"><button class="t-main" data-song-play="${i}" ${hasAudio(t)?'':'disabled'} aria-label="Play ${esc(t.title)}">
+    <div class="t-title">${esc(t.title)}</div><div class="t-sub">${esc(t.artist||a.artist)} · ${esc(a.title)}</div></button>
+    <button class="t-btn" data-song-menu="${i}" aria-label="Options for ${esc(t.title)}">⋯</button></div>`).join('');
+  $("#songResultsMore").hidden=songShown>=songMatches.length;
+}
+$("#songResultsMore").addEventListener("click",()=>{songShown+=40;renderSongResults(false)});
+$("#songResultsList").addEventListener("click",e=>{
+  const play=e.target.closest('[data-song-play]'),menu=e.target.closest('[data-song-menu]');if(!play&&!menu)return;
+  const item=songMatches[+(play?play.dataset.songPlay:menu.dataset.songMenu)];if(!item)return;
+  if(menu){openTrackMenu(item.album.id,item.track.id);return}
+  const tracks=(state.tracks.get(item.album.id)||[]).filter(hasAudio),index=tracks.findIndex(t=>t.id===item.track.id);
+  if(index>=0){$("#libSearchIn").blur();playQueue(tracks.map(t=>({albumId:item.album.id,trackId:t.id})),index)}
+});
 function albumPlays(a){
   return (state.tracks.get(a.id)||[]).reduce((n,t)=>n+(playCounts[t.id]||0),0);
 }
@@ -5512,9 +5624,9 @@ function renderLibrary(){
   const g=$("#libGrid");
   syncLibraryView();refreshListeningCard();
   const all=sortAlbums([...state.albums]);
-  libRows=all.filter(libMatches);
+  libRows=all.filter(libMatches);renderSongResults();
   libShown=0;
-  $("#libraryCount").textContent=libQuery?`${libRows.length} results`:`${all.length} record${all.length===1?"":"s"}`;
+  $("#libraryCount").textContent=libQuery?`${songMatches.length} song${songMatches.length===1?"":"s"} · ${libRows.length} album${libRows.length===1?"":"s"}`:`${all.length} record${all.length===1?"":"s"}`;
   $("#libSearch").style.display=all.length?"":"none";
   $("#libEmpty").style.display=all.length?"none":"";
   $("#libNoMatch").style.display=(all.length&&!libRows.length)?"":"none";
@@ -6336,7 +6448,9 @@ async function repairAdoptedTrackOrder(){
     const valid=lastPlayed.queue.filter(q=>trackById(q.albumId,q.trackId));
     if(valid.length){
       state.queue=valid;
-      const restored=valid.findIndex(q=>q.albumId===lastPlayed.albumId&&q.trackId===lastPlayed.trackId);
+      const preferred=lastPlayed.queue[lastPlayed.qIndex];
+      const preferredIndex=preferred&&preferred.albumId===lastPlayed.albumId&&preferred.trackId===lastPlayed.trackId?valid.indexOf(preferred):-1;
+      const restored=preferredIndex>=0?preferredIndex:valid.findIndex(q=>q.albumId===lastPlayed.albumId&&q.trackId===lastPlayed.trackId);
       state.qIndex=restored>=0?restored:clamp(lastPlayed.qIndex||0,0,valid.length-1);
       const q=state.queue[state.qIndex];
       const alb=albumById(q.albumId),trk=trackById(q.albumId,q.trackId);

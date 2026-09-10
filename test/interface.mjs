@@ -61,4 +61,33 @@ if(process.env.AEON_TEST_FONT){
  assert(await page.evaluate(()=>document.fonts.check('16px AeonArthemys')));
  console.log('PASS valid font loads and restores after restart (test fixture, not bundled Arthemys)');
 }
+
+await page.evaluate(async()=>{
+ while(sheetStack.length)closeSheet(sheetStack[sheetStack.length-1]);
+ state.queue=[{albumId:'a',trackId:'one'},{albumId:'a',trackId:'two'},{albumId:'a',trackId:'one'}];
+ state.qIndex=2;await playCurrent(false);await persistLastPlayedState();
+});
+await page.reload();await page.waitForFunction(()=>state.queue.length===3);
+assert.equal(await page.evaluate(()=>state.qIndex),2);console.log('PASS exact duplicate queue occurrence restores');
+await page.click('#pbPlay');await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.15);
+await page.evaluate(()=>openQueue());
+await page.waitForFunction(()=>document.querySelector("#sheetQueue .sheet-body").getAnimations().every(a=>a.playState==="finished"));
+const source=await page.evaluate(()=>audio.src);
+let handle=await page.locator('[data-qdrag="2"]').boundingBox(),target=await page.locator('[data-qdrag="0"]').boundingBox();
+await page.mouse.move(handle.x+20,handle.y+20);await page.mouse.down();await page.mouse.move(target.x+20,target.y+20,{steps:8});await page.waitForTimeout(60);await page.mouse.up();
+assert.equal(await page.evaluate(()=>state.qIndex),0);assert.equal(await page.evaluate(()=>audio.src),source);assert(await page.evaluate(()=>!audio.paused));console.log('PASS drag reorder keeps live audio');
+await page.locator('[data-qdrag="0"]').press('ArrowDown');assert.equal(await page.evaluate(()=>state.qIndex),1);console.log('PASS keyboard reorder keeps current occurrence');
+await page.click('#qSave');await page.fill('#qName','Saved journey');await page.locator('#qSaveForm button').click();
+await page.waitForFunction(()=>state.playlists.some(p=>p.name==='Saved journey'));
+assert.deepEqual(await page.evaluate(()=>state.playlists.find(p=>p.name==='Saved journey').items.map(t=>t.trackId)),['one','one','two']);
+if(process.env.AEON_SCREENSHOT)await page.screenshot({path:'../build/v4.3-queue.png'});
+await page.click('#qClearNext');assert.equal(await page.evaluate(()=>state.queue.length),2);assert.equal(await page.evaluate(()=>state.playlists.find(p=>p.name==='Saved journey').items.length),3);assert(await page.evaluate(()=>!audio.paused));console.log('PASS save queue snapshot and clear upcoming preserve playback');
+await page.click('[data-qrm="0"]');assert.equal(await page.evaluate(()=>state.qIndex),0);assert.equal(await page.evaluate(()=>audio.src),source);console.log('PASS removing earlier tracks preserves live audio');
+await page.evaluate(()=>{closeSheet('sheetQueue');switchTab('library')});await page.fill('#libSearchIn','Renamed');
+await page.waitForFunction(()=>document.querySelectorAll('[data-song-play]').length===1);
+assert((await page.locator('#songResultsList').textContent()).includes('Renamed track'));
+if(process.env.AEON_SCREENSHOT)await page.screenshot({path:'../build/v4.3-search.png'});
+await page.click('[data-song-play="0"]');await page.waitForFunction(()=>loadedTrackId==='two'&&!audio.paused);console.log('PASS song search plays the matching track directly');
+await page.fill('#libSearchIn','no-match');await page.click('#libSearchClr');await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>libQuery),'');console.log('PASS clear search cancels pending debounce');
+assert.deepEqual(errors,[]);
 await browser.close();server.close();
