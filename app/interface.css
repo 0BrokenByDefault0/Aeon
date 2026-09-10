@@ -339,3 +339,7 @@ body.sheet-open .panel,body.sheet-open #dockWrap,body.sheet-open #skyChrome{visi
 #listeningLabel{font-size:11px}#pbTitle{font-size:16px}#pbArtist{font-size:13px}
 .panel :is(p,.c-note,.set-d,.p-sub,.s-sub,.collection-kicker){text-shadow:none!important}
 @media(max-height:640px){#nowTitle{font-size:23px}#nowArtist{font-size:13px}}
+
+/* Keep animated Sky controls out of transparent menu panels. */
+body[data-tab]:not([data-tab="sky"]) #skyChrome{visibility:hidden;pointer-events:none}
+.t-no svg{width:14px;height:14px}

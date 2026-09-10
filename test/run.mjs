@@ -59,8 +59,8 @@ const server = http.createServer((req, res) => {
 
 let passed = 0, failed = 0;
 const ok = (name, cond, detail) => {
-  if (cond) { passed++; console.log(`  ✓ ${name}`); }
-  else { failed++; console.log(`  ✗ ${name}${detail !== undefined ? `  →  ${JSON.stringify(detail)}` : ""}`); }
+  if (cond) { passed++; console.log(`  PASS ${name}`); }
+  else { failed++; console.log(`  FAIL ${name}${detail !== undefined ? `  →  ${JSON.stringify(detail)}` : ""}`); }
 };
 const fixture = f => path.join(HERE, f);
 

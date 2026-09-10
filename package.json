@@ -13,7 +13,8 @@
     "test:browser": "node test/run.mjs",
     "fixtures": "python3 test/fixtures.py",
     "test:interface": "node test/interface.mjs",
-    "test:arrival": "node test/arrival.mjs"
+    "test:arrival": "node test/arrival.mjs",
+    "test:sky-chrome": "node test/sky-chrome.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0",

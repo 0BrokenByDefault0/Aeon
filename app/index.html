@@ -1273,7 +1273,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.4 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.4.1 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -2121,7 +2121,7 @@ volLo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="
 volHi:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 10v4h4l5 4V6l-5 4Z"/><path d="M16.5 9a5 5 0 0 1 0 6"/><path d="M18.8 6.6a8.4 8.4 0 0 1 0 10.8" opacity=".55"/></svg>',
 search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg>',
 };
-const ICOLOG={"\u2726":ICO.sky,"\u2727":ICO.sky,"\u266A":ICO.note,"\u25CD":ICO.planet};
+const ICOLOG={sky:ICO.sky,note:ICO.note,planet:ICO.planet};
 
 
 function toast(msg,gold){
@@ -3046,7 +3046,7 @@ async function importFiles(rawFiles,opts={}){
       continue;
     }
     newAlbums.push(alb);
-    await addLog("\u2726","g-amber",`${alb.title} — ${alb.artist} entered the sky (${trks.length} tracks)`);
+    await addLog("sky","g-amber",`${alb.title} — ${alb.artist} entered the sky (${trks.length} tracks)`);
     }
   }
   await kvSet("seq",seqCounter);
@@ -3133,7 +3133,7 @@ async function exportBackup(){
     const saved=await AeonCore.saveBackup(saveBlob,blob,name);
     if(!saved){note.textContent="Backup was packed but not saved.";return false}
     note.textContent=`Backup written — ${fmtBytes(blob.size)}. Keep it somewhere off this device.`;
-    await addLog("✦","g-teal",`The sky was pressed into a backup — ${real.length} albums, ${fmtBytes(blob.size)}`);
+    await addLog("sky","g-teal",`The sky was pressed into a backup — ${real.length} albums, ${fmtBytes(blob.size)}`);
     return true;
   }catch(e){
     note.textContent="Backup failed — "+((e&&e.message)||"the archive could not be built")+".";
@@ -3256,7 +3256,7 @@ async function restoreBackup(b){
   }
   sky.rebuild();updateStorage();
   requestPersist();
-  await addLog("✦","g-gold",`A backup re-lit the sky — ${newAlbums.length} added, ${repaired} repaired`);
+  await addLog("sky","g-gold",`A backup re-lit the sky — ${newAlbums.length} added, ${repaired} repaired`);
   toast(`Restore complete — ${newAlbums.length} added, ${repaired} repaired`,true);
   return true;
 }
@@ -3394,7 +3394,7 @@ async function enrichAlbums(albums){
   }
   if(filled){
     renderLibrary();sky.rebuild();
-    await addLog("\u2726","g-teal",`The archive filled in tags for ${filled} album${filled>1?"s":""}`);
+    await addLog("sky","g-teal",`The archive filled in tags for ${filled} album${filled>1?"s":""}`);
     toast(`Archive filled tags for ${filled} album${filled>1?"s":""}`,true);
   }
 }
@@ -3805,7 +3805,7 @@ function updatePlayerUI(alb,trk){
   $("#nowTitle").textContent=trk.title;
   $("#nowArtist").textContent=trk.artist||alb.artist;
   $("#hudNow").style.display="";
-  $("#hudNow").textContent="\u266A "+trk.title;
+  $("#hudNow").textContent=trk.title;
   markPlayingCard();
   refreshListeningCard();
   $("#nowPosition").textContent=`${state.qIndex+1} / ${state.queue.length}`;
@@ -3869,7 +3869,7 @@ function renderQueue(){
     if(!t)return"";
     const now=i===state.qIndex;
     return`<div class="trk queue-row${now?" playing":""}" data-queue-row="${i}">
-      <div class="t-no">${now?"\u25B6":i+1}</div>
+      <div class="t-no">${now?ICO.play:i+1}</div>
       <button class="t-main" data-q="${i}" style="text-align:left" aria-label="Play ${esc(t.title)}">
         <div class="t-title">${esc(t.title)}</div>
         <div class="t-sub">${esc(t.artist||a.artist)} \u2014 ${esc(a.title)}</div>
@@ -4381,14 +4381,14 @@ const sky=(()=>{
     m.lineProg=0;
     ceremonyTarget={cx:m.cx,cy:m.cy,s:clamp(Math.min(W,H)/320,.4,2.4),until:performance.now()+5200};
     banner("A CONSTELLATION FORMS",m.name.toUpperCase());
-    addLog("\u2726","g-gold",`${m.name} became a constellation — ${m.stars.length} albums drawn together in ${m.region.name}`);
+    addLog("sky","g-gold",`${m.name} became a constellation — ${m.stars.length} albums drawn together in ${m.region.name}`);
   }
   function ceremonyPlanet(p){
     const pl=planets[p];if(!pl)return;
     pl.born=performance.now();
     ceremonyTarget={cx:pl.x,cy:pl.y,s:clamp(Math.min(W,H)/(pl.r*14),.4,2.4),until:performance.now()+5200};
     banner("A WORLD WAKES",worldName(pl).toUpperCase());
-    addLog("\u25CD","g-violet",`${worldName(pl)} woke`);
+    addLog("planet","g-violet",`${worldName(pl)} woke`);
   }
   let bannerTO=null;
   function banner(tag,name){
@@ -5190,7 +5190,7 @@ function onAlbumsAdded(newAlbums,countBefore,opts={}){
   if(mile&&!formed.length&&plAfter===plBefore){
     setTimeout(()=>{
       sky.banner(mile[1],mile[2]);
-      addLog("\u2726","g-gold",mile[1].charAt(0)+mile[1].slice(1).toLowerCase()+" — "+after+" album"+(after>1?"s":"")+" in the sky");
+      addLog("sky","g-gold",mile[1].charAt(0)+mile[1].slice(1).toLowerCase()+" — "+after+" album"+(after>1?"s":"")+" in the sky");
     },delay);
     delay+=5000;
   }
@@ -5223,7 +5223,7 @@ $$("#libSort .sortc").forEach(b=>b.addEventListener("click",()=>{
   renderLibrary();
 }));
 
-/* Sheets always offer a way home: an ✕ button, a tap on the dimmed
+/* Sheets always offer a way home: a close button, a tap on the dimmed
    backdrop, the Escape key, and the phone's back gesture all close the
    topmost sheet and return to the space beneath it. */
 const sheetStack=[];
@@ -5786,7 +5786,7 @@ async function mergeAlbums(srcId,dstId){
   if(state.playingAlbumId===src.id)state.playingAlbumId=dst.id;
   dropArtURL(src.id);
   await persistLastPlayedState();
-  await addLog("\u266A","g-teal",`${src.title} was folded into ${dst.title} — ${srcT.length} track${srcT.length===1?"":"s"} moved`);
+  await addLog("note","g-teal",`${src.title} was folded into ${dst.title} — ${srcT.length} track${srcT.length===1?"":"s"} moved`);
   sky.rebuild();renderLibrary();renderPlaylists();updateStorage();
   return true;
 }
@@ -5890,7 +5890,7 @@ $("#albDelete").addEventListener("click",async()=>{
   await scrubAlbumPlayback(a.id);
   closeSheet("sheetAlbum");
   sky.rebuild();renderLibrary();updateStorage();
-  await addLog("\u2727","g-dim",`${a.title} left the catalog — its star went dark`);
+  await addLog("sky","g-dim",`${a.title} left the catalog — its star went dark`);
   toast("Album deleted");
 });
 
@@ -5918,7 +5918,7 @@ $("#btnNewPl").addEventListener("click",async()=>{
   await dbPut("playlists",pl);
   $("#newPlName").value="";
   renderPlaylists();
-  await addLog("\u266A","g-pink",`Playlist “${name}” charted`);
+  await addLog("note","g-pink",`Playlist “${name}” charted`);
 });
 $("#newPlName").addEventListener("keydown",e=>{if(e.key==="Enter")$("#btnNewPl").click()});
 
@@ -6005,7 +6005,7 @@ function renderLog(){
   l.innerHTML=state.log.map(e=>{
     const d=new Date(e.t);
     return`<div class="log-e">
-      <div class="log-g ${e.cls}">${ICOLOG[e.g]||e.g}</div>
+      <div class="log-g ${e.cls}">${ICOLOG[e.g]||ICO.sky}</div>
       <div><div class="log-t">${esc(e.text)}</div>
       <div class="log-when">${d.toLocaleDateString(undefined,{month:"short",day:"numeric"})} \u00B7 ${d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})}</div></div>
     </div>`;
@@ -6156,7 +6156,7 @@ function fadeToSleep(){
       if(g)g.value=from; else audio.volume=1;
       setSleep(0);
       toast("Goodnight — the sky keeps watch");
-      addLog("\u2727","g-violet","The sleep timer put the music out");
+      addLog("sky","g-violet","The sleep timer put the music out");
     }
   };
   step();
@@ -6242,7 +6242,7 @@ $("#mockClear").addEventListener("click",async()=>{
   state.albums=state.albums.filter(a=>!a.mock);
   for(const album of mocks){dropArtURL(album.id);await scrubAlbumPlayback(album.id)}
   sky.rebuild();renderLibrary();updateStorage();
-  await addLog("\u2727","g-dim",`${mocks.length} mock stars dissolved back into the void`);
+  await addLog("sky","g-dim",`${mocks.length} mock stars dissolved back into the void`);
   toast(`${mocks.length} mock stars removed`);
 });
 $("#btnWipe").addEventListener("click",async()=>{
@@ -6352,7 +6352,7 @@ async function shareSky(){
   if(!NATIVE&&navigator.canShare&&navigator.canShare({files:[file]})){
     try{await navigator.share({files:[file],title:"My sky — ISOLATION"})}catch(e){/* user closed the sheet */}
   }else await saveBlob(blob,"isolation-sky.png");
-  addLog("✦","g-pink","A picture of the sky left the observatory");
+  addLog("sky","g-pink","A picture of the sky left the observatory");
 }
 $("#shareSky").addEventListener("click",shareSky);
 
@@ -6420,7 +6420,7 @@ async function repairAdoptedTrackOrder(){
   seqCounter=seq||state.albums.reduce((m,a)=>Math.max(m,a.seq||0),0);
 
   if(!state.log.length){
-    await addLog("\u2726","g-gold","The void opened. ISOLATION v1 — first light.");
+    await addLog("sky","g-gold","The void opened. ISOLATION v1 — first light.");
   }
 
   // this install's sky is its own: seed minted once, kept forever
