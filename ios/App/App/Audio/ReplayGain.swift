@@ -25,10 +25,13 @@ func replayGainDB(mode: ReplayGainMode, values: ReplayGainValues, preampDB: Doub
         selectedGain = values.trackGainDB
     }
 
-    guard let selectedGain else { return 0 }
-    return selectedGain + preampDB
+    guard let selectedGain, selectedGain.isFinite, preampDB.isFinite else { return 0 }
+    let combinedGain = selectedGain + preampDB
+    return combinedGain.isFinite ? combinedGain : 0
 }
 
 func replayGainScalar(mode: ReplayGainMode, values: ReplayGainValues, preampDB: Double) -> Float {
-    Float(pow(10.0, replayGainDB(mode: mode, values: values, preampDB: preampDB) / 20.0))
+    let db = replayGainDB(mode: mode, values: values, preampDB: preampDB)
+    let scalar = Float(pow(10.0, db / 20.0))
+    return scalar.isFinite && scalar > 0 ? scalar : 1
 }

@@ -31,4 +31,25 @@ final class ReplayGainAndEQTests: XCTestCase {
             accuracy: 0.000001
         )
     }
+
+    func testNonfiniteReplayGainFallsBackToUnity() {
+        XCTAssertEqual(
+            replayGainScalar(
+                mode: .track,
+                values: .init(trackGainDB: .infinity, albumGainDB: nil, trackPeak: nil, albumPeak: nil),
+                preampDB: 0
+            ),
+            1,
+            accuracy: 0.000001
+        )
+        XCTAssertEqual(
+            replayGainScalar(
+                mode: .album,
+                values: .init(trackGainDB: nil, albumGainDB: -3, trackPeak: nil, albumPeak: nil),
+                preampDB: .nan
+            ),
+            1,
+            accuracy: 0.000001
+        )
+    }
 }

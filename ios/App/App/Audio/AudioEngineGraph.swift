@@ -22,10 +22,14 @@ enum AudioEngineGraphError: Error, Equatable {
     case invalidSeekTime(Double)
     case seekPastEnd
     case tooManyEQBands(Int)
+    case invalidEQBand(index: Int, parameter: String)
 }
 
 final class AudioEngineGraph {
     private static let maximumEQBands = 10
+    private static let validEQFrequency = 20.0...24_000.0
+    private static let validEQGain = -96.0...24.0
+    private static let validEQBandwidth = 0.05...5.0
 
     private(set) var engine: AVAudioEngine
     private(set) var playerA: AVAudioPlayerNode
@@ -40,13 +44,15 @@ final class AudioEngineGraph {
     private var replayGainB: Float = 1
     private var eqEnabled = false
     private var eqBands: [EQBand] = []
+    private let outputFormatProvider: (() -> AVAudioFormat?)?
 
-    init() {
+    init(outputFormatProvider: (() -> AVAudioFormat?)? = nil) {
         engine = AVAudioEngine()
         playerA = AVAudioPlayerNode()
         playerB = AVAudioPlayerNode()
         programMixer = AVAudioMixerNode()
         equalizer = AVAudioUnitEQ(numberOfBands: AudioEngineGraph.maximumEQBands)
+        self.outputFormatProvider = outputFormatProvider
     }
 
     var defaultState: AudioEngineGraphDefaultState {
@@ -59,6 +65,21 @@ final class AudioEngineGraph {
     }
 
     var processorKinds: [AudioGraphProcessorKind] { [.programMixer, .equalizer] }
+
+    var configuredEQBands: [EQBand] { eqBands }
+
+    static func scheduleFrameCounts(totalFrames: AVAudioFramePosition) -> [AVAudioFrameCount] {
+        guard totalFrames > 0 else { return [] }
+        var counts: [AVAudioFrameCount] = []
+        var remainingFrames = totalFrames
+        let maximumSegmentFrames = AVAudioFramePosition(AVAudioFrameCount.max)
+        while remainingFrames > 0 {
+            let segmentFrames = min(remainingFrames, maximumSegmentFrames)
+            counts.append(AVAudioFrameCount(segmentFrames))
+            remainingFrames -= segmentFrames
+        }
+        return counts
+    }
 
     func configure() throws {
         guard !isConfigured else { return }
@@ -94,19 +115,21 @@ final class AudioEngineGraph {
         try configure()
         guard let file = files[slot] else { throw AudioEngineGraphError.noFileLoaded(slot) }
 
+        let startFrame: AVAudioFramePosition?
+        if let requestedFrame = fromFrame {
+            guard requestedFrame >= 0 else {
+                throw AudioEngineGraphError.invalidSeekTime(Double(requestedFrame) / file.processingFormat.sampleRate)
+            }
+            guard requestedFrame < file.length else { throw AudioEngineGraphError.seekPastEnd }
+            startFrame = requestedFrame
+        } else {
+            startFrame = nil
+        }
+
         let player = player(for: slot)
         player.stop()
-        if let fromFrame {
-            let startFrame = max(0, fromFrame)
-            guard startFrame < file.length else { throw AudioEngineGraphError.seekPastEnd }
-            let remainingFrameCount = file.length - startFrame
-            player.scheduleSegment(
-                file,
-                startingFrame: startFrame,
-                frameCount: AVAudioFrameCount(remainingFrameCount),
-                at: nil,
-                completionHandler: nil
-            )
+        if let startFrame {
+            scheduleSegments(file: file, startingFrame: startFrame, on: player)
         } else {
             player.scheduleFile(file, at: nil, completionHandler: nil)
         }
@@ -129,30 +152,38 @@ final class AudioEngineGraph {
     func seek(slot: AudioSlot, to seconds: Double) throws {
         guard seconds.isFinite, seconds >= 0 else { throw AudioEngineGraphError.invalidSeekTime(seconds) }
         guard let file = files[slot] else { throw AudioEngineGraphError.noFileLoaded(slot) }
-        let frame = AVAudioFramePosition(seconds * file.processingFormat.sampleRate)
+        let sampleRate = file.processingFormat.sampleRate
+        let frameValue = seconds * sampleRate
+        guard sampleRate.isFinite,
+              sampleRate > 0,
+              frameValue.isFinite,
+              frameValue <= Double(AVAudioFramePosition.max) else {
+            throw AudioEngineGraphError.invalidSeekTime(seconds)
+        }
+        let frame = AVAudioFramePosition(frameValue.rounded(.down))
+        guard frame < file.length else { throw AudioEngineGraphError.seekPastEnd }
         try play(slot: slot, fromFrame: frame)
     }
 
     func setMasterVolume(_ linear: Float) {
-        masterVolume = max(0, min(linear, 1))
+        masterVolume = linear.isFinite && (0...1).contains(linear) ? linear : 1
         engine.mainMixerNode.outputVolume = masterVolume
     }
 
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {
+        let transparentScalar = scalar.isFinite && scalar >= 0 ? scalar : 1
         switch slot {
         case .a:
-            replayGainA = scalar
-            playerA.volume = scalar
+            replayGainA = transparentScalar
+            playerA.volume = transparentScalar
         case .b:
-            replayGainB = scalar
-            playerB.volume = scalar
+            replayGainB = transparentScalar
+            playerB.volume = transparentScalar
         }
     }
 
     func setEQ(enabled: Bool, bands: [EQBand]) throws {
-        guard bands.count <= Self.maximumEQBands else {
-            throw AudioEngineGraphError.tooManyEQBands(bands.count)
-        }
+        try validateEQBands(bands)
         try configure()
         eqEnabled = enabled
         eqBands = bands
@@ -161,17 +192,42 @@ final class AudioEngineGraph {
     }
 
     func outputDescriptor() -> OutputFormatDescriptor {
+        if let outputFormatProvider {
+            guard let format = outputFormatProvider(),
+                  format.sampleRate.isFinite,
+                  format.sampleRate > 0,
+                  format.channelCount > 0 else {
+                return unknownOutputDescriptor()
+            }
+            return descriptor(format: format, output: nil)
+        }
+
         let session = AVAudioSession.sharedInstance()
         let output = session.currentRoute.outputs.first
-        let outputFormat = engine.outputNode.inputFormat(forBus: 0)
-        let sampleRate = outputFormat.sampleRate > 0 ? outputFormat.sampleRate : session.sampleRate
-        let channelCount = outputFormat.channelCount > 0
-            ? Int(outputFormat.channelCount)
-            : max(output?.channels.count ?? 0, 1)
+        let hardwareFormat = engine.outputNode.outputFormat(forBus: 0)
+        let formatSampleRate = hardwareFormat.sampleRate.isFinite && hardwareFormat.sampleRate > 0
+            ? hardwareFormat.sampleRate
+            : nil
+        let sessionSampleRate = session.sampleRate.isFinite && session.sampleRate > 0
+            ? session.sampleRate
+            : nil
+        let sampleRate = formatSampleRate ?? sessionSampleRate
+        let formatChannelCount = hardwareFormat.channelCount > 0 ? Int(hardwareFormat.channelCount) : nil
+        let routeChannelCount: Int?
+        if let channels = output?.channels, !channels.isEmpty {
+            routeChannelCount = channels.count
+        } else {
+            routeChannelCount = nil
+        }
+        let channelCount = formatChannelCount ?? routeChannelCount
+
+        guard output != nil || sampleRate != nil || channelCount != nil else {
+            return unknownOutputDescriptor()
+        }
 
         return OutputFormatDescriptor(
-            sampleRate: sampleRate,
-            channelCount: channelCount,
+            sampleRate: sampleRate ?? 0,
+            channelCount: channelCount ?? 0,
             route: RouteDescriptor(
                 kind: routeKind(for: output?.portType),
                 name: output?.portName ?? "Unknown output",
@@ -217,6 +273,76 @@ final class AudioEngineGraph {
             filter.gain = Float(band.gainDB)
             filter.bypass = false
         }
+    }
+
+    private func validateEQBands(_ bands: [EQBand]) throws {
+        guard bands.count <= Self.maximumEQBands else {
+            throw AudioEngineGraphError.tooManyEQBands(bands.count)
+        }
+        for (index, band) in bands.enumerated() {
+            guard band.frequency.isFinite, Self.validEQFrequency.contains(band.frequency) else {
+                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "frequency")
+            }
+            guard band.q.isFinite, band.q > 0 else {
+                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "q")
+            }
+            let bandwidth = Double(bandwidth(forQ: band.q))
+            guard bandwidth.isFinite, Self.validEQBandwidth.contains(bandwidth) else {
+                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "q")
+            }
+            guard band.gainDB.isFinite, Self.validEQGain.contains(band.gainDB) else {
+                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "gainDB")
+            }
+        }
+    }
+
+    private func scheduleSegments(
+        file: AVAudioFile,
+        startingFrame: AVAudioFramePosition,
+        on player: AVAudioPlayerNode
+    ) {
+        var nextFrame = startingFrame
+        for segmentFrameCount in Self.scheduleFrameCounts(totalFrames: file.length - startingFrame) {
+            player.scheduleSegment(
+                file,
+                startingFrame: nextFrame,
+                frameCount: segmentFrameCount,
+                at: nil,
+                completionHandler: nil
+            )
+            nextFrame += AVAudioFramePosition(segmentFrameCount)
+        }
+    }
+
+    private func descriptor(
+        format: AVAudioFormat,
+        output: AVAudioSessionPortDescription?
+    ) -> OutputFormatDescriptor {
+        let sampleRate = format.sampleRate
+        let channelCount = Int(format.channelCount)
+        return OutputFormatDescriptor(
+            sampleRate: sampleRate,
+            channelCount: channelCount,
+            route: RouteDescriptor(
+                kind: routeKind(for: output?.portType),
+                name: output?.portName ?? "Unknown output",
+                sampleRate: sampleRate,
+                channelCount: channelCount
+            )
+        )
+    }
+
+    private func unknownOutputDescriptor() -> OutputFormatDescriptor {
+        OutputFormatDescriptor(
+            sampleRate: 0,
+            channelCount: 0,
+            route: RouteDescriptor(
+                kind: .unknown,
+                name: "Unknown output",
+                sampleRate: nil,
+                channelCount: nil
+            )
+        )
     }
 
     private func routeKind(for portType: AVAudioSession.Port?) -> AudioRouteKind {
