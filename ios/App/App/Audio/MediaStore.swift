@@ -74,10 +74,17 @@ final class MediaStore: MediaResolving {
             at: incomingRoot,
             includingPropertiesForKeys: [.contentModificationDateKey]
         ) where item.pathExtension == "partial" {
-            let values = try? item.resourceValues(forKeys: [.contentModificationDateKey])
-            if let modified = values?.contentModificationDate,
-               now().timeIntervalSince(modified) >= stalePartialInterval {
-                try? fileManager.removeItem(at: item)
+            let stableID = item.deletingPathExtension().lastPathComponent
+            guard Self.isSafeStableID(stableID) else { continue }
+            let gateKey = incomingRoot.standardizedFileURL.resolvingSymlinksInPath().path + "\u{0}" + stableID
+            let gate = Self.acquireGate(key: gateKey)
+            defer { Self.releaseGate(gate, key: gateKey) }
+            if fileManager.fileExists(atPath: item.path) {
+                let values = try? item.resourceValues(forKeys: [.contentModificationDateKey])
+                if let modified = values?.contentModificationDate,
+                   now().timeIntervalSince(modified) >= stalePartialInterval {
+                    try? fileManager.removeItem(at: item)
+                }
             }
         }
     }

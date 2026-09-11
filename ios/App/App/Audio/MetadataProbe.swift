@@ -58,10 +58,18 @@ final class MetadataProbe {
         var offset = 0
         var firstPacket = Data()
         var recognizedIdentification = false
+        var firstPage = true
         while offset < data.count {
             guard data.count - offset >= 27,
                   data[offset ..< offset + 4].elementsEqual(Data("OggS".utf8)),
                   data[offset + 4] == 0 else { return false }
+            if firstPage {
+                let headerType = data[offset + 5]
+                let sequence = UInt32(data[offset + 18]) | UInt32(data[offset + 19]) << 8 |
+                    UInt32(data[offset + 20]) << 16 | UInt32(data[offset + 21]) << 24
+                guard headerType & 0x02 != 0, headerType & 0x01 == 0, sequence == 0 else { return false }
+                firstPage = false
+            }
             let segmentCount = Int(data[offset + 26])
             let tableStart = offset + 27
             guard data.count - tableStart >= segmentCount else { return false }
@@ -78,14 +86,43 @@ final class MetadataProbe {
                 if !recognizedIdentification { firstPacket.append(data[payloadOffset ..< payloadOffset + length]) }
                 payloadOffset += length
                 if !recognizedIdentification, length < 255 {
-                    recognizedIdentification = firstPacket.starts(with: Data("OpusHead".utf8)) ||
-                        firstPacket.starts(with: Data([1]) + Data("vorbis".utf8))
+                    recognizedIdentification = validOpusIdentification(firstPacket) || validVorbisIdentification(firstPacket)
                     guard recognizedIdentification else { return false }
                 }
             }
             offset = next
         }
         return recognizedIdentification
+    }
+
+    private static func validOpusIdentification(_ packet: Data) -> Bool {
+        guard packet.count >= 19,
+              packet.prefix(8).elementsEqual(Data("OpusHead".utf8)),
+              packet[8] >= 1, packet[8] <= 15,
+              packet[9] > 0 else { return false }
+        let channels = Int(packet[9])
+        let mappingFamily = packet[18]
+        if mappingFamily == 0 { return channels <= 2 }
+        guard packet.count >= 21 + channels else { return false }
+        let streams = Int(packet[19])
+        let coupled = Int(packet[20])
+        let mappingsAreValid = packet[21 ..< 21 + channels].allSatisfy {
+            $0 == 255 || Int($0) < streams + coupled
+        }
+        return streams > 0 && coupled <= streams && streams + coupled <= channels && mappingsAreValid
+    }
+
+    private static func validVorbisIdentification(_ packet: Data) -> Bool {
+        guard packet.count >= 30,
+              packet.prefix(7).elementsEqual(Data([1]) + Data("vorbis".utf8)),
+              packet[7 ..< 11].allSatisfy({ $0 == 0 }),
+              packet[11] > 0 else { return false }
+        let sampleRate = UInt32(packet[12]) | UInt32(packet[13]) << 8 |
+            UInt32(packet[14]) << 16 | UInt32(packet[15]) << 24
+        let blockSizes = packet[28]
+        let small = blockSizes & 0x0f
+        let large = blockSizes >> 4
+        return sampleRate > 0 && small >= 6 && large >= small && large <= 13 && packet[29] == 1
     }
 
     private static func oggCRC(_ data: Data) -> UInt32 {

@@ -44,19 +44,27 @@ def optional_compressed(source: Path) -> None:
         )
 
 
-def write_minimal_ogg(path: Path) -> None:
-    packet = b"OpusHead" + bytes([1, 2]) + struct.pack("<HIhB", 312, 48_000, 0, 0)
-    page = bytearray(b"OggS" + bytes([0, 2]) + struct.pack("<QIIIB", 0, 1, 0, 0, 1) + bytes([len(packet)]) + packet)
+def ogg_page(packet: bytes, header_type: int = 2, sequence: int = 0) -> bytes:
+    page = bytearray(b"OggS" + bytes([0, header_type]) + struct.pack("<QIIIB", 0, 1, sequence, 0, 1) + bytes([len(packet)]) + packet)
     crc = 0
     for byte in page:
         crc ^= byte << 24
         for _ in range(8):
             crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if crc & 0x80000000 else (crc << 1) & 0xFFFFFFFF
     page[22:26] = struct.pack("<I", crc)
+    return bytes(page)
+
+
+def write_minimal_ogg(path: Path) -> None:
+    packet = b"OpusHead" + bytes([1, 2]) + struct.pack("<HIhB", 312, 48_000, 0, 0)
+    page = ogg_page(packet)
     path.write_bytes(page)
     corrupt = bytearray(page)
     corrupt[-1] ^= 1
     (ROOT / "corrupt-crc.ogg").write_bytes(corrupt)
+    (ROOT / "truncated-opushead.ogg").write_bytes(ogg_page(b"OpusHead\x01\x02"))
+    (ROOT / "continued-first-page.ogg").write_bytes(ogg_page(packet, header_type=3))
+    (ROOT / "non-bos-first-page.ogg").write_bytes(ogg_page(packet, header_type=0))
 
 
 def main() -> None:

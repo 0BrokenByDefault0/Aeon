@@ -100,6 +100,41 @@ final class MediaStoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: source), Data([7]))
     }
 
+    func testStartupCleanupWaitsForLiveImportBeforeRecheckingStalePartial() throws {
+        let store = try MediaStore(baseURL: tempURL)
+        let source = tempURL.appendingPathComponent("old.wav")
+        try Data([4, 2]).write(to: source)
+        let verifierEntered = expectation(description: "verifier entered")
+        let importFinished = expectation(description: "import finished")
+        let initializerFinished = expectation(description: "initializer finished")
+        let allowImport = DispatchSemaphore(value: 0)
+        let oldDate = Date(timeIntervalSince1970: 1_000)
+        let now = Date(timeIntervalSince1970: 10_000)
+        let baseURL = tempURL!
+
+        DispatchQueue.global().async {
+            _ = try? store.importFile(sourceURL: source, stableID: "live", verifier: { partial in
+                try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: partial.path)
+                verifierEntered.fulfill()
+                allowImport.wait()
+                XCTAssertEqual(try Data(contentsOf: partial), Data([4, 2]))
+                return true
+            })
+            importFinished.fulfill()
+        }
+        wait(for: [verifierEntered], timeout: 2)
+        DispatchQueue.global().async {
+            _ = try? MediaStore(baseURL: baseURL, now: { now }, stalePartialInterval: 100)
+            initializerFinished.fulfill()
+        }
+        XCTAssertEqual(XCTWaiter.wait(for: [initializerFinished], timeout: 0.1), .timedOut)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.incomingRoot.appendingPathComponent("live.partial").path))
+        allowImport.signal()
+        wait(for: [importFinished, initializerFinished], timeout: 2)
+        XCTAssertEqual(try Data(contentsOf: store.mediaURL(stableID: "live", fileExtension: "wav")), Data([4, 2]))
+        XCTAssertEqual(MediaStore.activeImportGateCountForTesting, 0)
+    }
+
     func testRejectsUnsafeStableIDsAndNativePaths() throws {
         let store = try MediaStore(baseURL: tempURL)
         let source = tempURL.appendingPathComponent("source.wav")

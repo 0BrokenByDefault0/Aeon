@@ -45,7 +45,10 @@ final class MetadataProbeTests: XCTestCase {
     }
 
     func testKnownOggDecoderFailureIsUnsupported() throws {
-        for name in ["corrupt.ogg", "corrupt-crc.ogg"] {
+        for name in [
+            "corrupt.ogg", "corrupt-crc.ogg", "truncated-opushead.ogg",
+            "continued-first-page.ogg", "non-bos-first-page.ogg"
+        ] {
             guard case .decodeFailed = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
                 return XCTFail("\(name) must be decodeFailed")
             }
