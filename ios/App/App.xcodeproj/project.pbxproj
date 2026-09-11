@@ -17,6 +17,11 @@
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 		A50000000000000000000001 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000002 /* SmokeTests.swift */; };
 		A50000000000000000000003 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000000000000000000004 /* XCTest.framework */; };
+		A52000000000000000000001 /* PlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000011 /* PlaybackModels.swift */; };
+		A52000000000000000000002 /* DiagnosticsLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000012 /* DiagnosticsLog.swift */; };
+		A52000000000000000000003 /* PlaybackStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000013 /* PlaybackStateStore.swift */; };
+		A52000000000000000000004 /* PlaybackModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000014 /* PlaybackModelsTests.swift */; };
+		A52000000000000000000005 /* PlaybackStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000015 /* PlaybackStateStoreTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +38,11 @@
 		A50000000000000000000002 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
 		A50000000000000000000004 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
 		A50000000000000000000005 /* AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A52000000000000000000011 /* PlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackModels.swift; sourceTree = "<group>"; };
+		A52000000000000000000012 /* DiagnosticsLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsLog.swift; sourceTree = "<group>"; };
+		A52000000000000000000013 /* PlaybackStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackStateStore.swift; sourceTree = "<group>"; };
+		A52000000000000000000014 /* PlaybackModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackModelsTests.swift; sourceTree = "<group>"; };
+		A52000000000000000000015 /* PlaybackStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackStateStoreTests.swift; sourceTree = "<group>"; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -98,6 +108,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A52000000000000000000020 /* Audio */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -114,8 +125,20 @@
 			isa = PBXGroup;
 			children = (
 				A50000000000000000000002 /* SmokeTests.swift */,
+				A52000000000000000000014 /* PlaybackModelsTests.swift */,
+				A52000000000000000000015 /* PlaybackStateStoreTests.swift */,
 			);
 			path = AppTests;
+			sourceTree = "<group>";
+		};
+		A52000000000000000000020 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				A52000000000000000000011 /* PlaybackModels.swift */,
+				A52000000000000000000012 /* DiagnosticsLog.swift */,
+				A52000000000000000000013 /* PlaybackStateStore.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		7F8756D8B27F46E3366F6CEA /* Pods */ = {
@@ -273,6 +296,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				A52000000000000000000001 /* PlaybackModels.swift in Sources */,
+				A52000000000000000000002 /* DiagnosticsLog.swift in Sources */,
+				A52000000000000000000003 /* PlaybackStateStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -281,6 +307,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A50000000000000000000001 /* SmokeTests.swift in Sources */,
+				A52000000000000000000004 /* PlaybackModelsTests.swift in Sources */,
+				A52000000000000000000005 /* PlaybackStateStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
