@@ -102,18 +102,18 @@ final class MetadataProbe {
               packet[9] > 0 else { return false }
         let channels = Int(packet[9])
         let mappingFamily = packet[18]
-        if mappingFamily == 0 { return channels <= 2 }
-        guard packet.count >= 21 + channels else { return false }
+        if mappingFamily == 0 { return packet.count == 19 && channels <= 2 }
+        guard mappingFamily == 1, packet.count == 21 + channels else { return false }
         let streams = Int(packet[19])
         let coupled = Int(packet[20])
         let mappingsAreValid = packet[21 ..< 21 + channels].allSatisfy {
-            $0 == 255 || Int($0) < streams + coupled
+            Int($0) < streams + coupled
         }
         return streams > 0 && coupled <= streams && streams + coupled <= channels && mappingsAreValid
     }
 
     private static func validVorbisIdentification(_ packet: Data) -> Bool {
-        guard packet.count >= 30,
+        guard packet.count == 30,
               packet.prefix(7).elementsEqual(Data([1]) + Data("vorbis".utf8)),
               packet[7 ..< 11].allSatisfy({ $0 == 0 }),
               packet[11] > 0 else { return false }

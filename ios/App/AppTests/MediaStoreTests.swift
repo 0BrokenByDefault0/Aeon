@@ -53,7 +53,7 @@ final class MediaStoreTests: XCTestCase {
         try Data([1]).write(to: first); try Data([2]).write(to: second)
         let firstInsideVerifier = expectation(description: "first verifier")
         let allowFirst = DispatchSemaphore(value: 0)
-        let secondFinished = expectation(description: "second finished")
+        let secondFinished = DispatchSemaphore(value: 0)
         DispatchQueue.global().async {
             _ = try? firstStore.importFile(sourceURL: first, stableID: "same", verifier: { staged in
                 XCTAssertEqual(try Data(contentsOf: staged), Data([1]))
@@ -65,11 +65,11 @@ final class MediaStoreTests: XCTestCase {
             _ = try? secondStore.importFile(sourceURL: second, stableID: "same", verifier: { staged in
                 XCTAssertEqual(try Data(contentsOf: staged), Data([2])); return true
             })
-            secondFinished.fulfill()
+            secondFinished.signal()
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [secondFinished], timeout: 0.1), .timedOut)
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 0.1), .timedOut)
         allowFirst.signal()
-        wait(for: [secondFinished], timeout: 2)
+        XCTAssertEqual(secondFinished.wait(timeout: .now() + 2), .success)
         XCTAssertEqual(try Data(contentsOf: firstStore.mediaURL(stableID: "same", fileExtension: "wav")), Data([2]))
         XCTAssertEqual(MediaStore.activeImportGateCountForTesting, 0)
     }
@@ -106,7 +106,7 @@ final class MediaStoreTests: XCTestCase {
         try Data([4, 2]).write(to: source)
         let verifierEntered = expectation(description: "verifier entered")
         let importFinished = expectation(description: "import finished")
-        let initializerFinished = expectation(description: "initializer finished")
+        let initializerFinished = DispatchSemaphore(value: 0)
         let allowImport = DispatchSemaphore(value: 0)
         let oldDate = Date(timeIntervalSince1970: 1_000)
         let now = Date(timeIntervalSince1970: 10_000)
@@ -125,12 +125,13 @@ final class MediaStoreTests: XCTestCase {
         wait(for: [verifierEntered], timeout: 2)
         DispatchQueue.global().async {
             _ = try? MediaStore(baseURL: baseURL, now: { now }, stalePartialInterval: 100)
-            initializerFinished.fulfill()
+            initializerFinished.signal()
         }
-        XCTAssertEqual(XCTWaiter.wait(for: [initializerFinished], timeout: 0.1), .timedOut)
+        XCTAssertEqual(initializerFinished.wait(timeout: .now() + 0.1), .timedOut)
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.incomingRoot.appendingPathComponent("live.partial").path))
         allowImport.signal()
-        wait(for: [importFinished, initializerFinished], timeout: 2)
+        wait(for: [importFinished], timeout: 2)
+        XCTAssertEqual(initializerFinished.wait(timeout: .now() + 2), .success)
         XCTAssertEqual(try Data(contentsOf: store.mediaURL(stableID: "live", fileExtension: "wav")), Data([4, 2]))
         XCTAssertEqual(MediaStore.activeImportGateCountForTesting, 0)
     }

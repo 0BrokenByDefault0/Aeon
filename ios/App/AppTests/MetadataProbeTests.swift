@@ -47,16 +47,46 @@ final class MetadataProbeTests: XCTestCase {
     func testKnownOggDecoderFailureIsUnsupported() throws {
         for name in [
             "corrupt.ogg", "corrupt-crc.ogg", "truncated-opushead.ogg",
-            "continued-first-page.ogg", "non-bos-first-page.ogg"
+            "continued-first-page.ogg", "non-bos-first-page.ogg",
+            "trailing-opushead.ogg", "reserved-mapping-family.ogg"
         ] {
             guard case .decodeFailed = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
                 return XCTFail("\(name) must be decodeFailed")
             }
         }
-        switch MetadataProbe().probe(url: fixturesURL.appendingPathComponent("valid-opus.ogg")) {
+        let valid = fixturesURL.appendingPathComponent("valid-opus.ogg")
+        try assertCompleteOpusFixture(valid)
+        switch MetadataProbe().probe(url: valid) {
         case .playable, .unsupported: break
         default: XCTFail("Structurally valid OGG must have an explicit playable or unsupported outcome")
         }
+    }
+
+    private func assertCompleteOpusFixture(_ url: URL) throws {
+        let data = try Data(contentsOf: url)
+        var offset = 0
+        var pages: [(type: UInt8, sequence: UInt32, granule: UInt64, packet: Data)] = []
+        while offset < data.count {
+            XCTAssertTrue(data[offset ..< offset + 4].elementsEqual(Data("OggS".utf8)))
+            let count = Int(data[offset + 26])
+            XCTAssertEqual(count, 1)
+            let length = Int(data[offset + 27])
+            let packetStart = offset + 28
+            let sequence = UInt32(data[offset + 18]) | UInt32(data[offset + 19]) << 8 |
+                UInt32(data[offset + 20]) << 16 | UInt32(data[offset + 21]) << 24
+            var granule: UInt64 = 0
+            for index in 0 ..< 8 { granule |= UInt64(data[offset + 6 + index]) << UInt64(index * 8) }
+            pages.append((data[offset + 5], sequence, granule, Data(data[packetStart ..< packetStart + length])))
+            offset = packetStart + length
+        }
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertEqual(pages.map(\.sequence), [0, 1, 2])
+        XCTAssertEqual(pages[0].type, 2)
+        XCTAssertTrue(pages[0].packet.starts(with: Data("OpusHead".utf8)))
+        XCTAssertTrue(pages[1].packet.starts(with: Data("OpusTags".utf8)))
+        XCTAssertEqual(pages[2].type, 4)
+        XCTAssertFalse(pages[2].packet.isEmpty)
+        XCTAssertGreaterThan(pages[2].granule, 0)
     }
 
     func testCompressedCapabilityMatrixAndGaplessFixtureShape() throws {

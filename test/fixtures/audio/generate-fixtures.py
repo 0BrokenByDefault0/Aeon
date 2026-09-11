@@ -32,20 +32,24 @@ def optional_compressed(source: Path) -> None:
     ffmpeg = shutil.which("ffmpeg")
     destinations = [ROOT / f"tone-48000.{suffix}" for suffix in ("flac", "m4a", "mp3")]
     if not ffmpeg:
-        for destination in destinations:
-            destination.unlink(missing_ok=True)
         return
     formats = (("flac", ["-c:a", "flac"]), ("m4a", ["-c:a", "alac"]), ("mp3", ["-c:a", "libmp3lame"]))
     for suffix, args in formats:
         destination = ROOT / f"tone-48000.{suffix}"
-        subprocess.run(
-            [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source), *args, str(destination)],
-            check=True,
-        )
+        temporary = ROOT / f"tone-48000.tmp.{suffix}"
+        temporary.unlink(missing_ok=True)
+        try:
+            subprocess.run(
+                [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source), *args, str(temporary)],
+                check=True,
+            )
+            temporary.replace(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
-def ogg_page(packet: bytes, header_type: int = 2, sequence: int = 0) -> bytes:
-    page = bytearray(b"OggS" + bytes([0, header_type]) + struct.pack("<QIIIB", 0, 1, sequence, 0, 1) + bytes([len(packet)]) + packet)
+def ogg_page(packet: bytes, header_type: int = 2, sequence: int = 0, granule: int = 0) -> bytes:
+    page = bytearray(b"OggS" + bytes([0, header_type]) + struct.pack("<QIIIB", granule, 1, sequence, 0, 1) + bytes([len(packet)]) + packet)
     crc = 0
     for byte in page:
         crc ^= byte << 24
@@ -57,14 +61,21 @@ def ogg_page(packet: bytes, header_type: int = 2, sequence: int = 0) -> bytes:
 
 def write_minimal_ogg(path: Path) -> None:
     packet = b"OpusHead" + bytes([1, 2]) + struct.pack("<HIhB", 312, 48_000, 0, 0)
-    page = ogg_page(packet)
-    path.write_bytes(page)
-    corrupt = bytearray(page)
+    tags = b"OpusTags" + struct.pack("<I", 4) + b"Aeon" + struct.pack("<I", 0)
+    audio = b"\xF8\xFF\xFE"
+    head_page = ogg_page(packet)
+    tags_page = ogg_page(tags, header_type=0, sequence=1)
+    audio_page = ogg_page(audio, header_type=4, sequence=2, granule=960)
+    path.write_bytes(head_page + tags_page + audio_page)
+    corrupt = bytearray(head_page)
     corrupt[-1] ^= 1
     (ROOT / "corrupt-crc.ogg").write_bytes(corrupt)
     (ROOT / "truncated-opushead.ogg").write_bytes(ogg_page(b"OpusHead\x01\x02"))
     (ROOT / "continued-first-page.ogg").write_bytes(ogg_page(packet, header_type=3))
     (ROOT / "non-bos-first-page.ogg").write_bytes(ogg_page(packet, header_type=0))
+    (ROOT / "trailing-opushead.ogg").write_bytes(ogg_page(packet + b"\x00"))
+    reserved = packet[:-1] + bytes([2]) + bytes([1, 1, 0, 1])
+    (ROOT / "reserved-mapping-family.ogg").write_bytes(ogg_page(reserved))
 
 
 def main() -> None:
