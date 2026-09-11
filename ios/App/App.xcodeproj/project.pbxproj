@@ -27,6 +27,10 @@
 		A53000000000000000000003 /* MediaStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000013 /* MediaStoreTests.swift */; };
 		A53000000000000000000004 /* MetadataProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000014 /* MetadataProbeTests.swift */; };
 		A53000000000000000000005 /* audio in Resources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000015 /* audio */; };
+		A54000000000000000000001 /* AudioEngineGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000011 /* AudioEngineGraph.swift */; };
+		A54000000000000000000002 /* ReplayGain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000012 /* ReplayGain.swift */; };
+		A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000013 /* ReplayGainAndEQTests.swift */; };
+		A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000014 /* AudioEngineGraphTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +57,10 @@
 		A53000000000000000000013 /* MediaStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStoreTests.swift; sourceTree = "<group>"; };
 		A53000000000000000000014 /* MetadataProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataProbeTests.swift; sourceTree = "<group>"; };
 		A53000000000000000000015 /* audio */ = {isa = PBXFileReference; lastKnownFileType = folder; name = audio; path = ../../../test/fixtures/audio; sourceTree = "<group>"; };
+		A54000000000000000000011 /* AudioEngineGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineGraph.swift; sourceTree = "<group>"; };
+		A54000000000000000000012 /* ReplayGain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayGain.swift; sourceTree = "<group>"; };
+		A54000000000000000000013 /* ReplayGainAndEQTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayGainAndEQTests.swift; sourceTree = "<group>"; };
+		A54000000000000000000014 /* AudioEngineGraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineGraphTests.swift; sourceTree = "<group>"; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -139,6 +147,8 @@
 				A52000000000000000000015 /* PlaybackStateStoreTests.swift */,
 				A53000000000000000000013 /* MediaStoreTests.swift */,
 				A53000000000000000000014 /* MetadataProbeTests.swift */,
+				A54000000000000000000013 /* ReplayGainAndEQTests.swift */,
+				A54000000000000000000014 /* AudioEngineGraphTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -152,6 +162,8 @@
 				A52000000000000000000013 /* PlaybackStateStore.swift */,
 				A53000000000000000000011 /* MediaStore.swift */,
 				A53000000000000000000012 /* MetadataProbe.swift */,
+				A54000000000000000000011 /* AudioEngineGraph.swift */,
+				A54000000000000000000012 /* ReplayGain.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -317,6 +329,8 @@
 				A52000000000000000000003 /* PlaybackStateStore.swift in Sources */,
 				A53000000000000000000001 /* MediaStore.swift in Sources */,
 				A53000000000000000000002 /* MetadataProbe.swift in Sources */,
+				A54000000000000000000001 /* AudioEngineGraph.swift in Sources */,
+				A54000000000000000000002 /* ReplayGain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -329,6 +343,8 @@
 				A52000000000000000000005 /* PlaybackStateStoreTests.swift in Sources */,
 				A53000000000000000000003 /* MediaStoreTests.swift in Sources */,
 				A53000000000000000000004 /* MetadataProbeTests.swift in Sources */,
+				A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */,
+				A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
