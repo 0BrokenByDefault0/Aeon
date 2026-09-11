@@ -18,10 +18,10 @@ end
 target 'App' do
   capacitor_pods
   # Add your Pods here
-end
 
-target 'AppTests' do
-  inherit! :search_paths
+  target 'AppTests' do
+    inherit! :search_paths
+  end
 end
 
 post_install do |installer|
