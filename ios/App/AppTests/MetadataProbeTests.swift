@@ -48,7 +48,9 @@ final class MetadataProbeTests: XCTestCase {
         for name in [
             "corrupt.ogg", "corrupt-crc.ogg", "truncated-opushead.ogg",
             "continued-first-page.ogg", "non-bos-first-page.ogg",
-            "trailing-opushead.ogg", "reserved-mapping-family.ogg"
+            "trailing-opushead.ogg", "unassigned-mapping-family.ogg",
+            "header-only.ogg", "missing-comment.ogg", "missing-audio.ogg", "missing-eos.ogg",
+            "sequence-error.ogg", "serial-error.ogg", "continuation-error.ogg"
         ] {
             guard case .decodeFailed = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
                 return XCTFail("\(name) must be decodeFailed")
@@ -59,6 +61,12 @@ final class MetadataProbeTests: XCTestCase {
         switch MetadataProbe().probe(url: valid) {
         case .playable, .unsupported: break
         default: XCTFail("Structurally valid OGG must have an explicit playable or unsupported outcome")
+        }
+        for name in ["assigned-mapping-family-2.ogg", "opus-version-0.ogg"] {
+            switch MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) {
+            case .playable, .unsupported: break
+            default: XCTFail("\(name) is structurally recognized and must have an explicit capability outcome")
+            }
         }
     }
 

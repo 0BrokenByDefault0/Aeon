@@ -23,6 +23,10 @@ final class MetadataProbe {
 
     func probe(url: URL) -> MediaCapability {
         guard fileManager.fileExists(atPath: url.path) else { return .unavailable }
+        let ext = url.pathExtension.lowercased()
+        if (ext == "ogg" || ext == "opus"), !Self.isValidOggContainer(url: url) {
+            return .decodeFailed(reason: "invalid_ogg_container")
+        }
 
         do {
             let file = try AVAudioFile(forReading: url)
@@ -42,11 +46,7 @@ final class MetadataProbe {
             )
             return .playable(ProbedMedia(url: url, descriptor: descriptor, frameCount: frameCount))
         } catch {
-            let ext = url.pathExtension.lowercased()
             if ext == "ogg" || ext == "opus" {
-                guard Self.isValidOggContainer(url: url) else {
-                    return .decodeFailed(reason: "invalid_ogg_container")
-                }
                 return .unsupported(reason: "decoder_unavailable_\(ext)")
             }
             return .decodeFailed(reason: "decoder_open_failed")
@@ -56,20 +56,31 @@ final class MetadataProbe {
     private static func isValidOggContainer(url: URL) -> Bool {
         guard let data = try? Data(contentsOf: url), data.count >= 28 else { return false }
         var offset = 0
-        var firstPacket = Data()
-        var recognizedIdentification = false
+        var packets: [Data] = []
+        var currentPacket = Data()
+        var packetContinues = false
         var firstPage = true
+        var serial: UInt32?
+        var expectedSequence: UInt32 = 0
+        var sawEOS = false
         while offset < data.count {
+            guard !sawEOS else { return false }
             guard data.count - offset >= 27,
                   data[offset ..< offset + 4].elementsEqual(Data("OggS".utf8)),
                   data[offset + 4] == 0 else { return false }
+            let headerType = data[offset + 5]
+            let pageSerial = littleEndianUInt32(data, at: offset + 14)
+            let sequence = littleEndianUInt32(data, at: offset + 18)
+            guard sequence == expectedSequence else { return false }
+            expectedSequence &+= 1
             if firstPage {
-                let headerType = data[offset + 5]
-                let sequence = UInt32(data[offset + 18]) | UInt32(data[offset + 19]) << 8 |
-                    UInt32(data[offset + 20]) << 16 | UInt32(data[offset + 21]) << 24
                 guard headerType & 0x02 != 0, headerType & 0x01 == 0, sequence == 0 else { return false }
+                serial = pageSerial
                 firstPage = false
+            } else {
+                guard headerType & 0x02 == 0, pageSerial == serial else { return false }
             }
+            guard (headerType & 0x01 != 0) == packetContinues else { return false }
             let segmentCount = Int(data[offset + 26])
             let tableStart = offset + 27
             guard data.count - tableStart >= segmentCount else { return false }
@@ -83,33 +94,77 @@ final class MetadataProbe {
             var payloadOffset = tableStart + segmentCount
             for index in 0 ..< segmentCount {
                 let length = Int(data[tableStart + index])
-                if !recognizedIdentification { firstPacket.append(data[payloadOffset ..< payloadOffset + length]) }
+                currentPacket.append(data[payloadOffset ..< payloadOffset + length])
                 payloadOffset += length
-                if !recognizedIdentification, length < 255 {
-                    recognizedIdentification = validOpusIdentification(firstPacket) || validVorbisIdentification(firstPacket)
-                    guard recognizedIdentification else { return false }
+                if length < 255 {
+                    packets.append(currentPacket)
+                    currentPacket.removeAll(keepingCapacity: true)
+                    packetContinues = false
+                } else {
+                    packetContinues = true
                 }
             }
+            if headerType & 0x04 != 0 { sawEOS = true }
             offset = next
         }
-        return recognizedIdentification
+        guard sawEOS, !packetContinues, currentPacket.isEmpty else { return false }
+        if packets.first.map(validOpusIdentification) == true {
+            return packets.count >= 3 && validOpusTags(packets[1]) && packets.dropFirst(2).contains(where: { !$0.isEmpty })
+        }
+        if packets.first.map(validVorbisIdentification) == true {
+            return packets.count >= 4 && validVorbisComment(packets[1]) && validVorbisSetup(packets[2]) &&
+                packets.dropFirst(3).contains(where: { !$0.isEmpty })
+        }
+        return false
     }
 
     private static func validOpusIdentification(_ packet: Data) -> Bool {
         guard packet.count >= 19,
               packet.prefix(8).elementsEqual(Data("OpusHead".utf8)),
-              packet[8] >= 1, packet[8] <= 15,
+              packet[8] <= 15,
               packet[9] > 0 else { return false }
         let channels = Int(packet[9])
         let mappingFamily = packet[18]
         if mappingFamily == 0 { return packet.count == 19 && channels <= 2 }
-        guard mappingFamily == 1, packet.count == 21 + channels else { return false }
+        guard mappingFamily == 1 || mappingFamily == 2 || mappingFamily == 3 || mappingFamily == 255,
+              mappingFamily != 1 || channels <= 8,
+              packet.count == 21 + channels else { return false }
         let streams = Int(packet[19])
         let coupled = Int(packet[20])
         let mappingsAreValid = packet[21 ..< 21 + channels].allSatisfy {
             Int($0) < streams + coupled
         }
-        return streams > 0 && coupled <= streams && streams + coupled <= channels && mappingsAreValid
+        return streams > 0 && coupled <= streams && mappingsAreValid
+    }
+
+    private static func validOpusTags(_ packet: Data) -> Bool {
+        guard packet.count >= 16, packet.prefix(8).elementsEqual(Data("OpusTags".utf8)) else { return false }
+        let vendorLength = Int(littleEndianUInt32(packet, at: 8))
+        guard vendorLength <= packet.count - 16 else { return false }
+        var offset = 12 + vendorLength
+        let commentCount = Int(littleEndianUInt32(packet, at: offset))
+        offset += 4
+        for _ in 0 ..< commentCount {
+            guard packet.count - offset >= 4 else { return false }
+            let length = Int(littleEndianUInt32(packet, at: offset))
+            offset += 4
+            guard length <= packet.count - offset else { return false }
+            offset += length
+        }
+        return offset == packet.count
+    }
+
+    private static func validVorbisComment(_ packet: Data) -> Bool {
+        packet.count >= 8 && packet.prefix(7).elementsEqual(Data([3]) + Data("vorbis".utf8)) && packet.last == 1
+    }
+
+    private static func validVorbisSetup(_ packet: Data) -> Bool {
+        packet.count >= 8 && packet.prefix(7).elementsEqual(Data([5]) + Data("vorbis".utf8)) && packet.last.map { $0 & 1 == 1 } == true
+    }
+
+    private static func littleEndianUInt32(_ data: Data, at offset: Int) -> UInt32 {
+        UInt32(data[offset]) | UInt32(data[offset + 1]) << 8 |
+            UInt32(data[offset + 2]) << 16 | UInt32(data[offset + 3]) << 24
     }
 
     private static func validVorbisIdentification(_ packet: Data) -> Bool {
