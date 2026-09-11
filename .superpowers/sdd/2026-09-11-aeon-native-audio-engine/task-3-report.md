@@ -1,9 +1,0 @@
-# Task 3 report: Native media storage and metadata probing
-
-Implemented canonical `Aeon/Media` storage with sibling `.incoming` staging, stable-ID and relative-path validation, synchronized transactional copies, verifier-gated replacement, stale-partial cleanup, and source preservation. Native references cannot escape the canonical media root. Legacy blobs return a structured migration-required error. External bookmarks are decoded with stale detection and retain balanced security-scoped access through `release(_:)` / `releaseAll()`; deterministic tests inject the platform-dependent bookmark and scope operations.
-
-`MetadataProbe` now returns normalized playable metadata (URL, source descriptor, frame count), unavailable for missing files, unsupported for OGG/OPUS decoder-open failures, and an explicit decode failure for corrupt or truncated known required containers. Duration is derived from frames/sample rate with a zero-rate guard; bit depth is reported only from reliable file settings.
-
-The standard-library fixture generator creates PCM16 stereo WAVs at 44.1/48/96 kHz, corrupt and truncated WAVs, and a continuous 48 kHz sine split for later exact gapless tests. It optionally uses ffmpeg for legal FLAC, ALAC/M4A, and MP3 fixtures when available. Two consecutive generator runs produced identical SHA-256 manifests. Linux `wave` validation confirmed each WAV header, rate, channel count, bit depth, and frame count.
-
-Native test evidence: the focused `npm run test:ios` command exited 127 both before and after implementation because `xcodebuild` is absent on this Linux host. The XCTest files and project wiring are prepared but not compiled or passed here. Bookmark API behavior and AVFoundation decoder results still require the macOS/Xcode gate; security-scope availability can vary by bookmark provenance and simulator environment.

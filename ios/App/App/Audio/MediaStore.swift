@@ -23,25 +23,58 @@ final class MediaStore: MediaResolving {
     private let bookmarkResolver: (Data) throws -> (URL, Bool)
     private let beginScopedAccess: (URL) -> Bool
     private let endScopedAccess: (URL) -> Void
+    private let commitImport: (URL, URL) throws -> Void
     private let accessLock = NSLock()
     private var activeScopedURLs: [URL: Int] = [:]
+    private let importLocksLock = NSLock()
+    private var importLocks: [String: NSLock] = [:]
+
+    convenience init(fileManager: FileManager = .default) throws {
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        try self.init(baseURL: applicationSupport, fileManager: fileManager)
+    }
 
     init(
         baseURL: URL,
         fileManager: FileManager = .default,
         bookmarkResolver: ((Data) throws -> (URL, Bool))? = nil,
         beginScopedAccess: @escaping (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
-        endScopedAccess: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() }
+        endScopedAccess: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() },
+        commitImport: ((URL, URL) throws -> Void)? = nil,
+        now: @escaping () -> Date = Date.init,
+        stalePartialInterval: TimeInterval = 24 * 60 * 60
     ) throws {
         self.fileManager = fileManager
         self.bookmarkResolver = bookmarkResolver ?? Self.resolveBookmark
         self.beginScopedAccess = beginScopedAccess
         self.endScopedAccess = endScopedAccess
+        self.commitImport = commitImport ?? { partial, destination in
+            if fileManager.fileExists(atPath: destination.path) {
+                _ = try fileManager.replaceItemAt(destination, withItemAt: partial, backupItemName: nil, options: [])
+            } else {
+                try fileManager.moveItem(at: partial, to: destination)
+            }
+        }
         let aeonRoot = baseURL.appendingPathComponent("Aeon", isDirectory: true)
         mediaRoot = aeonRoot.appendingPathComponent("Media", isDirectory: true)
         incomingRoot = aeonRoot.appendingPathComponent(".incoming", isDirectory: true)
         try fileManager.createDirectory(at: mediaRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: incomingRoot, withIntermediateDirectories: true)
+        for item in try fileManager.contentsOfDirectory(
+            at: incomingRoot,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) where item.pathExtension == "partial" {
+            let values = try? item.resourceValues(forKeys: [.contentModificationDateKey])
+            if let modified = values?.contentModificationDate,
+               now().timeIntervalSince(modified) >= stalePartialInterval {
+                try? fileManager.removeItem(at: item)
+            }
+        }
     }
 
     func mediaURL(stableID: String, fileExtension: String? = nil) -> URL {
@@ -59,6 +92,15 @@ final class MediaStore: MediaResolving {
         let ext = sourceURL.pathExtension.lowercased()
         guard Self.isSafeExtension(ext) else { throw MediaStoreError.invalidFileExtension }
 
+        let normalizedSource = sourceURL.standardizedFileURL.resolvingSymlinksInPath()
+        let normalizedIncoming = incomingRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let incomingPrefix = normalizedIncoming.path.hasSuffix("/") ? normalizedIncoming.path : normalizedIncoming.path + "/"
+        guard !normalizedSource.path.hasPrefix(incomingPrefix) else { throw MediaStoreError.unsafeRelativePath }
+
+        let importLock = lockForImport(stableID)
+        importLock.lock()
+        defer { importLock.unlock() }
+
         let partial = incomingRoot.appendingPathComponent("\(stableID).partial", isDirectory: false)
         let destination = mediaURL(stableID: stableID, fileExtension: ext)
         try? fileManager.removeItem(at: partial)
@@ -70,16 +112,21 @@ final class MediaStore: MediaResolving {
             handle.closeFile()
             guard try verifier(partial) else { throw MediaStoreError.verificationFailed }
 
-            if fileManager.fileExists(atPath: destination.path) {
-                _ = try fileManager.replaceItemAt(destination, withItemAt: partial, backupItemName: nil, options: [])
-            } else {
-                try fileManager.moveItem(at: partial, to: destination)
-            }
+            try commitImport(partial, destination)
             return destination
         } catch {
             try? fileManager.removeItem(at: partial)
             throw error
         }
+    }
+
+    private func lockForImport(_ stableID: String) -> NSLock {
+        importLocksLock.lock()
+        defer { importLocksLock.unlock() }
+        if let existing = importLocks[stableID] { return existing }
+        let created = NSLock()
+        importLocks[stableID] = created
+        return created
     }
 
     func resolve(_ reference: MediaReference) throws -> URL {

@@ -3,6 +3,12 @@ import XCTest
 
 final class MetadataProbeTests: XCTestCase {
     private var tempURL: URL!
+    private var fixturesURL: URL {
+        guard let root = Bundle(for: MetadataProbeTests.self).resourceURL else {
+            fatalError("AppTests resource bundle is unavailable")
+        }
+        return root.appendingPathComponent("audio", isDirectory: true)
+    }
 
     override func setUpWithError() throws {
         tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -13,50 +19,54 @@ final class MetadataProbeTests: XCTestCase {
 
     func testProbesNormalizedPCMMetadataAtRequiredRates() throws {
         for rate in [44_100, 48_000, 96_000] {
-            let url = tempURL.appendingPathComponent("pcm-\(rate).wav")
-            try makePCM16WAV(sampleRate: rate, channels: 2, frames: rate / 10).write(to: url)
+            let url = fixturesURL.appendingPathComponent("pcm-\(rate).wav")
             guard case .playable(let media) = MetadataProbe().probe(url: url) else {
                 return XCTFail("Expected playable WAV at \(rate) Hz")
             }
             XCTAssertEqual(media.url, url)
-            XCTAssertEqual(media.frameCount, Int64(rate / 10))
+            XCTAssertEqual(media.frameCount, Int64(rate / 4))
             XCTAssertEqual(media.descriptor.codec, "pcm_s16le")
             XCTAssertEqual(media.descriptor.container, "wav")
             XCTAssertEqual(media.descriptor.sampleRate, Double(rate))
             XCTAssertEqual(media.descriptor.channelCount, 2)
             XCTAssertEqual(media.descriptor.bitDepth, 16)
-            XCTAssertEqual(media.descriptor.duration ?? -1, 0.1, accuracy: 0.000_001)
+            XCTAssertEqual(media.descriptor.duration ?? -1, 0.25, accuracy: 0.000_001)
         }
     }
 
     func testMissingIsUnavailableAndCorruptKnownContainerIsDecodeFailed() throws {
         XCTAssertEqual(MetadataProbe().probe(url: tempURL.appendingPathComponent("missing.wav")), .unavailable)
-        let corrupt = tempURL.appendingPathComponent("corrupt.wav")
-        try Data("RIFF truncated".utf8).write(to: corrupt)
-        guard case .decodeFailed(let reason) = MetadataProbe().probe(url: corrupt) else {
-            return XCTFail("Corrupt WAV must not be guessed unsupported")
+        for name in ["corrupt.wav", "truncated.wav"] {
+            guard case .decodeFailed(let reason) = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
+                return XCTFail("\(name) must not be guessed unsupported")
+            }
+            XCTAssertFalse(reason.isEmpty)
         }
-        XCTAssertFalse(reason.isEmpty)
     }
 
     func testKnownOggDecoderFailureIsUnsupported() throws {
-        let ogg = tempURL.appendingPathComponent("unsupported.ogg")
-        try Data("OggS invalid".utf8).write(to: ogg)
-        guard case .unsupported(let reason) = MetadataProbe().probe(url: ogg) else {
-            return XCTFail("OGG decoder-open failure must be explicit")
+        let corrupt = fixturesURL.appendingPathComponent("corrupt.ogg")
+        guard case .decodeFailed = MetadataProbe().probe(url: corrupt) else {
+            return XCTFail("Malformed OGG must be decodeFailed")
         }
-        XCTAssertFalse(reason.isEmpty)
+        switch MetadataProbe().probe(url: fixturesURL.appendingPathComponent("valid-opus.ogg")) {
+        case .playable, .unsupported: break
+        default: XCTFail("Structurally valid OGG must have an explicit playable or unsupported outcome")
+        }
     }
 
-    private func makePCM16WAV(sampleRate: Int, channels: Int, frames: Int) -> Data {
-        let bytes = frames * channels * 2
-        var data = Data()
-        func text(_ value: String) { data.append(contentsOf: value.utf8) }
-        func u16(_ value: Int) { data.append(UInt8(value & 0xff)); data.append(UInt8((value >> 8) & 0xff)) }
-        func u32(_ value: Int) { for shift in stride(from: 0, through: 24, by: 8) { data.append(UInt8((value >> shift) & 0xff)) } }
-        text("RIFF"); u32(36 + bytes); text("WAVEfmt "); u32(16); u16(1); u16(channels)
-        u32(sampleRate); u32(sampleRate * channels * 2); u16(channels * 2); u16(16)
-        text("data"); u32(bytes); data.append(Data(repeating: 0, count: bytes))
-        return data
+    func testCompressedCapabilityMatrixAndGaplessFixtureShape() throws {
+        for name in ["tone-48000.flac", "tone-48000.m4a", "tone-48000.mp3"] {
+            guard case .playable = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
+                return XCTFail("Required compressed fixture \(name) must be playable")
+            }
+        }
+        for name in ["gapless-a.wav", "gapless-b.wav"] {
+            guard case .playable(let media) = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
+                return XCTFail("Missing gapless fixture \(name)")
+            }
+            XCTAssertEqual(media.descriptor.sampleRate, 48_000)
+            XCTAssertEqual(media.frameCount, 2_400)
+        }
     }
 }

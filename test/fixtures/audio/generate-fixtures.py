@@ -30,7 +30,10 @@ def write_wav(path: Path, sample_rate: int, values: list[int], channels: int = 2
 
 def optional_compressed(source: Path) -> None:
     ffmpeg = shutil.which("ffmpeg")
+    destinations = [ROOT / f"tone-48000.{suffix}" for suffix in ("flac", "m4a", "mp3")]
     if not ffmpeg:
+        for destination in destinations:
+            destination.unlink(missing_ok=True)
         return
     formats = (("flac", ["-c:a", "flac"]), ("m4a", ["-c:a", "alac"]), ("mp3", ["-c:a", "libmp3lame"]))
     for suffix, args in formats:
@@ -39,6 +42,12 @@ def optional_compressed(source: Path) -> None:
             [ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-i", str(source), *args, str(destination)],
             check=True,
         )
+
+
+def write_minimal_ogg(path: Path) -> None:
+    packet = b"OpusHead" + bytes([1, 2]) + struct.pack("<HIhB", 312, 48_000, 0, 0)
+    header = b"OggS" + bytes([0, 2]) + struct.pack("<QIIIB", 0, 1, 0, 0, 1)
+    path.write_bytes(header + bytes([len(packet)]) + packet)
 
 
 def main() -> None:
@@ -54,6 +63,8 @@ def main() -> None:
     valid = (ROOT / "pcm-48000.wav").read_bytes()
     (ROOT / "truncated.wav").write_bytes(valid[:40])
     (ROOT / "corrupt.wav").write_bytes(b"RIFF\x04\x00\x00\x00NOPE")
+    (ROOT / "corrupt.ogg").write_bytes(b"OggS invalid")
+    write_minimal_ogg(ROOT / "valid-opus.ogg")
     optional_compressed(ROOT / "pcm-48000.wav")
 
 

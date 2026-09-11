@@ -44,10 +44,33 @@ final class MetadataProbe {
         } catch {
             let ext = url.pathExtension.lowercased()
             if ext == "ogg" || ext == "opus" {
+                guard Self.isValidOggContainer(url: url) else {
+                    return .decodeFailed(reason: "invalid_ogg_container")
+                }
                 return .unsupported(reason: "decoder_unavailable_\(ext)")
             }
             return .decodeFailed(reason: "decoder_open_failed")
         }
+    }
+
+    private static func isValidOggContainer(url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url), data.count >= 28 else { return false }
+        var offset = 0
+        var sawCompletePacket = false
+        while offset < data.count {
+            guard data.count - offset >= 27,
+                  data[offset ..< offset + 4].elementsEqual(Data("OggS".utf8)),
+                  data[offset + 4] == 0 else { return false }
+            let segmentCount = Int(data[offset + 26])
+            let tableStart = offset + 27
+            guard data.count - tableStart >= segmentCount else { return false }
+            let payloadSize = (0 ..< segmentCount).reduce(0) { $0 + Int(data[tableStart + $1]) }
+            let next = tableStart + segmentCount + payloadSize
+            guard next <= data.count else { return false }
+            if segmentCount > 0, data[tableStart + segmentCount - 1] < 255 { sawCompletePacket = true }
+            offset = next
+        }
+        return offset == data.count && sawCompletePacket
     }
 
     private static func container(for url: URL) -> String? {
