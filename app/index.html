@@ -1062,7 +1062,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <body data-tab="sky">
 <div id="airlock" role="region" aria-label="Spaceship door opening">
   <div class="airlock-jamb" aria-hidden="true"></div>
-  <div class="airlock-door port" aria-hidden="true"><div class="door-inset"></div><div class="door-rib"></div><div class="door-latch"></div><span class="door-id">AEON / 042</span></div>
+  <div class="airlock-door port" aria-hidden="true"><div class="door-inset"></div><div class="door-rib"></div><div class="door-latch"></div><span class="door-id">AEON / 046</span></div>
   <div class="airlock-door starboard" aria-hidden="true"><div class="door-inset"></div><div class="door-rib"></div><div class="door-latch"></div><span class="door-id">OBSERVATION BAY</span></div>
   <div class="airlock-caption"><span>AEON</span><small id="airlockStatus">PRESSURIZING</small></div>
   <button id="airlockSkip" aria-label="Skip opening animation">ENTER SKY</button>
@@ -1084,9 +1084,9 @@ input[type=range].hseek::-webkit-slider-thumb{
   </div>
   <div id="starLabel"></div>
   <div id="voidInvite">
-    <h2>The void is listening.</h2>
-    <button class="btn hot" id="inviteImport">LIGHT THE FIRST STAR</button>
-    <div style="margin-top:12px"><button class="btn small ghost" id="inviteGuide">WHERE?</button></div>
+    <h2>A place for<br>your records.</h2>
+    <button class="btn hot" id="inviteImport">IMPORT MUSIC</button>
+    <div style="margin-top:12px"><button class="btn small ghost" id="inviteGuide">HOW IT WORKS</button></div>
   </div>
   <button id="shareSky" style="display:none" aria-label="Snap and share a picture of your sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13 2.5L6.5 13h4l-1.5 8.5L15.5 11h-4Z"/><path d="M18.5 4.5l2-2" opacity=".6"/><path d="M20 9.5h2.5" opacity=".6"/><path d="M4.5 19l-2 2" opacity=".6"/></svg></button>
   <div id="ceremonyBanner">
@@ -1099,13 +1099,13 @@ input[type=range].hseek::-webkit-slider-thumb{
 <div class="panel" id="panel-library" role="region" aria-label="Library">
   <div class="p-head">
     <div class="collection-kicker">AEON / YOUR COLLECTION</div><div class="collection-heading"><h1>Library</h1><button id="libraryImport" class="round-action" aria-label="Import music">+</button></div>
-    <div class="p-sub" id="libSub">Every album here is a star in the sky.</div>
+    <div class="p-sub" id="libSub">Your records. Their own universe.</div>
   </div>
   <section id="listeningCard" aria-label="Continue listening" hidden>
     <button id="listeningOpen" aria-label="Open featured album"><img id="listeningArt" alt=""></button>
     <div class="listening-copy"><div id="listeningLabel" class="collection-kicker">FROM YOUR COLLECTION</div>
       <button id="listeningDetails"><span id="listeningTitle"></span><span id="listeningArtist"></span></button>
-      <button id="listeningPlay" class="listening-play"><span id="listeningPlayLabel">Listen</span></button>
+      <button id="listeningPlay" class="listening-play" aria-label="Play featured selection"><span id="listeningPlayGlyph" aria-hidden="true"></span></button>
     </div>
   </section>
   <div class="library-tools"><span id="libraryCount"></span><div class="view-switch" aria-label="Library layout">
@@ -1129,7 +1129,7 @@ input[type=range].hseek::-webkit-slider-thumb{
   <div id="libMore" aria-hidden="true"></div>
   <div id="libNoMatch" class="empty" style="display:none">
     <div class="e-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></div>
-    <i>Nothing answers to that.</i>
+    <i>No matching records.</i>
   </div>
   <div id="libEmpty" class="empty" style="display:none">
     <div class="e-g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M12 3l1.8 7.2L21 12l-7.2 1.8L12 21l-1.8-7.2L3 12l7.2-1.8Z"/></svg></div>
@@ -1137,9 +1137,9 @@ input[type=range].hseek::-webkit-slider-thumb{
     <div class="btnrow" style="justify-content:center"><button class="btn small ghost" id="emptyGuide">START</button></div>
   </div>
   <div class="card" id="recsCard">
-    <h3>Waiting on a second star</h3>
+    <h3>Complete the collection</h3>
     <div class="c-note">Artists you own one record by.</div>
-    <div class="btnrow"><button class="btn hot small" id="btnRecs">FIND THE GAPS</button></div>
+    <div class="btnrow"><button class="btn hot small" id="btnRecs">EXPLORE ARTISTS</button></div>
     <div id="recsGrid"></div>
     <div id="recsNote" class="c-note" style="display:none;margin-top:10px"></div>
   </div>
@@ -1164,7 +1164,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <div class="panel" id="panel-log" role="region" aria-label="Log">
   <div class="p-head">
     <h1>Activity</h1>
-    <div class="p-sub">Everything the sky has done while you watched.</div>
+    <div class="p-sub">Your listening and collection history.</div>
   </div>
   <div class="card"><div id="logList"></div></div>
 </div>
@@ -1172,7 +1172,7 @@ input[type=range].hseek::-webkit-slider-thumb{
 <!-- ═══ SETTINGS ═══ -->
 <div class="panel" id="panel-settings" role="region" aria-label="Settings">
   <div class="p-head">
-    <div class="collection-kicker">MAKE IT YOURS</div><h1>Settings</h1><button class="text-action" id="activityBtn">Listening activity</button>
+    <div class="collection-kicker">AEON / PREFERENCES</div><h1>Settings</h1><button class="text-action" id="activityBtn">Listening activity</button>
   </div>
 
   <div class="card">
@@ -1204,13 +1204,13 @@ input[type=range].hseek::-webkit-slider-thumb{
   </div>
 
   <div class="card">
-    <h3>Mock stars</h3>
-    <div class="c-note">Silent placeholders.</div>
+    <h3>Preview the sky</h3>
+    <div class="c-note">Add silent sample records to explore the sky.</div>
     <div class="btnrow">
       <button class="btn small" id="mock1">+1</button>
       <button class="btn small" id="mock20">+20</button>
       <button class="btn small" id="mock100">FILL TO 100</button>
-      <button class="btn small ghost" id="mockClear">REMOVE MOCKS</button>
+      <button class="btn small ghost" id="mockClear">REMOVE SAMPLES</button>
     </div>
   </div>
 
@@ -1265,7 +1265,7 @@ input[type=range].hseek::-webkit-slider-thumb{
       <button class="btn small danger" id="btnWipe">ERASE</button>
     </div>
   </div>
-  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.4.2 · YOUR MUSIC, YOUR DEVICE</div>
+  <div style="text-align:center;color:var(--faint);font-size:10.5px;letter-spacing:.24em;margin-top:22px">AEON / 4.6.1 · YOUR MUSIC, YOUR DEVICE</div>
 </div>
 
 <!-- ═══ transport + dock ═══ -->
@@ -4277,7 +4277,7 @@ const sky=(()=>{
       return!(overhead&&y<G.ly-G.r*SQ+r*.4&&y>G.ly-G.r*SQ-130-r*.5);
     });
     for(let p=0;p<nP;p++){
-      const r=96+((hashStr("p"+p+skySeed)%48));
+      const r=124+((hashStr("p"+p+skySeed)%64));
       const spinP=spin+(hashStr("orb"+p+skySeed)%628)/100;
       const free=(x,y)=>clearOfSky(x,y,r)
         &&planets.every(q=>Math.hypot(q.x-x,q.y-y)>(q.r+r)*2.1);
@@ -4696,7 +4696,7 @@ const sky=(()=>{
   /* Painted once, at a size that survives being zoomed into, and never
      touched again. The night side and the sun-struck rim are baked in
      with it, so the light on a world costs nothing to keep. */
-  const SPRITE=640;
+  const SPRITE=896;
   // High-resolution discs only for nearby worlds; distant worlds use a smaller
   // surface. A bounded cache prevents large libraries accumulating texture RAM.
   const worldCache=new Map();
@@ -4771,14 +4771,14 @@ const sky=(()=>{
     let sprite=worldCache.get(key);
     if(!sprite){
       const oldest=worldCache.values().next().value;
-      if(!textureBudget||(worldCache.size>=24&&oldest._seen>=drawn-1)){
+      if(!textureBudget||(worldCache.size>=16&&oldest._seen>=drawn-1)){
         if(!p.thumbnail)p.thumbnail=bakeWorld(p,96);
         p.sprite=p.thumbnail;return p.thumbnail;
       }
       textureBudget--;sprite=bakeWorld(p,size);worldCache.set(key,sprite);
     }else{worldCache.delete(key);worldCache.set(key,sprite)}
     sprite._seen=drawn;
-    while(worldCache.size>24){
+    while(worldCache.size>16){
       const first=worldCache.keys().next().value,old=worldCache.get(first);worldCache.delete(first);
       for(const world of planets)if(world.sprite===old)world.sprite=null;
     }
@@ -4798,6 +4798,48 @@ const sky=(()=>{
     }
     x2.restore();
   }
+  function worldHalo(x2,p,t,R,ease,P){
+    const breathe=REDUCED?0:.5+.5*Math.sin(t/2400+p.effectPhase*2.1);
+    x2.save();x2.globalCompositeOperation="screen";
+    const halo=x2.createRadialGradient(0,0,R*.78,0,0,R*(1.34+breathe*.025));
+    halo.addColorStop(0,"rgba(0,0,0,0)");
+    halo.addColorStop(.64,hexA(P.c,.018*ease));
+    halo.addColorStop(.86,hexA(P.c,(.052+breathe*.018)*ease));
+    halo.addColorStop(1,"rgba(0,0,0,0)");
+    x2.fillStyle=halo;x2.beginPath();x2.arc(0,0,R*1.38,0,Math.PI*2);x2.fill();
+    // Two nearly invisible displaced arcs read as optical lensing rather than glow.
+    x2.globalAlpha=(.09+breathe*.035)*ease;x2.strokeStyle="#dfe9ff";
+    x2.lineWidth=Math.max(.45/cam.s,R*.0032);
+    x2.beginPath();x2.arc(-R*.018,R*.012,R*1.075,p.effectPhase,p.effectPhase+Math.PI*.76);x2.stroke();
+    x2.globalAlpha*=.46;x2.strokeStyle="#ffd9f3";
+    x2.beginPath();x2.arc(R*.016,-R*.008,R*1.087,p.effectPhase+Math.PI,p.effectPhase+Math.PI*1.68);x2.stroke();
+    x2.restore();
+  }
+  function worldSignature(x2,p,t,R,P,ease){
+    if(REDUCED)return;
+    const phase=t/1000+p.effectPhase,mode=p.revealStyle;
+    x2.save();x2.globalCompositeOperation="screen";x2.strokeStyle=P.c;x2.fillStyle=P.c;
+    if(mode===0){
+      x2.globalAlpha=.07*ease;x2.lineWidth=Math.max(.45/cam.s,R*.003);
+      for(let i=0;i<3;i++){const yy=(-.25+i*.23)*R+Math.sin(phase*.35+i)*R*.025;x2.beginPath();x2.ellipse(0,yy,R*.83,R*.09,0,0,Math.PI*2);x2.stroke()}
+    }else if(mode===1){
+      const a=phase*.23,d=R*1.18;x2.globalAlpha=.22*ease;x2.beginPath();x2.arc(Math.cos(a)*d,Math.sin(a)*d*.55,Math.max(1.2/cam.s,R*.012),0,Math.PI*2);x2.fill();
+    }else if(mode===2){
+      x2.globalAlpha=.12*ease;x2.lineWidth=Math.max(.55/cam.s,R*.004);x2.beginPath();x2.arc(0,0,R*1.12,phase*.22,phase*.22+Math.PI*.9);x2.stroke();
+    }else if(mode===3){
+      x2.globalAlpha=(.06+.08*Math.max(0,Math.sin(phase*1.4)))*ease;x2.lineWidth=Math.max(.45/cam.s,R*.0025);
+      for(let i=0;i<4;i++){const a=p.effectPhase+i*1.57,d=R*(.58+i*.08);x2.beginPath();x2.moveTo(Math.cos(a)*d,Math.sin(a)*d);x2.lineTo(Math.cos(a)*(d+R*.13),Math.sin(a)*(d+R*.13));x2.stroke()}
+    }else if(mode===4){
+      x2.globalAlpha=.09*ease;x2.lineWidth=Math.max(.6/cam.s,R*.004);for(let i=0;i<2;i++){x2.beginPath();x2.arc(0,-R*.12,R*(.72+i*.05),Math.PI*1.07,Math.PI*1.93);x2.stroke()}
+    }else if(mode===5){
+      x2.globalAlpha=(.045+.035*(.5+.5*Math.sin(phase*.8)))*ease;x2.lineWidth=Math.max(.5/cam.s,R*.0035);x2.beginPath();x2.arc(0,0,R*(1.025+.008*Math.sin(phase*.8)),0,Math.PI*2);x2.stroke();
+    }else if(mode===6){
+      x2.globalAlpha=.075*ease;x2.lineWidth=Math.max(.45/cam.s,R*.003);x2.rotate(p.tilt);for(let i=-1;i<=1;i++){x2.beginPath();x2.moveTo(-R*.58,i*R*.15);x2.lineTo(R*.58,i*R*.15+Math.sin(phase*.45+i)*R*.035);x2.stroke()}
+    }else{
+      x2.globalAlpha=.08*ease;x2.lineWidth=Math.max(.5/cam.s,R*.0035);x2.beginPath();for(let i=0;i<=28;i++){const f=i/28,a=phase*.12+f*Math.PI*3.2,rr=R*(.18+f*.7);const xx=Math.cos(a)*rr,yy=Math.sin(a)*rr*.72;i?x2.lineTo(xx,yy):x2.moveTo(xx,yy)}x2.stroke();
+    }
+    x2.restore();
+  }
   function drawPlanet(x2,p,t){
     const age=REDUCED?1:clamp((t-p.born)/(2200+p.revealStyle*110),0,1);
     if(age<=0)return;
@@ -4805,6 +4847,7 @@ const sky=(()=>{
     const R=p.r*(style===3?.65+.35*ease:.94+.06*ease);
     const sprite=worldSprite(p);
     x2.save();x2.translate(p.x,p.y);x2.globalAlpha=ease;
+    worldHalo(x2,p,t,R,ease,P);
     if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.42*ease,false,P);x2.restore()}
     x2.save();
     // Eight reveal families, with per-world timing, angle and palette.
@@ -4819,13 +4862,14 @@ const sky=(()=>{
       else x2.rect(-R,-R,2*R,2*R);
       x2.clip();
     }
-    x2.rotate(p.tilt*.5+(style===7?(1-ease)*.8:0));
+    x2.rotate(p.tilt*.5+(style===7?(1-ease)*.8:0)+(REDUCED?0:Math.sin(t/11000+p.effectPhase)*.014));
     x2.imageSmoothingEnabled=true;x2.imageSmoothingQuality="high";
     x2.drawImage(sprite,-R,-R,R*2,R*2);x2.restore();
     if(p.ring){x2.save();x2.rotate(p.tilt);ringHalf(x2,R,.78*ease,true,P);x2.restore()}
     // A thin atmosphere: light gathers on the sunward limb, not a neon outline.
     x2.globalAlpha=ease*.35;x2.strokeStyle=P.c;x2.lineWidth=Math.max(.5/cam.s,R*.008);
     x2.beginPath();x2.arc(0,0,R*1.01,Math.PI*.92,Math.PI*1.8);x2.stroke();
+    worldSignature(x2,p,t,R,P,ease);
     if(age<1&&style===3){x2.globalAlpha=(1-age)*.5;x2.strokeStyle=P.a;x2.lineWidth=2/cam.s;x2.beginPath();x2.arc(0,0,R*(1+age*.8),0,Math.PI*2);x2.stroke()}
     x2.restore();
   }
@@ -5452,8 +5496,16 @@ function refreshListeningCard(){
   $("#listeningLabel").textContent=active?(!audio.paused?"NOW PLAYING":"CONTINUE LISTENING"):"FROM YOUR COLLECTION";
   $("#listeningTitle").textContent=active?track.title:album.title;
   $("#listeningArtist").textContent=active?(track.artist||album.artist):album.artist;
-  $("#listeningPlayLabel").textContent=active?(!audio.paused?"Pause":"Resume"):"Listen";
-  $("#listeningPlay").setAttribute("aria-label",active?(!audio.paused?"Pause playback":"Resume playback"):"Play "+album.title);
+  const listeningPlay=$("#listeningPlay");
+  if(active){
+    listeningPlay.innerHTML=audio.paused?ICO.play:ICO.pause;
+    listeningPlay.dataset.state=audio.paused?"paused":"playing";
+    listeningPlay.setAttribute("aria-label",audio.paused?"Resume playback":"Pause playback");
+  }else{
+    listeningPlay.innerHTML=ICO.play;
+    listeningPlay.dataset.state="idle";
+    listeningPlay.setAttribute("aria-label","Play "+album.title);
+  }
 }
 $("#libraryImport").addEventListener("click",()=>openSheet("sheetImport"));
 $("#activityBtn").addEventListener("click",()=>switchTab("log"));

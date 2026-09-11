@@ -20,6 +20,10 @@ target 'App' do
   # Add your Pods here
 end
 
+target 'AppTests' do
+  inherit! :search_paths
+end
+
 post_install do |installer|
   assertDeploymentTarget(installer)
 end

@@ -14,7 +14,8 @@
     "fixtures": "python3 test/fixtures.py",
     "test:interface": "node test/interface.mjs",
     "test:arrival": "node test/arrival.mjs",
-    "test:sky-chrome": "node test/sky-chrome.mjs"
+    "test:sky-chrome": "node test/sky-chrome.mjs",
+    "test:ios": "xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0",
