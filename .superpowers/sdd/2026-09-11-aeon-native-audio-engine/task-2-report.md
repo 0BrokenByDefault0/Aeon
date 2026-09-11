@@ -54,3 +54,35 @@ This is environmental evidence only. It does not show the intended red compile f
 ## Remaining gate
 
 Run the focused XCTest command on macOS with Xcode, then investigate any compiler or runtime failures before treating Task 2 as verified.
+
+## Review changes
+
+The requested review fixes were applied in a follow-up commit:
+
+- Startup now sanitizes and applies both bounds to decoded JSON-lines, then best-effort atomically rewrites an existing log. Failure to rewrite during non-throwing initialization does not crash; the in-memory view remains sanitized and bounded.
+- Route names are canonicalized to `AudioRouteKind.rawValue`. Codec/container values are lowercased only when present in explicit stable allowlists; arbitrary device labels and hostile free text are omitted.
+- `record` now stages and bounds a candidate ring, persists it atomically, and replaces the in-memory ring only after persistence succeeds. A deterministic invalid-parent test confirms write failure leaves entries unchanged.
+- `StateVersionClock.next()` now returns `UInt64?`: it returns the next strictly increasing value or `nil` at exhaustion. This is a deliberate small compatibility change because neither crashing nor returning `UInt64.max` repeatedly satisfies the monotonic-increase contract.
+- Snapshot timestamps have an explicit seconds-since-Unix-epoch JSON convention. Tests lock the timestamp value, optional `null` fields and their decoding, missing-schema rejection, existing-log sanitization/count/byte rewrites, and zero count/byte behavior.
+
+Review-cycle focused test command:
+
+```text
+npm run test:ios -- -only-testing:AppTests/PlaybackModelsTests -only-testing:AppTests/PlaybackStateStoreTests
+```
+
+Pre-fix/red invocation output and exit status:
+
+```text
+sh: 1: xcodebuild: not found
+exit 127
+```
+
+Post-fix invocation output and exit status:
+
+```text
+sh: 1: xcodebuild: not found
+exit 127
+```
+
+This Linux environment still cannot provide native compilation or XCTest pass evidence.

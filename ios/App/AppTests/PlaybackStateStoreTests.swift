@@ -23,6 +23,16 @@ final class PlaybackStateStoreTests: XCTestCase {
         XCTAssertNil(PlaybackStateStore(baseURL: baseURL).load())
     }
 
+    func testLoadRejectsMissingSchema() throws {
+        let baseURL = temporaryDirectory()
+        try FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(makeSnapshot(version: 1))) as? [String: Any])
+        object.removeValue(forKey: "schemaVersion")
+        try JSONSerialization.data(withJSONObject: object).write(to: baseURL.appendingPathComponent("transport-v1.json"), options: .atomic)
+
+        XCTAssertNil(PlaybackStateStore(baseURL: baseURL).load())
+    }
+
     func testLoadRejectsCorruptDataWithoutChangingIt() throws {
         let baseURL = temporaryDirectory()
         try FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
@@ -97,6 +107,70 @@ final class PlaybackStateStoreTests: XCTestCase {
         XCTAssertFalse(text.contains("Users"))
     }
 
+    func testDiagnosticsCanonicalizeRouteAndFormatText() throws {
+        let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
+        let log = DiagnosticsLog(url: url)
+        let route = RouteDescriptor(kind: .bluetooth, name: "Alice's AirPods with secret label", sampleRate: 48_000, channelCount: 2)
+        let source = SourceFormatDescriptor(codec: "FLAC", container: "hostile free text", sampleRate: 96_000, channelCount: 2, bitDepth: 24, duration: 3)
+        try log.record(eventCode: "SOURCE_OPENED", sourceFormat: source, route: route)
+
+        let entry = try XCTUnwrap(log.entries().first)
+        XCTAssertEqual(entry.route?.name, "bluetooth")
+        XCTAssertEqual(entry.sourceFormat?.codec, "flac")
+        XCTAssertNil(entry.sourceFormat?.container)
+        XCTAssertFalse(try String(contentsOf: url).contains("Alice"))
+        XCTAssertFalse(try String(contentsOf: url).contains("hostile"))
+    }
+
+    func testDiagnosticsInitRewritesLoadedContentSanitizedAndBounded() throws {
+        let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let hostile = DiagnosticEntry.fixture(eventCode: "/private/event", trackID: "/private/track")
+        let encoder = JSONEncoder()
+        let original = (0..<5).map { _ in try! encoder.encode(hostile) + Data([0x0A]) }.reduce(Data(), +)
+        try original.write(to: url)
+
+        let log = DiagnosticsLog(url: url, maxEntryCount: 2, maxByteCount: 4_096)
+
+        XCTAssertEqual(log.entries().count, 2)
+        let persisted = try String(contentsOf: url)
+        XCTAssertEqual(persisted.split(separator: "\n").count, 2)
+        XCTAssertFalse(persisted.contains("/private"))
+    }
+
+    func testDiagnosticsInitRewritesLoadedContentToByteLimit() throws {
+        let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let entry = DiagnosticEntry.fixture(eventCode: "ENGINE_START", trackID: String(repeating: "x", count: 200))
+        let encoded = try JSONEncoder().encode(entry) + Data([0x0A])
+        try (encoded + encoded).write(to: url)
+
+        let log = DiagnosticsLog(url: url, maxEntryCount: 10, maxByteCount: 1)
+
+        XCTAssertTrue(log.entries().isEmpty)
+        XCTAssertEqual(try Data(contentsOf: url), Data())
+    }
+
+    func testDiagnosticsFailedWriteLeavesRingUnchanged() throws {
+        let parentFile = temporaryDirectory().appendingPathComponent("not-a-directory")
+        try FileManager.default.createDirectory(at: parentFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("file".utf8).write(to: parentFile)
+        let log = DiagnosticsLog(url: parentFile.appendingPathComponent("audio.jsonl"))
+
+        XCTAssertThrowsError(try log.record(eventCode: "ENGINE_START"))
+        XCTAssertTrue(log.entries().isEmpty)
+    }
+
+    func testDiagnosticsZeroBoundsPersistAnEmptyValidJSONLinesFile() throws {
+        let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
+        let log = DiagnosticsLog(url: url, maxEntryCount: 0, maxByteCount: 0)
+
+        try log.record(eventCode: "ENGINE_START")
+
+        XCTAssertTrue(log.entries().isEmpty)
+        XCTAssertEqual(try Data(contentsOf: url), Data())
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     }
@@ -110,5 +184,14 @@ final class PlaybackStateStoreTests: XCTestCase {
             route: nil, sourceFormat: nil, outputFormat: nil,
             timestamp: Date(timeIntervalSince1970: 100)
         )
+    }
+}
+
+private extension DiagnosticEntry {
+    static func fixture(eventCode: String, trackID: String?) -> DiagnosticEntry {
+        let data = Data("""
+        {"timestamp":0,"eventCode":"\(eventCode)","trackID":"\(trackID ?? "")","sourceFormat":null,"outputFormat":null,"route":null,"recoverable":null,"fileExtension":null}
+        """.utf8)
+        return try! JSONDecoder().decode(DiagnosticEntry.self, from: data)
     }
 }

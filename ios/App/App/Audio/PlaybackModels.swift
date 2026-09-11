@@ -163,6 +163,27 @@ struct PlaybackSnapshot: Codable, Equatable {
         self.timestamp = timestamp
     }
 
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        version = try container.decode(UInt64.self, forKey: .version)
+        trackID = try container.decodeIfPresent(String.self, forKey: .trackID)
+        queueRevision = try container.decode(UInt64.self, forKey: .queueRevision)
+        queue = try container.decode([QueueItem].self, forKey: .queue)
+        queueIndex = try container.decodeIfPresent(Int.self, forKey: .queueIndex)
+        position = try container.decode(Double.self, forKey: .position)
+        intent = try container.decode(PlaybackIntent.self, forKey: .intent)
+        replayGainMode = try container.decode(ReplayGainMode.self, forKey: .replayGainMode)
+        replayGainPreampDB = try container.decode(Double.self, forKey: .replayGainPreampDB)
+        masterVolume = try container.decode(Double.self, forKey: .masterVolume)
+        eqEnabled = try container.decode(Bool.self, forKey: .eqEnabled)
+        eqBands = try container.decode([EQBand].self, forKey: .eqBands)
+        route = try container.decodeIfPresent(RouteDescriptor.self, forKey: .route)
+        sourceFormat = try container.decodeIfPresent(SourceFormatDescriptor.self, forKey: .sourceFormat)
+        outputFormat = try container.decodeIfPresent(OutputFormatDescriptor.self, forKey: .outputFormat)
+        timestamp = Date(timeIntervalSince1970: try container.decode(Double.self, forKey: .timestamp))
+    }
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(schemaVersion, forKey: .schemaVersion)
@@ -181,7 +202,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         try container.encode(route, forKey: .route)
         try container.encode(sourceFormat, forKey: .sourceFormat)
         try container.encode(outputFormat, forKey: .outputFormat)
-        try container.encode(timestamp, forKey: .timestamp)
+        try container.encode(timestamp.timeIntervalSince1970, forKey: .timestamp)
     }
 }
 
@@ -200,10 +221,10 @@ final class StateVersionClock {
         value = seed
     }
 
-    func next() -> UInt64 {
+    func next() -> UInt64? {
         lock.lock()
         defer { lock.unlock() }
-        precondition(value < UInt64.max, "State version exhausted")
+        guard value < UInt64.max else { return nil }
         value += 1
         return value
     }

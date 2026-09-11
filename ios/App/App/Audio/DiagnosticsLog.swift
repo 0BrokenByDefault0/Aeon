@@ -52,6 +52,9 @@ final class DiagnosticsLog {
         ring = Self.readEntries(from: url)
         ring = Array(ring.suffix(self.maxEntryCount))
         Self.trimToByteLimit(&ring, maxByteCount: self.maxByteCount)
+        if fileManager.fileExists(atPath: url.path) {
+            try? Self.persist(ring, to: url, fileManager: fileManager)
+        }
     }
 
     func record(
@@ -77,15 +80,12 @@ final class DiagnosticsLog {
 
         lock.lock()
         defer { lock.unlock() }
-        ring.append(entry)
-        ring = Array(ring.suffix(maxEntryCount))
-        Self.trimToByteLimit(&ring, maxByteCount: maxByteCount)
-        try fileManager.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-        try Self.encodedJSONLines(ring).write(to: url, options: .atomic)
+        var candidate = ring
+        candidate.append(entry)
+        candidate = Array(candidate.suffix(maxEntryCount))
+        Self.trimToByteLimit(&candidate, maxByteCount: maxByteCount)
+        try Self.persist(candidate, to: url, fileManager: fileManager)
+        ring = candidate
     }
 
     func entries() -> [DiagnosticEntry] {
@@ -110,6 +110,15 @@ final class DiagnosticsLog {
             data.append(0x0A)
         }
         return data
+    }
+
+    private static func persist(_ entries: [DiagnosticEntry], to url: URL, fileManager: FileManager) throws {
+        try fileManager.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
+        try encodedJSONLines(entries).write(to: url, options: .atomic)
     }
 
     private static func trimToByteLimit(_ entries: inout [DiagnosticEntry], maxByteCount: Int) {
@@ -137,8 +146,8 @@ final class DiagnosticsLog {
 
     private static func sanitize(_ value: SourceFormatDescriptor) -> SourceFormatDescriptor {
         SourceFormatDescriptor(
-            codec: value.codec.map(sanitize),
-            container: value.container.map(sanitize),
+            codec: canonicalFormat(value.codec, allowed: ["aac", "aiff", "alac", "flac", "mp3", "ogg", "opus", "pcm", "wav"]),
+            container: canonicalFormat(value.container, allowed: ["aiff", "caf", "flac", "m4a", "mp3", "ogg", "wav"]),
             sampleRate: value.sampleRate,
             channelCount: value.channelCount,
             bitDepth: value.bitDepth,
@@ -149,10 +158,18 @@ final class DiagnosticsLog {
     private static func sanitize(_ value: RouteDescriptor) -> RouteDescriptor {
         RouteDescriptor(
             kind: value.kind,
-            name: sanitize(value.name),
+            name: value.kind.rawValue,
             sampleRate: value.sampleRate,
             channelCount: value.channelCount
         )
+    }
+
+    private static func canonicalFormat(_ value: String?, allowed: Set<String>) -> String? {
+        guard let token = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              allowed.contains(token) else {
+            return nil
+        }
+        return token
     }
 
     private static func sanitize(_ value: OutputFormatDescriptor) -> OutputFormatDescriptor {

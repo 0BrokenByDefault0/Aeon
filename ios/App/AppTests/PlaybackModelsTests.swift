@@ -31,12 +31,32 @@ final class PlaybackModelsTests: XCTestCase {
             "eqEnabled", "eqBands", "route", "sourceFormat", "outputFormat", "timestamp"
         ]))
         XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        XCTAssertTrue(object["trackID"] is NSNull)
+        XCTAssertTrue(object["queueIndex"] is NSNull)
+        XCTAssertTrue(object["route"] is NSNull)
+        XCTAssertTrue(object["sourceFormat"] is NSNull)
+        XCTAssertTrue(object["outputFormat"] is NSNull)
+        XCTAssertEqual(object["timestamp"] as? Double, 100.0)
+    }
+
+    func testPlaybackSnapshotRejectsMissingSchemaVersion() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(makeSnapshot())) as? [String: Any])
+        object.removeValue(forKey: "schemaVersion")
+
+        XCTAssertThrowsError(try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONSerialization.data(withJSONObject: object)))
     }
 
     func testStateVersionClockOnlyMovesForward() {
         let clock = StateVersionClock(seed: 8)
-        XCTAssertEqual(clock.next(), 9)
-        XCTAssertEqual(clock.next(), 10)
+        XCTAssertEqual(clock.next(), UInt64(9))
+        XCTAssertEqual(clock.next(), UInt64(10))
+    }
+
+    func testStateVersionClockReportsExhaustionWithoutCrashingOrRegressing() {
+        let clock = StateVersionClock(seed: UInt64.max)
+
+        XCTAssertNil(clock.next())
+        XCTAssertNil(clock.next())
     }
 
     func testStateVersionClockIsThreadSafe() {
@@ -49,7 +69,11 @@ final class PlaybackModelsTests: XCTestCase {
         for _ in 0..<500 {
             group.enter()
             queue.async {
-                let value = clock.next()
+                guard let value = clock.next() else {
+                    XCTFail("Unexpected version exhaustion")
+                    group.leave()
+                    return
+                }
                 lock.lock()
                 values.append(value)
                 lock.unlock()
@@ -58,7 +82,7 @@ final class PlaybackModelsTests: XCTestCase {
         }
 
         XCTAssertEqual(group.wait(timeout: .now() + 5), .success)
-        XCTAssertEqual(Set(values), Set(1...500))
+        XCTAssertEqual(Set(values), Set((1...500).map(UInt64.init)))
     }
 
     private func makeSnapshot() -> PlaybackSnapshot {
