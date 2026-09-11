@@ -46,7 +46,8 @@ final class MediaStoreTests: XCTestCase {
     }
 
     func testConcurrentImportsForSameIDSerializeStagingThroughCommit() throws {
-        let store = try MediaStore(baseURL: tempURL)
+        let firstStore = try MediaStore(baseURL: tempURL)
+        let secondStore = try MediaStore(baseURL: tempURL)
         let first = tempURL.appendingPathComponent("first.wav")
         let second = tempURL.appendingPathComponent("second.wav")
         try Data([1]).write(to: first); try Data([2]).write(to: second)
@@ -54,14 +55,14 @@ final class MediaStoreTests: XCTestCase {
         let allowFirst = DispatchSemaphore(value: 0)
         let secondFinished = expectation(description: "second finished")
         DispatchQueue.global().async {
-            _ = try? store.importFile(sourceURL: first, stableID: "same", verifier: { staged in
+            _ = try? firstStore.importFile(sourceURL: first, stableID: "same", verifier: { staged in
                 XCTAssertEqual(try Data(contentsOf: staged), Data([1]))
                 firstInsideVerifier.fulfill(); allowFirst.wait(); return true
             })
         }
         wait(for: [firstInsideVerifier], timeout: 2)
         DispatchQueue.global().async {
-            _ = try? store.importFile(sourceURL: second, stableID: "same", verifier: { staged in
+            _ = try? secondStore.importFile(sourceURL: second, stableID: "same", verifier: { staged in
                 XCTAssertEqual(try Data(contentsOf: staged), Data([2])); return true
             })
             secondFinished.fulfill()
@@ -69,7 +70,18 @@ final class MediaStoreTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [secondFinished], timeout: 0.1), .timedOut)
         allowFirst.signal()
         wait(for: [secondFinished], timeout: 2)
-        XCTAssertEqual(try Data(contentsOf: store.mediaURL(stableID: "same", fileExtension: "wav")), Data([2]))
+        XCTAssertEqual(try Data(contentsOf: firstStore.mediaURL(stableID: "same", fileExtension: "wav")), Data([2]))
+        XCTAssertEqual(MediaStore.activeImportGateCountForTesting, 0)
+    }
+
+    func testImportGateRegistryReleasesCompletedStableIDs() throws {
+        let store = try MediaStore(baseURL: tempURL)
+        let source = tempURL.appendingPathComponent("source.wav")
+        try Data([1]).write(to: source)
+        for index in 0 ..< 100 {
+            _ = try store.importFile(sourceURL: source, stableID: "track-\(index)", verifier: { _ in true })
+        }
+        XCTAssertEqual(MediaStore.activeImportGateCountForTesting, 0)
     }
 
     func testRejectsIncomingSourceAndStartupOnlyCleansPartials() throws {

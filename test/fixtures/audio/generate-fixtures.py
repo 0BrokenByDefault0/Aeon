@@ -46,8 +46,17 @@ def optional_compressed(source: Path) -> None:
 
 def write_minimal_ogg(path: Path) -> None:
     packet = b"OpusHead" + bytes([1, 2]) + struct.pack("<HIhB", 312, 48_000, 0, 0)
-    header = b"OggS" + bytes([0, 2]) + struct.pack("<QIIIB", 0, 1, 0, 0, 1)
-    path.write_bytes(header + bytes([len(packet)]) + packet)
+    page = bytearray(b"OggS" + bytes([0, 2]) + struct.pack("<QIIIB", 0, 1, 0, 0, 1) + bytes([len(packet)]) + packet)
+    crc = 0
+    for byte in page:
+        crc ^= byte << 24
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x04C11DB7) & 0xFFFFFFFF if crc & 0x80000000 else (crc << 1) & 0xFFFFFFFF
+    page[22:26] = struct.pack("<I", crc)
+    path.write_bytes(page)
+    corrupt = bytearray(page)
+    corrupt[-1] ^= 1
+    (ROOT / "corrupt-crc.ogg").write_bytes(corrupt)
 
 
 def main() -> None:

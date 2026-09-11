@@ -45,9 +45,10 @@ final class MetadataProbeTests: XCTestCase {
     }
 
     func testKnownOggDecoderFailureIsUnsupported() throws {
-        let corrupt = fixturesURL.appendingPathComponent("corrupt.ogg")
-        guard case .decodeFailed = MetadataProbe().probe(url: corrupt) else {
-            return XCTFail("Malformed OGG must be decodeFailed")
+        for name in ["corrupt.ogg", "corrupt-crc.ogg"] {
+            guard case .decodeFailed = MetadataProbe().probe(url: fixturesURL.appendingPathComponent(name)) else {
+                return XCTFail("\(name) must be decodeFailed")
+            }
         }
         switch MetadataProbe().probe(url: fixturesURL.appendingPathComponent("valid-opus.ogg")) {
         case .playable, .unsupported: break

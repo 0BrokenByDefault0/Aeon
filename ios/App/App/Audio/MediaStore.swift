@@ -16,6 +16,13 @@ enum MediaStoreError: Error, Equatable {
 }
 
 final class MediaStore: MediaResolving {
+    private final class ImportGate {
+        let lock = NSLock()
+        var references = 0
+    }
+
+    private static let gatesLock = NSLock()
+    private static var gates: [String: ImportGate] = [:]
     let mediaRoot: URL
     let incomingRoot: URL
 
@@ -26,8 +33,6 @@ final class MediaStore: MediaResolving {
     private let commitImport: (URL, URL) throws -> Void
     private let accessLock = NSLock()
     private var activeScopedURLs: [URL: Int] = [:]
-    private let importLocksLock = NSLock()
-    private var importLocks: [String: NSLock] = [:]
 
     convenience init(fileManager: FileManager = .default) throws {
         let applicationSupport = try fileManager.url(
@@ -97,9 +102,9 @@ final class MediaStore: MediaResolving {
         let incomingPrefix = normalizedIncoming.path.hasSuffix("/") ? normalizedIncoming.path : normalizedIncoming.path + "/"
         guard !normalizedSource.path.hasPrefix(incomingPrefix) else { throw MediaStoreError.unsafeRelativePath }
 
-        let importLock = lockForImport(stableID)
-        importLock.lock()
-        defer { importLock.unlock() }
+        let gateKey = incomingRoot.standardizedFileURL.resolvingSymlinksInPath().path + "\u{0}" + stableID
+        let importGate = Self.acquireGate(key: gateKey)
+        defer { Self.releaseGate(importGate, key: gateKey) }
 
         let partial = incomingRoot.appendingPathComponent("\(stableID).partial", isDirectory: false)
         let destination = mediaURL(stableID: stableID, fileExtension: ext)
@@ -120,13 +125,28 @@ final class MediaStore: MediaResolving {
         }
     }
 
-    private func lockForImport(_ stableID: String) -> NSLock {
-        importLocksLock.lock()
-        defer { importLocksLock.unlock() }
-        if let existing = importLocks[stableID] { return existing }
-        let created = NSLock()
-        importLocks[stableID] = created
-        return created
+    private static func acquireGate(key: String) -> ImportGate {
+        gatesLock.lock()
+        let gate = gates[key] ?? ImportGate()
+        gate.references += 1
+        gates[key] = gate
+        gatesLock.unlock()
+        gate.lock.lock()
+        return gate
+    }
+
+    private static func releaseGate(_ gate: ImportGate, key: String) {
+        gate.lock.unlock()
+        gatesLock.lock()
+        gate.references -= 1
+        if gate.references == 0, gates[key] === gate { gates.removeValue(forKey: key) }
+        gatesLock.unlock()
+    }
+
+    static var activeImportGateCountForTesting: Int {
+        gatesLock.lock()
+        defer { gatesLock.unlock() }
+        return gates.count
     }
 
     func resolve(_ reference: MediaReference) throws -> URL {

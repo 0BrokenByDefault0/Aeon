@@ -56,7 +56,8 @@ final class MetadataProbe {
     private static func isValidOggContainer(url: URL) -> Bool {
         guard let data = try? Data(contentsOf: url), data.count >= 28 else { return false }
         var offset = 0
-        var sawCompletePacket = false
+        var firstPacket = Data()
+        var recognizedIdentification = false
         while offset < data.count {
             guard data.count - offset >= 27,
                   data[offset ..< offset + 4].elementsEqual(Data("OggS".utf8)),
@@ -67,10 +68,35 @@ final class MetadataProbe {
             let payloadSize = (0 ..< segmentCount).reduce(0) { $0 + Int(data[tableStart + $1]) }
             let next = tableStart + segmentCount + payloadSize
             guard next <= data.count else { return false }
-            if segmentCount > 0, data[tableStart + segmentCount - 1] < 255 { sawCompletePacket = true }
+            var page = Data(data[offset ..< next])
+            let expectedCRC = UInt32(page[22]) | UInt32(page[23]) << 8 | UInt32(page[24]) << 16 | UInt32(page[25]) << 24
+            page.replaceSubrange(22 ..< 26, with: repeatElement(UInt8(0), count: 4))
+            guard oggCRC(page) == expectedCRC else { return false }
+            var payloadOffset = tableStart + segmentCount
+            for index in 0 ..< segmentCount {
+                let length = Int(data[tableStart + index])
+                if !recognizedIdentification { firstPacket.append(data[payloadOffset ..< payloadOffset + length]) }
+                payloadOffset += length
+                if !recognizedIdentification, length < 255 {
+                    recognizedIdentification = firstPacket.starts(with: Data("OpusHead".utf8)) ||
+                        firstPacket.starts(with: Data([1]) + Data("vorbis".utf8))
+                    guard recognizedIdentification else { return false }
+                }
+            }
             offset = next
         }
-        return offset == data.count && sawCompletePacket
+        return recognizedIdentification
+    }
+
+    private static func oggCRC(_ data: Data) -> UInt32 {
+        var crc: UInt32 = 0
+        for byte in data {
+            crc ^= UInt32(byte) << 24
+            for _ in 0 ..< 8 {
+                crc = (crc & 0x8000_0000) != 0 ? (crc << 1) ^ 0x04c1_1db7 : crc << 1
+            }
+        }
+        return crc
     }
 
     private static func container(for url: URL) -> String? {
