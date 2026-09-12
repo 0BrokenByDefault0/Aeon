@@ -150,12 +150,26 @@ final class QueueScheduler {
     func replaceQueue(_ items: [QueueItem], index: Int, revision: UInt64) throws {
         try confined {
             try validate(items: items, index: index)
-            capturePosition()
+            let previousIndex = self.index
+            let sameSelection = !items.isEmpty && previousIndex.map { self.items[$0] == items[index] } == true
             let resume = playing
-            let retainedPosition = !items.isEmpty && self.index.map { self.items[$0] == items[index] } == true ? position : 0
-            let exactFrame = !items.isEmpty && self.index.map { self.items[$0] == items[index] } == true ? retainedSourceFrame : nil
-            try setQueue(items, index: index, revision: revision)
+            capturePosition()
+            // An edit of the selected item must not replay it when its native
+            // timeline has already crossed EOF but its callback is still pending.
+            let consumed = sameSelection ? (self.index ?? 0) - (previousIndex ?? 0) + (reachedEnd ? 1 : 0) : 0
+            let replacementIndex = index + consumed
+            let terminal = sameSelection && replacementIndex >= items.count
+            let selectedIndex = items.isEmpty ? 0 : min(replacementIndex, items.count - 1)
+            let preserveFrame = !items.isEmpty && !terminal && !reachedEnd &&
+                self.index.map { self.items[$0] == items[selectedIndex] } == true
+            let retainedPosition = preserveFrame ? position : 0
+            let exactFrame = preserveFrame ? retainedSourceFrame : nil
+            try setQueue(items, index: selectedIndex, revision: revision)
             if items.isEmpty { return }
+            if terminal {
+                reachedEnd = true
+                return // Only a later explicit play restarts a completed queue.
+            }
             try performing {
                 try prepare(position: retainedPosition, exactFrame: exactFrame)
                 if resume { try start() }
@@ -284,7 +298,7 @@ final class QueueScheduler {
         emit(.started(trackID: items[current.index].trackID, index: current.index, token: ScheduleToken(generation: generation)))
     }
 
-    private func complete(index: Int, slot: AudioSlot, token: ScheduleToken) {
+    private func complete(index: Int, slot: AudioSlot, token: ScheduleToken, prepareNext: Bool = true) {
         guard token.generation == generation, playing else { return }
         // AVAudioPlayerNode callback queues need not deliver two node completions
         // in audible order, especially with tiny files or a busy control queue.
@@ -306,29 +320,48 @@ final class QueueScheduler {
             retainedSourceFrame = nil
             do {
                 // The alternate player already started at the scheduled boundary.
-                try prepareFollowing()
+                if prepareNext { try prepareFollowing() }
                 emit(.handoff(fromTrackID: finishedID, toTrackID: items[following.index].trackID,
                               index: following.index, token: token))
                 if earlyCompletions.remove(following.index) != nil {
-                    complete(index: following.index, slot: following.slot, token: token)
+                    complete(index: following.index, slot: following.slot, token: token, prepareNext: prepareNext)
                 }
             } catch { fail(error) }
+        } else if !prepareNext && items.indices.contains(index + 1) {
+            // Both prepared players can be exhausted when control work was delayed.
+            // The unscheduled successor has not played: retain its frame zero for
+            // resume, without opening obsolete media during pause/replacement.
+            self.index = index + 1
+            position = 0
+            retainedSourceFrame = nil
+            playing = false
+            graph.cancelScheduledPlayback()
         } else {
             position = Double(finished.file.frameCount) / finished.file.sampleRate
             playing = false
             reachedEnd = true
+            retainedSourceFrame = nil
             graph.cancelScheduledPlayback()
             emit(.completed(trackID: finishedID, token: token))
         }
     }
 
     private func capturePosition() {
-        guard let current else { return }
-        let elapsed = playing ? max(0, graph.elapsedSourceFrames(slot: current.slot) ?? 0) : 0
-        let remaining = current.file.frameCount - current.sourceFrame
-        let frame = current.sourceFrame + min(elapsed, remaining)
-        position = Double(frame) / current.file.sampleRate
-        retainedSourceFrame = frame
+        while let current {
+            let elapsed = playing ? max(0, graph.elapsedSourceFrames(slot: current.slot) ?? 0) : 0
+            let remaining = current.file.frameCount - current.sourceFrame
+            if playing && elapsed >= remaining {
+                // Reconcile the native timeline before retaining a resumable frame.
+                // Do not prepare another file: the caller is about to invalidate.
+                complete(index: current.index, slot: current.slot,
+                         token: ScheduleToken(generation: generation), prepareNext: false)
+                continue
+            }
+            let frame = current.sourceFrame + elapsed
+            position = Double(frame) / current.file.sampleRate
+            retainedSourceFrame = frame
+            return
+        }
     }
 
     private func invalidate() {

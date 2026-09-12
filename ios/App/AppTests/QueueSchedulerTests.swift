@@ -25,7 +25,7 @@ final class QueueSchedulerTests: XCTestCase {
         try scheduler.prepareCurrent(position: 0)
         XCTAssertFalse(graph.started)
         XCTAssertEqual(graph.schedules.map { $0.slot }, [.a, .b])
-        XCTAssertEqual(graph.schedules.map { $0.outputFrame }, [0, 2401])
+        XCTAssertEqual(graph.schedules.map { $0.outputFrame }, [0, 2400])
         try scheduler.play()
         XCTAssertTrue(scheduler.isPlaying)
         XCTAssertTrue(graph.started)
@@ -41,7 +41,7 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.currentSlot, .b)
         XCTAssertEqual(scheduler.preparedNextTrackID, "c")
         XCTAssertEqual(graph.schedules.last?.slot, .a)
-        XCTAssertEqual(graph.schedules.last?.outputFrame, 4802)
+        XCTAssertEqual(graph.schedules.last?.outputFrame, 4800)
         first() // A duplicated callback from this generation must also be harmless.
         XCTAssertEqual(scheduler.currentTrackID, "b")
     }
@@ -69,8 +69,88 @@ final class QueueSchedulerTests: XCTestCase {
         stale()
         XCTAssertEqual(scheduler.currentTrackID, "a")
         XCTAssertEqual(graph.schedules.suffix(2).map { $0.sourceFrame }, [1000, 0])
-        XCTAssertEqual(graph.schedules.last?.outputFrame, 1401)
+        XCTAssertEqual(graph.schedules.last?.outputFrame, 1400)
         XCTAssertTrue(scheduler.isPlaying)
+    }
+
+    func testPauseAtPendingHandoffPromotesNextBeforeRetainingPosition() throws {
+        for elapsed in [Int64(2400), 2500] {
+            let (scheduler, graph, _) = try makeScheduler([a, b, c])
+            try scheduler.play()
+            let stale = graph.schedules[0].completion
+            graph.framesBySlot = [.a: elapsed, .b: 37]
+            scheduler.pause()
+            XCTAssertEqual(scheduler.currentTrackID, "b")
+            XCTAssertFalse(scheduler.isPlaying)
+            try scheduler.play()
+            stale()
+            XCTAssertEqual(scheduler.currentTrackID, "b")
+            XCTAssertEqual(graph.schedules.suffix(2).first?.sourceFrame, 37)
+            XCTAssertEqual(scheduler.preparedNextTrackID, "c")
+        }
+    }
+
+    func testSameCurrentReplacementAtPendingHandoffUsesReplacementSuccessor() throws {
+        for elapsed in [Int64(2400), 2500] {
+            let (scheduler, graph, _) = try makeScheduler([a, b])
+            try scheduler.play()
+            let stale = graph.schedules[0].completion
+            graph.framesBySlot = [.a: elapsed, .b: 37]
+            try scheduler.replaceQueue([a, c], index: 0, revision: 2)
+            stale()
+            XCTAssertEqual(scheduler.currentTrackID, "c")
+            XCTAssertEqual(scheduler.queueRevision, 2)
+            XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
+            XCTAssertTrue(scheduler.isPlaying)
+        }
+    }
+
+    func testSameCurrentReplacementRetainsPromotedSuccessorFrame() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b])
+        try scheduler.play()
+        graph.framesBySlot = [.a: 2400, .b: 37]
+        try scheduler.replaceQueue([a, b, c], index: 0, revision: 2)
+        XCTAssertEqual(scheduler.currentTrackID, "b")
+        XCTAssertEqual(graph.schedules.suffix(2).first?.sourceFrame, 37)
+        XCTAssertEqual(scheduler.preparedNextTrackID, "c")
+    }
+
+    func testPauseAtPendingTerminalCompletionRestartsOnlyOnExplicitPlay() throws {
+        let (scheduler, graph, _) = try makeScheduler([a])
+        try scheduler.play()
+        let stale = graph.schedules[0].completion
+        graph.framesBySlot = [.a: 2500]
+        scheduler.pause()
+        stale()
+        XCTAssertFalse(scheduler.isPlaying)
+        try scheduler.play()
+        XCTAssertEqual(scheduler.currentTrackID, "a")
+        XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
+        XCTAssertTrue(scheduler.isPlaying)
+    }
+
+    func testSameCurrentReplacementAtTerminalEOFDoesNotReplayAutomatically() throws {
+        let (scheduler, graph, _) = try makeScheduler([a])
+        try scheduler.play()
+        let stale = graph.schedules[0].completion
+        graph.framesBySlot = [.a: 2400]
+        try scheduler.replaceQueue([a], index: 0, revision: 2)
+        stale()
+        XCTAssertFalse(scheduler.isPlaying)
+        XCTAssertEqual(graph.schedules.count, 1)
+        try scheduler.play()
+        XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
+    }
+
+    func testReplacementRemovingSuccessorAtPendingHandoffRetainsTerminalState() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b])
+        try scheduler.play()
+        graph.framesBySlot = [.a: 2400, .b: 37]
+        try scheduler.replaceQueue([a], index: 0, revision: 2)
+        XCTAssertEqual(scheduler.currentTrackID, "a")
+        XCTAssertFalse(scheduler.isPlaying)
+        try scheduler.play()
+        XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
     }
 
     func testPauseResumeReanchorsBothSlotsAndPreservesPosition() throws {
@@ -83,7 +163,7 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertFalse(scheduler.isPlaying)
         try scheduler.play()
         XCTAssertEqual(graph.schedules.suffix(2).map { $0.sourceFrame }, [1000, 0])
-        XCTAssertEqual(graph.schedules.last?.outputFrame, 1401)
+        XCTAssertEqual(graph.schedules.last?.outputFrame, 1400)
     }
 
     func testInvalidationStopsPreparedPlayersAndRejectsCallbacks() throws {
@@ -153,10 +233,10 @@ final class QueueSchedulerTests: XCTestCase {
     func testExactPCMFixtureBoundaryHasZeroInsertedOrDuplicatedFrames() throws {
         let left = try pcm("gapless-a")
         let right = try pcm("gapless-b")
-        XCTAssertEqual(left.count, 2401)
-        XCTAssertEqual(right.count, 2399)
+        XCTAssertEqual(left.count, 2400)
+        XCTAssertEqual(right.count, 2400)
         let boundary = try QueueScheduler.outputBoundary(start: 0, sourceFrames: Int64(left.count), sourceRate: 48000, outputRate: 48000)
-        XCTAssertEqual(boundary, 2401)
+        XCTAssertEqual(boundary, 2400)
         var rendered = [Int16](repeating: 0, count: Int(boundary) + right.count)
         rendered.replaceSubrange(0..<left.count, with: left)
         rendered.replaceSubrange(Int(boundary)..<rendered.count, with: right)
@@ -294,7 +374,7 @@ final class QueueSchedulerTests: XCTestCase {
         let resolver = FixtureResolver()
         let scheduler = QueueScheduler(graph: graph, resolver: resolver, probe: { url in
             if url.lastPathComponent == "b.wav", let rejected { return rejected }
-            return .playable(ProbedMedia(url: url, descriptor: SourceFormatDescriptor(codec: "pcm", container: "wav", sampleRate: 48000, channelCount: 2, bitDepth: 16, duration: 2401.0 / 48000), frameCount: 2401))
+            return .playable(ProbedMedia(url: url, descriptor: SourceFormatDescriptor(codec: "pcm", container: "wav", sampleRate: 48000, channelCount: 2, bitDepth: 16, duration: 2400.0 / 48000), frameCount: 2400))
         })
         try scheduler.setQueue(items, index: 0, revision: 1)
         return (scheduler, graph, resolver)
@@ -320,18 +400,19 @@ private final class RecordingGraph: QueueSchedulingGraph {
     var schedules: [Schedule] = []
     var started = false
     var elapsedFrames: Int64 = 0
+    var framesBySlot: [AudioSlot: Int64] = [:]
     var failingFile: String?
     func schedulingSampleRate() throws -> Double { 48000 }
     func openForScheduling(url: URL, slot: AudioSlot) throws -> ScheduledAudioFile {
         if url.lastPathComponent == failingFile { throw MediaStoreError.verificationFailed }
-        return ScheduledAudioFile(frameCount: 2401, sampleRate: 48000)
+        return ScheduledAudioFile(frameCount: 2400, sampleRate: 48000)
     }
     func schedule(slot: AudioSlot, sourceFrame: Int64, outputFrame: Int64, completion: @escaping () -> Void) throws {
         schedules.append(Schedule(slot: slot, sourceFrame: sourceFrame, outputFrame: outputFrame, completion: completion))
     }
     func startScheduledPlayback() throws { started = true }
-    func elapsedSourceFrames(slot: AudioSlot) -> Int64? { elapsedFrames }
-    func cancelScheduledPlayback() { started = false; elapsedFrames = 0 }
+    func elapsedSourceFrames(slot: AudioSlot) -> Int64? { framesBySlot[slot] ?? elapsedFrames }
+    func cancelScheduledPlayback() { started = false; elapsedFrames = 0; framesBySlot.removeAll() }
     func closeScheduledFile(slot: AudioSlot) {}
 }
 

@@ -99,9 +99,9 @@ def main() -> None:
         write_wav(ROOT / f"pcm-{rate}.wav", rate, samples(rate, 0, rate // 4))
 
     gapless_rate = 48_000
-    # Split away from a sine zero crossing / whole period so boundary errors
-    # cannot hide behind identical end/start samples. Exact tolerance: 0 frames.
-    split_frame = 2_401
+    # Required same-rate WAV split: exactly 2,400 + 2,400 decoded frames.
+    # Full sample-vector equality detects inserted or duplicated frames.
+    split_frame = 2_400
     total_frames = 4_800
     continuous = samples(gapless_rate, 0, total_frames)
     write_wav(ROOT / "gapless-a.wav", gapless_rate, continuous[:split_frame])
