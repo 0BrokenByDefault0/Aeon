@@ -2,6 +2,15 @@ import XCTest
 @testable import App
 
 final class AudioEngineGraphTests: XCTestCase {
+    func testUnconfiguredGraphStartsTransparent() {
+        let graph = makeGraph()
+
+        XCTAssertTrue(graph.defaultState.eqBypassed)
+        XCTAssertEqual(graph.defaultState.masterVolume, 1, accuracy: 0.000001)
+        XCTAssertEqual(graph.defaultState.replayGainA, 1, accuracy: 0.000001)
+        XCTAssertEqual(graph.defaultState.replayGainB, 1, accuracy: 0.000001)
+    }
+
     func testConfiguredGraphStartsTransparent() throws {
         let graph = makeGraph()
         try graph.configure()

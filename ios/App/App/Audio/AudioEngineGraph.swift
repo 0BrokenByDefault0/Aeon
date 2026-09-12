@@ -52,6 +52,7 @@ final class AudioEngineGraph {
         playerB = AVAudioPlayerNode()
         programMixer = AVAudioMixerNode()
         equalizer = AVAudioUnitEQ(numberOfBands: AudioEngineGraph.maximumEQBands)
+        equalizer.bypass = true
         self.outputFormatProvider = outputFormatProvider
     }
 
