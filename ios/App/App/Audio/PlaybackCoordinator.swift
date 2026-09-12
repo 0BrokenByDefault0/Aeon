@@ -2,8 +2,23 @@ import Foundation
 
 typealias PlaybackCommandCompletion = (Result<PlaybackSnapshot, PlaybackFailure>) -> Void
 
+enum PlaybackCoordinatorEvent: String {
+    case stateChanged
+    case positionChanged
+    case trackChanged
+    case queueChanged
+    case routeChanged
+    case formatChanged
+    case interruptionChanged
+    case engineRecovered
+}
+
 protocol PlaybackCoordinatorDelegate: AnyObject {
-    func playbackCoordinator(_ coordinator: PlaybackCoordinator, didPublish snapshot: PlaybackSnapshot)
+    func playbackCoordinator(
+        _ coordinator: PlaybackCoordinator,
+        didPublish snapshot: PlaybackSnapshot,
+        events: [PlaybackCoordinatorEvent]
+    )
     func playbackCoordinator(_ coordinator: PlaybackCoordinator, didFail failure: PlaybackFailure, version: UInt64)
 }
 
@@ -135,6 +150,7 @@ final class PlaybackCoordinator {
     private var operationGeneration: UInt64 = 0
     private var acceptedSchedulerGeneration: UInt64 = 0
     private var interruptionActive = false
+    private var lastPublishedSnapshot: PlaybackSnapshot?
 
     private var version: UInt64
     private var trackID: String?
@@ -172,6 +188,7 @@ final class PlaybackCoordinator {
         self.now = now
 
         let restored = stateStore.load()
+        lastPublishedSnapshot = restored
         version = restored?.version ?? 0
         versionClock = StateVersionClock(seed: version)
         trackID = restored?.trackID
@@ -313,6 +330,24 @@ final class PlaybackCoordinator {
         }
     }
 
+    func toggle(completion: @escaping PlaybackCommandCompletion) {
+        command(completion: completion) { [self] in
+            guard initialized else { throw CoordinatorError.notInitialized }
+            if intent == .playing {
+                if scheduler.isPlaying { scheduler.pause() }
+                syncSchedulerState()
+                intent = .paused
+                acceptedSchedulerGeneration = scheduler.currentGeneration
+                return try publish(eventCode: "PLAYBACK_PAUSED")
+            }
+            guard trackID != nil else { throw CoordinatorError.noTrackLoaded }
+            if !interruptionActive { try scheduler.play() }
+            intent = .playing
+            acceptedSchedulerGeneration = scheduler.currentGeneration
+            return try publish(eventCode: "PLAYBACK_STARTED")
+        }
+    }
+
     func seek(seconds: Double, completion: @escaping PlaybackCommandCompletion) {
         command(completion: completion) { [self] in
             guard initialized else { throw CoordinatorError.notInitialized }
@@ -350,6 +385,15 @@ final class PlaybackCoordinator {
             route = outputFormat?.route
             return try publish(eventCode: "QUEUE_CHANGED")
         }
+    }
+
+    func updateQueue(
+        items: [QueueItem],
+        index: Int,
+        revision: UInt64,
+        completion: @escaping PlaybackCommandCompletion
+    ) {
+        setQueue(items: items, index: index, revision: revision, completion: completion)
     }
 
     func setVolume(_ value: Float, completion: @escaping PlaybackCommandCompletion) {
@@ -396,12 +440,40 @@ final class PlaybackCoordinator {
         }
     }
 
+    func setEQEnabled(_ enabled: Bool, completion: @escaping PlaybackCommandCompletion) {
+        command(completion: completion) { [self] in
+            guard initialized else { throw CoordinatorError.notInitialized }
+            if eqEnabled == enabled { return currentSnapshot() }
+            try graph.setEQ(enabled: enabled, bands: eqBands)
+            eqEnabled = enabled
+            return try publish(eventCode: "EQ_CHANGED")
+        }
+    }
+
+    func setEQBands(_ bands: [EQBand], completion: @escaping PlaybackCommandCompletion) {
+        command(completion: completion) { [self] in
+            guard initialized else { throw CoordinatorError.notInitialized }
+            if eqBands == bands { return currentSnapshot() }
+            try graph.setEQ(enabled: eqEnabled, bands: bands)
+            eqBands = bands
+            return try publish(eventCode: "EQ_CHANGED")
+        }
+    }
+
     func getState(completion: @escaping (PlaybackSnapshot) -> Void) {
         transportQueue.async { [weak self] in
             guard let self else { return }
             syncSchedulerState()
             let snapshot = currentSnapshot()
             callbackQueue.async { completion(snapshot) }
+        }
+    }
+
+    func getDiagnostics(completion: @escaping ([DiagnosticEntry]) -> Void) {
+        transportQueue.async { [weak self] in
+            guard let self else { return }
+            let entries = diagnostics.entries()
+            callbackQueue.async { completion(entries) }
         }
     }
 
@@ -412,7 +484,7 @@ final class PlaybackCoordinator {
             if scheduler.isPlaying { scheduler.pause() }
             syncSchedulerState()
             acceptedSchedulerGeneration = scheduler.currentGeneration
-            _ = try? publish(eventCode: "INTERRUPTION_BEGIN")
+            _ = try? publish(eventCode: "INTERRUPTION_BEGIN", additionalEvents: [.interruptionChanged])
         }
     }
 
@@ -424,7 +496,7 @@ final class PlaybackCoordinator {
                 if systemAllowsResume, intent == .playing { try scheduler.play() }
                 acceptedSchedulerGeneration = scheduler.currentGeneration
                 syncSchedulerState()
-                _ = try publish(eventCode: "INTERRUPTION_END")
+                _ = try publish(eventCode: "INTERRUPTION_END", additionalEvents: [.interruptionChanged])
             } catch {
                 fail(error, completion: nil)
             }
@@ -565,7 +637,10 @@ final class PlaybackCoordinator {
         )
     }
 
-    private func publish(eventCode: String) throws -> PlaybackSnapshot {
+    private func publish(
+        eventCode: String,
+        additionalEvents: [PlaybackCoordinatorEvent] = []
+    ) throws -> PlaybackSnapshot {
         guard let nextVersion = versionClock.next() else { throw CoordinatorError.versionExhausted }
         version = nextVersion
         let snapshot = currentSnapshot()
@@ -581,9 +656,27 @@ final class PlaybackCoordinator {
             outputFormat: outputFormat,
             route: route
         )
+        var events: [PlaybackCoordinatorEvent] = [.stateChanged]
+        if let previous = lastPublishedSnapshot {
+            if previous.position != snapshot.position { events.append(.positionChanged) }
+            if previous.trackID != snapshot.trackID || previous.queueIndex != snapshot.queueIndex {
+                events.append(.trackChanged)
+            }
+            if previous.queueRevision != snapshot.queueRevision || previous.queue != snapshot.queue {
+                events.append(.queueChanged)
+            }
+            if previous.route != snapshot.route { events.append(.routeChanged) }
+            if previous.sourceFormat != snapshot.sourceFormat || previous.outputFormat != snapshot.outputFormat {
+                events.append(.formatChanged)
+            }
+        } else {
+            events.append(contentsOf: [.positionChanged, .trackChanged, .queueChanged, .routeChanged, .formatChanged])
+        }
+        for event in additionalEvents where !events.contains(event) { events.append(event) }
+        lastPublishedSnapshot = snapshot
         callbackQueue.async { [weak self] in
             guard let self else { return }
-            delegate?.playbackCoordinator(self, didPublish: snapshot)
+            delegate?.playbackCoordinator(self, didPublish: snapshot, events: events)
         }
         return snapshot
     }

@@ -5,7 +5,7 @@
    old caches are swept. Audio and library data live in IndexedDB, never
    here — updating the shell can't touch a user's collection. */
 const CACHE = "aeon-v4.6.1";
-const SHELL = ["./", "./index.html", "./interface.css", "./fonts/AeonNocturne-Regular.woff", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
+const SHELL = ["./", "./index.html", "./interface.css", "./native-audio.js", "./fonts/AeonNocturne-Regular.woff", "./manifest.webmanifest", "./icon-180.png", "./icon-512.png"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

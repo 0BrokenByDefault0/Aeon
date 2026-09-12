@@ -1,7 +1,38 @@
+import Capacitor
 import XCTest
 @testable import App
 
 final class PlaybackCoordinatorTests: XCTestCase {
+    func testNativeAudioPluginExportsStableBridgeContract() {
+        let plugin = NativeAudioPlugin()
+
+        XCTAssertEqual(plugin.jsName, "NativeAudio")
+        XCTAssertEqual(plugin.pluginMethods.map(\.name), [
+            "initialize", "load", "play", "pause", "toggle", "seek", "next", "previous",
+            "setQueue", "updateQueue", "setVolume", "setReplayGainMode", "setReplayGainPreamp",
+            "setEQEnabled", "setEQBands", "getState", "getDiagnostics"
+        ])
+    }
+
+    func testPublishesVersionedBridgeEventsForChangedState() throws {
+        let harness = try CoordinatorHarness()
+        let delegate = RecordingCoordinatorDelegate()
+        harness.coordinator.delegate = delegate
+        _ = try harness.initialize().get()
+
+        let loaded = try harness.load(harness.a).get()
+        let publication = try XCTUnwrap(delegate.publications.last)
+
+        XCTAssertEqual(publication.snapshot.version, loaded.version)
+        XCTAssertEqual(Set(publication.events), [
+            .stateChanged, .trackChanged, .queueChanged, .formatChanged
+        ])
+
+        harness.coordinator.beginInterruption()
+        _ = try harness.state()
+        XCTAssertTrue(delegate.publications.last?.events.contains(.interruptionChanged) == true)
+    }
+
     func testPlayIsIdempotentAndPauseChangesUserIntent() throws {
         let harness = try CoordinatorHarness()
         _ = try harness.initialize().get()
@@ -158,6 +189,29 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.scheduler.playCallCount, 0)
         XCTAssertEqual(harness.graph.masterVolume, 0.75)
     }
+}
+
+private final class RecordingCoordinatorDelegate: PlaybackCoordinatorDelegate {
+    struct Publication {
+        let snapshot: PlaybackSnapshot
+        let events: [PlaybackCoordinatorEvent]
+    }
+
+    private(set) var publications: [Publication] = []
+
+    func playbackCoordinator(
+        _ coordinator: PlaybackCoordinator,
+        didPublish snapshot: PlaybackSnapshot,
+        events: [PlaybackCoordinatorEvent]
+    ) {
+        publications.append(Publication(snapshot: snapshot, events: events))
+    }
+
+    func playbackCoordinator(
+        _ coordinator: PlaybackCoordinator,
+        didFail failure: PlaybackFailure,
+        version: UInt64
+    ) {}
 }
 
 private final class CoordinatorHarness {
