@@ -31,6 +31,8 @@
 		A54000000000000000000002 /* ReplayGain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000012 /* ReplayGain.swift */; };
 		A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000013 /* ReplayGainAndEQTests.swift */; };
 		A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000014 /* AudioEngineGraphTests.swift */; };
+		A55000000000000000000001 /* QueueScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55000000000000000000011 /* QueueScheduler.swift */; };
+		A55000000000000000000002 /* QueueSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55000000000000000000012 /* QueueSchedulerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -63,6 +65,8 @@
 		A54000000000000000000014 /* AudioEngineGraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineGraphTests.swift; sourceTree = "<group>"; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
+		A55000000000000000000011 /* QueueScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueScheduler.swift; sourceTree = "<group>"; };
+		A55000000000000000000012 /* QueueSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueSchedulerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -149,6 +153,7 @@
 				A53000000000000000000014 /* MetadataProbeTests.swift */,
 				A54000000000000000000013 /* ReplayGainAndEQTests.swift */,
 				A54000000000000000000014 /* AudioEngineGraphTests.swift */,
+				A55000000000000000000012 /* QueueSchedulerTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -163,6 +168,7 @@
 				A53000000000000000000011 /* MediaStore.swift */,
 				A53000000000000000000012 /* MetadataProbe.swift */,
 				A54000000000000000000011 /* AudioEngineGraph.swift */,
+				A55000000000000000000011 /* QueueScheduler.swift */,
 				A54000000000000000000012 /* ReplayGain.swift */,
 			);
 			path = Audio;
@@ -330,6 +336,7 @@
 				A53000000000000000000001 /* MediaStore.swift in Sources */,
 				A53000000000000000000002 /* MetadataProbe.swift in Sources */,
 				A54000000000000000000001 /* AudioEngineGraph.swift in Sources */,
+				A55000000000000000000001 /* QueueScheduler.swift in Sources */,
 				A54000000000000000000002 /* ReplayGain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -345,6 +352,7 @@
 				A53000000000000000000004 /* MetadataProbeTests.swift in Sources */,
 				A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */,
 				A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */,
+				A55000000000000000000002 /* QueueSchedulerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

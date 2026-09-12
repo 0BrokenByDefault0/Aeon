@@ -99,9 +99,22 @@ def main() -> None:
         write_wav(ROOT / f"pcm-{rate}.wav", rate, samples(rate, 0, rate // 4))
 
     gapless_rate = 48_000
-    half = 2_400
-    write_wav(ROOT / "gapless-a.wav", gapless_rate, samples(gapless_rate, 0, half))
-    write_wav(ROOT / "gapless-b.wav", gapless_rate, samples(gapless_rate, half, half))
+    # Split away from a sine zero crossing / whole period so boundary errors
+    # cannot hide behind identical end/start samples. Exact tolerance: 0 frames.
+    split_frame = 2_401
+    total_frames = 4_800
+    continuous = samples(gapless_rate, 0, total_frames)
+    write_wav(ROOT / "gapless-a.wav", gapless_rate, continuous[:split_frame])
+    write_wav(ROOT / "gapless-b.wav", gapless_rate, continuous[split_frame:])
+    decoded = []
+    for name in ("gapless-a.wav", "gapless-b.wav"):
+        with wave.open(str(ROOT / name), "rb") as source:
+            assert source.getframerate() == gapless_rate
+            raw = struct.unpack("<" + "h" * source.getnframes() * 2, source.readframes(source.getnframes()))
+            assert raw[::2] == raw[1::2]
+            decoded.extend(raw[::2])
+    assert decoded == continuous, "Gapless fixture contains inserted or duplicated PCM frames"
+    print(f"Gapless WAV verified: {split_frame} + {total_frames - split_frame} frames; 0 inserted, 0 duplicated")
 
     valid = (ROOT / "pcm-48000.wav").read_bytes()
     (ROOT / "truncated.wav").write_bytes(valid[:40])

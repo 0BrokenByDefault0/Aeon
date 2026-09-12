@@ -1,4 +1,5 @@
 import AVFoundation
+import Darwin
 
 enum AudioSlot: Hashable {
     case a
@@ -23,9 +24,11 @@ enum AudioEngineGraphError: Error, Equatable {
     case seekPastEnd
     case tooManyEQBands(Int)
     case invalidEQBand(index: Int, parameter: String)
+    case invalidSchedulingFormat
+    case missedScheduleBoundary
 }
 
-final class AudioEngineGraph {
+final class AudioEngineGraph: QueueSchedulingGraph {
     private static let maximumEQBands = 10
     private static let validEQFrequency = 20.0...24_000.0
     private static let validEQGain = -96.0...24.0
@@ -45,6 +48,9 @@ final class AudioEngineGraph {
     private var eqEnabled = false
     private var eqBands: [EQBand] = []
     private let outputFormatProvider: (() -> AVAudioFormat?)?
+    private var scheduledStarts: [AudioSlot: Int64] = [:]
+    private var scheduleHostOrigin: UInt64?
+    private var scheduleOutputRate: Double = 0
 
     init(outputFormatProvider: (() -> AVAudioFormat?)? = nil) {
         engine = AVAudioEngine()
@@ -97,8 +103,8 @@ final class AudioEngineGraph {
         applyEQBands()
         equalizer.bypass = !eqEnabled
 
-        engine.connect(playerA, to: programMixer, format: nil)
-        engine.connect(playerB, to: programMixer, format: nil)
+        engine.connect(playerA, to: programMixer, fromBus: 0, toBus: 0, format: nil)
+        engine.connect(playerB, to: programMixer, fromBus: 0, toBus: 1, format: nil)
         engine.connect(programMixer, to: equalizer, format: nil)
         engine.connect(equalizer, to: engine.mainMixerNode, format: nil)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
@@ -145,9 +151,104 @@ final class AudioEngineGraph {
     }
 
     func stop() {
+        cancelScheduledPlayback()
+        engine.stop()
+    }
+
+    func schedulingSampleRate() throws -> Double {
+        try configure()
+        let rate = engine.outputNode.inputFormat(forBus: 0).sampleRate
+        guard rate.isFinite, rate > 0 else { throw AudioEngineGraphError.invalidSchedulingFormat }
+        scheduleOutputRate = rate
+        return rate
+    }
+
+    func openForScheduling(url: URL, slot: AudioSlot) throws -> ScheduledAudioFile {
+        let file = try open(url: url, in: slot)
+        let node = player(for: slot)
+        node.stop()
+        // Each player renders the decoder's format; the program mixer handles
+        // conversion to the output format without adding any program processing.
+        // Preserve the live graph for equal-format handoffs; reconnecting a mixer
+        // input unnecessarily can disrupt the alternate node while it is rendering.
+        if !node.outputFormat(forBus: 0).isEqual(file.processingFormat) {
+            engine.disconnectNodeOutput(node)
+            engine.connect(node, to: programMixer, fromBus: 0, toBus: slot == .a ? 0 : 1, format: file.processingFormat)
+        }
+        return ScheduledAudioFile(frameCount: file.length, sampleRate: file.processingFormat.sampleRate)
+    }
+
+    func schedule(slot: AudioSlot, sourceFrame: Int64, outputFrame: Int64, completion: @escaping () -> Void) throws {
+        guard let file = files[slot] else { throw AudioEngineGraphError.noFileLoaded(slot) }
+        guard sourceFrame >= 0, sourceFrame < file.length, outputFrame >= 0 else {
+            throw AudioEngineGraphError.seekPastEnd
+        }
+        let node = player(for: slot)
+        let counts = Self.scheduleFrameCounts(totalFrames: file.length - sourceFrame)
+        var frame = sourceFrame
+        for (index, count) in counts.enumerated() {
+            let isLast = index == counts.count - 1
+            node.scheduleSegment(file, startingFrame: frame, frameCount: count, at: nil,
+                                 completionCallbackType: .dataPlayedBack) { _ in
+                if isLast { completion() }
+            }
+            frame += Int64(count)
+        }
+        scheduledStarts[slot] = outputFrame
+        if let origin = scheduleHostOrigin {
+            let time = try scheduledTime(outputFrame: outputFrame, origin: origin)
+            guard time.hostTime > mach_absolute_time() else { throw AudioEngineGraphError.missedScheduleBoundary }
+            node.play(at: time)
+        }
+    }
+
+    func startScheduledPlayback() throws {
+        guard scheduleHostOrigin == nil else { return }
+        if !engine.isRunning { try engine.start() }
+        // Establish one future anchor only after BOTH files have been opened and
+        // scheduled. This is startup lead time, never silence between queue items.
+        let origin = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.1)
+        scheduleHostOrigin = origin
+        for slot in [AudioSlot.a, .b] {
+            if let frame = scheduledStarts[slot] {
+                player(for: slot).play(at: try scheduledTime(outputFrame: frame, origin: origin))
+            }
+        }
+    }
+
+    func elapsedSourceFrames(slot: AudioSlot) -> Int64? {
+        let node = player(for: slot)
+        guard let file = files[slot], let renderTime = node.lastRenderTime,
+              let time = node.playerTime(forNodeTime: renderTime), time.sampleRate > 0 else { return nil }
+        let frames = Double(time.sampleTime) * file.processingFormat.sampleRate / time.sampleRate
+        guard frames.isFinite, frames >= 0, frames < Double(Int64.max) else { return nil }
+        return Int64(frames.rounded(.down))
+    }
+
+    func cancelScheduledPlayback() {
+        scheduleHostOrigin = nil
+        scheduledStarts.removeAll()
         playerA.stop()
         playerB.stop()
-        engine.stop()
+    }
+
+    func closeScheduledFile(slot: AudioSlot) {
+        player(for: slot).stop()
+        scheduledStarts.removeValue(forKey: slot)
+        files.removeValue(forKey: slot)
+    }
+
+    private func scheduledTime(outputFrame: Int64, origin: UInt64) throws -> AVAudioTime {
+        guard scheduleOutputRate.isFinite, scheduleOutputRate > 0 else {
+            throw AudioEngineGraphError.invalidSchedulingFormat
+        }
+        let seconds = Double(outputFrame) / scheduleOutputRate
+        // hostTime(forSeconds:) returns UInt64 ticks; reject overflow before conversion.
+        let maximumSeconds = AVAudioTime.seconds(forHostTime: UInt64.max - origin)
+        guard seconds.isFinite, seconds >= 0, seconds < maximumSeconds else {
+            throw QueueSchedulerError.timelineOverflow
+        }
+        return AVAudioTime(hostTime: origin + AVAudioTime.hostTime(forSeconds: seconds))
     }
 
     func seek(slot: AudioSlot, to seconds: Double) throws {

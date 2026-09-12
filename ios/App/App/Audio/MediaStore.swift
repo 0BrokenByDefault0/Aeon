@@ -2,6 +2,11 @@ import Foundation
 
 protocol MediaResolving {
     func resolve(_ reference: MediaReference) throws -> URL
+    func release(_ url: URL)
+}
+
+extension MediaResolving {
+    func release(_ url: URL) {}
 }
 
 enum MediaStoreError: Error, Equatable {
