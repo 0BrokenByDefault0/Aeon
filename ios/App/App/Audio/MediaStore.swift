@@ -254,7 +254,7 @@ final class MediaStore: MediaResolving {
         var stale = false
         let url = try URL(
             resolvingBookmarkData: data,
-            options: [.withSecurityScope, .withoutUI],
+            options: [.withoutUI],
             relativeTo: nil,
             bookmarkDataIsStale: &stale
         )

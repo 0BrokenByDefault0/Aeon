@@ -74,10 +74,22 @@ final class QueueScheduler {
     }
     var currentGeneration: UInt64 { confined { generation } }
     var queueRevision: UInt64 { confined { revision } }
+    var queueItems: [QueueItem] { confined { items } }
+    var currentIndex: Int? { confined { index } }
     var currentSlot: AudioSlot { confined { slot } }
     var currentTrackID: String? { confined { index.map { items[$0].trackID } } }
     var preparedNextTrackID: String? { confined { following.map { items[$0.index].trackID } } }
     var isPlaying: Bool { confined { playing } }
+    var currentPosition: Double {
+        confined {
+            guard let current else { return position }
+            guard playing else { return position }
+            let elapsed = max(0, graph.elapsedSourceFrames(slot: current.slot) ?? 0)
+            let remaining = max(0, current.file.frameCount - current.sourceFrame)
+            let frame = current.sourceFrame + min(elapsed, remaining)
+            return Double(frame) / current.file.sampleRate
+        }
+    }
 
     init(graph: QueueSchedulingGraph, resolver: MediaResolving, probe: @escaping (URL) -> MediaCapability) {
         self.graph = graph
