@@ -35,6 +35,7 @@ final class MetadataProbe {
             guard sampleRate > 0 else { return .decodeFailed(reason: "invalid_sample_rate") }
 
             let frameCount = Int64(file.length)
+            guard frameCount > 0 else { return .decodeFailed(reason: "empty_audio") }
             let settings = file.fileFormat.settings
             let descriptor = SourceFormatDescriptor(
                 codec: Self.codec(settings: settings),

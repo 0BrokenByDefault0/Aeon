@@ -31,8 +31,8 @@ final class PlaybackModelsTests: XCTestCase {
             "eqEnabled", "eqBands", "route", "sourceFormat", "outputFormat", "timestamp"
         ]))
         XCTAssertEqual(object["schemaVersion"] as? Int, 1)
-        XCTAssertTrue(object["trackID"] is NSNull)
-        XCTAssertTrue(object["queueIndex"] is NSNull)
+        XCTAssertEqual(object["trackID"] as? String, "t1")
+        XCTAssertEqual(object["queueIndex"] as? Int, 0)
         XCTAssertTrue(object["route"] is NSNull)
         XCTAssertTrue(object["sourceFormat"] is NSNull)
         XCTAssertTrue(object["outputFormat"] is NSNull)
