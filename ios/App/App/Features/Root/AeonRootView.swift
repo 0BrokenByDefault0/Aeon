@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 struct AeonRootView: View {
     @ObservedObject var container: AppContainer
     @State private var isRestoringCatalog = false
+    @State private var isSelectingAudio = false
+    @State private var isSelectingFolder = false
 
     var body: some View {
         ZStack {
@@ -27,6 +29,22 @@ struct AeonRootView: View {
         ) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
             container.restoreCatalog(from: url)
+        }
+        .fileImporter(
+            isPresented: $isSelectingAudio,
+            allowedContentTypes: [.audio],
+            allowsMultipleSelection: true
+        ) { result in
+            guard case .success(let urls) = result else { return }
+            container.importLibrary(urls: urls, mode: .smart)
+        }
+        .fileImporter(
+            isPresented: $isSelectingFolder,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result else { return }
+            container.importLibrary(urls: urls, mode: .folder)
         }
     }
 
@@ -85,14 +103,41 @@ struct AeonRootView: View {
             }
             .accessibilityIdentifier("aeon.launch.migrating")
         case .ready:
-            VStack(spacing: 12) {
+            VStack(spacing: 18) {
                 Text("AEON")
                     .font(.system(size: 42, weight: .light, design: .serif))
                     .tracking(5)
-                Text("NATIVE CORE READY")
+                Text("NATIVE LIBRARY")
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .tracking(2.4)
                     .foregroundStyle(.white.opacity(0.55))
+                if let progress = container.libraryImportProgress {
+                    importProgress(progress)
+                } else {
+                    HStack(spacing: 12) {
+                        Button("Import Files") { isSelectingAudio = true }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(.black)
+                            .accessibilityIdentifier("aeon.library.import.files")
+                        Button("Import Folder") { isSelectingFolder = true }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                            .accessibilityIdentifier("aeon.library.import.folder")
+                    }
+                }
+                if let result = container.libraryImportResult {
+                    Text(importSummary(result))
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.66))
+                        .multilineTextAlignment(.center)
+                } else if let error = container.libraryImportError {
+                    Text(error)
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 440)
+                }
             }
             .foregroundStyle(.white)
             .accessibilityIdentifier("aeon.launch.ready")
@@ -148,6 +193,46 @@ struct AeonRootView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("aeon.launch.progress")
+    }
+
+    private func importProgress(_ progress: LibraryImportProgress) -> some View {
+        VStack(spacing: 10) {
+            ProgressView(value: importFraction(progress))
+                .tint(.white)
+                .frame(maxWidth: 340)
+            Text(importProgressLabel(progress))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.66))
+            Button("Pause Import") { container.cancelLibraryImport() }
+                .buttonStyle(.bordered)
+                .tint(.white)
+                .accessibilityIdentifier("aeon.library.import.cancel")
+        }
+        .accessibilityIdentifier("aeon.library.import.progress")
+    }
+
+    private func importFraction(_ progress: LibraryImportProgress) -> Double {
+        if progress.totalGroups > 0 {
+            return Double(progress.completedGroups) / Double(progress.totalGroups)
+        }
+        guard progress.totalFiles > 0 else { return 0 }
+        return Double(progress.completedFiles) / Double(progress.totalFiles)
+    }
+
+    private func importProgressLabel(_ progress: LibraryImportProgress) -> String {
+        switch progress.phase {
+        case .scanning: return "SCANNING SOURCE"
+        case .readingMetadata: return "READING TAGS  \(progress.completedFiles)/\(progress.totalFiles)"
+        case .grouping: return "GROUPING ALBUMS"
+        case .committing, .complete: return "COMMITTING ALBUMS  \(progress.completedGroups)/\(progress.totalGroups)"
+        }
+    }
+
+    private func importSummary(_ result: LibraryImportResult) -> String {
+        var parts = ["\(result.importedAlbums) albums", "\(result.importedTracks) tracks"]
+        if !result.skippedDuplicateAlbums.isEmpty { parts.append("\(result.skippedDuplicateAlbums.count) duplicates skipped") }
+        if !result.failedFiles.isEmpty { parts.append("\(result.failedFiles.count) files could not be imported") }
+        return parts.joined(separator: "  ·  ")
     }
 }
 

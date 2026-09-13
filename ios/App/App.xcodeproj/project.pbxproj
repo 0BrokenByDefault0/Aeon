@@ -57,6 +57,14 @@
 		A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000017 /* CatalogDatabaseTests.swift */; };
 		A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000018 /* CatalogRepositoryTests.swift */; };
 		A5B000000000000000000009 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000019 /* libsqlite3.tbd */; };
+		A5D000000000000000000001 /* AudioTagReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000011 /* AudioTagReader.swift */; };
+		A5D000000000000000000002 /* ImportGrouper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000012 /* ImportGrouper.swift */; };
+		A5D000000000000000000003 /* ArtworkProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000013 /* ArtworkProcessor.swift */; };
+		A5D000000000000000000004 /* MetadataEnricher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000014 /* MetadataEnricher.swift */; };
+		A5D000000000000000000005 /* LibraryImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000015 /* LibraryImporter.swift */; };
+		A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000016 /* AudioTagReaderTests.swift */; };
+		A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000017 /* LibraryImporterTests.swift */; };
+		A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000018 /* MetadataEnricherTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -129,6 +137,14 @@
 		A5B000000000000000000017 /* CatalogDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDatabaseTests.swift; sourceTree = "<group>"; };
 		A5B000000000000000000018 /* CatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogRepositoryTests.swift; sourceTree = "<group>"; };
 		A5B000000000000000000019 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		A5D000000000000000000011 /* AudioTagReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReader.swift; sourceTree = "<group>"; };
+		A5D000000000000000000012 /* ImportGrouper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportGrouper.swift; sourceTree = "<group>"; };
+		A5D000000000000000000013 /* ArtworkProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkProcessor.swift; sourceTree = "<group>"; };
+		A5D000000000000000000014 /* MetadataEnricher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataEnricher.swift; sourceTree = "<group>"; };
+		A5D000000000000000000015 /* LibraryImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImporter.swift; sourceTree = "<group>"; };
+		A5D000000000000000000016 /* AudioTagReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReaderTests.swift; sourceTree = "<group>"; };
+		A5D000000000000000000017 /* LibraryImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImporterTests.swift; sourceTree = "<group>"; };
+		A5D000000000000000000018 /* MetadataEnricherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataEnricherTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -203,6 +219,7 @@
 			children = (
 				A52000000000000000000020 /* Audio */,
 				A5B000000000000000000020 /* Domain */,
+				A5D000000000000000000020 /* Import */,
 				A58000000000000000000020 /* Migration */,
 				A5B000000000000000000021 /* Persistence */,
 				A59000000000000000000020 /* Features */,
@@ -247,6 +264,9 @@
 				A5B000000000000000000017 /* CatalogDatabaseTests.swift */,
 				A5B000000000000000000018 /* CatalogRepositoryTests.swift */,
 				A5C000000000000000000013 /* LegacyMigrationTests.swift */,
+				A5D000000000000000000016 /* AudioTagReaderTests.swift */,
+				A5D000000000000000000017 /* LibraryImporterTests.swift */,
+				A5D000000000000000000018 /* MetadataEnricherTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -287,6 +307,18 @@
 				A5B000000000000000000016 /* ArtworkStore.swift */,
 			);
 			path = Persistence;
+			sourceTree = "<group>";
+		};
+		A5D000000000000000000020 /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				A5D000000000000000000011 /* AudioTagReader.swift */,
+				A5D000000000000000000012 /* ImportGrouper.swift */,
+				A5D000000000000000000013 /* ArtworkProcessor.swift */,
+				A5D000000000000000000014 /* MetadataEnricher.swift */,
+				A5D000000000000000000015 /* LibraryImporter.swift */,
+			);
+			path = Import;
 			sourceTree = "<group>";
 		};
 		A58000000000000000000020 /* Migration */ = {
@@ -544,6 +576,11 @@
 				A5C000000000000000000001 /* LegacyMigrationModels.swift in Sources */,
 				A5C000000000000000000002 /* LegacyMigrationCoordinator.swift in Sources */,
 				A54000000000000000000002 /* ReplayGain.swift in Sources */,
+				A5D000000000000000000001 /* AudioTagReader.swift in Sources */,
+				A5D000000000000000000002 /* ImportGrouper.swift in Sources */,
+				A5D000000000000000000003 /* ArtworkProcessor.swift in Sources */,
+				A5D000000000000000000004 /* MetadataEnricher.swift in Sources */,
+				A5D000000000000000000005 /* LibraryImporter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -565,6 +602,9 @@
 				A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */,
 				A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */,
 				A5C000000000000000000003 /* LegacyMigrationTests.swift in Sources */,
+				A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */,
+				A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */,
+				A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

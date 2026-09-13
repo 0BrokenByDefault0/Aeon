@@ -32,6 +32,9 @@ final class MediaStore: MediaResolving {
     let mediaRoot: URL
     let incomingRoot: URL
     let documentsRoot: URL
+    let documentsMusicRoot: URL
+    let documentsIncomingRoot: URL
+    let importedDocumentsRoot: URL
     let migratedRoot: URL
     let migrationIncomingRoot: URL
 
@@ -85,15 +88,20 @@ final class MediaStore: MediaResolving {
         mediaRoot = aeonRoot.appendingPathComponent("Media", isDirectory: true)
         incomingRoot = aeonRoot.appendingPathComponent(".incoming", isDirectory: true)
         self.documentsRoot = documentsRoot ?? baseURL.appendingPathComponent("Documents", isDirectory: true)
-        migratedRoot = self.documentsRoot.appendingPathComponent("Music/_Migrated", isDirectory: true)
+        documentsMusicRoot = self.documentsRoot.appendingPathComponent("Music", isDirectory: true)
+        documentsIncomingRoot = documentsMusicRoot.appendingPathComponent(".incoming", isDirectory: true)
+        importedDocumentsRoot = documentsMusicRoot.appendingPathComponent("_Imported", isDirectory: true)
+        migratedRoot = documentsMusicRoot.appendingPathComponent("_Migrated", isDirectory: true)
         migrationIncomingRoot = migratedRoot.appendingPathComponent(".incoming", isDirectory: true)
         try fileManager.createDirectory(at: mediaRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: incomingRoot, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: documentsIncomingRoot, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: importedDocumentsRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: migrationIncomingRoot, withIntermediateDirectories: true)
         for item in try fileManager.contentsOfDirectory(
             at: incomingRoot,
             includingPropertiesForKeys: [.contentModificationDateKey]
-        ) where item.pathExtension == "partial" {
+        ) where item.lastPathComponent.contains(".partial") {
             let stableID = item.deletingPathExtension().lastPathComponent
             guard Self.isSafeStableID(stableID) else { continue }
             let gateKey = incomingRoot.standardizedFileURL.resolvingSymlinksInPath().path + "\u{0}" + stableID
@@ -107,6 +115,7 @@ final class MediaStore: MediaResolving {
                 }
             }
         }
+        try removeStalePartials(at: documentsIncomingRoot, now: now, stalePartialInterval: stalePartialInterval)
     }
 
     func mediaURL(stableID: String, fileExtension: String? = nil) -> URL {
@@ -245,6 +254,76 @@ final class MediaStore: MediaResolving {
         return migrationIncomingRoot.appendingPathComponent("\(artifactKey).partial", isDirectory: false)
     }
 
+    func adoptedDocumentReference(for sourceURL: URL) -> MediaReference? {
+        let source = sourceURL.standardizedFileURL.resolvingSymlinksInPath()
+        let documents = documentsRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let music = documentsMusicRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let musicPrefix = music.path.hasSuffix("/") ? music.path : music.path + "/"
+        let incomingPrefix = documentsIncomingRoot.standardizedFileURL.resolvingSymlinksInPath().path + "/"
+        guard source.path.hasPrefix(musicPrefix), !source.path.hasPrefix(incomingPrefix) else { return nil }
+        let documentsPrefix = documents.path.hasSuffix("/") ? documents.path : documents.path + "/"
+        guard source.path.hasPrefix(documentsPrefix) else { return nil }
+        return .documents(relativePath: String(source.path.dropFirst(documentsPrefix.count)))
+    }
+
+    func importIntoDocuments(
+        sourceURL: URL,
+        albumID: String,
+        trackID: String,
+        verifier: (URL) throws -> Bool
+    ) throws -> MediaReference {
+        guard Self.isSafeStableID(albumID), Self.isSafeStableID(trackID) else {
+            throw MediaStoreError.invalidStableID
+        }
+        let ext = sourceURL.pathExtension.lowercased()
+        guard Self.isSafeExtension(ext) else { throw MediaStoreError.invalidFileExtension }
+        if let adopted = adoptedDocumentReference(for: sourceURL) { return adopted }
+
+        let source = sourceURL.standardizedFileURL.resolvingSymlinksInPath()
+        let incoming = documentsIncomingRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let incomingPrefix = incoming.path.hasSuffix("/") ? incoming.path : incoming.path + "/"
+        guard !source.path.hasPrefix(incomingPrefix) else { throw MediaStoreError.unsafeRelativePath }
+
+        let gateKey = incoming.path + "\u{0}" + trackID
+        let importGate = Self.acquireGate(key: gateKey)
+        defer { Self.releaseGate(importGate, key: gateKey) }
+
+        let partial = documentsIncomingRoot.appendingPathComponent("\(trackID).partial.\(ext)", isDirectory: false)
+        let albumRoot = importedDocumentsRoot.appendingPathComponent(albumID, isDirectory: true)
+        let filename = "\(trackID).\(ext)"
+        let destination = albumRoot.appendingPathComponent(filename, isDirectory: false)
+        try? fileManager.removeItem(at: partial)
+        do {
+            try fileManager.copyItem(at: sourceURL, to: partial)
+            let handle = try FileHandle(forWritingTo: partial)
+            try handle.synchronize()
+            try handle.close()
+            let sourceSize = try sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize
+            let copySize = try partial.resourceValues(forKeys: [.fileSizeKey]).fileSize
+            guard sourceSize == copySize, try verifier(partial) else { throw MediaStoreError.verificationFailed }
+            try fileManager.createDirectory(at: albumRoot, withIntermediateDirectories: true)
+            try commitImport(partial, destination)
+            return .documents(relativePath: "Music/_Imported/\(albumID)/\(filename)")
+        } catch {
+            try? fileManager.removeItem(at: partial)
+            if (try? fileManager.contentsOfDirectory(at: albumRoot, includingPropertiesForKeys: nil).isEmpty) == true {
+                try? fileManager.removeItem(at: albumRoot)
+            }
+            throw error
+        }
+    }
+
+    func removeImportedDocument(_ reference: MediaReference) {
+        guard case .documents(let relativePath) = reference,
+              relativePath.hasPrefix("Music/_Imported/") else { return }
+        guard let url = try? resolve(relativePath, beneath: documentsRoot) else { return }
+        try? fileManager.removeItem(at: url)
+        let parent = url.deletingLastPathComponent()
+        if (try? fileManager.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil).isEmpty) == true {
+            try? fileManager.removeItem(at: parent)
+        }
+    }
+
     func commitMigratedAudio(
         partialURL: URL,
         trackID: String,
@@ -305,5 +384,22 @@ final class MediaStore: MediaResolving {
             bookmarkDataIsStale: &stale
         )
         return (url, stale)
+    }
+
+    private func removeStalePartials(
+        at root: URL,
+        now: () -> Date,
+        stalePartialInterval: TimeInterval
+    ) throws {
+        for item in try fileManager.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) where item.lastPathComponent.contains(".partial.") {
+            let values = try? item.resourceValues(forKeys: [.contentModificationDateKey])
+            if let modified = values?.contentModificationDate,
+               now().timeIntervalSince(modified) >= stalePartialInterval {
+                try? fileManager.removeItem(at: item)
+            }
+        }
     }
 }

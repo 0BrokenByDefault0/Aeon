@@ -1,6 +1,10 @@
 import AVFoundation
 import Foundation
 
+protocol MediaProbing {
+    func probe(url: URL) -> MediaCapability
+}
+
 struct ProbedMedia: Equatable {
     let url: URL
     let descriptor: SourceFormatDescriptor
@@ -14,7 +18,7 @@ enum MediaCapability: Equatable {
     case unavailable
 }
 
-final class MetadataProbe {
+final class MetadataProbe: MediaProbing {
     private let fileManager: FileManager
 
     init(fileManager: FileManager = .default) {

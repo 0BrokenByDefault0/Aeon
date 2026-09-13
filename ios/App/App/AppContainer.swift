@@ -57,6 +57,10 @@ struct AppServices {
     let playbackStateStore: PlaybackStateStore
     let diagnosticsLog: DiagnosticsLog
     let metadataProbe: MetadataProbe
+    let audioTagReader: AudioTagReader
+    let artworkProcessor: ArtworkProcessor
+    let metadataEnricher: MetadataEnricher
+    let libraryImporter: LibraryImporter
     let audioEngineGraph: AudioEngineGraph
     let queueScheduler: QueueScheduler
     let playbackCoordinator: PlaybackCoordinator
@@ -88,6 +92,22 @@ struct AppServices {
             fileManager: fileManager
         )
         let metadataProbe = MetadataProbe()
+        let tagReader = AudioTagReader(fileManager: fileManager)
+        let artworkProcessor = ArtworkProcessor(store: artwork)
+        let metadataEnricher = MetadataEnricher(
+            repository: catalog,
+            musicBrainz: MusicBrainzGenreProvider(),
+            apple: AppleGenreProvider()
+        )
+        let libraryImporter = LibraryImporter(
+            repository: catalog,
+            mediaStore: mediaStore,
+            tagReader: tagReader,
+            artworkProcessor: artworkProcessor,
+            metadataProbe: metadataProbe,
+            metadataEnricher: metadataEnricher,
+            fileManager: fileManager
+        )
         let graph = AudioEngineGraph()
         let scheduler = QueueScheduler(graph: graph, resolver: mediaStore, probe: metadataProbe)
         let mediaInfo = NativePlaybackMediaInfoProvider(resolver: mediaStore, probe: metadataProbe)
@@ -106,6 +126,10 @@ struct AppServices {
             playbackStateStore: stateStore,
             diagnosticsLog: diagnostics,
             metadataProbe: metadataProbe,
+            audioTagReader: tagReader,
+            artworkProcessor: artworkProcessor,
+            metadataEnricher: metadataEnricher,
+            libraryImporter: libraryImporter,
             audioEngineGraph: graph,
             queueScheduler: scheduler,
             playbackCoordinator: coordinator
@@ -156,6 +180,9 @@ final class AppContainer: ObservableObject {
     @Published private(set) var launchState: AppLaunchState = .launching
     @Published private(set) var legacyMigrationProbe = LegacyMigrationInventoryProbe()
     @Published private(set) var legacyBridgeRequired = false
+    @Published private(set) var libraryImportProgress: LibraryImportProgress?
+    @Published private(set) var libraryImportResult: LibraryImportResult?
+    @Published private(set) var libraryImportError: String?
     private(set) var roots: AppStorageRoots?
     private(set) var services: AppServices?
     private(set) var migrationCoordinator: LegacyMigrationCoordinator?
@@ -167,6 +194,8 @@ final class AppContainer: ObservableObject {
     private let inspectLegacyLibrary: Bool
     private let cleanupURL: URL?
     private let cleanupFileManager: FileManager
+    private var libraryImportTask: Task<Void, Never>?
+    private var libraryImportCancellation: LibraryImportCancellation?
 
     init(
         rootsProvider: @escaping RootsProvider,
@@ -213,6 +242,46 @@ final class AppContainer: ObservableObject {
     func continueAfterMigration() {
         guard case .migrating(let progress) = launchState, progress.catalogueReady else { return }
         launchState = .ready
+    }
+
+    func importLibrary(urls: [URL], mode: LibraryImportGroupingMode) {
+        guard case .ready = launchState,
+              let importer = services?.libraryImporter,
+              libraryImportTask == nil else { return }
+        let cancellation = LibraryImportCancellation()
+        libraryImportCancellation = cancellation
+        libraryImportProgress = LibraryImportProgress(
+            phase: .scanning,
+            completedFiles: 0,
+            totalFiles: 0,
+            completedGroups: 0,
+            totalGroups: 0
+        )
+        libraryImportResult = nil
+        libraryImportError = nil
+        libraryImportTask = Task { [weak self] in
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try await importer.importURLs(urls, mode: mode, cancellation: cancellation) { progress in
+                        Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
+                    }
+                }.value
+                self?.libraryImportResult = result
+            } catch LibraryImportError.cancelled {
+                self?.libraryImportError = "Import paused. Select the same files or folder to resume."
+            } catch LibraryImportError.noSupportedAudio {
+                self?.libraryImportError = "No supported audio files were found."
+            } catch {
+                self?.libraryImportError = "Import stopped before the next album could be committed. Select the same source to resume."
+            }
+            self?.libraryImportProgress = nil
+            self?.libraryImportCancellation = nil
+            self?.libraryImportTask = nil
+        }
+    }
+
+    func cancelLibraryImport() {
+        libraryImportCancellation?.cancel()
     }
 
     func restoreCatalog(from sourceURL: URL) {
@@ -353,6 +422,7 @@ final class AppContainer: ObservableObject {
     }
 
     deinit {
+        libraryImportCancellation?.cancel()
         services?.catalogDatabase.close()
         if let cleanupURL { try? cleanupFileManager.removeItem(at: cleanupURL) }
     }

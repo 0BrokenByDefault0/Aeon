@@ -331,14 +331,14 @@ Repeat the installed-upgrade fixture from Task 8 and compare pre/post manifests 
 - Existing `single`, `folder`, and `smart` grouping semantics in testable Swift.
 - Opt-in MusicBrainz-first, Apple-second artist genre enrichment with permanent cache entries.
 
-- [ ] Port the existing filename natural ordering, disc/track inference, normalized person/album keys, majority-field selection, duplicate-album rule, and grouping fixtures into native tests before implementation.
-- [ ] Add fixture tests for Unicode, punctuation, multi-disc numbering, vinyl sides, missing tags, corrupt art, oversized art, compilations, repeated album names by different artists, and partial import failure.
-- [ ] Read files incrementally with `AVURLAsset`/`AVMetadataItem` and `AVAudioFile`; supplement format-specific gaps with bounded ID3, MP4 atom, and FLAC block readers only where fixtures prove AVFoundation loses required fields. Never load audio payloads to parse tags.
-- [ ] Normalize embedded or selected art by decoding once, fixing orientation, downsampling to the configured maximum, and writing through `ArtworkStore`. A bad image becomes the celestial placeholder, not a failed album import.
-- [ ] Present SwiftUI-wrapped document pickers for individual files and folders. Copy external files into `Documents/Music` through `.incoming`; adopt a file already under `Documents/Music` without copying it.
-- [ ] Make scans cancellable between files and resumable from a persisted cursor. Commit one complete album per transaction; if no track for an album verifies, publish no album shell.
-- [ ] Bound concurrent probes and artwork decodes. A 10,000-file fixture must show stable memory rather than work proportional to total library size.
-- [ ] Keep lookup off by default. Cache a successful canonical artist genre once; do not retry it automatically or move existing stars after later network responses. Manual `LOOK UP` can explicitly replace the cached answer and invokes the star-move confirmation.
+- [x] Port the existing filename natural ordering, disc/track inference, normalized person/album keys, majority-field selection, duplicate-album rule, and grouping fixtures into native tests before implementation.
+- [x] Add fixture tests for Unicode, punctuation, multi-disc numbering, vinyl sides, missing tags, corrupt art, oversized art, compilations, repeated album names by different artists, and partial import failure.
+- [x] Read files incrementally with `AVURLAsset`/`AVMetadataItem` and `AVAudioFile`; supplement format-specific gaps with bounded ID3, MP4 atom, and FLAC block readers only where fixtures prove AVFoundation loses required fields. Never load audio payloads to parse tags.
+- [x] Normalize embedded or selected art by decoding once, fixing orientation, downsampling to the configured maximum, and writing through `ArtworkStore`. A bad image becomes the celestial placeholder, not a failed album import.
+- [x] Present SwiftUI-wrapped document pickers for individual files and folders. Copy external files into `Documents/Music` through `.incoming`; adopt a file already under `Documents/Music` without copying it.
+- [x] Make scans cancellable between files and resumable from a persisted cursor. Commit one complete album per transaction; if no track for an album verifies, publish no album shell.
+- [x] Bound concurrent probes and artwork decodes. A 10,000-file fixture must show stable memory rather than work proportional to total library size.
+- [x] Keep lookup off by default. Cache a successful canonical artist genre once; do not retry it automatically or move existing stars after later network responses. Manual `LOOK UP` can explicitly replace the cached answer and invokes the star-move confirmation.
 
 **Gate**
 

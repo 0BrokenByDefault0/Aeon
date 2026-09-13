@@ -52,7 +52,13 @@ final class ArtworkStore {
             throw ArtworkStoreError.decodeFailed
         }
 
-        let useHEIC = Self.isHEIF(typeIdentifier: sourceType)
+        return try storeDecoded(image, key: key, preferHEIF: Self.isHEIF(typeIdentifier: sourceType))
+    }
+
+    @discardableResult
+    func storeDecoded(_ image: CGImage, key: String, preferHEIF: Bool = false) throws -> String {
+        guard Self.isSafeBaseKey(key) else { throw ArtworkStoreError.invalidKey }
+        let useHEIC = preferHEIF
         let encoded = NSMutableData()
         let destinationType = useHEIC ? UTType.heic.identifier : UTType.jpeg.identifier
         guard let destination = CGImageDestinationCreateWithData(encoded, destinationType as CFString, 1, nil) else {
