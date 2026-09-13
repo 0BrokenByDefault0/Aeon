@@ -730,6 +730,12 @@ git commit -m "feat(audio): bridge Aeon UI to native transport"
 
 ---
 
+> **2026-09-13 scope change:** Tasks 8 through 14 below are superseded by
+> `docs/superpowers/plans/2026-09-13-aeon-swiftui-rebuild.md`. Tasks 1 through
+> 7 remain the completed native-audio foundation. The replacement plan moves
+> the visible application to SwiftUI while preserving the 4.x data-migration
+> path.
+
 ### Task 8: Replace iOS browser transport ownership without changing Aeon's interaction model
 
 **Files:**
