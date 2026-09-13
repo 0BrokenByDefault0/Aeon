@@ -37,6 +37,9 @@
 		A56000000000000000000001 /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56000000000000000000011 /* PlaybackCoordinator.swift */; };
 		A56000000000000000000002 /* PlaybackCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56000000000000000000012 /* PlaybackCoordinatorTests.swift */; };
 		A57000000000000000000001 /* NativeAudioPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57000000000000000000011 /* NativeAudioPlugin.swift */; };
+		A58000000000000000000001 /* LegacyMigrationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000011 /* LegacyMigrationPlugin.swift */; };
+		A58000000000000000000002 /* LegacyMigrationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000012 /* LegacyMigrationViewController.swift */; };
+		A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000013 /* LegacyDataAccessTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +85,9 @@
 		A56000000000000000000011 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
 		A56000000000000000000012 /* PlaybackCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinatorTests.swift; sourceTree = "<group>"; };
 		A57000000000000000000011 /* NativeAudioPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAudioPlugin.swift; sourceTree = "<group>"; };
+		A58000000000000000000011 /* LegacyMigrationPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationPlugin.swift; sourceTree = "<group>"; };
+		A58000000000000000000012 /* LegacyMigrationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationViewController.swift; sourceTree = "<group>"; };
+		A58000000000000000000013 /* LegacyDataAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyDataAccessTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -143,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				A52000000000000000000020 /* Audio */,
+				A58000000000000000000020 /* Migration */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -178,6 +185,7 @@
 				A54000000000000000000014 /* AudioEngineGraphTests.swift */,
 				A55000000000000000000012 /* QueueSchedulerTests.swift */,
 				A56000000000000000000012 /* PlaybackCoordinatorTests.swift */,
+				A58000000000000000000013 /* LegacyDataAccessTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -198,6 +206,15 @@
 				A54000000000000000000012 /* ReplayGain.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		A58000000000000000000020 /* Migration */ = {
+			isa = PBXGroup;
+			children = (
+				A58000000000000000000011 /* LegacyMigrationPlugin.swift */,
+				A58000000000000000000012 /* LegacyMigrationViewController.swift */,
+			);
+			path = Migration;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -377,6 +394,8 @@
 				A55000000000000000000001 /* QueueScheduler.swift in Sources */,
 				A56000000000000000000001 /* PlaybackCoordinator.swift in Sources */,
 				A57000000000000000000001 /* NativeAudioPlugin.swift in Sources */,
+				A58000000000000000000001 /* LegacyMigrationPlugin.swift in Sources */,
+				A58000000000000000000002 /* LegacyMigrationViewController.swift in Sources */,
 				A54000000000000000000002 /* ReplayGain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -394,6 +413,7 @@
 				A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */,
 				A55000000000000000000002 /* QueueSchedulerTests.swift in Sources */,
 				A56000000000000000000002 /* PlaybackCoordinatorTests.swift in Sources */,
+				A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

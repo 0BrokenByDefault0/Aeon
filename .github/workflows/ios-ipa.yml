@@ -46,6 +46,7 @@ jobs:
           npm run test:interface
           npm run test:arrival
           npm run test:sky-chrome
+          npm run test:legacy-migration
 
       - name: Sync web assets into the iOS shell
         run: npx cap sync ios

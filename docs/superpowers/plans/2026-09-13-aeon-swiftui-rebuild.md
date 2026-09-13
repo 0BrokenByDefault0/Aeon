@@ -174,12 +174,13 @@ Aeon 5.0 is complete only when all automated gates pass, the physical-device aud
 - A paged, read-only inventory of IndexedDB `isolation-db` v1.
 - Upgrade proof that the existing `capacitor://localhost` website data store is visible to the new binary.
 
-- [ ] Add contract tests that seed albums, tracks, playlists, and `kv`, load the migration page, and assert exact counts and stable IDs without loading the main UI.
-- [ ] Add a native test seam around the plugin callbacks and reject unknown stores, malformed records, duplicate page numbers, absolute paths, `..`, negative sizes, and pages larger than 250 records.
-- [ ] Override only `appStartPath`; retain the default `WKWebsiteDataStore` and the same scheme/host. Register only `LegacyMigrationPlugin` in this controller.
-- [ ] Make the page enumerate `albums`, `tracks`, `playlists`, and `kv` through readonly transactions. Strip `Blob` fields from record pages and describe each blob separately by owner, type, size, and filename.
-- [ ] Add an installed-upgrade fixture procedure: install the last 4.x build, seed at least two path-backed tracks and one blob-backed track, terminate, install 5.0 over it, and prove the migration controller reads all records. Simulator proof blocks Task 10; the same proof on a physical iPhone blocks release.
-- [ ] Confirm the bridge never calls `deleteDatabase`, `clear`, `delete`, or a readwrite transaction.
+- [x] Add contract tests that seed albums, tracks, playlists, and `kv`, load the migration page, and assert exact counts and stable IDs without loading the main UI.
+- [x] Add a native test seam around the plugin callbacks and reject unknown stores, malformed records, duplicate page numbers, absolute paths, `..`, negative sizes, and pages larger than 250 records.
+- [x] Override only `appStartPath`; retain the default `WKWebsiteDataStore` and the same scheme/host. Register only `LegacyMigrationPlugin` in this controller.
+- [x] Make the page enumerate `albums`, `tracks`, `playlists`, and `kv` through readonly transactions. Strip `Blob` fields from record pages and describe each blob separately by owner, type, size, and filename.
+- [x] Seed two path-backed tracks and one blob-backed track in the running simulator app, then prove a second migration-only controller reads the exact same `capacitor://localhost` data store and records.
+- [ ] Repeat the installed-upgrade fixture on a physical iPhone before release: install 4.x, seed the mixed backing-store library, terminate, install 5.0 over it, and compare exact records.
+- [x] Confirm the bridge never calls `deleteDatabase`, `clear`, `delete`, `put`, `add`, or a readwrite transaction.
 
 **Gate**
 

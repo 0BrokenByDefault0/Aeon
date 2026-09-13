@@ -16,7 +16,8 @@
     "test:arrival": "node test/arrival.mjs",
     "test:sky-chrome": "node test/sky-chrome.mjs",
     "test:native-audio": "node test/native-audio-contract.mjs",
-    "test:ios": "xcodebuild -workspace ios/App/App.xcworkspace -scheme App -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test"
+    "test:legacy-migration": "node test/legacy-migration-contract.mjs",
+    "test:ios": "node scripts/test-ios.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0",

@@ -10,6 +10,7 @@ scripts.forEach((match, index) => {
   new vm.Script(match[1], { filename: `app/index.html#script-${index + 1}` });
 });
 new vm.Script(fs.readFileSync("app/native-audio.js", "utf8"), { filename: "app/native-audio.js" });
+new vm.Script(fs.readFileSync("app/legacy-migration.js", "utf8"), { filename: "app/legacy-migration.js" });
 new vm.Script(fs.readFileSync("app/sw.js", "utf8"), { filename: "app/sw.js" });
 
-console.log(`JavaScript syntax OK: ${scripts.length} inline script, native adapter, and service worker`);
+console.log(`JavaScript syntax OK: ${scripts.length} inline script, native adapter, migration bridge, and service worker`);
