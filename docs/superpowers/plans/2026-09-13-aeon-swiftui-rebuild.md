@@ -211,12 +211,12 @@ npm run test:ios -- -only-testing:AppTests/LegacyDataAccessTests
 - Injectable production and in-memory test containers.
 - A temporary native launch state that can show migration, ready, or fatal-recovery states.
 
-- [ ] Write tests asserting each production service is created once, test containers use temporary roots, startup failure produces a recoverable state, and no feature view constructs service singletons.
-- [ ] Remove `@UIApplicationMain` from `AppDelegate`; remove `UIMainStoryboardFile`; retain `LaunchScreen.storyboard`.
-- [ ] Raise app/test/pod deployment targets to 16.0, keep `TARGETED_DEVICE_FAMILY = "1,2"`, keep the bundle identifier, and explicitly disable Catalyst. Add an `AppUITests` target and shared scheme entries for the screen and interaction suites introduced later.
-- [ ] Move eager `AVAudioSession` activation out of `AppDelegate`; the audio session controller activates on a playback request and handles errors.
-- [ ] Make `AeonRootView` a black native surface with launch/migration states. Do not reproduce feature UI yet.
-- [ ] Embed `LegacyMigrationViewController` only while catalogue migration or legacy-blob materialization work exists. It sits behind opaque SwiftUI UI and is removed from the view tree only when no `legacyBlob` record remains.
+- [x] Write tests asserting each production service is created once, test containers use temporary roots, startup failure produces a recoverable state, and no feature view constructs service singletons.
+- [x] Remove `@UIApplicationMain` from `AppDelegate`; remove `UIMainStoryboardFile`; retain `LaunchScreen.storyboard`.
+- [x] Raise app/test/pod deployment targets to 16.0, keep `TARGETED_DEVICE_FAMILY = "1,2"`, keep the bundle identifier, and explicitly disable Catalyst. Add an `AppUITests` target and shared scheme entries for the screen and interaction suites introduced later.
+- [x] Move eager `AVAudioSession` activation out of `AppDelegate`; the audio session controller activates on a playback request and handles errors.
+- [x] Make `AeonRootView` a black native surface with launch/migration states. Do not reproduce feature UI yet.
+- [x] Embed `LegacyMigrationViewController` only while catalogue migration or legacy-blob materialization work exists. It sits behind opaque SwiftUI UI and is removed from the view tree only when no `legacyBlob` record remains.
 
 **Gate**
 

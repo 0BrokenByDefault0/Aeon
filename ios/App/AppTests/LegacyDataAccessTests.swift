@@ -12,10 +12,11 @@ final class LegacyDataAccessTests: XCTestCase {
     @available(iOS 15.0, *)
     func testMigrationControllerReadsTheExistingCapacitorOrigin() async throws {
         #if targetEnvironment(simulator)
-        guard let seedController = (UIApplication.shared.delegate as? AppDelegate)?.window?.rootViewController
-                as? AeonBridgeViewController else {
-            return XCTFail("Running Capacitor root missing")
-        }
+        let seedController = AeonBridgeViewController()
+        let seedWindow = UIWindow(frame: UIScreen.main.bounds)
+        seedWindow.rootViewController = seedController
+        seedWindow.isHidden = false
+        seedController.loadViewIfNeeded()
         guard let seedWebView = seedController.webView else { return XCTFail("Seed web view missing") }
         try await waitForJavaScript("typeof dbClearAll === 'function' && db !== null", in: seedWebView)
         _ = try await callAsync("""
@@ -54,6 +55,7 @@ final class LegacyDataAccessTests: XCTestCase {
 
         _ = try await callAsync("await dbClearAll(); return true;", in: seedWebView)
         migrationWindow.isHidden = true
+        seedWindow.isHidden = true
         #else
         throw XCTSkip("The automated upgrade probe uses an isolated simulator container")
         #endif
