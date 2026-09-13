@@ -248,13 +248,13 @@ npm run test:ios -- -only-testing:AppTests/AppContainerTests \
 - Transactional CRUD, search, playlist ordering, listening updates, settings, sky records, and migration staging.
 - Async observation snapshots delivered on the main actor without exposing database handles.
 
-- [ ] Write schema tests for fresh creation, foreign keys, indices, WAL, rollback, corrupt database quarantine, and migration from every checked-in schema fixture.
-- [ ] Write repository tests for deterministic album order, natural track order, duplicate stable IDs, playlist referential integrity, normalized search, play-count monotonicity, and one-transaction album deletion.
-- [ ] Implement a small prepared-statement wrapper with bound values only. No interpolated user strings in SQL.
-- [ ] Link the system `libsqlite3.tbd` and keep all SQLite C handles private to `CatalogDatabase`.
-- [ ] Serialize writes through one database queue. Reads use bounded result pages; library grid queries never hydrate track rows or artwork bytes.
-- [ ] Keep artwork as validated HEIF/JPEG files in `Application Support/Aeon/Artwork`; store only keys in SQLite. Write to `.partial`, decode, downsample, fsync, then atomically replace.
-- [ ] On open failure, move only the damaged database and WAL/SHM siblings to a timestamped `Recovery` directory. Never touch media or IndexedDB. Surface restore/retry choices in startup state.
+- [x] Write schema tests for fresh creation, foreign keys, indices, WAL, rollback, corrupt database quarantine, and migration from every checked-in schema fixture.
+- [x] Write repository tests for deterministic album order, natural track order, duplicate stable IDs, playlist referential integrity, normalized search, play-count monotonicity, and one-transaction album deletion.
+- [x] Implement a small prepared-statement wrapper with bound values only. No interpolated user strings in SQL.
+- [x] Link the system `libsqlite3.tbd` and keep all SQLite C handles private to `CatalogDatabase`.
+- [x] Serialize writes through one database queue. Reads use bounded result pages; library grid queries never hydrate track rows or artwork bytes.
+- [x] Keep artwork as validated HEIF/JPEG files in `Application Support/Aeon/Artwork`; store only keys in SQLite. Write to `.partial`, decode, downsample, fsync, then atomically replace.
+- [x] On open failure, move only the damaged database and WAL/SHM siblings to a timestamped `Recovery` directory. Never touch media or IndexedDB. Surface restore/retry choices in startup state.
 
 **Gate**
 

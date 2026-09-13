@@ -45,6 +45,15 @@
 		A59000000000000000000004 /* AppContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000014 /* AppContainerTests.swift */; };
 		A5A000000000000000000001 /* AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A00000000000000000000E /* AppUITests.swift */; };
 		A5A000000000000000000002 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000000000000000000004 /* XCTest.framework */; };
+		A5B000000000000000000001 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000011 /* CatalogModels.swift */; };
+		A5B000000000000000000002 /* CatalogSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000012 /* CatalogSchema.swift */; };
+		A5B000000000000000000003 /* CatalogMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000013 /* CatalogMigrations.swift */; };
+		A5B000000000000000000004 /* CatalogDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000014 /* CatalogDatabase.swift */; };
+		A5B000000000000000000005 /* CatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000015 /* CatalogRepository.swift */; };
+		A5B000000000000000000006 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000016 /* ArtworkStore.swift */; };
+		A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000017 /* CatalogDatabaseTests.swift */; };
+		A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000018 /* CatalogRepositoryTests.swift */; };
+		A5B000000000000000000009 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000019 /* libsqlite3.tbd */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,6 +114,15 @@
 		A59000000000000000000014 /* AppContainerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainerTests.swift; sourceTree = "<group>"; };
 		A5A00000000000000000000D /* AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5A00000000000000000000E /* AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUITests.swift; sourceTree = "<group>"; };
+		A5B000000000000000000011 /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogModels.swift; sourceTree = "<group>"; };
+		A5B000000000000000000012 /* CatalogSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSchema.swift; sourceTree = "<group>"; };
+		A5B000000000000000000013 /* CatalogMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMigrations.swift; sourceTree = "<group>"; };
+		A5B000000000000000000014 /* CatalogDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDatabase.swift; sourceTree = "<group>"; };
+		A5B000000000000000000015 /* CatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogRepository.swift; sourceTree = "<group>"; };
+		A5B000000000000000000016 /* ArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkStore.swift; sourceTree = "<group>"; };
+		A5B000000000000000000017 /* CatalogDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDatabaseTests.swift; sourceTree = "<group>"; };
+		A5B000000000000000000018 /* CatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogRepositoryTests.swift; sourceTree = "<group>"; };
+		A5B000000000000000000019 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -117,6 +135,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A5B000000000000000000009 /* libsqlite3.tbd in Frameworks */,
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -144,6 +163,7 @@
 		27E2DDA53C4D2A4D1A88CE4A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A5B000000000000000000019 /* libsqlite3.tbd */,
 				AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */,
 				AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */,
 			);
@@ -176,7 +196,9 @@
 			isa = PBXGroup;
 			children = (
 				A52000000000000000000020 /* Audio */,
+				A5B000000000000000000020 /* Domain */,
 				A58000000000000000000020 /* Migration */,
+				A5B000000000000000000021 /* Persistence */,
 				A59000000000000000000020 /* Features */,
 				A59000000000000000000011 /* AeonApp.swift */,
 				A59000000000000000000012 /* AppContainer.swift */,
@@ -216,6 +238,8 @@
 				A56000000000000000000012 /* PlaybackCoordinatorTests.swift */,
 				A58000000000000000000013 /* LegacyDataAccessTests.swift */,
 				A59000000000000000000014 /* AppContainerTests.swift */,
+				A5B000000000000000000017 /* CatalogDatabaseTests.swift */,
+				A5B000000000000000000018 /* CatalogRepositoryTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -236,6 +260,26 @@
 				A54000000000000000000012 /* ReplayGain.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		A5B000000000000000000020 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				A5B000000000000000000011 /* CatalogModels.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		A5B000000000000000000021 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				A5B000000000000000000014 /* CatalogDatabase.swift */,
+				A5B000000000000000000012 /* CatalogSchema.swift */,
+				A5B000000000000000000015 /* CatalogRepository.swift */,
+				A5B000000000000000000013 /* CatalogMigrations.swift */,
+				A5B000000000000000000016 /* ArtworkStore.swift */,
+			);
+			path = Persistence;
 			sourceTree = "<group>";
 		};
 		A58000000000000000000020 /* Migration */ = {
@@ -471,6 +515,12 @@
 				A59000000000000000000001 /* AeonApp.swift in Sources */,
 				A59000000000000000000002 /* AppContainer.swift in Sources */,
 				A59000000000000000000003 /* AeonRootView.swift in Sources */,
+				A5B000000000000000000001 /* CatalogModels.swift in Sources */,
+				A5B000000000000000000002 /* CatalogSchema.swift in Sources */,
+				A5B000000000000000000003 /* CatalogMigrations.swift in Sources */,
+				A5B000000000000000000004 /* CatalogDatabase.swift in Sources */,
+				A5B000000000000000000005 /* CatalogRepository.swift in Sources */,
+				A5B000000000000000000006 /* ArtworkStore.swift in Sources */,
 				A52000000000000000000001 /* PlaybackModels.swift in Sources */,
 				A52000000000000000000002 /* DiagnosticsLog.swift in Sources */,
 				A52000000000000000000003 /* PlaybackStateStore.swift in Sources */,
@@ -501,6 +551,8 @@
 				A56000000000000000000002 /* PlaybackCoordinatorTests.swift in Sources */,
 				A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */,
 				A59000000000000000000004 /* AppContainerTests.swift in Sources */,
+				A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */,
+				A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -663,6 +715,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -683,6 +736,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -701,6 +755,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App.app/App";
 			};
@@ -720,6 +775,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App.app/App";
 			};
@@ -736,6 +792,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = App;
@@ -753,6 +810,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = App;

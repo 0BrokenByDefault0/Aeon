@@ -50,6 +50,9 @@ struct AppStorageRoots: Equatable {
 }
 
 struct AppServices {
+    let catalogDatabase: CatalogDatabase
+    let catalogRepository: CatalogRepository
+    let artworkStore: ArtworkStore
     let mediaStore: MediaStore
     let playbackStateStore: PlaybackStateStore
     let diagnosticsLog: DiagnosticsLog
@@ -68,6 +71,12 @@ struct AppServices {
         try fileManager.createDirectory(at: stateRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: diagnosticsRoot, withIntermediateDirectories: true)
 
+        let database = try CatalogDatabase(rootURL: aeonSupport, fileManager: fileManager)
+        let catalog = CatalogRepository(database: database)
+        let artwork = try ArtworkStore(
+            rootURL: aeonSupport.appendingPathComponent("Artwork", isDirectory: true),
+            fileManager: fileManager
+        )
         let mediaStore = try MediaStore(baseURL: roots.applicationSupportURL, fileManager: fileManager)
         let stateStore = PlaybackStateStore(baseURL: stateRoot, fileManager: fileManager)
         let diagnostics = DiagnosticsLog(
@@ -86,6 +95,9 @@ struct AppServices {
             mediaInfo: mediaInfo
         )
         return AppServices(
+            catalogDatabase: database,
+            catalogRepository: catalog,
+            artworkStore: artwork,
             mediaStore: mediaStore,
             playbackStateStore: stateStore,
             diagnosticsLog: diagnostics,
@@ -107,6 +119,13 @@ struct LegacyLibrarySummary: Equatable {
 struct AppRecoveryState: Equatable {
     let code: String
     let message: String
+    let catalogRecovery: CatalogRecovery?
+
+    init(code: String, message: String, catalogRecovery: CatalogRecovery? = nil) {
+        self.code = code
+        self.message = message
+        self.catalogRecovery = catalogRecovery
+    }
 }
 
 enum AppLaunchState: Equatable {
@@ -182,18 +201,64 @@ final class AppContainer: ObservableObject {
         start()
     }
 
+    func restoreCatalog(from sourceURL: URL) {
+        guard case .recovery(let issue) = launchState,
+              let recovery = issue.catalogRecovery else { return }
+        launchState = .launching
+        let accessed = sourceURL.startAccessingSecurityScopedResource()
+        defer { if accessed { sourceURL.stopAccessingSecurityScopedResource() } }
+
+        let temporary = recovery.originalDatabaseURL.deletingLastPathComponent()
+            .appendingPathComponent(".restore-\(UUID().uuidString).sqlite3", isDirectory: false)
+        do {
+            try? cleanupFileManager.removeItem(at: temporary)
+            try cleanupFileManager.copyItem(at: sourceURL, to: temporary)
+            let validation = try CatalogDatabase(
+                url: temporary,
+                recoveryDirectory: recovery.quarantineDirectory,
+                fileManager: cleanupFileManager
+            )
+            try validation.checkpoint()
+            validation.close()
+            try? cleanupFileManager.removeItem(atPath: temporary.path + "-wal")
+            try? cleanupFileManager.removeItem(atPath: temporary.path + "-shm")
+            guard !cleanupFileManager.fileExists(atPath: recovery.originalDatabaseURL.path) else {
+                throw CatalogDatabaseError.invalidResult("restore_destination_exists")
+            }
+            try cleanupFileManager.moveItem(at: temporary, to: recovery.originalDatabaseURL)
+            start()
+        } catch {
+            try? cleanupFileManager.removeItem(at: temporary)
+            try? cleanupFileManager.removeItem(atPath: temporary.path + "-wal")
+            try? cleanupFileManager.removeItem(atPath: temporary.path + "-shm")
+            launchState = .recovery(AppRecoveryState(
+                code: "catalog_restore_failed",
+                message: "That catalogue could not be verified. Choose another catalogue file or start with a clean one.",
+                catalogRecovery: recovery
+            ))
+        }
+    }
+
     private func start() {
         launchState = .launching
         do {
             if services == nil {
                 let resolvedRoots = try rootsProvider()
-                let resolvedServices = try servicesFactory(resolvedRoots)
                 roots = resolvedRoots
+                let resolvedServices = try servicesFactory(resolvedRoots)
                 services = resolvedServices
             }
             if inspectLegacyLibrary { beginLegacyInspection() }
             else { launchState = .ready }
+        } catch CatalogDatabaseError.recoveryRequired(let recovery) {
+            services = nil
+            launchState = .recovery(AppRecoveryState(
+                code: "catalog_quarantined",
+                message: "The damaged catalogue was isolated without touching music, artwork, or the legacy library. Restore a known-good catalogue or start clean.",
+                catalogRecovery: recovery
+            ))
         } catch {
+            services = nil
             launchState = .recovery(AppRecoveryState(
                 code: "startup_failed",
                 message: "Aeon could not open its native storage. Check available device storage, then retry."
@@ -230,6 +295,7 @@ final class AppContainer: ObservableObject {
     }
 
     deinit {
+        services?.catalogDatabase.close()
         if let cleanupURL { try? cleanupFileManager.removeItem(at: cleanupURL) }
     }
 }

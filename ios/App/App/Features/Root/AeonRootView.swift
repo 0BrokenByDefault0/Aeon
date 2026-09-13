@@ -1,7 +1,9 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct AeonRootView: View {
     @ObservedObject var container: AppContainer
+    @State private var isRestoringCatalog = false
 
     var body: some View {
         ZStack {
@@ -17,6 +19,14 @@ struct AeonRootView: View {
         }
         .preferredColorScheme(.dark)
         .accessibilityIdentifier("aeon.root")
+        .fileImporter(
+            isPresented: $isRestoringCatalog,
+            allowedContentTypes: [.data],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            container.restoreCatalog(from: url)
+        }
     }
 
     @ViewBuilder
@@ -66,11 +76,25 @@ struct AeonRootView: View {
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 480)
-                Button("Retry") { container.retryStartup() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.white)
-                    .foregroundStyle(.black)
-                    .accessibilityIdentifier("aeon.launch.retry")
+                if issue.catalogRecovery != nil {
+                    HStack(spacing: 12) {
+                        Button("Restore Catalogue") { isRestoringCatalog = true }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                            .accessibilityIdentifier("aeon.launch.restore")
+                        Button("Start Clean") { container.retryStartup() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(.black)
+                            .accessibilityIdentifier("aeon.launch.retry")
+                    }
+                } else {
+                    Button("Retry") { container.retryStartup() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.white)
+                        .foregroundStyle(.black)
+                        .accessibilityIdentifier("aeon.launch.retry")
+                }
             }
             .accessibilityIdentifier("aeon.launch.recovery")
         }
