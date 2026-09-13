@@ -6,6 +6,7 @@
   const DATABASE = "isolation-db";
   const STORES = ["albums", "tracks", "playlists", "kv"];
   const PAGE_SIZE = 250;
+  const CHUNK_SIZE = 512 * 1024;
 
   function plugin() {
     const value = window.Capacitor && window.Capacitor.Plugins
@@ -75,6 +76,7 @@
   }
 
   async function scanStore(database, name, bridge) {
+    const foundBlobs = [];
     let page = 0;
     let afterKey;
     for (;;) {
@@ -90,14 +92,67 @@
         ids.push(id);
         values.push(recordWithoutBlobs(record));
         const descriptor = blobDescriptor(name, record);
-        if (descriptor) blobs.push(descriptor);
+        if (descriptor) { blobs.push(descriptor); foundBlobs.push(descriptor); }
       }
       const isLast = records.length < PAGE_SIZE;
       await bridge.reportPage({ store: name, page, ids, records: values, blobs, isLast });
       page += 1;
-      if (isLast) return;
+      if (isLast) return foundBlobs;
       afterKey = ids[ids.length - 1];
     }
+  }
+
+  function updateCRC32(crc, bytes) {
+    for (const byte of bytes) {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+    }
+    return crc >>> 0;
+  }
+
+  function bytesBase64(bytes) {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + 0x8000)));
+    }
+    return btoa(binary);
+  }
+
+  async function readArtifact(database, descriptor) {
+    const store = descriptor.kind === "artwork" ? "albums" : "tracks";
+    const transaction = database.transaction(store, "readonly");
+    const record = await requestValue(transaction.objectStore(store).get(descriptor.ownerID));
+    const blob = record && (descriptor.kind === "artwork" ? record.art : record.blob);
+    if (!(blob instanceof Blob) || blob.size !== descriptor.byteLength) {
+      throw new Error(`Legacy ${descriptor.kind} changed during migration`);
+    }
+    return blob;
+  }
+
+  async function streamArtifact(database, descriptor, bridge, runID) {
+    const artifactID = `${descriptor.kind}:${descriptor.ownerID}`;
+    const resume = await bridge.beginArtifact({runID, artifactID, ...descriptor});
+    if (resume && resume.complete) return;
+    const blob = await readArtifact(database, descriptor);
+    const nextOffset = Number(resume && resume.nextOffset) || 0;
+    let sequence = 0;
+    let crc = 0xffffffff;
+    for (let offset = 0; offset < blob.size; offset += CHUNK_SIZE) {
+      const bytes = new Uint8Array(await blob.slice(offset, Math.min(blob.size, offset + CHUNK_SIZE)).arrayBuffer());
+      crc = updateCRC32(crc, bytes);
+      if (offset >= nextOffset) {
+        const accepted = await bridge.reportArtifactChunk({
+          runID, artifactID, sequence, offset, bytesBase64: bytesBase64(bytes),
+          crc32: (updateCRC32(0xffffffff, bytes) ^ 0xffffffff) >>> 0
+        });
+        if (!accepted || accepted.nextOffset !== offset + bytes.length) {
+          throw new Error(`Native ${descriptor.kind} checkpoint was not accepted`);
+        }
+      }
+      sequence += 1;
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    await bridge.finishArtifact({runID, artifactID, byteLength: blob.size, crc32: (crc ^ 0xffffffff) >>> 0});
   }
 
   async function run() {
@@ -117,8 +172,19 @@
         schemaVersion: database.version,
         counts
       });
-      for (const name of STORES) await scanStore(database, name, bridge);
+      const blobs = [];
+      for (const name of STORES) blobs.push(...await scanStore(database, name, bridge));
       await bridge.finishInventory({});
+      const runID = `${DATABASE}:v${database.version}`;
+      const lastPlayed = await requestValue(database.transaction("kv", "readonly").objectStore("kv").get("lastPlayed"));
+      const priority = new Map((((lastPlayed && lastPlayed.v && lastPlayed.v.queue) || [])).map((item, index) => [item.trackId, index]));
+      for (const kind of ["artwork", "audio"]) {
+        const ordered = blobs.filter(value => value.kind === kind).sort((a, b) =>
+          (priority.get(a.ownerID) ?? Number.MAX_SAFE_INTEGER) - (priority.get(b.ownerID) ?? Number.MAX_SAFE_INTEGER));
+        for (const descriptor of ordered) {
+          await streamArtifact(database, descriptor, bridge, runID);
+        }
+      }
     } catch (error) {
       try {
         await bridge.reportFailure({
@@ -131,6 +197,6 @@
     }
   }
 
-  window.AeonLegacyMigration = { run, pageSize: PAGE_SIZE, stores: STORES.slice() };
+  window.AeonLegacyMigration = { run, pageSize: PAGE_SIZE, chunkSize: CHUNK_SIZE, stores: STORES.slice() };
   run();
 })();

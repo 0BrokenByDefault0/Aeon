@@ -77,7 +77,11 @@ struct AppServices {
             rootURL: aeonSupport.appendingPathComponent("Artwork", isDirectory: true),
             fileManager: fileManager
         )
-        let mediaStore = try MediaStore(baseURL: roots.applicationSupportURL, fileManager: fileManager)
+        let mediaStore = try MediaStore(
+            baseURL: roots.applicationSupportURL,
+            documentsRoot: roots.documentsURL,
+            fileManager: fileManager
+        )
         let stateStore = PlaybackStateStore(baseURL: stateRoot, fileManager: fileManager)
         let diagnostics = DiagnosticsLog(
             url: diagnosticsRoot.appendingPathComponent("audio.jsonl", isDirectory: false),
@@ -132,12 +136,13 @@ enum AppLaunchState: Equatable {
     case launching
     case checkingLegacyLibrary
     case migrationRequired(LegacyLibrarySummary)
+    case migrating(LegacyMigrationProgress)
     case ready
     case recovery(AppRecoveryState)
 
     var requiresLegacyBridge: Bool {
         switch self {
-        case .checkingLegacyLibrary, .migrationRequired: return true
+        case .checkingLegacyLibrary, .migrationRequired, .migrating: return true
         case .launching, .ready, .recovery: return false
         }
     }
@@ -150,8 +155,12 @@ final class AppContainer: ObservableObject {
 
     @Published private(set) var launchState: AppLaunchState = .launching
     @Published private(set) var legacyMigrationProbe = LegacyMigrationInventoryProbe()
+    @Published private(set) var legacyBridgeRequired = false
     private(set) var roots: AppStorageRoots?
     private(set) var services: AppServices?
+    private(set) var migrationCoordinator: LegacyMigrationCoordinator?
+
+    var migrationDiagnosticsURL: URL? { migrationCoordinator?.diagnosticsURL }
 
     private let rootsProvider: RootsProvider
     private let servicesFactory: ServicesFactory
@@ -199,6 +208,11 @@ final class AppContainer: ObservableObject {
     func retryStartup() {
         guard case .recovery = launchState else { return }
         start()
+    }
+
+    func continueAfterMigration() {
+        guard case .migrating(let progress) = launchState, progress.catalogueReady else { return }
+        launchState = .ready
     }
 
     func restoreCatalog(from sourceURL: URL) {
@@ -272,6 +286,7 @@ final class AppContainer: ObservableObject {
             self?.acceptLegacyInventory(result)
         }
         legacyMigrationProbe = probe
+        legacyBridgeRequired = true
         launchState = .checkingLegacyLibrary
     }
 
@@ -284,9 +299,52 @@ final class AppContainer: ObservableObject {
                 counts: snapshot.inventory.counts,
                 artifactCount: snapshot.blobs.count
             )
-            launchState = summary.recordCount == 0 ? .ready : .migrationRequired(summary)
+            guard summary.recordCount > 0 else {
+                legacyBridgeRequired = false
+                launchState = .ready
+                return
+            }
+            launchState = .migrationRequired(summary)
+            guard let services else {
+                launchState = .recovery(AppRecoveryState(code: "migration_services_unavailable", message: "Native storage is unavailable."))
+                return
+            }
+            let coordinator = LegacyMigrationCoordinator(
+                repository: services.catalogRepository,
+                artworkStore: services.artworkStore,
+                mediaStore: services.mediaStore,
+                metadataProbe: services.metadataProbe
+            )
+            coordinator.onProgress = { [weak self] progress in
+                guard let self else { return }
+                if progress.phase == .failed {
+                    self.launchState = .recovery(AppRecoveryState(code: "legacy_migration_failed", message: progress.message))
+                } else {
+                    if case .ready = self.launchState, progress.catalogueReady {
+                        // Continue keeps the native library visible while the hidden bridge finishes audio.
+                    } else {
+                        self.launchState = .migrating(progress)
+                    }
+                    if progress.sourceComplete { self.legacyBridgeRequired = false }
+                }
+            }
+            migrationCoordinator = coordinator
+            legacyMigrationProbe.artifactReceiver = coordinator
+            do {
+                try coordinator.prepare(snapshot: snapshot)
+            } catch {
+                coordinator.receive(failure: LegacyMigrationFailure(
+                    code: "legacy_migration_failed",
+                    message: "The native migration could not validate the legacy catalogue."
+                ))
+                launchState = .recovery(AppRecoveryState(
+                    code: "legacy_migration_failed",
+                    message: "The legacy library stayed untouched, but its native copy could not be prepared. Retry or export diagnostics."
+                ))
+            }
         case .failure(let failure):
             if failure.message.localizedCaseInsensitiveContains("not found") {
+                legacyBridgeRequired = false
                 launchState = .ready
             } else {
                 launchState = .recovery(AppRecoveryState(code: failure.code, message: failure.message))

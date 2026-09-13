@@ -126,6 +126,8 @@ final class NativePlaybackMediaInfoProvider: PlaybackMediaInfoProviding {
         switch error {
         case MediaStoreError.migrationRequired:
             return PlaybackFailure(code: "migration_required", message: "Media migration required", recoverable: true, trackID: trackID)
+        case MediaStoreError.unavailable:
+            return PlaybackFailure(code: "media_missing", message: "File unavailable", recoverable: true, trackID: trackID)
         case MediaStoreError.staleBookmark, MediaStoreError.invalidBookmark, MediaStoreError.securityScopedAccessDenied:
             return PlaybackFailure(code: "media_permission", message: "File permission unavailable", recoverable: true, trackID: trackID)
         default:

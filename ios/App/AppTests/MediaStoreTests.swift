@@ -151,6 +151,11 @@ final class MediaStoreTests: XCTestCase {
     func testResolvesNativeInsideMediaRootAndLegacyRequiresMigration() throws {
         let store = try MediaStore(baseURL: tempURL)
         XCTAssertEqual(try store.resolve(.native(relativePath: "album/track.wav")), store.mediaRoot.appendingPathComponent("album/track.wav"))
+        XCTAssertEqual(
+            try store.resolve(.documents(relativePath: "Music/Artist/track.wav")),
+            store.documentsRoot.appendingPathComponent("Music/Artist/track.wav")
+        )
+        XCTAssertThrowsError(try store.resolve(.documents(relativePath: "Music/../escape.wav")))
         XCTAssertThrowsError(try store.resolve(.legacyBlob(trackID: "old"))) { error in
             XCTAssertEqual(error as? MediaStoreError, .migrationRequired(trackID: "old"))
         }

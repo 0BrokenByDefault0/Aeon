@@ -29,6 +29,15 @@ const address=server.address();
 const origin=`http://127.0.0.1:${address.port}`;
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM||chromium.executablePath()});
 
+function crc32(bytes){
+  let crc=0xffffffff;
+  for(const byte of bytes){
+    crc^=byte;
+    for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);
+  }
+  return (crc^0xffffffff)>>>0;
+}
+
 try{
   const context=await browser.newContext();
   const seed=await context.newPage();
@@ -100,16 +109,32 @@ try{
       };
     }
     const record=name=>async payload=>{calls.push({name,payload});return{}};
+    const artifactOffsets=new Map();
+    const beginArtifact=async payload=>{
+      calls.push({name:'beginArtifact',payload});
+      const nextOffset=artifactOffsets.get(payload.artifactID)||0;
+      return{nextOffset,nextSequence:Math.floor(nextOffset/(512*1024)),complete:false};
+    };
+    const reportArtifactChunk=async payload=>{
+      calls.push({name:'reportArtifactChunk',payload});
+      const byteLength=atob(payload.bytesBase64).length;
+      const nextOffset=payload.offset+byteLength;
+      artifactOffsets.set(payload.artifactID,nextOffset);
+      return{nextOffset,nextSequence:payload.sequence+1,complete:false};
+    };
     window.migrationContract={calls,modes,mutations,get deleteCalls(){return deleteCalls}};
     window.Capacitor={Plugins:{LegacyMigration:{
       reportInventory:record('reportInventory'),
       reportPage:record('reportPage'),
       finishInventory:record('finishInventory'),
+      beginArtifact,
+      reportArtifactChunk,
+      finishArtifact:record('finishArtifact'),
       reportFailure:record('reportFailure')
     }}};
   });
   await page.goto(`${origin}/legacy-migration.html`);
-  await page.waitForFunction(()=>migrationContract.calls.some(call=>call.name==='finishInventory'));
+  await page.waitForFunction(()=>migrationContract.calls.filter(call=>call.name==='finishArtifact').length===2);
 
   const contract=await page.evaluate(()=>({
     calls:migrationContract.calls,
@@ -117,6 +142,7 @@ try{
     mutations:migrationContract.mutations,
     deleteCalls:migrationContract.deleteCalls,
     pageSize:AeonLegacyMigration.pageSize,
+    chunkSize:AeonLegacyMigration.chunkSize,
     stores:AeonLegacyMigration.stores
   }));
   const inventory=contract.calls.find(call=>call.name==='reportInventory').payload;
@@ -126,6 +152,7 @@ try{
   });
   assert.deepEqual(contract.stores,['albums','tracks','playlists','kv']);
   assert.equal(contract.pageSize,250);
+  assert.equal(contract.chunkSize,512*1024);
   assert.equal(contract.deleteCalls,0,'migration never deletes IndexedDB');
   assert.deepEqual(contract.mutations,[],'migration never mutates an object store');
   assert.ok(contract.modes.length>=4);
@@ -143,6 +170,24 @@ try{
   assert.deepEqual(
     pages.find(value=>value.store==='tracks').ids,
     ['track-blob','track-path','track-path-two']
+  );
+  assert.deepEqual(
+    contract.calls.filter(call=>call.name==='beginArtifact').map(call=>call.payload.artifactID),
+    ['artwork:album-art','audio:track-blob'],
+    'artwork is materialized before audio'
+  );
+  const chunks=contract.calls.filter(call=>call.name==='reportArtifactChunk').map(call=>call.payload);
+  assert.equal(chunks.length,2);
+  assert.ok(chunks.every(value=>atob(value.bytesBase64).length<=512*1024));
+  assert.ok(chunks.every(value=>value.crc32===crc32(Buffer.from(value.bytesBase64,'base64'))));
+  assert.deepEqual(chunks.map(value=>[value.sequence,value.offset]),[[0,0],[0,0]]);
+  assert.deepEqual(
+    contract.calls.filter(call=>call.name==='finishArtifact').map(call=>call.payload.byteLength),
+    [5,5]
+  );
+  assert.deepEqual(
+    contract.calls.filter(call=>call.name==='finishArtifact').map(call=>call.payload.crc32),
+    [crc32(Buffer.from('cover')),crc32(Buffer.from('sound'))]
   );
   const albumRecords=pages.filter(value=>value.store==='albums').flatMap(value=>value.records);
   const trackRecords=pages.find(value=>value.store==='tracks').records;

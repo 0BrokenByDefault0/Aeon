@@ -286,15 +286,15 @@ npm run test:ios -- -only-testing:AppTests/CatalogDatabaseTests \
 - In-place registration of `Documents/Music` tracks.
 - Resumable 512 KiB artwork/audio blob materialization with CRC32 and native media validation.
 
-- [ ] Add tests for exact field mapping of albums, tracks, playlists, `seq`, `plays`, `log`, `settings`, `skySeed`, and `lastPlayed`; preserve unknown future `kv` entries in a namespaced JSON record.
-- [ ] Add tests proving path-backed tracks are not copied, adopted files are never deleted, traversal is rejected, missing files remain catalogued as unavailable, and source IndexedDB remains unchanged.
-- [ ] Add tests for interruption after every migration state: inventory, staged rows, artifact chunk N, artifact verification, catalogue publication, and final marker. Relaunch must resume or safely retry without duplicate rows.
-- [ ] Extend media resolution so `.documents(relativePath:)` resolves beneath the app Documents root. Migrate existing `Music/...` paths to that case. Keep `.legacyBlob(trackID:)` until native materialization succeeds.
-- [ ] Stage catalogue rows under a migration run, validate record counts/references, then publish them in one transaction. A failed run is invisible to the normal repository.
-- [ ] Stream artwork first. Stream blob audio only when requested for playback or during bounded background work; prioritize the current queue. Each chunk carries run ID, artifact ID, sequence, and CRC state.
-- [ ] Write blob media under `Documents/Music/_Migrated/.incoming`; verify byte count, CRC32, and `MetadataProbe`, then move atomically to the final extension-preserving path and update `media_kind` in one transaction.
-- [ ] Mark the catalogue `ready` only after publication and artwork completion. Mark the legacy source `complete` only when no `legacyBlob` record remains; the hidden bridge stays available between those states.
-- [ ] Provide SwiftUI progress, retry, diagnostics export, and `Continue with available files` actions. Never offer erase as migration recovery.
+- [x] Add tests for exact field mapping of albums, tracks, playlists, `seq`, `plays`, `log`, `settings`, `skySeed`, and `lastPlayed`; preserve unknown future `kv` entries in a namespaced JSON record.
+- [x] Add tests proving path-backed tracks are not copied, adopted files are never deleted, traversal is rejected, missing files remain catalogued as unavailable, and source IndexedDB remains unchanged.
+- [x] Add tests for interruption after every migration state: inventory, staged rows, artifact chunk N, artifact verification, catalogue publication, and final marker. Relaunch must resume or safely retry without duplicate rows.
+- [x] Extend media resolution so `.documents(relativePath:)` resolves beneath the app Documents root. Migrate existing `Music/...` paths to that case. Keep `.legacyBlob(trackID:)` until native materialization succeeds.
+- [x] Stage catalogue rows under a migration run, validate record counts/references, then publish them in one transaction. A failed run is invisible to the normal repository.
+- [x] Stream artwork first. Stream blob audio only when requested for playback or during bounded background work; prioritize the current queue. Each chunk carries run ID, artifact ID, sequence, and CRC state.
+- [x] Write blob media under `Documents/Music/_Migrated/.incoming`; verify byte count, CRC32, and `MetadataProbe`, then move atomically to the final extension-preserving path and update `media_kind` in one transaction.
+- [x] Mark the catalogue `ready` only after publication and artwork completion. Mark the legacy source `complete` only when no `legacyBlob` record remains; the hidden bridge stays available between those states.
+- [x] Provide SwiftUI progress, retry, diagnostics export, and `Continue with available files` actions. Never offer erase as migration recovery.
 
 **Gate**
 

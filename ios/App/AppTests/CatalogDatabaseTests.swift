@@ -57,14 +57,14 @@ final class CatalogDatabaseTests: XCTestCase {
         XCTAssertEqual(try database.scalar("SELECT COUNT(*) AS value FROM settings")?.int64, 0)
     }
 
-    func testVersionOneFixtureMigratesWithoutLosingRows() throws {
+    func testVersionTwoFixtureMigratesTracksAndReferencesWithoutLosingRows() throws {
         let root = makeRoot()
         let url = root.appendingPathComponent("Catalog/catalog.sqlite3")
         let recovery = root.appendingPathComponent("Recovery")
         var fixture: CatalogDatabase? = try CatalogDatabase(
             url: url,
             recoveryDirectory: recovery,
-            targetSchemaVersion: 1
+            targetSchemaVersion: 2
         )
         try fixture?.execute(
             """
@@ -74,17 +74,34 @@ final class CatalogDatabaseTests: XCTestCase {
             ) VALUES('fixture', 1, 'First', 'Aeon', '', '', 'first', 'aeon', 1, 1)
             """
         )
+        try fixture?.execute(
+            """
+            INSERT INTO tracks(
+                id, album_id, sequence, title, artist, normalized_title, normalized_artist,
+                byte_count, media_kind, media_path, imported_at
+            ) VALUES('track', 'fixture', 1, 'Signal', 'Aeon', 'signal', 'aeon', 42, 'native', 'track.wav', 1)
+            """
+        )
+        try fixture?.execute("INSERT INTO playlists(id, name, created_at, updated_at) VALUES('list', 'Route', 1, 1)")
+        try fixture?.execute("INSERT INTO playlist_items(playlist_id, position, track_id) VALUES('list', 0, 'track')")
+        try fixture?.execute("INSERT INTO listening(track_id, play_count, completed_count, last_position) VALUES('track', 7, 2, 3)")
         fixture?.close()
         fixture = nil
 
         let migrated = try CatalogDatabase(url: url, recoveryDirectory: recovery)
-        XCTAssertEqual(try migrated.schemaVersion, 2)
+        XCTAssertEqual(try migrated.schemaVersion, CatalogSchema.currentVersion)
         XCTAssertEqual(try migrated.scalar("SELECT COUNT(*) AS value FROM albums")?.int64, 1)
         XCTAssertEqual(
             try migrated.scalar("SELECT normalized_genre AS value FROM albums WHERE id = 'fixture'")?.string,
             ""
         )
         XCTAssertTrue(try migrated.tableNames().contains("migration_staging"))
+        XCTAssertEqual(try migrated.scalar("SELECT COUNT(*) AS value FROM tracks")?.int64, 1)
+        XCTAssertEqual(try migrated.scalar("SELECT COUNT(*) AS value FROM playlist_items")?.int64, 1)
+        XCTAssertEqual(try migrated.scalar("SELECT play_count AS value FROM listening WHERE track_id = 'track'")?.int64, 7)
+        XCTAssertTrue(try migrated.foreignKeysEnabled)
+        XCTAssertTrue((try migrated.query("PRAGMA foreign_key_check")).isEmpty)
+        try migrated.execute("UPDATE tracks SET media_kind = 'documents', media_path = 'Music/track.wav' WHERE id = 'track'")
     }
 
     func testCorruptDatabaseAndSidecarsAreQuarantinedWithoutTouchingUserData() throws {

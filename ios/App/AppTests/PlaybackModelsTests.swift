@@ -14,8 +14,10 @@ final class PlaybackModelsTests: XCTestCase {
         encoder.outputFormatting = [.sortedKeys]
 
         XCTAssertEqual(String(data: try encoder.encode(MediaReference.native(relativePath: "Music/a.flac")), encoding: .utf8), "{\"relativePath\":\"Music\\/a.flac\",\"type\":\"native\"}")
+        XCTAssertEqual(String(data: try encoder.encode(MediaReference.documents(relativePath: "Music/a.flac")), encoding: .utf8), "{\"relativePath\":\"Music\\/a.flac\",\"type\":\"documents\"}")
         XCTAssertEqual(String(data: try encoder.encode(MediaReference.externalBookmark(Data([0, 1, 2]))), encoding: .utf8), "{\"bookmark\":\"AAEC\",\"type\":\"externalBookmark\"}")
         XCTAssertEqual(String(data: try encoder.encode(MediaReference.legacyBlob(trackID: "t1")), encoding: .utf8), "{\"trackID\":\"t1\",\"type\":\"legacyBlob\"}")
+        XCTAssertEqual(String(data: try encoder.encode(MediaReference.unavailable(trackID: "t2")), encoding: .utf8), "{\"trackID\":\"t2\",\"type\":\"unavailable\"}")
     }
 
     func testMediaReferenceRejectsUnknownDiscriminator() {

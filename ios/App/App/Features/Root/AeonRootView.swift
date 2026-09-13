@@ -7,8 +7,9 @@ struct AeonRootView: View {
 
     var body: some View {
         ZStack {
-            if container.launchState.requiresLegacyBridge {
+            if container.legacyBridgeRequired {
                 LegacyMigrationControllerView(probe: container.legacyMigrationProbe)
+                    .id(ObjectIdentifier(container.legacyMigrationProbe))
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
@@ -53,6 +54,36 @@ struct AeonRootView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("aeon.launch.migration")
+        case .migrating(let progress):
+            VStack(spacing: 16) {
+                Text(progress.catalogueReady ? "LIBRARY READY" : "PRESERVING LIBRARY")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .tracking(2.2)
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(progress.message)
+                    .font(.system(size: 28, weight: .regular, design: .serif))
+                    .foregroundStyle(.white)
+                ProgressView(value: progress.fraction)
+                    .tint(.white)
+                    .frame(maxWidth: 360)
+                Text("\(progress.completedArtifacts) of \(progress.totalArtifacts) embedded files verified")
+                    .font(.system(size: 13, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.62))
+                HStack(spacing: 12) {
+                    if progress.catalogueReady {
+                        Button("Continue with Available Files") { container.continueAfterMigration() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(.black)
+                    }
+                    if let diagnosticsURL = container.migrationDiagnosticsURL {
+                        ShareLink(item: diagnosticsURL) { Text("Export Diagnostics") }
+                            .buttonStyle(.bordered)
+                            .tint(.white)
+                    }
+                }
+            }
+            .accessibilityIdentifier("aeon.launch.migrating")
         case .ready:
             VStack(spacing: 12) {
                 Text("AEON")
@@ -89,11 +120,18 @@ struct AeonRootView: View {
                             .accessibilityIdentifier("aeon.launch.retry")
                     }
                 } else {
-                    Button("Retry") { container.retryStartup() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.white)
-                        .foregroundStyle(.black)
-                        .accessibilityIdentifier("aeon.launch.retry")
+                    HStack(spacing: 12) {
+                        Button("Retry") { container.retryStartup() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.white)
+                            .foregroundStyle(.black)
+                            .accessibilityIdentifier("aeon.launch.retry")
+                        if let diagnosticsURL = container.migrationDiagnosticsURL {
+                            ShareLink(item: diagnosticsURL) { Text("Export Diagnostics") }
+                                .buttonStyle(.bordered)
+                                .tint(.white)
+                        }
+                    }
                 }
             }
             .accessibilityIdentifier("aeon.launch.recovery")

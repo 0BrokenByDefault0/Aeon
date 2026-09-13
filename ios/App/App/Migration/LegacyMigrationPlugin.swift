@@ -1,86 +1,6 @@
 import Capacitor
 import Foundation
 
-enum LegacyMigrationStore: String, Codable, CaseIterable {
-    case albums
-    case tracks
-    case playlists
-    case kv
-}
-
-enum LegacyMigrationArtifactKind: String, Codable {
-    case artwork
-    case audio
-}
-
-struct LegacyMigrationInventory: Codable, Equatable {
-    let databaseName: String
-    let schemaVersion: Int
-    let counts: [String: Int]
-}
-
-struct LegacyMigrationBlobDescriptor: Codable, Equatable {
-    let ownerID: String
-    let kind: LegacyMigrationArtifactKind
-    let byteLength: Int
-    let mediaType: String
-    let fileName: String
-}
-
-enum LegacyJSONValue: Codable, Equatable {
-    case null
-    case bool(Bool)
-    case number(Double)
-    case string(String)
-    case array([LegacyJSONValue])
-    case object([String: LegacyJSONValue])
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() { self = .null }
-        else if let value = try? container.decode(Bool.self) { self = .bool(value) }
-        else if let value = try? container.decode(Double.self) { self = .number(value) }
-        else if let value = try? container.decode(String.self) { self = .string(value) }
-        else if let value = try? container.decode([LegacyJSONValue].self) { self = .array(value) }
-        else if let value = try? container.decode([String: LegacyJSONValue].self) { self = .object(value) }
-        else {
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported legacy value")
-        }
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case .null: try container.encodeNil()
-        case .bool(let value): try container.encode(value)
-        case .number(let value): try container.encode(value)
-        case .string(let value): try container.encode(value)
-        case .array(let value): try container.encode(value)
-        case .object(let value): try container.encode(value)
-        }
-    }
-}
-
-struct LegacyMigrationPage: Codable, Equatable {
-    let store: LegacyMigrationStore
-    let page: Int
-    let ids: [String]
-    let records: [[String: LegacyJSONValue]]
-    let blobs: [LegacyMigrationBlobDescriptor]
-    let isLast: Bool
-}
-
-struct LegacyMigrationFailure: Error, Codable, Equatable {
-    let code: String
-    let message: String
-}
-
-struct LegacyMigrationInventorySnapshot: Equatable {
-    let inventory: LegacyMigrationInventory
-    let ids: [LegacyMigrationStore: [String]]
-    let blobs: [LegacyMigrationBlobDescriptor]
-}
-
 enum LegacyMigrationValidationError: Error, Equatable {
     case alreadyStarted
     case notStarted
@@ -113,14 +33,17 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
         var nextPage = 0
         var isComplete = false
         var ids: [String] = []
+        var records: [[String: LegacyJSONValue]] = []
     }
 
     var onCompletion: Completion?
+    var artifactReceiver: LegacyMigrationArtifactReceiving?
 
     private let lock = NSLock()
     private var inventory: LegacyMigrationInventory?
     private var progress: [LegacyMigrationStore: StoreProgress] = [:]
     private var blobs: [LegacyMigrationBlobDescriptor] = []
+    private var artifactIDs = Set<String>()
     private var isFinished = false
 
     func receive(inventory: LegacyMigrationInventory) throws {
@@ -161,7 +84,13 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
         guard page.blobs.allSatisfy({ Self.valid(blob: $0, ids: page.ids, store: page.store) }) else {
             throw LegacyMigrationValidationError.invalidBlob
         }
+        let pageArtifactIDs = page.blobs.map(\.artifactID)
+        guard Set(pageArtifactIDs).count == pageArtifactIDs.count,
+              artifactIDs.isDisjoint(with: pageArtifactIDs) else {
+            throw LegacyMigrationValidationError.invalidBlob
+        }
         storeProgress.ids.append(contentsOf: page.ids)
+        storeProgress.records.append(contentsOf: page.records)
         guard storeProgress.ids.count <= inventory.counts[page.store.rawValue, default: -1] else {
             throw LegacyMigrationValidationError.countMismatch
         }
@@ -173,6 +102,7 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
         }
         progress[page.store] = storeProgress
         blobs.append(contentsOf: page.blobs)
+        artifactIDs.formUnion(pageArtifactIDs)
     }
 
     func finishInventory() throws {
@@ -194,11 +124,13 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
         result = LegacyMigrationInventorySnapshot(
             inventory: inventory,
             ids: progress.mapValues(\.ids),
+            records: progress.mapValues(\.records),
             blobs: blobs
         )
         let completion = onCompletion
         lock.unlock()
-        DispatchQueue.main.async { completion?(.success(result)) }
+        if Thread.isMainThread { completion?(.success(result)) }
+        else { DispatchQueue.main.sync { completion?(.success(result)) } }
     }
 
     func receive(failure: LegacyMigrationFailure) throws {
@@ -206,6 +138,11 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
             throw LegacyMigrationValidationError.invalidFailure
         }
         lock.lock()
+        if isFinished, let artifactReceiver {
+            lock.unlock()
+            artifactReceiver.receive(failure: failure)
+            return
+        }
         guard !isFinished else {
             lock.unlock()
             throw LegacyMigrationValidationError.alreadyFinished
@@ -213,7 +150,8 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
         isFinished = true
         let completion = onCompletion
         lock.unlock()
-        DispatchQueue.main.async { completion?(.failure(failure)) }
+        if Thread.isMainThread { completion?(.failure(failure)) }
+        else { DispatchQueue.main.sync { completion?(.failure(failure)) } }
     }
 
     private static func validID(_ value: String) -> Bool {
@@ -268,7 +206,8 @@ final class LegacyMigrationInventoryProbe: LegacyMigrationReceiving {
               !value.hasPrefix("/"), !value.hasPrefix("\\"),
               value.range(of: #"^[A-Za-z]:[\\/]"#, options: .regularExpression) == nil else { return false }
         let components = value.replacingOccurrences(of: "\\", with: "/").split(separator: "/", omittingEmptySubsequences: false)
-        return !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." })
+        return components.count >= 2 && components.first == "Music"
+            && !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." })
     }
 
     private static func valid(blob: LegacyMigrationBlobDescriptor, ids: [String], store: LegacyMigrationStore) -> Bool {
@@ -296,6 +235,9 @@ final class LegacyMigrationPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "reportInventory", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reportPage", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "finishInventory", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "beginArtifact", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "reportArtifactChunk", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finishArtifact", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "reportFailure", returnType: CAPPluginReturnPromise)
     ]
 
@@ -331,6 +273,52 @@ final class LegacyMigrationPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func reportFailure(_ call: CAPPluginCall) {
         decodeAndReceive(call, as: LegacyMigrationFailure.self) { receiver, value in
             try receiver.receive(failure: value)
+        }
+    }
+
+    @objc func beginArtifact(_ call: CAPPluginCall) {
+        receiveArtifact(call, as: LegacyMigrationArtifactStart.self) { receiver, value in
+            try receiver.begin(artifact: value)
+        }
+    }
+
+    @objc func reportArtifactChunk(_ call: CAPPluginCall) {
+        receiveArtifact(call, as: LegacyMigrationArtifactChunk.self) { receiver, value in
+            try receiver.receive(chunk: value)
+        }
+    }
+
+    @objc func finishArtifact(_ call: CAPPluginCall) {
+        guard let artifactReceiver = (receiver as? LegacyMigrationInventoryProbe)?.artifactReceiver else {
+            rejectUnavailable(call)
+            return
+        }
+        do {
+            try artifactReceiver.finish(artifact: call.decode(LegacyMigrationArtifactFinish.self))
+            call.resolve()
+        } catch {
+            reject(call, error: error)
+        }
+    }
+
+    private func receiveArtifact<T: Decodable>(
+        _ call: CAPPluginCall,
+        as type: T.Type,
+        action: (LegacyMigrationArtifactReceiving, T) throws -> LegacyMigrationArtifactResume
+    ) {
+        guard let artifactReceiver = (receiver as? LegacyMigrationInventoryProbe)?.artifactReceiver else {
+            rejectUnavailable(call)
+            return
+        }
+        do {
+            let resume = try action(artifactReceiver, call.decode(type))
+            call.resolve([
+                "nextOffset": resume.nextOffset,
+                "nextSequence": resume.nextSequence,
+                "complete": resume.complete
+            ])
+        } catch {
+            reject(call, error: error)
         }
     }
 

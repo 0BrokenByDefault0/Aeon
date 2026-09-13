@@ -38,6 +38,9 @@
 		A57000000000000000000001 /* NativeAudioPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57000000000000000000011 /* NativeAudioPlugin.swift */; };
 		A58000000000000000000001 /* LegacyMigrationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000011 /* LegacyMigrationPlugin.swift */; };
 		A58000000000000000000002 /* LegacyMigrationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000012 /* LegacyMigrationViewController.swift */; };
+		A5C000000000000000000001 /* LegacyMigrationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C000000000000000000011 /* LegacyMigrationModels.swift */; };
+		A5C000000000000000000002 /* LegacyMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C000000000000000000012 /* LegacyMigrationCoordinator.swift */; };
+		A5C000000000000000000003 /* LegacyMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C000000000000000000013 /* LegacyMigrationTests.swift */; };
 		A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000013 /* LegacyDataAccessTests.swift */; };
 		A59000000000000000000001 /* AeonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000011 /* AeonApp.swift */; };
 		A59000000000000000000002 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000012 /* AppContainer.swift */; };
@@ -108,6 +111,9 @@
 		A58000000000000000000011 /* LegacyMigrationPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationPlugin.swift; sourceTree = "<group>"; };
 		A58000000000000000000012 /* LegacyMigrationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationViewController.swift; sourceTree = "<group>"; };
 		A58000000000000000000013 /* LegacyDataAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyDataAccessTests.swift; sourceTree = "<group>"; };
+		A5C000000000000000000011 /* LegacyMigrationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationModels.swift; sourceTree = "<group>"; };
+		A5C000000000000000000012 /* LegacyMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationCoordinator.swift; sourceTree = "<group>"; };
+		A5C000000000000000000013 /* LegacyMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationTests.swift; sourceTree = "<group>"; };
 		A59000000000000000000011 /* AeonApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonApp.swift; sourceTree = "<group>"; };
 		A59000000000000000000012 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
 		A59000000000000000000013 /* AeonRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonRootView.swift; sourceTree = "<group>"; };
@@ -240,6 +246,7 @@
 				A59000000000000000000014 /* AppContainerTests.swift */,
 				A5B000000000000000000017 /* CatalogDatabaseTests.swift */,
 				A5B000000000000000000018 /* CatalogRepositoryTests.swift */,
+				A5C000000000000000000013 /* LegacyMigrationTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -285,6 +292,8 @@
 		A58000000000000000000020 /* Migration */ = {
 			isa = PBXGroup;
 			children = (
+				A5C000000000000000000011 /* LegacyMigrationModels.swift */,
+				A5C000000000000000000012 /* LegacyMigrationCoordinator.swift */,
 				A58000000000000000000011 /* LegacyMigrationPlugin.swift */,
 				A58000000000000000000012 /* LegacyMigrationViewController.swift */,
 			);
@@ -532,6 +541,8 @@
 				A57000000000000000000001 /* NativeAudioPlugin.swift in Sources */,
 				A58000000000000000000001 /* LegacyMigrationPlugin.swift in Sources */,
 				A58000000000000000000002 /* LegacyMigrationViewController.swift in Sources */,
+				A5C000000000000000000001 /* LegacyMigrationModels.swift in Sources */,
+				A5C000000000000000000002 /* LegacyMigrationCoordinator.swift in Sources */,
 				A54000000000000000000002 /* ReplayGain.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -553,6 +564,7 @@
 				A59000000000000000000004 /* AppContainerTests.swift in Sources */,
 				A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */,
 				A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */,
+				A5C000000000000000000003 /* LegacyMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

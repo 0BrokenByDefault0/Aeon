@@ -15,6 +15,7 @@ enum MediaStoreError: Error, Equatable {
     case unsafeRelativePath
     case verificationFailed
     case migrationRequired(trackID: String)
+    case unavailable(trackID: String)
     case invalidBookmark
     case staleBookmark
     case securityScopedAccessDenied
@@ -30,6 +31,9 @@ final class MediaStore: MediaResolving {
     private static var gates: [String: ImportGate] = [:]
     let mediaRoot: URL
     let incomingRoot: URL
+    let documentsRoot: URL
+    let migratedRoot: URL
+    let migrationIncomingRoot: URL
 
     private let fileManager: FileManager
     private let bookmarkResolver: (Data) throws -> (URL, Bool)
@@ -46,11 +50,18 @@ final class MediaStore: MediaResolving {
             appropriateFor: nil,
             create: true
         )
-        try self.init(baseURL: applicationSupport, fileManager: fileManager)
+        let documents = try fileManager.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        try self.init(baseURL: applicationSupport, documentsRoot: documents, fileManager: fileManager)
     }
 
     init(
         baseURL: URL,
+        documentsRoot: URL? = nil,
         fileManager: FileManager = .default,
         bookmarkResolver: ((Data) throws -> (URL, Bool))? = nil,
         beginScopedAccess: @escaping (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
@@ -73,8 +84,12 @@ final class MediaStore: MediaResolving {
         let aeonRoot = baseURL.appendingPathComponent("Aeon", isDirectory: true)
         mediaRoot = aeonRoot.appendingPathComponent("Media", isDirectory: true)
         incomingRoot = aeonRoot.appendingPathComponent(".incoming", isDirectory: true)
+        self.documentsRoot = documentsRoot ?? baseURL.appendingPathComponent("Documents", isDirectory: true)
+        migratedRoot = self.documentsRoot.appendingPathComponent("Music/_Migrated", isDirectory: true)
+        migrationIncomingRoot = migratedRoot.appendingPathComponent(".incoming", isDirectory: true)
         try fileManager.createDirectory(at: mediaRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: incomingRoot, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: migrationIncomingRoot, withIntermediateDirectories: true)
         for item in try fileManager.contentsOfDirectory(
             at: incomingRoot,
             includingPropertiesForKeys: [.contentModificationDateKey]
@@ -164,7 +179,9 @@ final class MediaStore: MediaResolving {
     func resolve(_ reference: MediaReference) throws -> URL {
         switch reference {
         case .native(let relativePath):
-            return try resolveNative(relativePath)
+            return try resolve(relativePath, beneath: mediaRoot)
+        case .documents(let relativePath):
+            return try resolve(relativePath, beneath: documentsRoot)
         case .externalBookmark(let data):
             let (url, stale): (URL, Bool)
             do { (url, stale) = try bookmarkResolver(data) }
@@ -192,6 +209,8 @@ final class MediaStore: MediaResolving {
             return url
         case .legacyBlob(let trackID):
             throw MediaStoreError.migrationRequired(trackID: trackID)
+        case .unavailable(let trackID):
+            throw MediaStoreError.unavailable(trackID: trackID)
         }
     }
 
@@ -221,7 +240,34 @@ final class MediaStore: MediaResolving {
 
     deinit { releaseAll() }
 
-    private func resolveNative(_ relativePath: String) throws -> URL {
+    func migrationPartialURL(artifactKey: String) throws -> URL {
+        guard Self.isSafeStableID(artifactKey) else { throw MediaStoreError.invalidStableID }
+        return migrationIncomingRoot.appendingPathComponent("\(artifactKey).partial", isDirectory: false)
+    }
+
+    func commitMigratedAudio(
+        partialURL: URL,
+        trackID: String,
+        fileExtension: String,
+        verifier: (URL) throws -> Bool
+    ) throws -> MediaReference {
+        guard Self.isSafeStableID(trackID) else { throw MediaStoreError.invalidStableID }
+        let ext = fileExtension.lowercased()
+        guard Self.isSafeExtension(ext) else { throw MediaStoreError.invalidFileExtension }
+        let expectedParent = migrationIncomingRoot.standardizedFileURL.resolvingSymlinksInPath()
+        guard partialURL.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath() == expectedParent,
+              try verifier(partialURL) else { throw MediaStoreError.verificationFailed }
+        let filename = "\(trackID).\(ext)"
+        let destination = migratedRoot.appendingPathComponent(filename, isDirectory: false)
+        if fileManager.fileExists(atPath: destination.path) {
+            _ = try fileManager.replaceItemAt(destination, withItemAt: partialURL)
+        } else {
+            try fileManager.moveItem(at: partialURL, to: destination)
+        }
+        return .documents(relativePath: "Music/_Migrated/\(filename)")
+    }
+
+    private func resolve(_ relativePath: String, beneath rootURL: URL) throws -> URL {
         guard !relativePath.isEmpty,
               !relativePath.hasPrefix("/"),
               !relativePath.contains("\\") else {
@@ -232,7 +278,7 @@ final class MediaStore: MediaResolving {
             throw MediaStoreError.unsafeRelativePath
         }
 
-        let root = mediaRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let root = rootURL.standardizedFileURL.resolvingSymlinksInPath()
         let candidate = root.appendingPathComponent(relativePath).standardizedFileURL.resolvingSymlinksInPath()
         let rootPrefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
         guard candidate.path.hasPrefix(rootPrefix) else { throw MediaStoreError.unsafeRelativePath }

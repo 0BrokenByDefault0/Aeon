@@ -551,6 +551,133 @@ final class CatalogRepository {
         }
     }
 
+    func migrationRecord(sourceStore: String, sourceID: String) throws -> MigrationStageRecord? {
+        try validateID(sourceStore)
+        try validateID(sourceID)
+        guard let row = try database.query(
+            "SELECT * FROM migration_staging WHERE source_store = ? AND source_id = ?",
+            [.text(sourceStore), .text(sourceID)]
+        ).first else { return nil }
+        guard let store = row.string("source_store"), let id = row.string("source_id"),
+              let rawStatus = row.string("status"), let status = MigrationStageStatus(rawValue: rawStatus),
+              let payload = row.data("payload"), let updated = row.double("updated_at") else {
+            throw CatalogRepositoryError.decodeFailed("migration_record")
+        }
+        return MigrationStageRecord(
+            sourceStore: store,
+            sourceID: id,
+            status: status,
+            payload: payload,
+            updatedAt: Date(timeIntervalSince1970: updated)
+        )
+    }
+
+    func completeLegacyAudioMigration(track: CatalogTrack, stage: MigrationStageRecord) throws {
+        try validate(track, expectedAlbumID: track.albumID)
+        try validateID(stage.sourceStore)
+        try validateID(stage.sourceID)
+        guard stage.status == .complete else { throw CatalogRepositoryError.invalidRecord }
+        let media = try encodeMediaReference(track.mediaReference, expectedTrackID: track.id)
+        try database.transaction {
+            let changed = try database.execute(
+                """
+                UPDATE tracks SET album_id = ?, sequence = ?, disc_number = ?, track_number = ?,
+                    title = ?, artist = ?, normalized_title = ?, normalized_artist = ?, duration = ?,
+                    byte_count = ?, media_kind = ?, media_path = ?, media_bookmark = ?, imported_at = ?
+                WHERE id = ?
+                """,
+                [
+                    .text(track.albumID), .integer(Int64(track.sequence)),
+                    track.discNumber.map { .integer(Int64($0)) } ?? .null,
+                    track.trackNumber.map { .integer(Int64($0)) } ?? .null,
+                    .text(track.title), .text(track.artist), .text(Self.normalize(track.title)),
+                    .text(Self.normalize(track.artist)), track.duration.map(SQLiteValue.real) ?? .null,
+                    .integer(track.byteCount), .text(media.0), media.1, media.2,
+                    .real(track.importedAt.timeIntervalSince1970), .text(track.id)
+                ]
+            )
+            guard changed == 1 else { throw CatalogRepositoryError.missingReference(track.id) }
+            try database.execute(
+                """
+                INSERT INTO migration_staging(source_store, source_id, status, payload, updated_at)
+                VALUES(?, ?, ?, ?, ?)
+                ON CONFLICT(source_store, source_id) DO UPDATE SET status = excluded.status,
+                    payload = excluded.payload, updated_at = excluded.updated_at
+                """,
+                [.text(stage.sourceStore), .text(stage.sourceID), .text(stage.status.rawValue),
+                 .blob(stage.payload), .real(stage.updatedAt.timeIntervalSince1970)]
+            )
+        }
+        notifyObservers()
+    }
+
+    @discardableResult
+    func publishLegacyImport(_ payload: LegacyCatalogImport, marker: String) throws -> Bool {
+        try validateSettingKey(marker)
+        let published = try database.transaction { () -> Bool in
+            if try database.scalar("SELECT 1 AS value FROM settings WHERE key = ?", [.text(marker)])?.int64 == 1 {
+                return false
+            }
+            for (album, tracks) in payload.albums {
+                try validate(album)
+                guard !(try recordExists(table: "albums", id: album.id)) else {
+                    throw CatalogRepositoryError.duplicateStableID(album.id)
+                }
+                try insert(album)
+                for track in tracks {
+                    try validate(track, expectedAlbumID: album.id)
+                    guard !(try recordExists(table: "tracks", id: track.id)) else {
+                        throw CatalogRepositoryError.duplicateStableID(track.id)
+                    }
+                    try insert(track)
+                }
+            }
+            for value in payload.playlists {
+                try validateID(value.playlist.id)
+                guard !(try recordExists(table: "playlists", id: value.playlist.id)) else {
+                    throw CatalogRepositoryError.duplicateStableID(value.playlist.id)
+                }
+                try database.execute(
+                    "INSERT INTO playlists(id, name, created_at, updated_at) VALUES(?, ?, ?, ?)",
+                    [.text(value.playlist.id), .text(value.playlist.name),
+                     .real(value.playlist.createdAt.timeIntervalSince1970),
+                     .real(value.playlist.updatedAt.timeIntervalSince1970)]
+                )
+                for (position, trackID) in value.trackIDs.enumerated() {
+                    guard try recordExists(table: "tracks", id: trackID) else {
+                        throw CatalogRepositoryError.missingReference(trackID)
+                    }
+                    try database.execute(
+                        "INSERT INTO playlist_items(playlist_id, position, track_id) VALUES(?, ?, ?)",
+                        [.text(value.playlist.id), .integer(Int64(position)), .text(trackID)]
+                    )
+                }
+            }
+            for value in payload.listening where value.playCount > 0 {
+                guard try recordExists(table: "tracks", id: value.trackID) else { continue }
+                try database.execute(
+                    "INSERT INTO listening(track_id, play_count, completed_count, last_position) VALUES(?, ?, 0, 0)",
+                    [.text(value.trackID), .integer(value.playCount)]
+                )
+            }
+            let now = Date().timeIntervalSince1970
+            for (key, data) in payload.settings {
+                try validateSettingKey(key)
+                try database.execute(
+                    "INSERT INTO settings(key, value, updated_at) VALUES(?, ?, ?)",
+                    [.text(key), .blob(data), .real(now)]
+                )
+            }
+            try database.execute(
+                "INSERT INTO settings(key, value, updated_at) VALUES(?, ?, ?)",
+                [.text(marker), .blob(Data("true".utf8)), .real(now)]
+            )
+            return true
+        }
+        if published { notifyObservers() }
+        return published
+    }
+
     func observeLibrary(_ observer: @escaping (CatalogSnapshot) -> Void) -> CatalogObservation {
         let id = UUID()
         observerLock.lock()
@@ -666,11 +793,16 @@ final class CatalogRepository {
         case "native":
             guard let path = row.string("media_path") else { throw CatalogRepositoryError.decodeFailed("native_media") }
             mediaReference = .native(relativePath: path)
+        case "documents":
+            guard let path = row.string("media_path") else { throw CatalogRepositoryError.decodeFailed("documents_media") }
+            mediaReference = .documents(relativePath: path)
         case "bookmark":
             guard let data = row.data("media_bookmark") else { throw CatalogRepositoryError.decodeFailed("bookmark_media") }
             mediaReference = .externalBookmark(data)
         case "legacyBlob":
             mediaReference = .legacyBlob(trackID: row.string("media_path") ?? id)
+        case "unavailable":
+            mediaReference = .unavailable(trackID: row.string("media_path") ?? id)
         default:
             throw CatalogRepositoryError.decodeFailed("media_kind")
         }
@@ -765,19 +897,29 @@ final class CatalogRepository {
     ) throws -> (String, SQLiteValue, SQLiteValue) {
         switch reference {
         case .native(let path):
-            let parts = path.split(separator: "/", omittingEmptySubsequences: false)
-            guard !path.isEmpty, path.utf8.count <= 4_096, !path.hasPrefix("/"),
-                  !path.contains("\\"), !path.contains("\0"),
-                  parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
-                throw CatalogRepositoryError.invalidRecord
-            }
+            try validateRelativeMediaPath(path)
             return ("native", .text(path), .null)
+        case .documents(let path):
+            try validateRelativeMediaPath(path)
+            return ("documents", .text(path), .null)
         case .externalBookmark(let data):
             guard !data.isEmpty, data.count <= 1_048_576 else { throw CatalogRepositoryError.invalidRecord }
             return ("bookmark", .null, .blob(data))
         case .legacyBlob(let trackID):
             guard trackID == expectedTrackID else { throw CatalogRepositoryError.invalidRecord }
             return ("legacyBlob", .text(trackID), .null)
+        case .unavailable(let trackID):
+            guard trackID == expectedTrackID else { throw CatalogRepositoryError.invalidRecord }
+            return ("unavailable", .text(trackID), .null)
+        }
+    }
+
+    private func validateRelativeMediaPath(_ path: String) throws {
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !path.isEmpty, path.utf8.count <= 4_096, !path.hasPrefix("/"),
+              !path.contains("\\"), !path.contains("\0"),
+              parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw CatalogRepositoryError.invalidRecord
         }
     }
 

@@ -22,8 +22,10 @@ enum AudioRouteKind: String, Codable {
 
 enum MediaReference: Codable, Equatable {
     case native(relativePath: String)
+    case documents(relativePath: String)
     case externalBookmark(Data)
     case legacyBlob(trackID: String)
+    case unavailable(trackID: String)
 
     private enum CodingKeys: String, CodingKey {
         case type
@@ -34,8 +36,10 @@ enum MediaReference: Codable, Equatable {
 
     private enum Kind: String, Codable {
         case native
+        case documents
         case externalBookmark
         case legacyBlob
+        case unavailable
     }
 
     init(from decoder: Decoder) throws {
@@ -43,10 +47,14 @@ enum MediaReference: Codable, Equatable {
         switch try container.decode(Kind.self, forKey: .type) {
         case .native:
             self = .native(relativePath: try container.decode(String.self, forKey: .relativePath))
+        case .documents:
+            self = .documents(relativePath: try container.decode(String.self, forKey: .relativePath))
         case .externalBookmark:
             self = .externalBookmark(try container.decode(Data.self, forKey: .bookmark))
         case .legacyBlob:
             self = .legacyBlob(trackID: try container.decode(String.self, forKey: .trackID))
+        case .unavailable:
+            self = .unavailable(trackID: try container.decode(String.self, forKey: .trackID))
         }
     }
 
@@ -56,11 +64,17 @@ enum MediaReference: Codable, Equatable {
         case .native(let relativePath):
             try container.encode(Kind.native, forKey: .type)
             try container.encode(relativePath, forKey: .relativePath)
+        case .documents(let relativePath):
+            try container.encode(Kind.documents, forKey: .type)
+            try container.encode(relativePath, forKey: .relativePath)
         case .externalBookmark(let bookmark):
             try container.encode(Kind.externalBookmark, forKey: .type)
             try container.encode(bookmark, forKey: .bookmark)
         case .legacyBlob(let trackID):
             try container.encode(Kind.legacyBlob, forKey: .type)
+            try container.encode(trackID, forKey: .trackID)
+        case .unavailable(let trackID):
+            try container.encode(Kind.unavailable, forKey: .type)
             try container.encode(trackID, forKey: .trackID)
         }
     }
