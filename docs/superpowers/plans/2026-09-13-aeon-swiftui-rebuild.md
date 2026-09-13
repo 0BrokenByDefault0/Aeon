@@ -502,15 +502,15 @@ npm run test:ios -- -only-testing:AppTests/SkyCameraTests \
 - Silver chamber material, square geometry, Nocturne typography, and artwork-derived playing tint.
 - iPhone dock and iPad sidebar over one persistent sky.
 
-- [ ] Make the font build emit reproducible OTF and WOFF from the same source. Bundle the OTF, register it through `UIAppFonts`, and test the PostScript name. Ship GUST, LPPL, and provenance files in the app bundle.
-- [ ] Remove Arthemys from native font fallbacks. Use capped Dynamic Type for display sizes; SF Pro for UI and SF Mono with tabular digits for metrics.
-- [ ] Define all color, spacing, stroke, shadow, duration, and z-order values in `AeonTheme`; feature files cannot introduce one-off chrome constants.
-- [ ] Build `AeonScreen`, `AeonGlass`, `AeonBreadcrumb`, `AeonButton`, `AeonToggle`, `AeonSegment`, `AeonRow`, `AeonLabel`, `AeonArtwork`, `AeonSheet`, `AeonChrome`, `AeonEmptyState`, `AeonToast`, and `AeonProgressBar` before feature screens.
-- [ ] Implement `AeonGlass` with a custom blur/tint/facet wrapper, black/bone/silver palette, hairline edge, zero corner radius, and opaque Reduce Transparency mode. Do not use SwiftUI `.material`.
-- [ ] Sample one restrained tint from current artwork and expose it through environment state only while an album is loaded. Add a dark scrim beneath player/dock glass over bright artwork.
-- [ ] Make one root safe-area coordinator own readable insets. The Metal sky ignores them; scroll content receives computed player plus dock/sidebar clearance and never sets independent magic padding.
-- [ ] Implement compact bottom navigation for Sky, Library, Playlists, Settings. Implement regular-width sidebar that persists in landscape and overlays in iPad portrait. The sky remains mounted while destinations change.
-- [ ] Add iPhone portrait/landscape and iPad portrait/landscape UI tests at normal and largest accessibility text sizes. Assert reachable last rows, no Dynamic Island/status-bar collision, no clipped primary actions, and 44×44 minimum targets.
+- [x] Make the font build emit reproducible OTF and WOFF from the same source. Bundle the OTF, register it through `UIAppFonts`, and test the PostScript name. Ship GUST, LPPL, and provenance files in the app bundle.
+- [x] Remove Arthemys from native font fallbacks. Use capped Dynamic Type for display sizes; SF Pro for UI and SF Mono with tabular digits for metrics.
+- [x] Define all color, spacing, stroke, shadow, duration, and z-order values in `AeonTheme`; feature files cannot introduce one-off chrome constants.
+- [x] Build `AeonScreen`, `AeonGlass`, `AeonBreadcrumb`, `AeonButton`, `AeonToggle`, `AeonSegment`, `AeonRow`, `AeonLabel`, `AeonArtwork`, `AeonSheet`, `AeonChrome`, `AeonEmptyState`, `AeonToast`, and `AeonProgressBar` before feature screens.
+- [x] Implement `AeonGlass` with a custom blur/tint/facet wrapper, black/bone/silver palette, hairline edge, zero corner radius, and opaque Reduce Transparency mode. Do not use SwiftUI `.material`.
+- [x] Sample one restrained tint from current artwork and expose it through environment state only while an album is loaded. Add a dark scrim beneath player/dock glass over bright artwork.
+- [x] Make one root safe-area coordinator own readable insets. The Metal sky ignores them; scroll content receives computed player plus dock/sidebar clearance and never sets independent magic padding.
+- [x] Implement compact bottom navigation for Sky, Library, Playlists, Settings. Implement regular-width sidebar that persists in landscape and overlays in iPad portrait. The sky remains mounted while destinations change.
+- [x] Add iPhone portrait/landscape and iPad portrait/landscape UI tests at normal and largest accessibility text sizes. Assert reachable last rows, no Dynamic Island/status-bar collision, no clipped primary actions, and 44×44 minimum targets.
 
 **Gate**
 

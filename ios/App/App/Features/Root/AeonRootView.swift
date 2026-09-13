@@ -110,8 +110,8 @@ struct AeonRootView: View {
             .accessibilityIdentifier("aeon.launch.migrating")
         case .ready:
             if let services = container.services {
-                SkyScreen(
-                    controller: services.skySceneController,
+                AeonReadyShell(
+                    services: services,
                     importProgress: container.libraryImportProgress,
                     importFiles: { isSelectingAudio = true },
                     importFolder: { isSelectingFolder = true }
@@ -210,6 +210,89 @@ struct AeonRootView: View {
         if !result.skippedDuplicateAlbums.isEmpty { parts.append("\(result.skippedDuplicateAlbums.count) duplicates skipped") }
         if !result.failedFiles.isEmpty { parts.append("\(result.failedFiles.count) files could not be imported") }
         return parts.joined(separator: "  ·  ")
+    }
+}
+
+private struct AeonReadyShell: View {
+    let services: AppServices
+    let importProgress: LibraryImportProgress?
+    let importFiles: () -> Void
+    let importFolder: () -> Void
+    @ObservedObject private var playback: PlaybackController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var destination = AeonDestination.sky
+    @State private var portraitSidebarVisible = false
+
+    init(
+        services: AppServices,
+        importProgress: LibraryImportProgress?,
+        importFiles: @escaping () -> Void,
+        importFolder: @escaping () -> Void
+    ) {
+        self.services = services
+        self.importProgress = importProgress
+        self.importFiles = importFiles
+        self.importFolder = importFolder
+        _playback = ObservedObject(wrappedValue: services.playbackController)
+    }
+
+    var body: some View {
+        AeonArtworkTintHost(
+            playback: playback,
+            catalog: services.catalogRepository,
+            artworkStore: services.artworkStore
+        ) {
+            AeonScreen(playerVisible: false) { readableInsets in
+                GeometryReader { geometry in
+                    ZStack(alignment: .topTrailing) {
+                        SkyScreen(
+                            controller: services.skySceneController,
+                            importProgress: importProgress,
+                            readableInsets: readableInsets,
+                            importFiles: importFiles,
+                            importFolder: importFolder
+                        )
+                        if destination != .sky {
+                            destinationPanel(destination, geometry: geometry, insets: readableInsets)
+                                .zIndex(AeonTheme.Layer.content)
+                                .transition(.opacity)
+                        }
+                        AeonChrome(
+                            destination: $destination,
+                            portraitSidebarVisible: $portraitSidebarVisible
+                        )
+                    }
+                }
+            }
+        }
+        .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
+    }
+
+    private func destinationPanel(
+        _ destination: AeonDestination,
+        geometry: GeometryProxy,
+        insets: AeonReadableInsets
+    ) -> some View {
+        let regular = horizontalSizeClass == .regular
+        return AeonGlass {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                AeonBreadcrumb(text: destination.title)
+                AeonDisplayText(destination.title.capitalized, size: 42, maximumLines: 2)
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                Text("The native \(destination.rawValue) surface is connected to this persistent sky.")
+                    .font(AeonTheme.FontToken.ui(.body))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                Spacer()
+            }
+            .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
+            .padding(.top, max(AeonTheme.Space.small, insets.top))
+            .padding(.bottom, max(AeonTheme.Space.edge, insets.bottom))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+        .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+        .ignoresSafeArea(edges: .vertical)
+        .accessibilityIdentifier("aeon.destination.\(destination.rawValue)")
     }
 }
 

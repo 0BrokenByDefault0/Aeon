@@ -3,6 +3,7 @@ import SwiftUI
 struct SkyScreen: View {
     @ObservedObject var controller: SkySceneController
     let importProgress: LibraryImportProgress?
+    let readableInsets: AeonReadableInsets
     let importFiles: () -> Void
     let importFolder: () -> Void
 
@@ -21,7 +22,7 @@ struct SkyScreen: View {
                 SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size)
                     .padding(.horizontal, 18)
                     .padding(.top, max(8, geometry.safeAreaInsets.top))
-                    .padding(.bottom, max(8, geometry.safeAreaInsets.bottom))
+                    .padding(.bottom, max(8, readableInsets.bottom))
                 if controller.catalogue.stars.isEmpty { emptyState }
                 if let ceremony = controller.ceremony {
                     VStack(spacing: 5) {

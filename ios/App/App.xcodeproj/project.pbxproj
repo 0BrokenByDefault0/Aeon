@@ -91,6 +91,15 @@
 		A6000000000000000000000A /* SkyCameraTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001A /* SkyCameraTests.swift */; };
 		A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001B /* SkyHitTestingTests.swift */; };
 		A6000000000000000000000C /* SkyInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001C /* SkyInteractionTests.swift */; };
+		A61000000000000000000001 /* AeonTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000011 /* AeonTheme.swift */; };
+		A61000000000000000000002 /* AeonComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000012 /* AeonComponents.swift */; };
+		A61000000000000000000003 /* AeonChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000013 /* AeonChrome.swift */; };
+		A61000000000000000000004 /* DesignTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000014 /* DesignTokenTests.swift */; };
+		A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000015 /* AdaptiveChromeTests.swift */; };
+		A61000000000000000000006 /* AeonNocturne-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000016 /* AeonNocturne-Regular.otf */; };
+		A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000017 /* GUST-FONT-LICENSE.txt */; };
+		A61000000000000000000008 /* LPPL-1.3c.tex in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000018 /* LPPL-1.3c.tex */; };
+		A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000019 /* README-Aeon-Nocturne.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -197,6 +206,15 @@
 		A6000000000000000000001A /* SkyCameraTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyCameraTests.swift; sourceTree = "<group>"; };
 		A6000000000000000000001B /* SkyHitTestingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHitTestingTests.swift; sourceTree = "<group>"; };
 		A6000000000000000000001C /* SkyInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyInteractionTests.swift; sourceTree = "<group>"; };
+		A61000000000000000000011 /* AeonTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonTheme.swift; sourceTree = "<group>"; };
+		A61000000000000000000012 /* AeonComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonComponents.swift; sourceTree = "<group>"; };
+		A61000000000000000000013 /* AeonChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonChrome.swift; sourceTree = "<group>"; };
+		A61000000000000000000014 /* DesignTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokenTests.swift; sourceTree = "<group>"; };
+		A61000000000000000000015 /* AdaptiveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveChromeTests.swift; sourceTree = "<group>"; };
+		A61000000000000000000016 /* AeonNocturne-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "AeonNocturne-Regular.otf"; sourceTree = "<group>"; };
+		A61000000000000000000017 /* GUST-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GUST-FONT-LICENSE.txt"; sourceTree = "<group>"; };
+		A61000000000000000000018 /* LPPL-1.3c.tex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LPPL-1.3c.tex"; sourceTree = "<group>"; };
+		A61000000000000000000019 /* README-Aeon-Nocturne.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "README-Aeon-Nocturne.txt"; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -269,6 +287,8 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A61000000000000000000020 /* DesignSystem */,
+				A61000000000000000000021 /* Resources */,
 				A52000000000000000000020 /* Audio */,
 				A5E000000000000000000020 /* Playback */,
 				A5F000000000000000000020 /* Sky */,
@@ -329,6 +349,7 @@
 				A5F000000000000000000017 /* sky-catalogue-v1.json */,
 				A6000000000000000000001A /* SkyCameraTests.swift */,
 				A6000000000000000000001B /* SkyHitTestingTests.swift */,
+				A61000000000000000000014 /* DesignTokenTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -384,6 +405,27 @@
 				A60000000000000000000015 /* SkyShaders.metal */,
 			);
 			path = Metal;
+			sourceTree = "<group>";
+		};
+		A61000000000000000000020 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				A61000000000000000000011 /* AeonTheme.swift */,
+				A61000000000000000000012 /* AeonComponents.swift */,
+				A61000000000000000000013 /* AeonChrome.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		A61000000000000000000021 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A61000000000000000000016 /* AeonNocturne-Regular.otf */,
+				A61000000000000000000017 /* GUST-FONT-LICENSE.txt */,
+				A61000000000000000000018 /* LPPL-1.3c.tex */,
+				A61000000000000000000019 /* README-Aeon-Nocturne.txt */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		A5B000000000000000000020 /* Domain */ = {
@@ -462,6 +504,7 @@
 			children = (
 				A5A00000000000000000000E /* AppUITests.swift */,
 				A6000000000000000000001C /* SkyInteractionTests.swift */,
+				A61000000000000000000015 /* AdaptiveChromeTests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -579,6 +622,10 @@
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				A61000000000000000000006 /* AeonNocturne-Regular.otf in Resources */,
+				A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */,
+				A61000000000000000000008 /* LPPL-1.3c.tex in Resources */,
+				A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -709,6 +756,9 @@
 				A60000000000000000000007 /* SkyScreen.swift in Sources */,
 				A60000000000000000000008 /* SkyAccessibilityOverlay.swift in Sources */,
 				A60000000000000000000009 /* SkyHUD.swift in Sources */,
+				A61000000000000000000001 /* AeonTheme.swift in Sources */,
+				A61000000000000000000002 /* AeonComponents.swift in Sources */,
+				A61000000000000000000003 /* AeonChrome.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -740,6 +790,7 @@
 				A5F000000000000000000006 /* PlanetModelTests.swift in Sources */,
 				A6000000000000000000000A /* SkyCameraTests.swift in Sources */,
 				A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */,
+				A61000000000000000000004 /* DesignTokenTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -749,6 +800,7 @@
 			files = (
 				A5A000000000000000000001 /* AppUITests.swift in Sources */,
 				A6000000000000000000000C /* SkyInteractionTests.swift in Sources */,
+				A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
