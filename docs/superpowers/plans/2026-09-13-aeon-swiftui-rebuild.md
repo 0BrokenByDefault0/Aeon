@@ -377,14 +377,14 @@ npm run test:ios -- -only-testing:AppTests/LibraryImporterTests \
 - Bounded node → engine → session recovery.
 - Per-track/album ReplayGain and persistent native EQ without browser audio ownership.
 
-- [ ] Test that SwiftUI state follows snapshot versions, stale callbacks cannot roll state backward, playback failures stay inline, and app foreground requests a fresh snapshot.
-- [ ] Test route-loss and interruption policy as pure functions: unplugging wired/USB/Bluetooth output pauses before speaker fallback; an interruption resumes only when both system policy and user intent allow it.
-- [ ] Move `AVAudioSession` category/activation into `AudioSessionController`. Observe interruption, route change, media services lost/reset, and silence-secondary-audio hints. Notification callbacks enqueue normalized events into `PlaybackCoordinator`.
-- [ ] Implement `RemoteCommandCoordinator` so every command calls the coordinator, never the engine. Publish title, artist, album, artwork, duration, elapsed time, rate, queue position, and actual route from catalogue plus snapshots.
-- [ ] Implement recovery checkpoints and exactly three escalation levels: reschedule nodes, rebuild graph, then reactivate session and rebuild. Stop safely after level three. Resume only if the stored user intent is playing.
-- [ ] Build `OutputFormatDescriptor` from actual session and graph values after activation/rebuild. Do not claim Bluetooth/AirPlay codecs the platform does not expose.
-- [ ] Parse ReplayGain values where available; album mode uses album gain, track mode uses track gain, missing data is unity. Apply gain to each prepared slot before playback. Peak values create a warning only; do not add a limiter.
-- [ ] Make `PlaybackController` the `PlaybackCoordinatorDelegate`. Retire `NativeAudioPlugin` from normal app composition; keep its source and contract tests until the migration-only Capacitor dependency can be removed after 5.0.
+- [x] Test that SwiftUI state follows snapshot versions, stale callbacks cannot roll state backward, playback failures stay inline, and app foreground requests a fresh snapshot.
+- [x] Test route-loss and interruption policy as pure functions: unplugging wired/USB/Bluetooth output pauses before speaker fallback; an interruption resumes only when both system policy and user intent allow it.
+- [x] Move `AVAudioSession` category/activation into `AudioSessionController`. Observe interruption, route change, media services lost/reset, and silence-secondary-audio hints. Notification callbacks enqueue normalized events into `PlaybackCoordinator`.
+- [x] Implement `RemoteCommandCoordinator` so every command calls the coordinator, never the engine. Publish title, artist, album, artwork, duration, elapsed time, rate, queue position, and actual route from catalogue plus snapshots.
+- [x] Implement recovery checkpoints and exactly three escalation levels: reschedule nodes, rebuild graph, then reactivate session and rebuild. Stop safely after level three. Resume only if the stored user intent is playing.
+- [x] Build `OutputFormatDescriptor` from actual session and graph values after activation/rebuild. Do not claim Bluetooth/AirPlay codecs the platform does not expose.
+- [x] Parse ReplayGain values where available; album mode uses album gain, track mode uses track gain, missing data is unity. Apply gain to each prepared slot before playback. Peak values create a warning only; do not add a limiter.
+- [x] Make `PlaybackController` the `PlaybackCoordinatorDelegate`. Retire `NativeAudioPlugin` from normal app composition; keep its source and contract tests until the migration-only Capacitor dependency can be removed after 5.0.
 
 **Gate**
 

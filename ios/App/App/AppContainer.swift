@@ -64,7 +64,12 @@ struct AppServices {
     let audioEngineGraph: AudioEngineGraph
     let queueScheduler: QueueScheduler
     let playbackCoordinator: PlaybackCoordinator
+    let audioSessionController: AudioSessionController
+    let recoveryCoordinator: RecoveryCoordinator
+    let playbackController: PlaybackController
+    let remoteCommandCoordinator: RemoteCommandCoordinator
 
+    @MainActor
     static func production(
         roots: AppStorageRoots,
         fileManager: FileManager = .default
@@ -108,16 +113,28 @@ struct AppServices {
             metadataEnricher: metadataEnricher,
             fileManager: fileManager
         )
+        let audioSession = AudioSessionController()
+        try audioSession.activate()
         let graph = AudioEngineGraph()
         let scheduler = QueueScheduler(graph: graph, resolver: mediaStore, probe: metadataProbe)
         let mediaInfo = NativePlaybackMediaInfoProvider(resolver: mediaStore, probe: metadataProbe)
+        let recovery = RecoveryCoordinator(scheduler: scheduler, graph: graph, session: audioSession)
         let coordinator = PlaybackCoordinator(
             scheduler: scheduler,
             graph: graph,
             stateStore: stateStore,
             diagnostics: diagnostics,
-            mediaInfo: mediaInfo
+            mediaInfo: mediaInfo,
+            recovery: recovery
         )
+        audioSession.onEvent = { [weak coordinator] event in coordinator?.handleAudioSessionEvent(event) }
+        let playbackController = PlaybackController(coordinator: coordinator)
+        let remoteCommands = RemoteCommandCoordinator(
+            controller: playbackController,
+            catalog: catalog,
+            artworkStore: artwork
+        )
+        playbackController.start()
         return AppServices(
             catalogDatabase: database,
             catalogRepository: catalog,
@@ -132,7 +149,11 @@ struct AppServices {
             libraryImporter: libraryImporter,
             audioEngineGraph: graph,
             queueScheduler: scheduler,
-            playbackCoordinator: coordinator
+            playbackCoordinator: coordinator,
+            audioSessionController: audioSession,
+            recoveryCoordinator: recovery,
+            playbackController: playbackController,
+            remoteCommandCoordinator: remoteCommands
         )
     }
 }
@@ -282,6 +303,10 @@ final class AppContainer: ObservableObject {
 
     func cancelLibraryImport() {
         libraryImportCancellation?.cancel()
+    }
+
+    func applicationDidEnterForeground() {
+        services?.playbackController.applicationDidEnterForeground()
     }
 
     func restoreCatalog(from sourceURL: URL) {

@@ -35,6 +35,11 @@ protocol QueueSchedulingGraph: AnyObject {
     func elapsedSourceFrames(slot: AudioSlot) -> Int64?
     func cancelScheduledPlayback()
     func closeScheduledFile(slot: AudioSlot)
+    func setReplayGain(_ scalar: Float, slot: AudioSlot)
+}
+
+extension QueueSchedulingGraph {
+    func setReplayGain(_ scalar: Float, slot: AudioSlot) {}
 }
 
 final class QueueScheduler {
@@ -45,6 +50,7 @@ final class QueueScheduler {
         let file: ScheduledAudioFile
         let sourceFrame: Int64
         let endOutputFrame: Int64
+        let sourceFormat: SourceFormatDescriptor
     }
 
     private let graph: QueueSchedulingGraph
@@ -66,6 +72,8 @@ final class QueueScheduler {
     private var earlyCompletions: Set<Int> = []
     private var reachedEnd = false
     private var eventHandler: ((SchedulerEvent) -> Void)?
+    private var replayGainMode: ReplayGainMode = .off
+    private var replayGainPreampDB: Double = 0
 
     /// Events arrive on the main queue, outside the scheduling serialization domain.
     var onEvent: ((SchedulerEvent) -> Void)? {
@@ -78,6 +86,7 @@ final class QueueScheduler {
     var currentIndex: Int? { confined { index } }
     var currentSlot: AudioSlot { confined { slot } }
     var currentTrackID: String? { confined { index.map { items[$0].trackID } } }
+    var currentSourceFormat: SourceFormatDescriptor? { confined { current?.sourceFormat } }
     var preparedNextTrackID: String? { confined { following.map { items[$0.index].trackID } } }
     var isPlaying: Bool { confined { playing } }
     var currentPosition: Double {
@@ -196,6 +205,15 @@ final class QueueScheduler {
         }
     }
 
+    func setReplayGain(mode: ReplayGainMode, preampDB: Double) {
+        confined {
+            replayGainMode = mode
+            replayGainPreampDB = preampDB.isFinite ? preampDB : 0
+            applyReplayGain(to: current)
+            applyReplayGain(to: following)
+        }
+    }
+
     /// Convert decoded source frames to the shared output frame timeline. Equal-rate
     /// WAVs use integer addition: no duration metadata or floating point rounding.
     static func outputBoundary(start: Int64, sourceFrames: Int64, sourceRate: Double, outputRate: Double) throws -> Int64 {
@@ -264,7 +282,7 @@ final class QueueScheduler {
         catch { throw QueueSchedulerError.operation(trackID: item.trackID, reason: String(describing: error)) }
         do {
             let capability = probe(url)
-            guard case .playable = capability else { throw QueueSchedulerError.media(trackID: item.trackID, capability: capability) }
+            guard case .playable(let media) = capability else { throw QueueSchedulerError.media(trackID: item.trackID, capability: capability) }
             // The opened decoder's frame length/rate are authoritative, not metadata duration.
             let file = try graph.openForScheduling(url: url, slot: slot)
             guard file.frameCount > 0, file.sampleRate.isFinite, file.sampleRate > 0 else {
@@ -283,12 +301,25 @@ final class QueueScheduler {
             let end = try Self.outputBoundary(start: outputFrame, sourceFrames: file.frameCount - sourceFrame,
                                              sourceRate: file.sampleRate, outputRate: outputRate)
             let token = ScheduleToken(generation: generation)
+            let replayGain = media.descriptor.replayGain ?? .empty
+            graph.setReplayGain(
+                replayGainScalar(mode: replayGainMode, values: replayGain, preampDB: replayGainPreampDB),
+                slot: slot
+            )
             try graph.schedule(slot: slot, sourceFrame: sourceFrame, outputFrame: outputFrame) { [weak self] in
                 guard let self else { return }
                 // Never resolve files, mutate nodes, or publish events on an audio callback.
                 self.serialization.async { [weak self] in self?.complete(index: index, slot: slot, token: token) }
             }
-            return Prepared(index: index, slot: slot, url: url, file: file, sourceFrame: sourceFrame, endOutputFrame: end)
+            return Prepared(
+                index: index,
+                slot: slot,
+                url: url,
+                file: file,
+                sourceFrame: sourceFrame,
+                endOutputFrame: end,
+                sourceFormat: media.descriptor
+            )
         } catch {
             graph.closeScheduledFile(slot: slot)
             resolver.release(url)
@@ -301,6 +332,18 @@ final class QueueScheduler {
         guard let current, items.indices.contains(current.index + 1) else { return }
         following = try prepareItem(index: current.index + 1, slot: current.slot == .a ? .b : .a,
                                     position: 0, outputFrame: current.endOutputFrame)
+    }
+
+    private func applyReplayGain(to prepared: Prepared?) {
+        guard let prepared else { return }
+        graph.setReplayGain(
+            replayGainScalar(
+                mode: replayGainMode,
+                values: prepared.sourceFormat.replayGain ?? .empty,
+                preampDB: replayGainPreampDB
+            ),
+            slot: prepared.slot
+        )
     }
 
     private func start() throws {

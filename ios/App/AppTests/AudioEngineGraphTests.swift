@@ -39,6 +39,23 @@ final class AudioEngineGraphTests: XCTestCase {
         XCTAssertFalse(graph.defaultState.eqBypassed)
     }
 
+    func testRebuildPreservesPersistentEQVolumeAndReplayGain() throws {
+        let graph = makeGraph()
+        let bands = [EQBand(frequency: 1_000, q: 1, gainDB: -2)]
+        graph.setMasterVolume(0.7)
+        graph.setReplayGain(0.5, slot: .a)
+        graph.setReplayGain(0.6, slot: .b)
+        try graph.setEQ(enabled: true, bands: bands)
+
+        try graph.rebuild()
+
+        XCTAssertEqual(graph.defaultState.masterVolume, 0.7, accuracy: 0.000001)
+        XCTAssertEqual(graph.defaultState.replayGainA, 0.5, accuracy: 0.000001)
+        XCTAssertEqual(graph.defaultState.replayGainB, 0.6, accuracy: 0.000001)
+        XCTAssertFalse(graph.defaultState.eqBypassed)
+        XCTAssertEqual(graph.configuredEQBands, bands)
+    }
+
     func testInvalidEQBandDoesNotPartiallyCommitState() throws {
         let graph = makeGraph()
         let validBand = EQBand(frequency: 1_000, q: 1, gainDB: 3)

@@ -41,13 +41,15 @@ final class MetadataProbe: MediaProbing {
             let frameCount = Int64(file.length)
             guard frameCount > 0 else { return .decodeFailed(reason: "empty_audio") }
             let settings = file.fileFormat.settings
+            let replayGain = ReplayGainMetadataReader.read(url: url)
             let descriptor = SourceFormatDescriptor(
                 codec: Self.codec(settings: settings),
                 container: Self.container(for: url),
                 sampleRate: sampleRate,
                 channelCount: Int(format.channelCount),
                 bitDepth: Self.bitDepth(settings: settings),
-                duration: Double(frameCount) / sampleRate
+                duration: Double(frameCount) / sampleRate,
+                replayGain: replayGain.isEmpty ? nil : replayGain
             )
             return .playable(ProbedMedia(url: url, descriptor: descriptor, frameCount: frameCount))
         } catch {

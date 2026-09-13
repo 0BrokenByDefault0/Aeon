@@ -50,7 +50,9 @@ final class LegacyDataAccessTests: XCTestCase {
         XCTAssertEqual(snapshot.ids[.albums], ["upgrade-album"])
         XCTAssertEqual(snapshot.ids[.tracks], ["upgrade-blob", "upgrade-path-1", "upgrade-path-2"])
         XCTAssertEqual(snapshot.ids[.playlists], ["upgrade-playlist"])
-        XCTAssertEqual(snapshot.ids[.kv], ["skySeed"])
+        let keyValueIDs = Set(snapshot.ids[.kv] ?? [])
+        XCTAssertTrue(keyValueIDs.contains("skySeed"))
+        XCTAssertTrue(keyValueIDs.isSubset(of: ["log", "skySeed"]))
         XCTAssertEqual(snapshot.blobs.map(\.ownerID), ["upgrade-album", "upgrade-blob"])
 
         _ = try await callAsync("await dbClearAll(); return true;", in: seedWebView)

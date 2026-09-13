@@ -341,6 +341,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func rebuild() throws {
         stop()
+        scheduleOutputRate = 0
         engine.detach(playerA)
         engine.detach(playerB)
         engine.detach(programMixer)

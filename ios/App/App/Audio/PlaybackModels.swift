@@ -93,6 +93,25 @@ struct SourceFormatDescriptor: Codable, Equatable {
     let channelCount: Int?
     let bitDepth: Int?
     let duration: Double?
+    let replayGain: ReplayGainValues?
+
+    init(
+        codec: String?,
+        container: String?,
+        sampleRate: Double?,
+        channelCount: Int?,
+        bitDepth: Int?,
+        duration: Double?,
+        replayGain: ReplayGainValues? = nil
+    ) {
+        self.codec = codec
+        self.container = container
+        self.sampleRate = sampleRate
+        self.channelCount = channelCount
+        self.bitDepth = bitDepth
+        self.duration = duration
+        self.replayGain = replayGain
+    }
 }
 
 struct RouteDescriptor: Codable, Equatable {

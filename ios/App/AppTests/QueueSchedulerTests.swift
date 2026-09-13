@@ -32,6 +32,32 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(graph.schedules.count, 2)
     }
 
+    func testReplayGainIsAppliedToEveryPreparedSlot() throws {
+        let graph = RecordingGraph()
+        let resolver = FixtureResolver()
+        let gains: [String: ReplayGainValues] = [
+            "a.wav": .init(trackGainDB: -6, albumGainDB: nil, trackPeak: nil, albumPeak: nil),
+            "b.wav": .init(trackGainDB: -3, albumGainDB: nil, trackPeak: nil, albumPeak: nil)
+        ]
+        let scheduler = QueueScheduler(graph: graph, resolver: resolver) { url in
+            .playable(ProbedMedia(
+                url: url,
+                descriptor: SourceFormatDescriptor(
+                    codec: "pcm", container: "wav", sampleRate: 48_000,
+                    channelCount: 2, bitDepth: 16, duration: 1,
+                    replayGain: gains[url.lastPathComponent]
+                ),
+                frameCount: 2_400
+            ))
+        }
+        scheduler.setReplayGain(mode: .track, preampDB: 0)
+        try scheduler.setQueue([a, b], index: 0, revision: 1)
+        try scheduler.prepareCurrent(position: 0)
+
+        XCTAssertEqual(try XCTUnwrap(graph.replayGain[.a]), Float(pow(10, -6.0 / 20.0)), accuracy: 0.00001)
+        XCTAssertEqual(try XCTUnwrap(graph.replayGain[.b]), Float(pow(10, -3.0 / 20.0)), accuracy: 0.00001)
+    }
+
     func testHandoffFlipsSlotsAndPreparesFollowingWithoutAnotherPlayCommand() throws {
         let (scheduler, graph, _) = try makeScheduler([a, b, c])
         try scheduler.play()
@@ -402,6 +428,7 @@ private final class RecordingGraph: QueueSchedulingGraph {
     var elapsedFrames: Int64 = 0
     var framesBySlot: [AudioSlot: Int64] = [:]
     var failingFile: String?
+    var replayGain: [AudioSlot: Float] = [:]
     func schedulingSampleRate() throws -> Double { 48000 }
     func openForScheduling(url: URL, slot: AudioSlot) throws -> ScheduledAudioFile {
         if url.lastPathComponent == failingFile { throw MediaStoreError.verificationFailed }
@@ -414,6 +441,7 @@ private final class RecordingGraph: QueueSchedulingGraph {
     func elapsedSourceFrames(slot: AudioSlot) -> Int64? { framesBySlot[slot] ?? elapsedFrames }
     func cancelScheduledPlayback() { started = false; elapsedFrames = 0; framesBySlot.removeAll() }
     func closeScheduledFile(slot: AudioSlot) {}
+    func setReplayGain(_ scalar: Float, slot: AudioSlot) { replayGain[slot] = scalar }
 }
 
 private final class BundleResolver: MediaResolving {

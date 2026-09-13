@@ -33,6 +33,7 @@ protocol PlaybackScheduling: AnyObject {
     var queueItems: [QueueItem] { get }
     var currentIndex: Int? { get }
     var currentTrackID: String? { get }
+    var currentSourceFormat: SourceFormatDescriptor? { get }
     var currentPosition: Double { get }
     var currentSlot: AudioSlot { get }
     var isPlaying: Bool { get }
@@ -46,6 +47,12 @@ protocol PlaybackScheduling: AnyObject {
     func previous() throws
     func replaceQueue(_ items: [QueueItem], index: Int, revision: UInt64) throws
     func invalidatePendingSchedule()
+    func setReplayGain(mode: ReplayGainMode, preampDB: Double)
+}
+
+extension PlaybackScheduling {
+    var currentSourceFormat: SourceFormatDescriptor? { nil }
+    func setReplayGain(mode: ReplayGainMode, preampDB: Double) {}
 }
 
 extension QueueScheduler: PlaybackScheduling {}
@@ -55,6 +62,11 @@ protocol PlaybackGraphControlling: AnyObject {
     func setReplayGain(_ scalar: Float, slot: AudioSlot)
     func setEQ(enabled: Bool, bands: [EQBand]) throws
     func outputDescriptor() -> OutputFormatDescriptor
+    func rebuild() throws
+}
+
+extension PlaybackGraphControlling {
+    func rebuild() throws {}
 }
 
 extension AudioEngineGraph: PlaybackGraphControlling {}
@@ -144,6 +156,7 @@ final class PlaybackCoordinator {
     private let stateStore: PlaybackStatePersisting
     private let diagnostics: DiagnosticsLog
     private let mediaInfo: PlaybackMediaInfoProviding
+    private let recovery: PlaybackRecovering?
     private let transportQueue: DispatchQueue
     private let callbackQueue: DispatchQueue
     private let now: () -> Date
@@ -176,6 +189,7 @@ final class PlaybackCoordinator {
         stateStore: PlaybackStatePersisting,
         diagnostics: DiagnosticsLog,
         mediaInfo: PlaybackMediaInfoProviding,
+        recovery: PlaybackRecovering? = nil,
         transportQueue: DispatchQueue = DispatchQueue(label: "app.aeon.audio.transport", qos: .userInitiated),
         callbackQueue: DispatchQueue = .main,
         now: @escaping () -> Date = Date.init
@@ -185,6 +199,7 @@ final class PlaybackCoordinator {
         self.stateStore = stateStore
         self.diagnostics = diagnostics
         self.mediaInfo = mediaInfo
+        self.recovery = recovery
         self.transportQueue = transportQueue
         self.callbackQueue = callbackQueue
         self.now = now
@@ -235,6 +250,7 @@ final class PlaybackCoordinator {
                 return
             }
             do {
+                scheduler.setReplayGain(mode: replayGainMode, preampDB: replayGainPreampDB)
                 if !queue.isEmpty {
                     guard let index = queueIndex, queue.indices.contains(index) else {
                         throw CoordinatorError.invalidQueueIndex
@@ -382,7 +398,7 @@ final class PlaybackCoordinator {
             try scheduler.replaceQueue(items, index: index, revision: revision)
             acceptedSchedulerGeneration = scheduler.currentGeneration
             syncSchedulerState()
-            sourceFormat = nil
+            sourceFormat = scheduler.currentSourceFormat
             outputFormat = graph.outputDescriptor()
             route = outputFormat?.route
             return try publish(eventCode: "QUEUE_CHANGED")
@@ -466,7 +482,15 @@ final class PlaybackCoordinator {
         transportQueue.async { [weak self] in
             guard let self else { return }
             syncSchedulerState()
-            let snapshot = currentSnapshot()
+            let liveOutput = graph.outputDescriptor()
+            let snapshot: PlaybackSnapshot
+            if liveOutput != outputFormat {
+                outputFormat = liveOutput
+                route = liveOutput.route
+                snapshot = (try? publish(eventCode: "OUTPUT_REFRESHED")) ?? currentSnapshot()
+            } else {
+                snapshot = currentSnapshot()
+            }
             callbackQueue.async { completion(snapshot) }
         }
     }
@@ -495,12 +519,58 @@ final class PlaybackCoordinator {
             guard let self, initialized, interruptionActive else { return }
             interruptionActive = false
             do {
-                if systemAllowsResume, intent == .playing { try scheduler.play() }
+                if interruptionShouldResume(systemAllowsResume: systemAllowsResume, userIntent: intent) {
+                    try scheduler.play()
+                }
                 acceptedSchedulerGeneration = scheduler.currentGeneration
                 syncSchedulerState()
                 _ = try publish(eventCode: "INTERRUPTION_END", additionalEvents: [.interruptionChanged])
             } catch {
                 fail(error, completion: nil)
+            }
+        }
+    }
+
+    func handleAudioSessionEvent(_ event: AudioSessionEvent) {
+        switch event {
+        case .interruptionBegan:
+            beginInterruption()
+        case .interruptionEnded(let systemAllowsResume):
+            endInterruption(systemAllowsResume: systemAllowsResume)
+        case .routeChanged(_, _, let action):
+            transportQueue.async { [weak self] in
+                guard let self, initialized else { return }
+                if action == .pauseAndRebuild {
+                    if scheduler.isPlaying { scheduler.pause() }
+                    syncSchedulerState()
+                    intent = .paused
+                    recover(from: .engine, eventCode: "ROUTE_LOSS_RECOVERY")
+                } else {
+                    outputFormat = graph.outputDescriptor()
+                    route = outputFormat?.route
+                    _ = try? publish(eventCode: "ROUTE_CHANGED")
+                }
+            }
+        case .mediaServicesLost:
+            transportQueue.async { [weak self] in
+                guard let self, initialized else { return }
+                if scheduler.isPlaying { scheduler.pause() }
+                syncSchedulerState()
+                acceptedSchedulerGeneration = scheduler.currentGeneration
+                _ = try? publish(eventCode: "MEDIA_SERVICES_LOST")
+            }
+        case .mediaServicesReset:
+            transportQueue.async { [weak self] in
+                self?.recover(from: .session, eventCode: "MEDIA_SERVICES_RESET")
+            }
+        case .secondaryAudioSilenced(let silenced):
+            transportQueue.async { [weak self] in
+                guard let self else { return }
+                try? diagnostics.record(
+                    eventCode: silenced ? "SECONDARY_AUDIO_SILENCE_BEGIN" : "SECONDARY_AUDIO_SILENCE_END",
+                    trackID: trackID,
+                    recoverable: true
+                )
             }
         }
     }
@@ -563,7 +633,7 @@ final class PlaybackCoordinator {
             acceptedSchedulerGeneration = scheduler.currentGeneration
             syncSchedulerState()
             if scheduler.currentTrackID == priorTrack { return currentSnapshot() }
-            sourceFormat = nil
+            sourceFormat = scheduler.currentSourceFormat
             outputFormat = graph.outputDescriptor()
             route = outputFormat?.route
             return try publish(eventCode: eventCode)
@@ -593,7 +663,7 @@ final class PlaybackCoordinator {
                 return
             case .handoff(_, _, _, _):
                 syncSchedulerState()
-                sourceFormat = nil
+                sourceFormat = scheduler.currentSourceFormat
                 outputFormat = graph.outputDescriptor()
                 route = outputFormat?.route
                 _ = try? publish(eventCode: "TRACK_HANDOFF")
@@ -603,10 +673,44 @@ final class PlaybackCoordinator {
                 _ = try? publish(eventCode: "PLAYBACK_COMPLETED")
             case .failed(let failedTrackID, let error, _):
                 syncSchedulerState()
-                intent = .paused
-                _ = try? publish(eventCode: "PLAYBACK_STOPPED")
-                fail(error, trackID: failedTrackID, completion: nil)
+                if recovery != nil {
+                    recover(from: .node, eventCode: "SCHEDULER_RECOVERY", failedTrackID: failedTrackID)
+                } else {
+                    intent = .paused
+                    _ = try? publish(eventCode: "PLAYBACK_STOPPED")
+                    fail(error, trackID: failedTrackID, completion: nil)
+                }
             }
+        }
+    }
+
+    private func recover(from level: RecoveryLevel, eventCode: String, failedTrackID: String? = nil) {
+        guard initialized, trackID != nil, let recovery else { return }
+        let checkpoint = PlaybackRecoveryCheckpoint(position: position, userIntent: intent)
+        do {
+            let result = try recovery.recover(from: level, checkpoint: checkpoint)
+            acceptedSchedulerGeneration = scheduler.currentGeneration
+            syncSchedulerState()
+            outputFormat = graph.outputDescriptor()
+            route = outputFormat?.route
+            _ = try publish(
+                eventCode: "\(eventCode)_LEVEL_\(result.level.rawValue)",
+                additionalEvents: [.engineRecovered]
+            )
+        } catch {
+            scheduler.invalidatePendingSchedule()
+            syncSchedulerState()
+            intent = .paused
+            _ = try? publish(eventCode: "PLAYBACK_STOPPED")
+            fail(
+                PlaybackFailure(
+                    code: "recovery_exhausted",
+                    message: "Playback stopped after all recovery levels were exhausted",
+                    recoverable: true,
+                    trackID: failedTrackID ?? trackID
+                ),
+                completion: nil
+            )
         }
     }
 
@@ -616,6 +720,11 @@ final class PlaybackCoordinator {
         queueRevision = scheduler.queueRevision
         trackID = scheduler.currentTrackID
         position = scheduler.currentPosition
+        if let schedulerFormat = scheduler.currentSourceFormat {
+            sourceFormat = schedulerFormat
+        } else if trackID == nil {
+            sourceFormat = nil
+        }
     }
 
     private func currentSnapshot() -> PlaybackSnapshot {
@@ -718,9 +827,7 @@ final class PlaybackCoordinator {
     }
 
     private func applyReplayGain() {
-        let scalar = replayGainScalar(mode: replayGainMode, values: .empty, preampDB: replayGainPreampDB)
-        graph.setReplayGain(scalar, slot: .a)
-        graph.setReplayGain(scalar, slot: .b)
+        scheduler.setReplayGain(mode: replayGainMode, preampDB: replayGainPreampDB)
     }
 
     private enum CoordinatorError: Error {

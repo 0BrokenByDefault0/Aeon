@@ -65,6 +65,13 @@
 		A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000016 /* AudioTagReaderTests.swift */; };
 		A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000017 /* LibraryImporterTests.swift */; };
 		A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000018 /* MetadataEnricherTests.swift */; };
+		A5E000000000000000000001 /* PlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000011 /* PlaybackController.swift */; };
+		A5E000000000000000000002 /* AudioSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000012 /* AudioSessionController.swift */; };
+		A5E000000000000000000003 /* RemoteCommandCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000013 /* RemoteCommandCoordinator.swift */; };
+		A5E000000000000000000004 /* RecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000014 /* RecoveryCoordinator.swift */; };
+		A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000015 /* PlaybackControllerTests.swift */; };
+		A5E000000000000000000006 /* AudioSessionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000016 /* AudioSessionPolicyTests.swift */; };
+		A5E000000000000000000007 /* RecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000017 /* RecoveryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -145,6 +152,13 @@
 		A5D000000000000000000016 /* AudioTagReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReaderTests.swift; sourceTree = "<group>"; };
 		A5D000000000000000000017 /* LibraryImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImporterTests.swift; sourceTree = "<group>"; };
 		A5D000000000000000000018 /* MetadataEnricherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataEnricherTests.swift; sourceTree = "<group>"; };
+		A5E000000000000000000011 /* PlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackController.swift; sourceTree = "<group>"; };
+		A5E000000000000000000012 /* AudioSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionController.swift; sourceTree = "<group>"; };
+		A5E000000000000000000013 /* RemoteCommandCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteCommandCoordinator.swift; sourceTree = "<group>"; };
+		A5E000000000000000000014 /* RecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCoordinator.swift; sourceTree = "<group>"; };
+		A5E000000000000000000015 /* PlaybackControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControllerTests.swift; sourceTree = "<group>"; };
+		A5E000000000000000000016 /* AudioSessionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionPolicyTests.swift; sourceTree = "<group>"; };
+		A5E000000000000000000017 /* RecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -218,6 +232,7 @@
 			isa = PBXGroup;
 			children = (
 				A52000000000000000000020 /* Audio */,
+				A5E000000000000000000020 /* Playback */,
 				A5B000000000000000000020 /* Domain */,
 				A5D000000000000000000020 /* Import */,
 				A58000000000000000000020 /* Migration */,
@@ -267,6 +282,9 @@
 				A5D000000000000000000016 /* AudioTagReaderTests.swift */,
 				A5D000000000000000000017 /* LibraryImporterTests.swift */,
 				A5D000000000000000000018 /* MetadataEnricherTests.swift */,
+				A5E000000000000000000015 /* PlaybackControllerTests.swift */,
+				A5E000000000000000000016 /* AudioSessionPolicyTests.swift */,
+				A5E000000000000000000017 /* RecoveryTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -287,6 +305,17 @@
 				A54000000000000000000012 /* ReplayGain.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		A5E000000000000000000020 /* Playback */ = {
+			isa = PBXGroup;
+			children = (
+				A5E000000000000000000011 /* PlaybackController.swift */,
+				A5E000000000000000000012 /* AudioSessionController.swift */,
+				A5E000000000000000000013 /* RemoteCommandCoordinator.swift */,
+				A5E000000000000000000014 /* RecoveryCoordinator.swift */,
+			);
+			path = Playback;
 			sourceTree = "<group>";
 		};
 		A5B000000000000000000020 /* Domain */ = {
@@ -581,6 +610,10 @@
 				A5D000000000000000000003 /* ArtworkProcessor.swift in Sources */,
 				A5D000000000000000000004 /* MetadataEnricher.swift in Sources */,
 				A5D000000000000000000005 /* LibraryImporter.swift in Sources */,
+				A5E000000000000000000001 /* PlaybackController.swift in Sources */,
+				A5E000000000000000000002 /* AudioSessionController.swift in Sources */,
+				A5E000000000000000000003 /* RemoteCommandCoordinator.swift in Sources */,
+				A5E000000000000000000004 /* RecoveryCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -605,6 +638,9 @@
 				A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */,
 				A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */,
 				A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */,
+				A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */,
+				A5E000000000000000000006 /* AudioSessionPolicyTests.swift in Sources */,
+				A5E000000000000000000007 /* RecoveryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

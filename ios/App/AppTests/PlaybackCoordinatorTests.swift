@@ -189,6 +189,46 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.scheduler.playCallCount, 0)
         XCTAssertEqual(harness.graph.masterVolume, 0.75)
     }
+
+    func testPrivateRouteLossPausesBeforeEngineRecovery() throws {
+        let recovery = CoordinatorRecovery(result: .success(RecoveryResult(level: .engine, resumed: false)))
+        let harness = try CoordinatorHarness(recovery: recovery)
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.a).get()
+        _ = try harness.command(harness.coordinator.play).get()
+
+        harness.coordinator.handleAudioSessionEvent(.routeChanged(
+            old: RouteDescriptor(kind: .wired, name: "Headphones", sampleRate: 48_000, channelCount: 2),
+            new: RouteDescriptor(kind: .speaker, name: "iPhone", sampleRate: 48_000, channelCount: 2),
+            action: .pauseAndRebuild
+        ))
+        let state = try harness.state()
+
+        XCTAssertEqual(harness.scheduler.pauseCallCount, 1)
+        XCTAssertEqual(recovery.levels, [.engine])
+        XCTAssertEqual(recovery.checkpoints.first?.userIntent, .paused)
+        XCTAssertEqual(state.intent, .paused)
+    }
+
+    func testExhaustedRecoveryStopsAndPublishesStructuredFailure() throws {
+        let recovery = CoordinatorRecovery(result: .failure(RecoveryError.exhausted(attempts: 3)))
+        let harness = try CoordinatorHarness(recovery: recovery)
+        let delegate = RecordingCoordinatorDelegate()
+        harness.coordinator.delegate = delegate
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.a).get()
+        _ = try harness.command(harness.coordinator.play).get()
+
+        harness.coordinator.handleAudioSessionEvent(.mediaServicesReset)
+        XCTAssertEqual(try harness.state().intent, .paused)
+
+        let delivered = expectation(description: "structured recovery failure")
+        DispatchQueue.main.async {
+            XCTAssertEqual(delegate.failures.last?.code, "recovery_exhausted")
+            delivered.fulfill()
+        }
+        wait(for: [delivered], timeout: 1)
+    }
 }
 
 private final class RecordingCoordinatorDelegate: PlaybackCoordinatorDelegate {
@@ -198,6 +238,7 @@ private final class RecordingCoordinatorDelegate: PlaybackCoordinatorDelegate {
     }
 
     private(set) var publications: [Publication] = []
+    private(set) var failures: [PlaybackFailure] = []
 
     func playbackCoordinator(
         _ coordinator: PlaybackCoordinator,
@@ -211,7 +252,7 @@ private final class RecordingCoordinatorDelegate: PlaybackCoordinatorDelegate {
         _ coordinator: PlaybackCoordinator,
         didFail failure: PlaybackFailure,
         version: UInt64
-    ) {}
+    ) { failures.append(failure) }
 }
 
 private final class CoordinatorHarness {
@@ -224,7 +265,11 @@ private final class CoordinatorHarness {
     let store: MemoryStateStore
     let coordinator: PlaybackCoordinator
 
-    init(restored: PlaybackSnapshot? = nil, mediaInfo: PlaybackMediaInfoProviding? = nil) throws {
+    init(
+        restored: PlaybackSnapshot? = nil,
+        mediaInfo: PlaybackMediaInfoProviding? = nil,
+        recovery: PlaybackRecovering? = nil
+    ) throws {
         store = MemoryStateStore(restored: restored)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let diagnostics = DiagnosticsLog(url: root.appendingPathComponent("diagnostics.jsonl"))
@@ -234,6 +279,7 @@ private final class CoordinatorHarness {
             stateStore: store,
             diagnostics: diagnostics,
             mediaInfo: mediaInfo ?? ImmediateMediaInfo(),
+            recovery: recovery,
             now: { Date(timeIntervalSince1970: 200) }
         )
     }
@@ -260,6 +306,20 @@ private final class CoordinatorHarness {
         coordinator.getState { snapshot = $0; completed.fulfill() }
         XCTWaiter().wait(for: [completed], timeout: 2)
         return try XCTUnwrap(snapshot)
+    }
+}
+
+private final class CoordinatorRecovery: PlaybackRecovering {
+    let result: Result<RecoveryResult, Error>
+    private(set) var levels: [RecoveryLevel] = []
+    private(set) var checkpoints: [PlaybackRecoveryCheckpoint] = []
+
+    init(result: Result<RecoveryResult, Error>) { self.result = result }
+
+    func recover(from level: RecoveryLevel, checkpoint: PlaybackRecoveryCheckpoint) throws -> RecoveryResult {
+        levels.append(level)
+        checkpoints.append(checkpoint)
+        return try result.get()
     }
 }
 
