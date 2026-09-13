@@ -540,17 +540,17 @@ npm run test:ios -- -only-testing:AppTests/DesignTokenTests \
 - Native grid/list library, Continue Listening, sorting, search, album detail, editing, and Find in Sky.
 - Compact sheets on iPhone and simultaneous sky/album side panel on iPad.
 
-- [ ] Test sorting for Recent, Artist, Title, Year, and Played with missing values last and stable tie breaks. Search must match albums, artists, and tracks through indexed normalized fields and return track matches in their own section.
-- [ ] Query grid/list summaries separately from album tracks. Paginate large libraries and prefetch thumbnails without decoding full-size artwork.
-- [ ] Build one header count line, import action, Continue Listening card, and one shared control bar for search/sort/density. Do not reproduce stacked web controls or a second circular play control.
-- [ ] Implement two compact grid columns, three at 600pt, four on standard iPad widths, and five only when artwork remains at least the handoff's intended size. List rows use 62pt art and shared separators.
-- [ ] Distinguish currently playing from paused-but-loaded with `PLAYING` and `IN THE PLAYER`; both retain the artwork tint.
-- [ ] Build album detail with `PLAY`, `FIND IN SKY`, ordered track rows, overflow, `EDIT`, and Add to Playlist. Reorder and Merge stay omitted for 5.0 per the handoff's optional list.
-- [ ] `FIND IN SKY` dismisses/adjusts presentation, selects the exact persisted star, and moves the camera without changing coordinates. On iPad the side panel remains visible beside the highlighted sky.
-- [ ] Build title, artist, year, genre, lookup, find-art, and pick-art editing. Empty values are omitted or phrased as actions; never display null, `<unknown>`, or `0000`.
-- [ ] Before an edit that changes region placement, compute the complete affected artist set and show `This will move N star(s)`. On confirmation, update metadata and coordinates in one transaction; on cancel, write nothing.
-- [ ] Put Delete Album in overflow only. Delete catalogue/artwork/copied media transactionally, preserve adopted files, scrub playlist and queue references, and never delete a star before repository commit succeeds.
-- [ ] Cover empty-first-run, empty-filtered, unavailable-file, offline, partial import, corrupt artwork, and repository error states with native inline treatments.
+- [x] Test sorting for Recent, Artist, Title, Year, and Played with missing values last and stable tie breaks. Search must match albums, artists, and tracks through indexed normalized fields and return track matches in their own section.
+- [x] Query grid/list summaries separately from album tracks. Paginate large libraries and prefetch thumbnails without decoding full-size artwork.
+- [x] Build one header count line, import action, Continue Listening card, and one shared control bar for search/sort/density. Do not reproduce stacked web controls or a second circular play control.
+- [x] Implement two compact grid columns, three at 600pt, four on standard iPad widths, and five only when artwork remains at least the handoff's intended size. List rows use 62pt art and shared separators.
+- [x] Distinguish currently playing from paused-but-loaded with `PLAYING` and `IN THE PLAYER`; both retain the artwork tint.
+- [x] Build album detail with `PLAY`, `FIND IN SKY`, ordered track rows, overflow, `EDIT`, and Add to Playlist. Reorder and Merge stay omitted for 5.0 per the handoff's optional list.
+- [x] `FIND IN SKY` dismisses/adjusts presentation, selects the exact persisted star, and moves the camera without changing coordinates. On iPad the side panel remains visible beside the highlighted sky.
+- [x] Build title, artist, year, genre, lookup, find-art, and pick-art editing. Empty values are omitted or phrased as actions; never display null, `<unknown>`, or `0000`.
+- [x] Before an edit that changes region placement, compute the complete affected artist set and show `This will move N star(s)`. On confirmation, update metadata and coordinates in one transaction; on cancel, write nothing.
+- [x] Put Delete Album in overflow only. Delete catalogue/artwork/copied media transactionally, preserve adopted files, scrub playlist and queue references, and never delete a star before repository commit succeeds.
+- [x] Cover empty-first-run, empty-filtered, unavailable-file, offline, partial import, corrupt artwork, and repository error states with native inline treatments.
 
 **Gate**
 

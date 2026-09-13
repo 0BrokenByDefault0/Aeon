@@ -57,26 +57,168 @@ final class SkyRepository {
         return composed
     }
 
-    private func catalogInputs() throws -> [SkyAlbumInput] {
+    func affectedAlbumCount(for updatedAlbum: CatalogAlbum) throws -> Int {
+        let existing = try catalogue()
+        let source = try catalogInputs(replacing: updatedAlbum)
+        let oldKey = existing.stars.first { $0.albumID == updatedAlbum.id }?.artistKey
+        let newKey = source.first { $0.id == updatedAlbum.id }.map(SkyComposer.artistKey)
+        let keys = Set([oldKey, newKey].compactMap { $0 })
+        return source.filter { keys.contains(SkyComposer.artistKey(for: $0)) }.count
+    }
+
+    @discardableResult
+    func rechart(updatedAlbum: CatalogAlbum) throws -> SkyCatalogue {
+        let existing = try catalogue()
+        let source = try catalogInputs(replacing: updatedAlbum)
+        let oldKey = existing.stars.first { $0.albumID == updatedAlbum.id }?.artistKey
+        let newKey = source.first { $0.id == updatedAlbum.id }.map(SkyComposer.artistKey)
+        let keys = Set([oldKey, newKey].compactMap { $0 })
+        let affectedIDs = Set(source.filter { keys.contains(SkyComposer.artistKey(for: $0)) }.map(\.id))
+        let preserved = SkyCatalogue(
+            regions: [],
+            constellations: [],
+            stars: existing.stars.filter { !affectedIDs.contains($0.albumID) },
+            planets: existing.planets
+        )
+        var composed = try composer.compose(albums: source, preserving: preserved)
+        composed = enforceMovement(in: composed, from: existing, affectedIDs: affectedIDs)
+        let rewrite = try rewritePlan(for: composed)
+        try catalog.updateAlbumAndSky(
+            updatedAlbum,
+            records: rewrite.records,
+            deletingSkyRecordIDs: rewrite.deletingIDs
+        )
+        return composed
+    }
+
+    @discardableResult
+    func deleteAlbum(id: String) throws -> Bool {
+        let existing = try catalogue()
+        let source = try catalogInputs(deletingAlbumID: id)
+        let retainedPlanets = existing.planets.compactMap { planet -> SkyPlanet? in
+            let members = planet.members.filter { $0.albumID != id }
+            guard !members.isEmpty else { return nil }
+            return SkyPlanet(
+                index: planet.index,
+                members: members,
+                frontierRadius: planet.frontierRadius,
+                formationTimestamp: planet.formationTimestamp,
+                seed: planet.seed,
+                coordinate: planet.coordinate,
+                exclusionRadius: planet.exclusionRadius,
+                descriptor: planet.descriptor
+            )
+        }
+        let preserved = SkyCatalogue(
+            regions: [],
+            constellations: [],
+            stars: existing.stars.filter { $0.albumID != id },
+            planets: retainedPlanets
+        )
+        let composed = try composer.compose(albums: source, preserving: preserved)
+        let rewrite = try rewritePlan(for: composed)
+        return try catalog.deleteAlbumAndRewriteSky(
+            id: id,
+            records: rewrite.records,
+            deletingSkyRecordIDs: rewrite.deletingIDs
+        )
+    }
+
+    private func catalogInputs(
+        replacing updatedAlbum: CatalogAlbum? = nil,
+        deletingAlbumID: String? = nil
+    ) throws -> [SkyAlbumInput] {
         var result: [SkyAlbumInput] = []
         var offset = 0
         while true {
             let page = try catalog.albumPage(offset: offset, limit: CatalogDatabase.maximumPageSize, sort: .artist)
-            result.append(contentsOf: page.map {
-                SkyAlbumInput(
+            result.append(contentsOf: page.compactMap {
+                if $0.id == deletingAlbumID { return nil }
+                let title = $0.id == updatedAlbum?.id ? updatedAlbum!.title : $0.title
+                let artist = $0.id == updatedAlbum?.id ? updatedAlbum!.artist : $0.artist
+                let genre = $0.id == updatedAlbum?.id ? updatedAlbum!.genre : $0.genre
+                let artworkKey = $0.id == updatedAlbum?.id ? updatedAlbum!.artworkKey : $0.artworkKey
+                return SkyAlbumInput(
                     id: $0.id,
                     sequence: $0.sequence,
-                    title: $0.title,
-                    artist: $0.artist,
-                    genre: $0.genre,
+                    title: title,
+                    artist: artist,
+                    genre: genre,
                     importedAt: $0.importedAt,
-                    artworkSamples: artworkSamples(for: $0.artworkKey),
+                    artworkSamples: artworkSamples(for: artworkKey),
                     magnitude: UInt8(clamping: 40 + min(180, $0.playCount * 4))
                 )
             })
             guard page.count == CatalogDatabase.maximumPageSize else { break }
             offset += page.count
         }
+        return result
+    }
+
+    private func rewritePlan(for catalogue: SkyCatalogue) throws -> (records: [SkyRecord], deletingIDs: [String]) {
+        let records = try makeRecords(catalogue)
+        let desiredIDs = Set(records.map(\.id))
+        let deletingIDs = try allRecords()
+            .filter { $0.kind != .camera && !desiredIDs.contains($0.id) }
+            .map(\.id)
+        return (records, deletingIDs)
+    }
+
+    private func enforceMovement(
+        in catalogue: SkyCatalogue,
+        from existing: SkyCatalogue,
+        affectedIDs: Set<String>
+    ) -> SkyCatalogue {
+        let oldByID = Dictionary(uniqueKeysWithValues: existing.stars.map { ($0.albumID, $0) })
+        var stars = catalogue.stars
+        var occupied = Set(stars.map(\.coordinate))
+        let directions: [SkyPoint] = [
+            .init(x: 1, y: 0), .init(x: 1, y: 1), .init(x: 0, y: 1), .init(x: -1, y: 1),
+            .init(x: -1, y: 0), .init(x: -1, y: -1), .init(x: 0, y: -1), .init(x: 1, y: -1)
+        ]
+        for index in stars.indices where affectedIDs.contains(stars[index].albumID) {
+            let star = stars[index]
+            guard let old = oldByID[star.albumID], old.coordinate == star.coordinate,
+                  old.artistKey != star.artistKey || old.regionID != star.regionID else { continue }
+            occupied.remove(star.coordinate)
+            let start = Int(SkyStableHash.value(star.albumID) % UInt64(directions.count))
+            var replacement = star.coordinate
+            search: for ring in 1...512 {
+                for offset in 0..<directions.count {
+                    let direction = directions[(start + offset) % directions.count]
+                    let distance = Int32(ring) &* SkyComposer.starSpacing
+                    let candidate = SkyPoint(
+                        x: star.coordinate.x &+ direction.x &* distance,
+                        y: star.coordinate.y &+ direction.y &* distance
+                    )
+                    let clear = occupied.allSatisfy { point in
+                        let dx = Int64(candidate.x) - Int64(point.x)
+                        let dy = Int64(candidate.y) - Int64(point.y)
+                        let minimum = Int64(SkyComposer.starSpacing / 2)
+                        return dx * dx + dy * dy >= minimum * minimum
+                    }
+                    if clear {
+                        replacement = candidate
+                        break search
+                    }
+                }
+            }
+            stars[index] = SkyStar(
+                albumID: star.albumID,
+                sequence: star.sequence,
+                artistKey: star.artistKey,
+                artistName: star.artistName,
+                regionID: star.regionID,
+                coordinate: replacement,
+                importedAt: star.importedAt,
+                placedAt: star.placedAt,
+                isUncharted: star.isUncharted,
+                magnitude: star.magnitude
+            )
+            occupied.insert(replacement)
+        }
+        var result = catalogue
+        result.stars = stars
         return result
     }
 

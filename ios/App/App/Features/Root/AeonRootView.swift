@@ -113,6 +113,7 @@ struct AeonRootView: View {
                 AeonReadyShell(
                     services: services,
                     importProgress: container.libraryImportProgress,
+                    importError: container.libraryImportError,
                     importFiles: { isSelectingAudio = true },
                     importFolder: { isSelectingFolder = true }
                 )
@@ -216,9 +217,11 @@ struct AeonRootView: View {
 private struct AeonReadyShell: View {
     let services: AppServices
     let importProgress: LibraryImportProgress?
+    let importError: String?
     let importFiles: () -> Void
     let importFolder: () -> Void
     @ObservedObject private var playback: PlaybackController
+    @StateObject private var libraryController: LibraryController
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var destination = AeonDestination.sky
     @State private var portraitSidebarVisible = false
@@ -226,14 +229,25 @@ private struct AeonReadyShell: View {
     init(
         services: AppServices,
         importProgress: LibraryImportProgress?,
+        importError: String?,
         importFiles: @escaping () -> Void,
         importFolder: @escaping () -> Void
     ) {
         self.services = services
         self.importProgress = importProgress
+        self.importError = importError
         self.importFiles = importFiles
         self.importFolder = importFolder
         _playback = ObservedObject(wrappedValue: services.playbackController)
+        _libraryController = StateObject(wrappedValue: LibraryController(
+            repository: services.catalogRepository,
+            artworkStore: services.artworkStore,
+            mediaStore: services.mediaStore,
+            playback: services.playbackController,
+            skyRepository: services.skyRepository,
+            skyController: services.skySceneController,
+            metadataEnricher: services.metadataEnricher
+        ))
     }
 
     var body: some View {
@@ -268,31 +282,53 @@ private struct AeonReadyShell: View {
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
     }
 
+    @ViewBuilder
     private func destinationPanel(
         _ destination: AeonDestination,
         geometry: GeometryProxy,
         insets: AeonReadableInsets
     ) -> some View {
         let regular = horizontalSizeClass == .regular
-        return AeonGlass {
-            VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
-                AeonBreadcrumb(text: destination.title)
-                AeonDisplayText(destination.title.capitalized, size: 42, maximumLines: 2)
-                    .foregroundStyle(AeonTheme.ColorToken.bone)
-                Text("The native \(destination.rawValue) surface is connected to this persistent sky.")
-                    .font(AeonTheme.FontToken.ui(.body))
-                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                Spacer()
+        if destination == .library {
+            AeonGlass {
+                LibraryScreen(
+                    controller: libraryController,
+                    importProgress: importProgress,
+                    importError: importError,
+                    importAction: importFiles,
+                    findInSky: { id, reduceMotion in
+                        libraryController.findInSky(id: id, reduceMotion: reduceMotion)
+                        if !regular { self.destination = .sky }
+                    }
+                )
+                .padding(.top, insets.top)
+                .padding(.bottom, regular ? insets.bottom : 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-            .padding(.top, max(AeonTheme.Space.small, insets.top))
-            .padding(.bottom, max(AeonTheme.Space.edge, insets.bottom))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .ignoresSafeArea(edges: .vertical)
+        } else {
+            AeonGlass {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                    AeonBreadcrumb(text: destination.title)
+                    AeonDisplayText(destination.title.capitalized, size: 42, maximumLines: 2)
+                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                    Text("The native \(destination.rawValue) surface is connected to this persistent sky.")
+                        .font(AeonTheme.FontToken.ui(.body))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    Spacer()
+                }
+                .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
+                .padding(.top, max(AeonTheme.Space.small, insets.top))
+                .padding(.bottom, max(AeonTheme.Space.edge, insets.bottom))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .ignoresSafeArea(edges: .vertical)
+            .accessibilityIdentifier("aeon.destination.\(destination.rawValue)")
         }
-        .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
-        .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
-        .ignoresSafeArea(edges: .vertical)
-        .accessibilityIdentifier("aeon.destination.\(destination.rawValue)")
     }
 }
 

@@ -76,22 +76,21 @@ final class CatalogRepository {
 
     func updateAlbum(_ album: CatalogAlbum) throws {
         try validate(album)
-        let changed = try database.execute(
-            """
-            UPDATE albums
-            SET sequence = ?, title = ?, artist = ?, year = ?, genre = ?,
-                normalized_title = ?, normalized_artist = ?, normalized_genre = ?,
-                artwork_key = ?, updated_at = ?
-            WHERE id = ?
-            """,
-            [
-                .integer(album.sequence), .text(album.title), .text(album.artist), .text(album.year),
-                .text(album.genre), .text(Self.normalize(album.title)), .text(Self.normalize(album.artist)),
-                .text(Self.normalize(album.genre)), album.artworkKey.map(SQLiteValue.text) ?? .null,
-                .real(album.updatedAt.timeIntervalSince1970), .text(album.id)
-            ]
-        )
-        guard changed == 1 else { throw CatalogRepositoryError.missingReference(album.id) }
+        try updateAlbumRow(album)
+        notifyObservers()
+    }
+
+    func updateAlbumAndSky(
+        _ album: CatalogAlbum,
+        records: [SkyRecord],
+        deletingSkyRecordIDs: [String]
+    ) throws {
+        try validate(album)
+        try validateSkyRewrite(records: records, deletingIDs: deletingSkyRecordIDs)
+        try database.transaction {
+            try updateAlbumRow(album)
+            try rewriteSkyRows(records: records, deletingIDs: deletingSkyRecordIDs)
+        }
         notifyObservers()
     }
 
@@ -105,6 +104,24 @@ final class CatalogRepository {
         return changed > 0
     }
 
+    @discardableResult
+    func deleteAlbumAndRewriteSky(
+        id: String,
+        records: [SkyRecord],
+        deletingSkyRecordIDs: [String]
+    ) throws -> Bool {
+        try validateID(id)
+        try validateSkyRewrite(records: records, deletingIDs: deletingSkyRecordIDs)
+        let changed = try database.transaction {
+            let changed = try database.execute("DELETE FROM albums WHERE id = ?", [.text(id)])
+            guard changed == 1 else { return 0 }
+            try rewriteSkyRows(records: records, deletingIDs: deletingSkyRecordIDs)
+            return changed
+        }
+        if changed > 0 { notifyObservers() }
+        return changed > 0
+    }
+
     func album(id: String) throws -> CatalogAlbum? {
         try validateID(id)
         return try database.query(
@@ -112,21 +129,40 @@ final class CatalogRepository {
         ).first.map(try decodeAlbum)
     }
 
+    func albumSummary(id: String) throws -> CatalogAlbumSummary? {
+        try validateID(id)
+        return try database.query(
+            """
+            SELECT a.id, a.sequence, a.title, a.artist, a.year, a.genre, a.artwork_key,
+                   a.imported_at, COUNT(t.id) AS track_count,
+                   COALESCE(SUM(l.play_count), 0) AS play_count,
+                   MAX(l.last_played_at) AS last_played_at
+            FROM albums a
+            LEFT JOIN tracks t ON t.album_id = a.id
+            LEFT JOIN listening l ON l.track_id = t.id
+            WHERE a.id = ?
+            GROUP BY a.id
+            """,
+            [.text(id)]
+        ).first.map(try decodeAlbumSummary)
+    }
+
     func albumPage(offset: Int = 0, limit: Int = 48, sort: CatalogAlbumSort = .recentlyAdded) throws -> [CatalogAlbumSummary] {
         try validatePage(offset: offset, limit: limit)
         let order: String
         switch sort {
         case .recentlyAdded: order = "a.sequence DESC, a.id"
-        case .artist: order = "a.normalized_artist, a.sequence, a.id"
-        case .title: order = "a.normalized_title, a.sequence, a.id"
-        case .year: order = "a.year DESC, a.sequence, a.id"
-        case .mostPlayed: order = "play_count DESC, a.sequence, a.id"
+        case .artist: order = "CASE WHEN a.normalized_artist = '' THEN 1 ELSE 0 END, a.normalized_artist, a.sequence, a.id"
+        case .title: order = "CASE WHEN a.normalized_title = '' THEN 1 ELSE 0 END, a.normalized_title, a.sequence, a.id"
+        case .year: order = "CASE WHEN TRIM(a.year) = '' THEN 1 ELSE 0 END, CAST(a.year AS INTEGER) DESC, a.year DESC, a.sequence, a.id"
+        case .mostPlayed: order = "CASE WHEN MAX(l.last_played_at) IS NULL THEN 1 ELSE 0 END, MAX(l.last_played_at) DESC, play_count DESC, a.sequence, a.id"
         }
         return try database.query(
             """
             SELECT a.id, a.sequence, a.title, a.artist, a.year, a.genre, a.artwork_key,
                    a.imported_at, COUNT(t.id) AS track_count,
-                   COALESCE(SUM(l.play_count), 0) AS play_count
+                   COALESCE(SUM(l.play_count), 0) AS play_count,
+                   MAX(l.last_played_at) AS last_played_at
             FROM albums a
             LEFT JOIN tracks t ON t.album_id = a.id
             LEFT JOIN listening l ON l.track_id = t.id
@@ -136,6 +172,10 @@ final class CatalogRepository {
             """,
             [.integer(Int64(limit)), .integer(Int64(offset))]
         ).map(try decodeAlbumSummary)
+    }
+
+    func albumCount() throws -> Int {
+        Int(try database.scalar("SELECT COUNT(*) AS value FROM albums")?.int64 ?? 0)
     }
 
     func tracks(albumID: String, offset: Int = 0, limit: Int = CatalogDatabase.maximumPageSize) throws -> [CatalogTrack] {
@@ -197,14 +237,15 @@ final class CatalogRepository {
     func search(_ query: String, limit: Int = 48) throws -> CatalogSearchResults {
         try validatePage(offset: 0, limit: limit)
         let normalized = Self.normalize(query)
-        guard !normalized.isEmpty else { return CatalogSearchResults(albums: [], tracks: []) }
+        guard !normalized.isEmpty else { return CatalogSearchResults(albums: [], artists: [], tracks: []) }
         let pattern = "%" + Self.escapeLike(normalized) + "%"
         let bindings: [SQLiteValue] = [.text(pattern), .text(pattern), .text(pattern), .integer(Int64(limit))]
         let albums = try database.query(
             """
             SELECT a.id, a.sequence, a.title, a.artist, a.year, a.genre, a.artwork_key,
                    a.imported_at, COUNT(t.id) AS track_count,
-                   COALESCE(SUM(l.play_count), 0) AS play_count
+                   COALESCE(SUM(l.play_count), 0) AS play_count,
+                   MAX(l.last_played_at) AS last_played_at
             FROM albums a
             LEFT JOIN tracks t ON t.album_id = a.id
             LEFT JOIN listening l ON l.track_id = t.id
@@ -217,6 +258,19 @@ final class CatalogRepository {
             """,
             bindings
         ).map(try decodeAlbumSummary)
+        let artists = try database.query(
+            """
+            SELECT artist FROM (
+                SELECT artist, normalized_artist FROM albums
+                UNION
+                SELECT artist, normalized_artist FROM tracks WHERE artist != ''
+            )
+            WHERE normalized_artist LIKE ? ESCAPE '\\'
+            ORDER BY normalized_artist, artist
+            LIMIT ?
+            """,
+            [.text(pattern), .integer(Int64(limit))]
+        ).compactMap { $0.string("artist") }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let tracks = try database.query(
             """
             SELECT t.id AS track_id, t.album_id, t.title AS track_title,
@@ -244,7 +298,7 @@ final class CatalogRepository {
                 artist: artist
             )
         }
-        return CatalogSearchResults(albums: albums, tracks: tracks)
+        return CatalogSearchResults(albums: albums, artists: artists, tracks: tracks)
     }
 
     func createPlaylist(_ playlist: CatalogPlaylist) throws {
@@ -777,8 +831,54 @@ final class CatalogRepository {
             artworkKey: row.string("artwork_key"),
             trackCount: trackCount,
             playCount: playCount,
+            lastPlayedAt: row.double("last_played_at").map(Date.init(timeIntervalSince1970:)),
             importedAt: Date(timeIntervalSince1970: imported)
         )
+    }
+
+    private func updateAlbumRow(_ album: CatalogAlbum) throws {
+        let changed = try database.execute(
+            """
+            UPDATE albums
+            SET sequence = ?, title = ?, artist = ?, year = ?, genre = ?,
+                normalized_title = ?, normalized_artist = ?, normalized_genre = ?,
+                artwork_key = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            [
+                .integer(album.sequence), .text(album.title), .text(album.artist), .text(album.year),
+                .text(album.genre), .text(Self.normalize(album.title)), .text(Self.normalize(album.artist)),
+                .text(Self.normalize(album.genre)), album.artworkKey.map(SQLiteValue.text) ?? .null,
+                .real(album.updatedAt.timeIntervalSince1970), .text(album.id)
+            ]
+        )
+        guard changed == 1 else { throw CatalogRepositoryError.missingReference(album.id) }
+    }
+
+    private func validateSkyRewrite(records: [SkyRecord], deletingIDs: [String]) throws {
+        var ids = Set<String>()
+        for record in records {
+            try validateID(record.id)
+            guard ids.insert(record.id).inserted else { throw CatalogRepositoryError.duplicateStableID(record.id) }
+        }
+        for id in deletingIDs { try validateID(id) }
+    }
+
+    private func rewriteSkyRows(records: [SkyRecord], deletingIDs: [String]) throws {
+        for id in deletingIDs {
+            try database.execute("DELETE FROM sky_records WHERE id = ?", [.text(id)])
+        }
+        for record in records {
+            try database.execute(
+                """
+                INSERT INTO sky_records(id, kind, sequence, payload, updated_at) VALUES(?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, sequence = excluded.sequence,
+                    payload = excluded.payload, updated_at = excluded.updated_at
+                """,
+                [.text(record.id), .text(record.kind.rawValue), .integer(record.sequence),
+                 .blob(record.payload), .real(record.updatedAt.timeIntervalSince1970)]
+            )
+        }
     }
 
     private func decodeTrack(_ row: CatalogRow) throws -> CatalogTrack {

@@ -8,8 +8,8 @@ struct AeonApp: App {
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
-        let deterministicSky = arguments.contains("-AeonSkyFixture")
-        _container = StateObject(wrappedValue: deterministicSky ? AppContainer.inMemory() : AppContainer.production())
+        let deterministicFixture = arguments.contains("-AeonSkyFixture") || arguments.contains("-AeonLibraryFixture")
+        _container = StateObject(wrappedValue: deterministicFixture ? AppContainer.inMemory() : AppContainer.production())
     }
 
     var body: some Scene {

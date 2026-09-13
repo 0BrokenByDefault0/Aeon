@@ -324,6 +324,25 @@ final class MediaStore: MediaResolving {
         }
     }
 
+    func removeManagedMedia(_ reference: MediaReference) throws {
+        let url: URL
+        switch reference {
+        case .native(let relativePath):
+            url = try resolve(relativePath, beneath: mediaRoot)
+        case .documents(let relativePath)
+            where relativePath.hasPrefix("Music/_Imported/") || relativePath.hasPrefix("Music/_Migrated/"):
+            url = try resolve(relativePath, beneath: documentsRoot)
+        case .documents, .externalBookmark, .legacyBlob, .unavailable:
+            return
+        }
+        if fileManager.fileExists(atPath: url.path) { try fileManager.removeItem(at: url) }
+        let parent = url.deletingLastPathComponent()
+        if parent != mediaRoot, parent != documentsRoot,
+           (try? fileManager.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil).isEmpty) == true {
+            try? fileManager.removeItem(at: parent)
+        }
+    }
+
     func commitMigratedAudio(
         partialURL: URL,
         trackID: String,

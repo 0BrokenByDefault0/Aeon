@@ -36,6 +36,7 @@ struct CatalogAlbumSummary: Codable, Equatable, Identifiable {
     let artworkKey: String?
     let trackCount: Int
     let playCount: Int64
+    let lastPlayedAt: Date?
     let importedAt: Date
 }
 
@@ -116,6 +117,7 @@ struct CatalogSearchResults: Equatable {
     }
 
     let albums: [CatalogAlbumSummary]
+    let artists: [String]
     let tracks: [TrackHit]
 }
 

@@ -100,6 +100,13 @@
 		A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000017 /* GUST-FONT-LICENSE.txt */; };
 		A61000000000000000000008 /* LPPL-1.3c.tex in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000018 /* LPPL-1.3c.tex */; };
 		A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000019 /* README-Aeon-Nocturne.txt */; };
+		A62000000000000000000001 /* LibraryController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000011 /* LibraryController.swift */; };
+		A62000000000000000000002 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000012 /* LibraryScreen.swift */; };
+		A62000000000000000000003 /* AlbumDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000013 /* AlbumDetailView.swift */; };
+		A62000000000000000000004 /* AlbumEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000014 /* AlbumEditorView.swift */; };
+		A62000000000000000000005 /* SearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000015 /* SearchResultsView.swift */; };
+		A62000000000000000000006 /* LibraryControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000016 /* LibraryControllerTests.swift */; };
+		A62000000000000000000007 /* LibraryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000017 /* LibraryFlowTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -215,6 +222,13 @@
 		A61000000000000000000017 /* GUST-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GUST-FONT-LICENSE.txt"; sourceTree = "<group>"; };
 		A61000000000000000000018 /* LPPL-1.3c.tex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LPPL-1.3c.tex"; sourceTree = "<group>"; };
 		A61000000000000000000019 /* README-Aeon-Nocturne.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "README-Aeon-Nocturne.txt"; sourceTree = "<group>"; };
+		A62000000000000000000011 /* LibraryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryController.swift; sourceTree = "<group>"; };
+		A62000000000000000000012 /* LibraryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScreen.swift; sourceTree = "<group>"; };
+		A62000000000000000000013 /* AlbumDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumDetailView.swift; sourceTree = "<group>"; };
+		A62000000000000000000014 /* AlbumEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumEditorView.swift; sourceTree = "<group>"; };
+		A62000000000000000000015 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
+		A62000000000000000000016 /* LibraryControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryControllerTests.swift; sourceTree = "<group>"; };
+		A62000000000000000000017 /* LibraryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFlowTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -350,6 +364,7 @@
 				A6000000000000000000001A /* SkyCameraTests.swift */,
 				A6000000000000000000001B /* SkyHitTestingTests.swift */,
 				A61000000000000000000014 /* DesignTokenTests.swift */,
+				A62000000000000000000016 /* LibraryControllerTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -476,8 +491,21 @@
 			children = (
 				A59000000000000000000021 /* Root */,
 				A60000000000000000000021 /* Sky */,
+				A62000000000000000000020 /* Library */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		A62000000000000000000020 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				A62000000000000000000011 /* LibraryController.swift */,
+				A62000000000000000000012 /* LibraryScreen.swift */,
+				A62000000000000000000013 /* AlbumDetailView.swift */,
+				A62000000000000000000014 /* AlbumEditorView.swift */,
+				A62000000000000000000015 /* SearchResultsView.swift */,
+			);
+			path = Library;
 			sourceTree = "<group>";
 		};
 		A60000000000000000000021 /* Sky */ = {
@@ -505,6 +533,7 @@
 				A5A00000000000000000000E /* AppUITests.swift */,
 				A6000000000000000000001C /* SkyInteractionTests.swift */,
 				A61000000000000000000015 /* AdaptiveChromeTests.swift */,
+				A62000000000000000000017 /* LibraryFlowTests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -759,6 +788,11 @@
 				A61000000000000000000001 /* AeonTheme.swift in Sources */,
 				A61000000000000000000002 /* AeonComponents.swift in Sources */,
 				A61000000000000000000003 /* AeonChrome.swift in Sources */,
+				A62000000000000000000001 /* LibraryController.swift in Sources */,
+				A62000000000000000000002 /* LibraryScreen.swift in Sources */,
+				A62000000000000000000003 /* AlbumDetailView.swift in Sources */,
+				A62000000000000000000004 /* AlbumEditorView.swift in Sources */,
+				A62000000000000000000005 /* SearchResultsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -791,6 +825,7 @@
 				A6000000000000000000000A /* SkyCameraTests.swift in Sources */,
 				A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */,
 				A61000000000000000000004 /* DesignTokenTests.swift in Sources */,
+				A62000000000000000000006 /* LibraryControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -801,6 +836,7 @@
 				A5A000000000000000000001 /* AppUITests.swift in Sources */,
 				A6000000000000000000000C /* SkyInteractionTests.swift in Sources */,
 				A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */,
+				A62000000000000000000007 /* LibraryFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
