@@ -79,6 +79,18 @@
 		A5F000000000000000000005 /* SkyComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000015 /* SkyComposerTests.swift */; };
 		A5F000000000000000000006 /* PlanetModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000016 /* PlanetModelTests.swift */; };
 		A5F000000000000000000007 /* sky-catalogue-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000017 /* sky-catalogue-v1.json */; };
+		A60000000000000000000001 /* SkyCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000011 /* SkyCamera.swift */; };
+		A60000000000000000000002 /* SkyHitTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000012 /* SkyHitTester.swift */; };
+		A60000000000000000000003 /* SkyRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* SkyRenderer.swift */; };
+		A60000000000000000000004 /* SkyMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* SkyMetalView.swift */; };
+		A60000000000000000000005 /* SkyShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* SkyShaders.metal */; };
+		A60000000000000000000006 /* SkySceneController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000016 /* SkySceneController.swift */; };
+		A60000000000000000000007 /* SkyScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000017 /* SkyScreen.swift */; };
+		A60000000000000000000008 /* SkyAccessibilityOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000018 /* SkyAccessibilityOverlay.swift */; };
+		A60000000000000000000009 /* SkyHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000019 /* SkyHUD.swift */; };
+		A6000000000000000000000A /* SkyCameraTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001A /* SkyCameraTests.swift */; };
+		A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001B /* SkyHitTestingTests.swift */; };
+		A6000000000000000000000C /* SkyInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001C /* SkyInteractionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -173,6 +185,18 @@
 		A5F000000000000000000015 /* SkyComposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyComposerTests.swift; sourceTree = "<group>"; };
 		A5F000000000000000000016 /* PlanetModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanetModelTests.swift; sourceTree = "<group>"; };
 		A5F000000000000000000017 /* sky-catalogue-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/sky-catalogue-v1.json; sourceTree = "<group>"; };
+		A60000000000000000000011 /* SkyCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyCamera.swift; sourceTree = "<group>"; };
+		A60000000000000000000012 /* SkyHitTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHitTester.swift; sourceTree = "<group>"; };
+		A60000000000000000000013 /* SkyRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyRenderer.swift; sourceTree = "<group>"; };
+		A60000000000000000000014 /* SkyMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyMetalView.swift; sourceTree = "<group>"; };
+		A60000000000000000000015 /* SkyShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = SkyShaders.metal; sourceTree = "<group>"; };
+		A60000000000000000000016 /* SkySceneController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkySceneController.swift; sourceTree = "<group>"; };
+		A60000000000000000000017 /* SkyScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyScreen.swift; sourceTree = "<group>"; };
+		A60000000000000000000018 /* SkyAccessibilityOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyAccessibilityOverlay.swift; sourceTree = "<group>"; };
+		A60000000000000000000019 /* SkyHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHUD.swift; sourceTree = "<group>"; };
+		A6000000000000000000001A /* SkyCameraTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyCameraTests.swift; sourceTree = "<group>"; };
+		A6000000000000000000001B /* SkyHitTestingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHitTestingTests.swift; sourceTree = "<group>"; };
+		A6000000000000000000001C /* SkyInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyInteractionTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -303,6 +327,8 @@
 				A5F000000000000000000015 /* SkyComposerTests.swift */,
 				A5F000000000000000000016 /* PlanetModelTests.swift */,
 				A5F000000000000000000017 /* sky-catalogue-v1.json */,
+				A6000000000000000000001A /* SkyCameraTests.swift */,
+				A6000000000000000000001B /* SkyHitTestingTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -339,12 +365,25 @@
 		A5F000000000000000000020 /* Sky */ = {
 			isa = PBXGroup;
 			children = (
+				A60000000000000000000020 /* Metal */,
 				A5F000000000000000000011 /* SkyModels.swift */,
 				A5F000000000000000000012 /* SkyComposer.swift */,
 				A5F000000000000000000013 /* SkyRepository.swift */,
 				A5F000000000000000000014 /* PlanetTextureGenerator.swift */,
 			);
 			path = Sky;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000020 /* Metal */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000011 /* SkyCamera.swift */,
+				A60000000000000000000012 /* SkyHitTester.swift */,
+				A60000000000000000000013 /* SkyRenderer.swift */,
+				A60000000000000000000014 /* SkyMetalView.swift */,
+				A60000000000000000000015 /* SkyShaders.metal */,
+			);
+			path = Metal;
 			sourceTree = "<group>";
 		};
 		A5B000000000000000000020 /* Domain */ = {
@@ -394,8 +433,20 @@
 			isa = PBXGroup;
 			children = (
 				A59000000000000000000021 /* Root */,
+				A60000000000000000000021 /* Sky */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000021 /* Sky */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000016 /* SkySceneController.swift */,
+				A60000000000000000000017 /* SkyScreen.swift */,
+				A60000000000000000000018 /* SkyAccessibilityOverlay.swift */,
+				A60000000000000000000019 /* SkyHUD.swift */,
+			);
+			path = Sky;
 			sourceTree = "<group>";
 		};
 		A59000000000000000000021 /* Root */ = {
@@ -410,6 +461,7 @@
 			isa = PBXGroup;
 			children = (
 				A5A00000000000000000000E /* AppUITests.swift */,
+				A6000000000000000000001C /* SkyInteractionTests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -648,6 +700,15 @@
 				A5F000000000000000000002 /* SkyComposer.swift in Sources */,
 				A5F000000000000000000003 /* SkyRepository.swift in Sources */,
 				A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */,
+				A60000000000000000000001 /* SkyCamera.swift in Sources */,
+				A60000000000000000000002 /* SkyHitTester.swift in Sources */,
+				A60000000000000000000003 /* SkyRenderer.swift in Sources */,
+				A60000000000000000000004 /* SkyMetalView.swift in Sources */,
+				A60000000000000000000005 /* SkyShaders.metal in Sources */,
+				A60000000000000000000006 /* SkySceneController.swift in Sources */,
+				A60000000000000000000007 /* SkyScreen.swift in Sources */,
+				A60000000000000000000008 /* SkyAccessibilityOverlay.swift in Sources */,
+				A60000000000000000000009 /* SkyHUD.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -677,6 +738,8 @@
 				A5E000000000000000000007 /* RecoveryTests.swift in Sources */,
 				A5F000000000000000000005 /* SkyComposerTests.swift in Sources */,
 				A5F000000000000000000006 /* PlanetModelTests.swift in Sources */,
+				A6000000000000000000000A /* SkyCameraTests.swift in Sources */,
+				A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -685,6 +748,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A5A000000000000000000001 /* AppUITests.swift in Sources */,
+				A6000000000000000000000C /* SkyInteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

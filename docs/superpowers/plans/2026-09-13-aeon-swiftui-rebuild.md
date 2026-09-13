@@ -460,16 +460,16 @@ npm run test:ios -- -only-testing:AppTests/SkyComposerTests \
 - Pan, pinch, tiered zoom, selection, locate, traces, and stable rotation behavior.
 - Accessible navigation independent of Metal pixels.
 
-- [ ] Write pure camera tests for pan/pinch anchoring, clamped scales, content framing, safe-area-independent world coordinates, rotation preservation, locate flight, and Reduce Motion cross-fade.
-- [ ] Write hit-test tests for stars, planets, overlapping candidates, minimum touch expansion, and transforms at every zoom tier.
-- [ ] Batch stars, figure lines, glows, traces, and planet quads by render pipeline. Upload catalogue changes through diffed buffers; do not rebuild all GPU resources every frame.
-- [ ] Render fixed planet textures from Task 14. Compute traces from the planet to current member-star coordinates when selected; never store trace endpoints.
-- [ ] Keep region/artist labels in a contrast-compliant SwiftUI/CoreText overlay synchronized to camera transforms. Atmosphere may stay faint; readable text may not.
-- [ ] Implement handoff zoom tiers and stable camera persistence. Sky coordinates never reflow for device size or orientation.
-- [ ] Implement HUD census, tier/altitude strip, now-playing line, import progress, planet progress, and a non-blocking ceremony layer. Omit the optional airlock, grain/glitch, Drift, planet jump list, and extra ceremonies.
-- [ ] Add an accessibility overlay exposing regions → constellations → stars, descriptive labels, selected state, activate actions, and a custom rotor. Metal marks themselves are not the accessibility elements.
-- [ ] Add deterministic UI launch arguments for empty, small, 1,000-album, 10,000-album, playing, planet-selected, and Uncharted fixtures.
-- [ ] Record performance with signposts. Release targets are 60 fps for 1,000 albums and at least 30 fps for 10,000 on the oldest supported physical test device, with no per-frame heap growth.
+- [x] Write pure camera tests for pan/pinch anchoring, clamped scales, content framing, safe-area-independent world coordinates, rotation preservation, locate flight, and Reduce Motion cross-fade.
+- [x] Write hit-test tests for stars, planets, overlapping candidates, minimum touch expansion, and transforms at every zoom tier.
+- [x] Batch stars, figure lines, glows, traces, and planet quads by render pipeline. Upload catalogue changes through diffed buffers; do not rebuild all GPU resources every frame.
+- [x] Render fixed planet textures from Task 14. Compute traces from the planet to current member-star coordinates when selected; never store trace endpoints.
+- [x] Keep region/artist labels in a contrast-compliant SwiftUI/CoreText overlay synchronized to camera transforms. Atmosphere may stay faint; readable text may not.
+- [x] Implement handoff zoom tiers and stable camera persistence. Sky coordinates never reflow for device size or orientation.
+- [x] Implement HUD census, tier/altitude strip, now-playing line, import progress, planet progress, and a non-blocking ceremony layer. Omit the optional airlock, grain/glitch, Drift, planet jump list, and extra ceremonies.
+- [x] Add an accessibility overlay exposing regions → constellations → stars, descriptive labels, selected state, activate actions, and a custom rotor. Metal marks themselves are not the accessibility elements.
+- [x] Add deterministic UI launch arguments for empty, small, 1,000-album, 10,000-album, playing, planet-selected, and Uncharted fixtures.
+- [ ] Record performance with signposts. Release targets are 60 fps for 1,000 albums and at least 30 fps for 10,000 on the oldest supported physical test device, with no per-frame heap growth. Signposts, diff tests, and frame-rate policy are implemented; physical-device measurement remains part of Task 20.
 
 **Gate**
 

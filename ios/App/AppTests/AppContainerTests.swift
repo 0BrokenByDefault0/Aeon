@@ -22,6 +22,7 @@ final class AppContainerTests: XCTestCase {
         XCTAssertTrue(services.recoveryCoordinator === container.services?.recoveryCoordinator)
         XCTAssertTrue(services.playbackController === container.services?.playbackController)
         XCTAssertTrue(services.remoteCommandCoordinator === container.services?.remoteCommandCoordinator)
+        XCTAssertTrue(services.skySceneController === container.services?.skySceneController)
         XCTAssertEqual(container.launchState, .ready)
     }
 

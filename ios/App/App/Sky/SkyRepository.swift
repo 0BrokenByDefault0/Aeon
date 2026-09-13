@@ -32,6 +32,22 @@ final class SkyRepository {
         )
     }
 
+    func camera() throws -> SkyCameraState? {
+        guard let record = try records(kind: .camera).first else { return nil }
+        do { return try decoder.decode(SkyCameraState.self, from: record.payload).sanitized }
+        catch { throw SkyRepositoryError.decodeFailed(record.id) }
+    }
+
+    func save(camera: SkyCameraState) throws {
+        try catalog.upsertSkyRecord(SkyRecord(
+            id: "camera:primary",
+            kind: .camera,
+            sequence: 0,
+            payload: try encoder.encode(camera.sanitized),
+            updatedAt: Date()
+        ))
+    }
+
     @discardableResult
     func backfill(inputs: [SkyAlbumInput]? = nil) throws -> SkyCatalogue {
         let existing = try catalogue()

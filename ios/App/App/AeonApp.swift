@@ -7,7 +7,9 @@ struct AeonApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
-        _container = StateObject(wrappedValue: AppContainer.production())
+        let arguments = ProcessInfo.processInfo.arguments
+        let deterministicSky = arguments.contains("-AeonSkyFixture")
+        _container = StateObject(wrappedValue: deterministicSky ? AppContainer.inMemory() : AppContainer.production())
     }
 
     var body: some Scene {

@@ -18,10 +18,14 @@ struct AeonRootView: View {
 
             Color.black.ignoresSafeArea()
             content
-                .padding(32)
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Aeon native root")
+                .accessibilityIdentifier("aeon.root")
+                .allowsHitTesting(false)
         }
         .preferredColorScheme(.dark)
-        .accessibilityIdentifier("aeon.root")
         .fileImporter(
             isPresented: $isRestoringCatalog,
             allowedContentTypes: [.data],
@@ -52,9 +56,9 @@ struct AeonRootView: View {
     private var content: some View {
         switch container.launchState {
         case .launching:
-            launchMessage("OPENING AEON")
+            launchMessage("OPENING AEON").padding(32)
         case .checkingLegacyLibrary:
-            launchMessage("CHECKING LIBRARY")
+            launchMessage("CHECKING LIBRARY").padding(32)
         case .migrationRequired(let summary):
             VStack(spacing: 14) {
                 Text("LIBRARY MIGRATION")
@@ -70,6 +74,7 @@ struct AeonRootView: View {
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 460)
             }
+            .padding(32)
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("aeon.launch.migration")
         case .migrating(let progress):
@@ -101,46 +106,17 @@ struct AeonRootView: View {
                     }
                 }
             }
+            .padding(32)
             .accessibilityIdentifier("aeon.launch.migrating")
         case .ready:
-            VStack(spacing: 18) {
-                Text("AEON")
-                    .font(.system(size: 42, weight: .light, design: .serif))
-                    .tracking(5)
-                Text("NATIVE LIBRARY")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .tracking(2.4)
-                    .foregroundStyle(.white.opacity(0.55))
-                if let progress = container.libraryImportProgress {
-                    importProgress(progress)
-                } else {
-                    HStack(spacing: 12) {
-                        Button("Import Files") { isSelectingAudio = true }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.white)
-                            .foregroundStyle(.black)
-                            .accessibilityIdentifier("aeon.library.import.files")
-                        Button("Import Folder") { isSelectingFolder = true }
-                            .buttonStyle(.bordered)
-                            .tint(.white)
-                            .accessibilityIdentifier("aeon.library.import.folder")
-                    }
-                }
-                if let result = container.libraryImportResult {
-                    Text(importSummary(result))
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.66))
-                        .multilineTextAlignment(.center)
-                } else if let error = container.libraryImportError {
-                    Text(error)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 440)
-                }
+            if let services = container.services {
+                SkyScreen(
+                    controller: services.skySceneController,
+                    importProgress: container.libraryImportProgress,
+                    importFiles: { isSelectingAudio = true },
+                    importFolder: { isSelectingFolder = true }
+                )
             }
-            .foregroundStyle(.white)
-            .accessibilityIdentifier("aeon.launch.ready")
         case .recovery(let issue):
             VStack(spacing: 18) {
                 Text("AEON COULD NOT OPEN")
@@ -179,6 +155,7 @@ struct AeonRootView: View {
                     }
                 }
             }
+            .padding(32)
             .accessibilityIdentifier("aeon.launch.recovery")
         }
     }

@@ -69,6 +69,7 @@ struct AppServices {
     let recoveryCoordinator: RecoveryCoordinator
     let playbackController: PlaybackController
     let remoteCommandCoordinator: RemoteCommandCoordinator
+    let skySceneController: SkySceneController
 
     @MainActor
     static func production(
@@ -137,6 +138,7 @@ struct AppServices {
             catalog: catalog,
             artworkStore: artwork
         )
+        let skySceneController = SkySceneController(repository: skyRepository, catalog: catalog, playback: playbackController)
         playbackController.start()
         return AppServices(
             catalogDatabase: database,
@@ -157,7 +159,8 @@ struct AppServices {
             audioSessionController: audioSession,
             recoveryCoordinator: recovery,
             playbackController: playbackController,
-            remoteCommandCoordinator: remoteCommands
+            remoteCommandCoordinator: remoteCommands,
+            skySceneController: skySceneController
         )
     }
 }
@@ -292,6 +295,7 @@ final class AppContainer: ObservableObject {
                     }
                 }.value
                 _ = try self?.services?.skyRepository.backfill()
+                self?.services?.skySceneController.reload()
                 self?.libraryImportResult = result
             } catch LibraryImportError.cancelled {
                 self?.libraryImportError = "Import paused. Select the same files or folder to resume."
