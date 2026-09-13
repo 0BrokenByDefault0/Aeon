@@ -223,8 +223,10 @@ private struct AeonReadyShell: View {
     @ObservedObject private var playback: PlaybackController
     @StateObject private var libraryController: LibraryController
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var destination = AeonDestination.sky
     @State private var portraitSidebarVisible = false
+    @State private var nowPlayingVisible = false
 
     init(
         services: AppServices,
@@ -256,7 +258,7 @@ private struct AeonReadyShell: View {
             catalog: services.catalogRepository,
             artworkStore: services.artworkStore
         ) {
-            AeonScreen(playerVisible: false) { readableInsets in
+            AeonScreen(playerVisible: playback.snapshot?.trackID != nil) { readableInsets in
                 GeometryReader { geometry in
                     ZStack(alignment: .topTrailing) {
                         SkyScreen(
@@ -271,15 +273,52 @@ private struct AeonReadyShell: View {
                                 .zIndex(AeonTheme.Layer.content)
                                 .transition(.opacity)
                         }
+                        if nowPlayingVisible {
+                            nowPlayingPanel(geometry: geometry, insets: readableInsets)
+                                .zIndex(AeonTheme.Layer.sheet)
+                                .transition(.opacity)
+                        }
                         AeonChrome(
                             destination: $destination,
-                            portraitSidebarVisible: $portraitSidebarVisible
-                        )
+                            portraitSidebarVisible: $portraitSidebarVisible,
+                            playerLoaded: playback.snapshot?.trackID != nil
+                        ) {
+                            PlayerBar(
+                                playback: playback,
+                                catalog: services.catalogRepository,
+                                artworkStore: services.artworkStore,
+                                open: { nowPlayingVisible = true }
+                            )
+                        }
                     }
                 }
             }
         }
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
+        .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
+        .onAppear { services.spectrumAnalyzer.setReduceMotion(reduceMotion) }
+        .onChange(of: reduceMotion) { services.spectrumAnalyzer.setReduceMotion($0) }
+    }
+
+    private func nowPlayingPanel(geometry: GeometryProxy, insets: AeonReadableInsets) -> some View {
+        let regular = horizontalSizeClass == .regular
+        return NowPlayingView(
+            playback: playback,
+            spectrum: services.spectrumAnalyzer,
+            catalog: services.catalogRepository,
+            artworkStore: services.artworkStore,
+            close: { nowPlayingVisible = false },
+            locate: { albumID, reduced in
+                services.skySceneController.locate(id: albumID, reduceMotion: reduced)
+                destination = .sky
+                nowPlayingVisible = false
+            }
+        )
+        .padding(.top, insets.top)
+        .padding(.bottom, regular ? insets.bottom : 0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+        .ignoresSafeArea(edges: .vertical)
     }
 
     @ViewBuilder

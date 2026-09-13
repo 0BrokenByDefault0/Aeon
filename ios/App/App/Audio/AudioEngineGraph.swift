@@ -51,6 +51,9 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private var scheduledStarts: [AudioSlot: Int64] = [:]
     private var scheduleHostOrigin: UInt64?
     private var scheduleOutputRate: Double = 0
+    private var spectrumTapBufferSize: AVAudioFrameCount = 0
+    private var spectrumTapHandler: AVAudioNodeTapBlock?
+    private var spectrumTapInstalled = false
 
     init(outputFormatProvider: (() -> AVAudioFormat?)? = nil) {
         engine = AVAudioEngine()
@@ -109,6 +112,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         engine.connect(equalizer, to: engine.mainMixerNode, format: nil)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         isConfigured = true
+        installPendingSpectrumTap()
     }
 
     func open(url: URL, in slot: AudioSlot) throws -> AVAudioFile {
@@ -293,6 +297,23 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         equalizer.bypass = !enabled
     }
 
+    func installSpectrumTap(bufferSize: AVAudioFrameCount, handler: @escaping AVAudioNodeTapBlock) throws {
+        guard bufferSize > 0 else { throw AudioEngineGraphError.invalidSchedulingFormat }
+        try configure()
+        if spectrumTapInstalled { programMixer.removeTap(onBus: 0) }
+        spectrumTapBufferSize = bufferSize
+        spectrumTapHandler = handler
+        spectrumTapInstalled = false
+        installPendingSpectrumTap()
+    }
+
+    func removeSpectrumTap() {
+        if spectrumTapInstalled { programMixer.removeTap(onBus: 0) }
+        spectrumTapInstalled = false
+        spectrumTapHandler = nil
+        spectrumTapBufferSize = 0
+    }
+
     func outputDescriptor() -> OutputFormatDescriptor {
         if let outputFormatProvider {
             guard let format = outputFormatProvider(),
@@ -341,6 +362,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func rebuild() throws {
         stop()
+        spectrumTapInstalled = false
         scheduleOutputRate = 0
         engine.detach(playerA)
         engine.detach(playerB)
@@ -376,6 +398,18 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             filter.gain = Float(band.gainDB)
             filter.bypass = false
         }
+    }
+
+    private func installPendingSpectrumTap() {
+        guard isConfigured, !spectrumTapInstalled, spectrumTapBufferSize > 0,
+              let spectrumTapHandler else { return }
+        programMixer.installTap(
+            onBus: 0,
+            bufferSize: spectrumTapBufferSize,
+            format: nil,
+            block: spectrumTapHandler
+        )
+        spectrumTapInstalled = true
     }
 
     private func validateEQBands(_ bands: [EQBand]) throws {

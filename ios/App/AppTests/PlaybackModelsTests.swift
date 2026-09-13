@@ -30,7 +30,7 @@ final class PlaybackModelsTests: XCTestCase {
         XCTAssertEqual(Set(object.keys), Set([
             "schemaVersion", "version", "trackID", "queueRevision", "queue", "queueIndex",
             "position", "intent", "replayGainMode", "replayGainPreampDB", "masterVolume",
-            "eqEnabled", "eqBands", "route", "sourceFormat", "outputFormat", "timestamp"
+            "eqEnabled", "eqBands", "repeatMode", "route", "sourceFormat", "outputFormat", "timestamp"
         ]))
         XCTAssertEqual(object["schemaVersion"] as? Int, 1)
         XCTAssertEqual(object["trackID"] as? String, "t1")
@@ -46,6 +46,15 @@ final class PlaybackModelsTests: XCTestCase {
         object.removeValue(forKey: "schemaVersion")
 
         XCTAssertThrowsError(try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONSerialization.data(withJSONObject: object)))
+    }
+
+    func testPlaybackSnapshotDefaultsRepeatForExistingCheckpoints() throws {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(makeSnapshot())) as? [String: Any])
+        object.removeValue(forKey: "repeatMode")
+
+        let decoded = try JSONDecoder().decode(PlaybackSnapshot.self, from: JSONSerialization.data(withJSONObject: object))
+
+        XCTAssertEqual(decoded.repeatMode, .off)
     }
 
     func testStateVersionClockOnlyMovesForward() {

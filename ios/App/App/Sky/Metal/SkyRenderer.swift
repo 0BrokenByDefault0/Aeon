@@ -34,6 +34,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         var viewport: SIMD2<Float>
         var scale: Float
         var time: Float
+        var spectrum = SIMD4<Float>(repeating: 0)
     }
 
     private static let performanceLog = OSLog(subsystem: "app.isolation.sky", category: "SkyRenderer")
@@ -52,6 +53,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private var constellations: [SkyConstellation] = []
     private var selectedID: String?
     private var playingStarID: String?
+    private var spectrum = SpectrumLevels.zero
     private var camera = SkyCameraState.home
     private var starBuffer: MTLBuffer?
     private var glowBuffer: MTLBuffer?
@@ -98,11 +100,18 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         view.preferredFramesPerSecond = 60
     }
 
-    func update(catalogue: SkyCatalogue, camera: SkyCameraState, playingStarID: String? = nil) {
+    func update(
+        catalogue: SkyCatalogue,
+        camera: SkyCameraState,
+        playingStarID: String? = nil,
+        spectrum: SpectrumLevels = .zero
+    ) {
         let catalogueChanged = stars != catalogue.stars || planets != catalogue.planets || constellations != catalogue.constellations
         let selectionChanged = selectedID != camera.selectedID || self.playingStarID != playingStarID
+        let spectrumChanged = self.spectrum != spectrum
         self.camera = camera
-        guard catalogueChanged || selectionChanged else { return }
+        self.spectrum = spectrum
+        guard catalogueChanged || selectionChanged || spectrumChanged else { return }
         if catalogueChanged {
             stars = catalogue.stars
             planets = catalogue.planets
@@ -112,8 +121,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         }
         selectedID = camera.selectedID
         self.playingStarID = playingStarID
-        rebuildSelectionBuffers()
-        stats.selectionUploads += 1
+        if catalogueChanged || selectionChanged {
+            rebuildSelectionBuffers()
+            stats.selectionUploads += 1
+        }
     }
 
     func configureFrameRate(for view: MTKView) {
@@ -133,7 +144,8 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             center: SIMD2(Float(camera.centerX), Float(camera.centerY)),
             viewport: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)),
             scale: Float(camera.scale) * screenScale,
-            time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000))
+            time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)),
+            spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, 0)
         )
         encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: starCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: lineBuffer, count: lineCount, uniforms: &uniforms)
@@ -160,9 +172,18 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private func rebuildSelectionBuffers() {
         let selectedPlanet = planets.first { $0.id == selectedID }
         let memberIDs = Set(selectedPlanet?.members.map(\.albumID) ?? [])
+        let playingCoordinate = stars.first { $0.albumID == playingStarID }?.coordinate
         let starInstances = stars.map { star in
             let isMember = memberIDs.contains(star.albumID)
             let isPlaying = star.albumID == playingStarID
+            let nearPlaying: Bool
+            if let playingCoordinate {
+                let dx = Double(star.coordinate.x) - Double(playingCoordinate.x)
+                let dy = Double(star.coordinate.y) - Double(playingCoordinate.y)
+                nearPlaying = dx * dx + dy * dy <= 810_000
+            } else {
+                nearPlaying = false
+            }
             let alpha: Float = selectedPlanet == nil || isMember ? 1 : 0.2
             let color = star.isUncharted
                 ? SIMD4<Float>(0.72, 0.75, 0.78, alpha)
@@ -173,7 +194,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                 color1: color,
                 color2: color,
                 size: Float(3 + Int(star.magnitude) / 48 + (isPlaying ? 2 : 0)),
-                flags: 0,
+                flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0),
                 turbulence: 0
             )
         }
@@ -183,7 +204,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             var value = $0
             value.size *= 3.6
             value.color0 *= SIMD4<Float>(0.42, 0.45, 0.55, 0.2)
-            value.flags = 1
+            value.flags |= 1
             return value
         }
         glowBuffer = makeBuffer(glows)

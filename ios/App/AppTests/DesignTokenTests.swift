@@ -33,6 +33,51 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertNil(AeonArtworkTint.sample(image(color: .black)))
     }
 
+    func testLoadedPausedTrackStillResolvesArtworkTint() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let artworkStore = try ArtworkStore(rootURL: root.appendingPathComponent("Artwork"))
+        let artwork = try XCTUnwrap(image(color: .orange).jpegData(compressionQuality: 0.9))
+        let artworkKey = try artworkStore.store(artwork, key: "loaded-paused")
+        let catalog = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        let date = Date(timeIntervalSince1970: 1)
+        try catalog.insertAlbum(
+            CatalogAlbum(
+                id: "album", sequence: 1, title: "Album", artist: "Artist", year: "2026",
+                genre: "Ambient", artworkKey: artworkKey, importedAt: date, updatedAt: date
+            ),
+            tracks: [CatalogTrack(
+                id: "track", albumID: "album", sequence: 1, discNumber: 1, trackNumber: 1,
+                title: "Track", artist: "", duration: 60, byteCount: 1,
+                mediaReference: .native(relativePath: "track.wav"), importedAt: date
+            )]
+        )
+
+        let paused = PlaybackSnapshot(
+            version: 1,
+            trackID: "track",
+            queueRevision: 1,
+            queue: [QueueItem(trackID: "track", albumID: "album", mediaRef: .native(relativePath: "track.wav"))],
+            queueIndex: 0,
+            position: 12,
+            intent: .paused,
+            replayGainMode: .off,
+            replayGainPreampDB: 0,
+            masterVolume: 1,
+            eqEnabled: false,
+            eqBands: [],
+            route: nil,
+            sourceFormat: nil,
+            outputFormat: nil,
+            timestamp: date
+        )
+        XCTAssertNotNil(AeonArtworkTint.resolve(
+            trackID: paused.trackID,
+            catalog: catalog,
+            artworkStore: artworkStore
+        ))
+    }
+
     private func image(color: UIColor) -> UIImage {
         UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { context in
             color.setFill()

@@ -8,7 +8,9 @@ struct AeonApp: App {
 
     init() {
         let arguments = ProcessInfo.processInfo.arguments
-        let deterministicFixture = arguments.contains("-AeonSkyFixture") || arguments.contains("-AeonLibraryFixture")
+        let deterministicFixture = arguments.contains("-AeonSkyFixture")
+            || arguments.contains("-AeonLibraryFixture")
+            || arguments.contains("-AeonPlaybackFixture")
         _container = StateObject(wrappedValue: deterministicFixture ? AppContainer.inMemory() : AppContainer.production())
     }
 
@@ -18,6 +20,7 @@ struct AeonApp: App {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .active { container.applicationDidEnterForeground() }
+            else if phase == .background { container.applicationDidEnterBackground() }
         }
     }
 }

@@ -27,6 +27,8 @@ final class LegacyDataAccessTests: XCTestCase {
             await dbPut('tracks',{id:'upgrade-path-2',albumId:'upgrade-album',idx:3,title:'Return',artist:'Aeon',path:'Music/Aeon/Upgrade/03 Return.m4a',bytes:84});
             await dbPut('playlists',{id:'upgrade-playlist',name:'Route',items:[{albumId:'upgrade-album',trackId:'upgrade-path-1'}]});
             await dbPut('kv',{k:'skySeed',v:17});
+            window.__aeonMigrationTestDB = db;
+            db = null;
             return true;
             """, in: seedWebView)
 
@@ -52,10 +54,10 @@ final class LegacyDataAccessTests: XCTestCase {
         XCTAssertEqual(snapshot.ids[.playlists], ["upgrade-playlist"])
         let keyValueIDs = Set(snapshot.ids[.kv] ?? [])
         XCTAssertTrue(keyValueIDs.contains("skySeed"))
-        XCTAssertTrue(keyValueIDs.isSubset(of: ["log", "skySeed"]))
+        XCTAssertTrue(keyValueIDs.isSubset(of: ["log", "skySeed"]), "Unexpected keys: \(keyValueIDs)")
         XCTAssertEqual(snapshot.blobs.map(\.ownerID), ["upgrade-album", "upgrade-blob"])
 
-        _ = try await callAsync("await dbClearAll(); return true;", in: seedWebView)
+        _ = try await callAsync("db = window.__aeonMigrationTestDB; await dbClearAll(); db = null; return true;", in: seedWebView)
         migrationWindow.isHidden = true
         seedWindow.isHidden = true
         #else

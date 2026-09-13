@@ -2,6 +2,15 @@ import Combine
 import MediaPlayer
 import UIKit
 
+enum RemotePlaybackAction: Equatable {
+    case play
+    case pause
+    case toggle
+    case next
+    case previous
+    case seek(TimeInterval)
+}
+
 @MainActor
 final class RemoteCommandCoordinator {
     private let controller: PlaybackController
@@ -42,17 +51,29 @@ final class RemoteCommandCoordinator {
         commandCenter.previousTrackCommand.isEnabled = true
         commandCenter.changePlaybackPositionCommand.isEnabled = true
 
-        commandTargets.append((commandCenter.playCommand, commandCenter.playCommand.addTarget { [weak self] _ in self?.controller.play(); return .success }))
-        commandTargets.append((commandCenter.pauseCommand, commandCenter.pauseCommand.addTarget { [weak self] _ in self?.controller.pause(); return .success }))
-        commandTargets.append((commandCenter.togglePlayPauseCommand, commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in self?.controller.toggle(); return .success }))
-        commandTargets.append((commandCenter.nextTrackCommand, commandCenter.nextTrackCommand.addTarget { [weak self] _ in self?.controller.next(); return .success }))
-        commandTargets.append((commandCenter.previousTrackCommand, commandCenter.previousTrackCommand.addTarget { [weak self] _ in self?.controller.previous(); return .success }))
+        commandTargets.append((commandCenter.playCommand, commandCenter.playCommand.addTarget { [weak self] _ in self?.handle(.play) ?? .commandFailed }))
+        commandTargets.append((commandCenter.pauseCommand, commandCenter.pauseCommand.addTarget { [weak self] _ in self?.handle(.pause) ?? .commandFailed }))
+        commandTargets.append((commandCenter.togglePlayPauseCommand, commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in self?.handle(.toggle) ?? .commandFailed }))
+        commandTargets.append((commandCenter.nextTrackCommand, commandCenter.nextTrackCommand.addTarget { [weak self] _ in self?.handle(.next) ?? .commandFailed }))
+        commandTargets.append((commandCenter.previousTrackCommand, commandCenter.previousTrackCommand.addTarget { [weak self] _ in self?.handle(.previous) ?? .commandFailed }))
         let positionTarget = commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
-            self?.controller.seek(to: event.positionTime)
-            return .success
+            return self?.handle(.seek(event.positionTime)) ?? .commandFailed
         }
         commandTargets.append((commandCenter.changePlaybackPositionCommand, positionTarget))
+    }
+
+    @discardableResult
+    func handle(_ action: RemotePlaybackAction) -> MPRemoteCommandHandlerStatus {
+        switch action {
+        case .play: controller.play()
+        case .pause: controller.pause()
+        case .toggle: controller.toggle()
+        case .next: controller.next()
+        case .previous: controller.previous()
+        case .seek(let position): controller.seek(to: position)
+        }
+        return .success
     }
 
     private func publish(_ snapshot: PlaybackSnapshot) {

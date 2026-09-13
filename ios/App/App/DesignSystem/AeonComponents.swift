@@ -19,7 +19,7 @@ struct AeonScreen<Content: View>: View {
                 leading: geometry.safeAreaInsets.leading + (compact ? 0 : AeonTheme.Space.sidebar),
                 bottom: geometry.safeAreaInsets.bottom
                     + (compact ? AeonTheme.Space.compactDock : 0)
-                    + (playerVisible ? AeonTheme.Space.playerBar : 0),
+                    + (compact && playerVisible ? AeonTheme.Space.playerBar : 0),
                 trailing: geometry.safeAreaInsets.trailing
             )
             ZStack {

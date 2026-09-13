@@ -11,6 +11,12 @@ enum ReplayGainMode: String, Codable {
     case track
 }
 
+enum RepeatMode: String, Codable, CaseIterable {
+    case off
+    case all
+    case one
+}
+
 enum AudioRouteKind: String, Codable {
     case speaker
     case wired
@@ -147,6 +153,7 @@ struct PlaybackSnapshot: Codable, Equatable {
     let masterVolume: Double
     let eqEnabled: Bool
     let eqBands: [EQBand]
+    let repeatMode: RepeatMode
     let route: RouteDescriptor?
     let sourceFormat: SourceFormatDescriptor?
     let outputFormat: OutputFormatDescriptor?
@@ -154,7 +161,7 @@ struct PlaybackSnapshot: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, version, trackID, queueRevision, queue, queueIndex, position, intent
-        case replayGainMode, replayGainPreampDB, masterVolume, eqEnabled, eqBands
+        case replayGainMode, replayGainPreampDB, masterVolume, eqEnabled, eqBands, repeatMode
         case route, sourceFormat, outputFormat, timestamp
     }
 
@@ -172,6 +179,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         masterVolume: Double,
         eqEnabled: Bool,
         eqBands: [EQBand],
+        repeatMode: RepeatMode = .off,
         route: RouteDescriptor?,
         sourceFormat: SourceFormatDescriptor?,
         outputFormat: OutputFormatDescriptor?,
@@ -190,6 +198,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         self.masterVolume = masterVolume
         self.eqEnabled = eqEnabled
         self.eqBands = eqBands
+        self.repeatMode = repeatMode
         self.route = route
         self.sourceFormat = sourceFormat
         self.outputFormat = outputFormat
@@ -211,6 +220,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         masterVolume = try container.decode(Double.self, forKey: .masterVolume)
         eqEnabled = try container.decode(Bool.self, forKey: .eqEnabled)
         eqBands = try container.decode([EQBand].self, forKey: .eqBands)
+        repeatMode = try container.decodeIfPresent(RepeatMode.self, forKey: .repeatMode) ?? .off
         route = try container.decodeIfPresent(RouteDescriptor.self, forKey: .route)
         sourceFormat = try container.decodeIfPresent(SourceFormatDescriptor.self, forKey: .sourceFormat)
         outputFormat = try container.decodeIfPresent(OutputFormatDescriptor.self, forKey: .outputFormat)
@@ -232,6 +242,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         try container.encode(masterVolume, forKey: .masterVolume)
         try container.encode(eqEnabled, forKey: .eqEnabled)
         try container.encode(eqBands, forKey: .eqBands)
+        try container.encode(repeatMode, forKey: .repeatMode)
         try container.encode(route, forKey: .route)
         try container.encode(sourceFormat, forKey: .sourceFormat)
         try container.encode(outputFormat, forKey: .outputFormat)

@@ -25,7 +25,8 @@ struct SkyMetalView: UIViewRepresentable {
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
             camera: controller.camera,
-            playingStarID: controller.playingStarID
+            playingStarID: controller.playingStarID,
+            spectrum: reduceMotion ? .zero : controller.spectrumLevels
         )
         context.coordinator.renderer?.configureFrameRate(for: view)
     }

@@ -74,6 +74,7 @@ final class QueueScheduler {
     private var eventHandler: ((SchedulerEvent) -> Void)?
     private var replayGainMode: ReplayGainMode = .off
     private var replayGainPreampDB: Double = 0
+    private var repeatMode: RepeatMode = .off
 
     /// Events arrive on the main queue, outside the scheduling serialization domain.
     var onEvent: ((SchedulerEvent) -> Void)? {
@@ -214,6 +215,20 @@ final class QueueScheduler {
         }
     }
 
+    func setRepeatMode(_ mode: RepeatMode) throws {
+        try confined {
+            guard repeatMode != mode else { return }
+            let resume = playing
+            capturePosition()
+            repeatMode = mode
+            guard index != nil, current != nil || retainedSourceFrame != nil || position > 0 else { return }
+            try performing {
+                try prepare(position: position, exactFrame: retainedSourceFrame)
+                if resume { try start() }
+            }
+        }
+    }
+
     /// Convert decoded source frames to the shared output frame timeline. Equal-rate
     /// WAVs use integer addition: no duration metadata or floating point rounding.
     static func outputBoundary(start: Int64, sourceFrames: Int64, sourceRate: Double, outputRate: Double) throws -> Int64 {
@@ -329,6 +344,7 @@ final class QueueScheduler {
     }
 
     private func prepareFollowing() throws {
+        guard repeatMode != .one else { return }
         guard let current, items.indices.contains(current.index + 1) else { return }
         following = try prepareItem(index: current.index + 1, slot: current.slot == .a ? .b : .a,
                                     position: 0, outputFrame: current.endOutputFrame)

@@ -159,6 +159,53 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(try harness.state().trackID, "A")
     }
 
+    func testRepeatAllWrapsWithoutRevisingTheQueue() throws {
+        let harness = try CoordinatorHarness()
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.b, queue: [harness.a, harness.b], index: 1).get()
+        _ = try harness.command(harness.coordinator.play).get()
+        let repeated = try harness.command {
+            harness.coordinator.setRepeatMode(.all, completion: $0)
+        }.get()
+        let revision = repeated.queueRevision
+
+        harness.scheduler.emit(.completed(
+            trackID: "B",
+            token: ScheduleToken(generation: harness.scheduler.currentGeneration)
+        ))
+        let state = try harness.state()
+
+        XCTAssertEqual(state.trackID, "A")
+        XCTAssertEqual(state.queueIndex, 0)
+        XCTAssertEqual(state.queueRevision, revision)
+        XCTAssertEqual(state.repeatMode, .all)
+        XCTAssertEqual(state.intent, .playing)
+    }
+
+    func testRepeatOneRestartsCurrentWithoutRevisingTheQueue() throws {
+        let harness = try CoordinatorHarness()
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.a, queue: [harness.a, harness.b], index: 0).get()
+        _ = try harness.command(harness.coordinator.play).get()
+        let repeated = try harness.command {
+            harness.coordinator.setRepeatMode(.one, completion: $0)
+        }.get()
+        let revision = repeated.queueRevision
+
+        harness.scheduler.emit(.completed(
+            trackID: "A",
+            token: ScheduleToken(generation: harness.scheduler.currentGeneration)
+        ))
+        let state = try harness.state()
+
+        XCTAssertEqual(state.trackID, "A")
+        XCTAssertEqual(state.position, 0)
+        XCTAssertEqual(state.queueRevision, revision)
+        XCTAssertEqual(state.repeatMode, .one)
+        XCTAssertEqual(state.intent, .playing)
+        XCTAssertEqual(harness.scheduler.seekCallCount, 1)
+    }
+
     func testInitializeRestoresCheckpointWithoutAutoplay() throws {
         let restored = PlaybackSnapshot(
             version: 12,
@@ -335,8 +382,10 @@ private final class CoordinatorScheduler: PlaybackScheduling {
     private(set) var isPlaying = false
     private(set) var playCallCount = 0
     private(set) var pauseCallCount = 0
+    private(set) var seekCallCount = 0
     private(set) var replaceQueueCallCount = 0
     private(set) var preparedTrackIDs: [String] = []
+    private(set) var repeatMode: RepeatMode = .off
     var playError: QueueSchedulerError?
 
     func setQueue(_ items: [QueueItem], index: Int, revision: UInt64) throws {
@@ -372,6 +421,7 @@ private final class CoordinatorScheduler: PlaybackScheduling {
 
     func seek(seconds: Double) throws {
         guard seconds.isFinite, seconds >= 0 else { throw QueueSchedulerError.invalidPosition }
+        seekCallCount += 1
         currentPosition = seconds
         advance()
     }
@@ -390,6 +440,12 @@ private final class CoordinatorScheduler: PlaybackScheduling {
 
     func invalidatePendingSchedule() {
         isPlaying = false
+        advance()
+    }
+
+    func setRepeatMode(_ mode: RepeatMode) throws {
+        guard repeatMode != mode else { return }
+        repeatMode = mode
         advance()
     }
 

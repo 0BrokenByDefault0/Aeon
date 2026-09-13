@@ -24,6 +24,7 @@ struct SkyUniforms {
     float2 viewport;
     float scale;
     float time;
+    float4 spectrum;
 };
 
 struct SkyVertexOut {
@@ -34,6 +35,8 @@ struct SkyVertexOut {
     float4 color2;
     uint flags [[flat]];
     float turbulence;
+    float spectrumLow;
+    float spectrumHigh;
 };
 
 float2 worldToNDC(float2 world, constant SkyUniforms &uniforms) {
@@ -54,7 +57,10 @@ vertex SkyVertexOut skyInstanceVertex(
     SkyInstance instance = instances[instanceID];
     float2 corner = corners[vertexID];
     float ringScale = (instance.flags & 0x100) != 0 ? 1.5 : 1.0;
-    float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size);
+    float audioScale = 1.0;
+    if ((instance.flags & 1) != 0) audioScale += uniforms.spectrum.x * 0.18;
+    if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.62;
+    float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size) * audioScale;
     float2 ndcOffset = float2(pixelOffset.x / (uniforms.viewport.x * 0.5),
                               -pixelOffset.y / (uniforms.viewport.y * 0.5));
     SkyVertexOut out;
@@ -65,6 +71,8 @@ vertex SkyVertexOut skyInstanceVertex(
     out.color2 = instance.color2;
     out.flags = instance.flags;
     out.turbulence = instance.turbulence;
+    out.spectrumLow = uniforms.spectrum.x;
+    out.spectrumHigh = (instance.flags & 0x400) != 0 ? uniforms.spectrum.z : 0.0;
     return out;
 }
 
@@ -80,6 +88,8 @@ vertex SkyVertexOut skyLineVertex(
     out.color2 = lines[vertexID].color;
     out.flags = 0;
     out.turbulence = 0;
+    out.spectrumLow = 0;
+    out.spectrumHigh = 0;
     return out;
 }
 
@@ -88,12 +98,13 @@ fragment float4 skyStarFragment(SkyVertexOut in [[stage_in]]) {
     float core = smoothstep(1.0, 0.05, radius);
     float spike = max(smoothstep(0.08, 0.0, abs(in.uv.x - 0.5)),
                       smoothstep(0.08, 0.0, abs(in.uv.y - 0.5))) * smoothstep(1.0, 0.0, radius);
-    return float4(in.color0.rgb * (core + spike * 0.5), in.color0.a * max(core, spike * 0.35));
+    float spikeStrength = 0.5 + in.spectrumHigh * 1.15;
+    return float4(in.color0.rgb * (core + spike * spikeStrength), in.color0.a * max(core, spike * (0.35 + in.spectrumHigh * 0.3)));
 }
 
 fragment float4 skyGlowFragment(SkyVertexOut in [[stage_in]]) {
     float radius = length(in.uv - 0.5) * 2.0;
-    float alpha = pow(max(0.0, 1.0 - radius), 2.4) * in.color0.a;
+    float alpha = pow(max(0.0, 1.0 - radius), 2.4) * in.color0.a * (1.0 + in.spectrumLow * 0.16);
     return float4(in.color0.rgb * alpha, alpha);
 }
 

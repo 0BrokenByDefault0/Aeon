@@ -125,6 +125,20 @@ extension EnvironmentValues {
 }
 
 enum AeonArtworkTint {
+    static func resolve(
+        trackID: String?,
+        catalog: CatalogRepository,
+        artworkStore: ArtworkStore
+    ) -> UIColor? {
+        guard let trackID,
+              let track = try? catalog.track(id: trackID),
+              let album = try? catalog.album(id: track.albumID),
+              let key = album.artworkKey,
+              let url = try? artworkStore.url(forKey: key),
+              let image = UIImage(contentsOfFile: url.path) else { return nil }
+        return sample(image)
+    }
+
     static func sample(_ image: UIImage) -> UIColor? {
         guard let cgImage = image.cgImage else { return nil }
         var pixel = [UInt8](repeating: 0, count: 4)

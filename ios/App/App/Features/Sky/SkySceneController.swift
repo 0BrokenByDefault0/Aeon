@@ -13,14 +13,21 @@ final class SkySceneController: ObservableObject {
     @Published private(set) var playingStarID: String?
     @Published private(set) var captureURL: URL?
     @Published private(set) var cameraCrossfade = false
+    @Published private(set) var spectrumLevels = SpectrumLevels.zero
 
     private let repository: SkyRepository
     private let catalog: CatalogRepository
     private var playbackObservation: AnyCancellable?
+    private var spectrumObservation: AnyCancellable?
     private var ceremonyTask: Task<Void, Never>?
     private var cameraTask: Task<Void, Never>?
 
-    init(repository: SkyRepository, catalog: CatalogRepository, playback: PlaybackController) {
+    init(
+        repository: SkyRepository,
+        catalog: CatalogRepository,
+        playback: PlaybackController,
+        spectrum: SpectrumAnalyzer? = nil
+    ) {
         self.repository = repository
         self.catalog = catalog
         if let fixture = Self.fixtureName(), let generated = try? Self.fixture(named: fixture) {
@@ -41,6 +48,9 @@ final class SkySceneController: ObservableObject {
         }
         playbackObservation = playback.$snapshot.sink { [weak self] snapshot in
             self?.acceptPlayback(trackID: snapshot?.trackID)
+        }
+        spectrumObservation = spectrum?.$bands.sink { [weak self, weak spectrum] bands in
+            self?.spectrumLevels = spectrum?.levels(from: bands) ?? .zero
         }
         if Self.fixtureName() == "playing", let star = catalogue.stars.first {
             playingStarID = star.albumID

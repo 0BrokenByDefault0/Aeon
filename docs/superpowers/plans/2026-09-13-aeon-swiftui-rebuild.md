@@ -580,17 +580,17 @@ npm run test:ios -- -only-testing:AppTests/LibraryControllerTests \
 
 - Persistent mini player, full player/detail pane, editable upcoming queue, audible EQ, reactive spectrum, and Locate.
 
-- [ ] Bind every control to `PlaybackController`; views never infer state from timers or local booleans. Seek previews locally but commit one coordinator seek on release.
-- [ ] Build the mini player with artwork, title, artist, play, next, and a 2pt progress edge. The non-control area expands Now Playing. Allow word-aware two-line fallback before truncation.
-- [ ] Build Now Playing in the specified order: position, heading, artwork stage, title/artist/status, seek, transport, shuffle/repeat/queue, volume, secondary actions, EQ, Spectrum. The only circle is the primary transport glyph.
-- [ ] Make `LOCATE` available from Now Playing and route it through the same camera command as Album Detail. It must take at most two taps from any destination.
-- [ ] Implement queue drag reordering with an explicit 44pt handle. Pin the current row; mutate upcoming rows only; show the 1pt drop outline and 0.6 moving opacity; send one queue revision per completed move.
-- [ ] Implement Clear Upcoming and Save as Playlist with inline naming. Reject empty names and preserve queue state if catalogue persistence fails.
-- [ ] Keep the existing ten EQ bands and preset names `BASS RITUAL`, `VOCAL CULT`, `AIRWAVE`, `TUNNEL`. Active selection adds contrast. Bypass and preset changes cannot reload, seek, or revise the queue.
-- [ ] Install an audio-engine tap for a bounded mono analysis buffer. Use Accelerate/vDSP for windowing and FFT, publish perceptual bands at no more than 30 Hz, allocate no buffers in the audio render callback, and uninstall cleanly.
-- [ ] Stop spectrum reactivity under Reduce Motion and freeze/clear it when paused according to the final visual state. Spectrum data never becomes playback authority.
-- [ ] Show source and actual output descriptors in the secondary detail area without claiming unavailable codec information. Show one restrained inline failure line for recoverable playback errors.
-- [ ] Test background/foreground, lock-screen command updates, queue mutation during prepared-next playback, loaded-paused tint, missing current file, and rotation while Now Playing is open.
+- [x] Bind every control to `PlaybackController`; views never infer state from timers or local booleans. Seek previews locally but commit one coordinator seek on release.
+- [x] Build the mini player with artwork, title, artist, play, next, and a 2pt progress edge. The non-control area expands Now Playing. Allow word-aware two-line fallback before truncation.
+- [x] Build Now Playing in the specified order: position, heading, artwork stage, title/artist/status, seek, transport, shuffle/repeat/queue, volume, secondary actions, EQ, Spectrum. The only circle is the primary transport glyph.
+- [x] Make `LOCATE` available from Now Playing and route it through the same camera command as Album Detail. It must take at most two taps from any destination.
+- [x] Implement queue drag reordering with an explicit 44pt handle. Pin the current row; mutate upcoming rows only; show the 1pt drop outline and 0.6 moving opacity; send one queue revision per completed move.
+- [x] Implement Clear Upcoming and Save as Playlist with inline naming. Reject empty names and preserve queue state if catalogue persistence fails.
+- [x] Keep the existing ten EQ bands and preset names `BASS RITUAL`, `VOCAL CULT`, `AIRWAVE`, `TUNNEL`. Active selection adds contrast. Bypass and preset changes cannot reload, seek, or revise the queue.
+- [x] Install an audio-engine tap for a bounded mono analysis buffer. Use Accelerate/vDSP for windowing and FFT, publish perceptual bands at no more than 30 Hz, allocate no buffers in the audio render callback, and uninstall cleanly.
+- [x] Stop spectrum reactivity under Reduce Motion and freeze/clear it when paused according to the final visual state. Spectrum data never becomes playback authority.
+- [x] Show source and actual output descriptors in the secondary detail area without claiming unavailable codec information. Show one restrained inline failure line for recoverable playback errors.
+- [x] Test background/foreground, lock-screen command updates, queue mutation during prepared-next playback, loaded-paused tint, missing current file, and rotation while Now Playing is open.
 
 **Gate**
 

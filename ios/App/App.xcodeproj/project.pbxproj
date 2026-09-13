@@ -107,6 +107,14 @@
 		A62000000000000000000005 /* SearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000015 /* SearchResultsView.swift */; };
 		A62000000000000000000006 /* LibraryControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000016 /* LibraryControllerTests.swift */; };
 		A62000000000000000000007 /* LibraryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000017 /* LibraryFlowTests.swift */; };
+		A63000000000000000000001 /* PlayerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000011 /* PlayerBar.swift */; };
+		A63000000000000000000002 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000012 /* NowPlayingView.swift */; };
+		A63000000000000000000003 /* QueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000013 /* QueueView.swift */; };
+		A63000000000000000000004 /* EQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000014 /* EQView.swift */; };
+		A63000000000000000000005 /* SpectrumAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000015 /* SpectrumAnalyzer.swift */; };
+		A63000000000000000000006 /* QueueControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000016 /* QueueControllerTests.swift */; };
+		A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000017 /* SpectrumAnalyzerTests.swift */; };
+		A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000018 /* PlaybackFlowTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -229,6 +237,14 @@
 		A62000000000000000000015 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
 		A62000000000000000000016 /* LibraryControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryControllerTests.swift; sourceTree = "<group>"; };
 		A62000000000000000000017 /* LibraryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFlowTests.swift; sourceTree = "<group>"; };
+		A63000000000000000000011 /* PlayerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerBar.swift; sourceTree = "<group>"; };
+		A63000000000000000000012 /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
+		A63000000000000000000013 /* QueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueView.swift; sourceTree = "<group>"; };
+		A63000000000000000000014 /* EQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQView.swift; sourceTree = "<group>"; };
+		A63000000000000000000015 /* SpectrumAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumAnalyzer.swift; sourceTree = "<group>"; };
+		A63000000000000000000016 /* QueueControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueControllerTests.swift; sourceTree = "<group>"; };
+		A63000000000000000000017 /* SpectrumAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumAnalyzerTests.swift; sourceTree = "<group>"; };
+		A63000000000000000000018 /* PlaybackFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackFlowTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -365,6 +381,8 @@
 				A6000000000000000000001B /* SkyHitTestingTests.swift */,
 				A61000000000000000000014 /* DesignTokenTests.swift */,
 				A62000000000000000000016 /* LibraryControllerTests.swift */,
+				A63000000000000000000016 /* QueueControllerTests.swift */,
+				A63000000000000000000017 /* SpectrumAnalyzerTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -394,6 +412,7 @@
 				A5E000000000000000000012 /* AudioSessionController.swift */,
 				A5E000000000000000000013 /* RemoteCommandCoordinator.swift */,
 				A5E000000000000000000014 /* RecoveryCoordinator.swift */,
+				A63000000000000000000015 /* SpectrumAnalyzer.swift */,
 			);
 			path = Playback;
 			sourceTree = "<group>";
@@ -492,6 +511,7 @@
 				A59000000000000000000021 /* Root */,
 				A60000000000000000000021 /* Sky */,
 				A62000000000000000000020 /* Library */,
+				A63000000000000000000020 /* Player */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -506,6 +526,17 @@
 				A62000000000000000000015 /* SearchResultsView.swift */,
 			);
 			path = Library;
+			sourceTree = "<group>";
+		};
+		A63000000000000000000020 /* Player */ = {
+			isa = PBXGroup;
+			children = (
+				A63000000000000000000011 /* PlayerBar.swift */,
+				A63000000000000000000012 /* NowPlayingView.swift */,
+				A63000000000000000000013 /* QueueView.swift */,
+				A63000000000000000000014 /* EQView.swift */,
+			);
+			path = Player;
 			sourceTree = "<group>";
 		};
 		A60000000000000000000021 /* Sky */ = {
@@ -534,6 +565,7 @@
 				A6000000000000000000001C /* SkyInteractionTests.swift */,
 				A61000000000000000000015 /* AdaptiveChromeTests.swift */,
 				A62000000000000000000017 /* LibraryFlowTests.swift */,
+				A63000000000000000000018 /* PlaybackFlowTests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -793,6 +825,11 @@
 				A62000000000000000000003 /* AlbumDetailView.swift in Sources */,
 				A62000000000000000000004 /* AlbumEditorView.swift in Sources */,
 				A62000000000000000000005 /* SearchResultsView.swift in Sources */,
+				A63000000000000000000001 /* PlayerBar.swift in Sources */,
+				A63000000000000000000002 /* NowPlayingView.swift in Sources */,
+				A63000000000000000000003 /* QueueView.swift in Sources */,
+				A63000000000000000000004 /* EQView.swift in Sources */,
+				A63000000000000000000005 /* SpectrumAnalyzer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -826,6 +863,8 @@
 				A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */,
 				A61000000000000000000004 /* DesignTokenTests.swift in Sources */,
 				A62000000000000000000006 /* LibraryControllerTests.swift in Sources */,
+				A63000000000000000000006 /* QueueControllerTests.swift in Sources */,
+				A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -837,6 +876,7 @@
 				A6000000000000000000000C /* SkyInteractionTests.swift in Sources */,
 				A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */,
 				A62000000000000000000007 /* LibraryFlowTests.swift in Sources */,
+				A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

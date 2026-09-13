@@ -317,6 +317,40 @@ final class CatalogRepository {
         notifyObservers()
     }
 
+    @discardableResult
+    func createPlaylist(
+        name: String,
+        trackIDs: [String],
+        id: String = UUID().uuidString,
+        at date: Date = Date()
+    ) throws -> CatalogPlaylist {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        try validateID(id)
+        guard !trimmed.isEmpty, !trackIDs.isEmpty else { throw CatalogRepositoryError.invalidRecord }
+        for trackID in trackIDs { try validateID(trackID) }
+        let playlist = CatalogPlaylist(id: id, name: trimmed, createdAt: date, updatedAt: date)
+        try database.transaction {
+            guard !(try recordExists(table: "playlists", id: id)) else {
+                throw CatalogRepositoryError.duplicateStableID(id)
+            }
+            for trackID in trackIDs where !(try recordExists(table: "tracks", id: trackID)) {
+                throw CatalogRepositoryError.missingReference(trackID)
+            }
+            try database.execute(
+                "INSERT INTO playlists(id, name, created_at, updated_at) VALUES(?, ?, ?, ?)",
+                [.text(id), .text(trimmed), .real(date.timeIntervalSince1970), .real(date.timeIntervalSince1970)]
+            )
+            for (position, trackID) in trackIDs.enumerated() {
+                try database.execute(
+                    "INSERT INTO playlist_items(playlist_id, position, track_id) VALUES(?, ?, ?)",
+                    [.text(id), .integer(Int64(position)), .text(trackID)]
+                )
+            }
+        }
+        notifyObservers()
+        return playlist
+    }
+
     func playlists(offset: Int = 0, limit: Int = CatalogDatabase.maximumPageSize) throws -> [CatalogPlaylist] {
         try validatePage(offset: offset, limit: limit)
         return try database.query(

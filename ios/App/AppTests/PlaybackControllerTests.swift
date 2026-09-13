@@ -1,3 +1,4 @@
+import MediaPlayer
 import XCTest
 @testable import App
 
@@ -62,7 +63,40 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertTrue(controller.isInitialized)
     }
 
-    private func snapshot(version: UInt64, trackID: String?) -> PlaybackSnapshot {
+    func testBackgroundStopsRefreshingAndForegroundStillRequestsAuthority() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: "track", intent: .playing)
+        let controller = PlaybackController(coordinator: coordinator)
+        controller.accept(snapshot: coordinator.state!)
+
+        controller.applicationDidEnterBackground()
+        controller.applicationDidEnterForeground()
+
+        XCTAssertEqual(coordinator.stateRequestCount, 1)
+    }
+
+    func testLockScreenCommandsRouteToThePlaybackController() throws {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: "track")
+        let controller = PlaybackController(coordinator: coordinator)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let remote = RemoteCommandCoordinator(
+            controller: controller,
+            catalog: CatalogRepository(database: try CatalogDatabase(rootURL: root)),
+            artworkStore: try ArtworkStore(rootURL: root.appendingPathComponent("Artwork"))
+        )
+
+        XCTAssertEqual(remote.handle(.play), .success)
+        XCTAssertEqual(remote.handle(.next), .success)
+        XCTAssertEqual(remote.handle(.seek(19.25)), .success)
+
+        XCTAssertEqual(coordinator.playCount, 1)
+        XCTAssertEqual(coordinator.nextCount, 1)
+        XCTAssertEqual(coordinator.seekPositions, [19.25])
+    }
+
+    private func snapshot(version: UInt64, trackID: String?, intent: PlaybackIntent = .paused) -> PlaybackSnapshot {
         PlaybackSnapshot(
             version: version,
             trackID: trackID,
@@ -70,7 +104,7 @@ final class PlaybackControllerTests: XCTestCase {
             queue: [],
             queueIndex: nil,
             position: 0,
-            intent: .paused,
+            intent: intent,
             replayGainMode: .off,
             replayGainPreampDB: 0,
             masterVolume: 1,
@@ -89,6 +123,9 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     var state: PlaybackSnapshot?
     private(set) var initializeCount = 0
     private(set) var stateRequestCount = 0
+    private(set) var playCount = 0
+    private(set) var nextCount = 0
+    private(set) var seekPositions: [TimeInterval] = []
 
     func initialize(completion: @escaping PlaybackCommandCompletion) {
         initializeCount += 1
@@ -98,11 +135,11 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     func load(trackID: String, mediaRef: MediaReference, queue: [QueueItem]?, index: Int?, completion: @escaping PlaybackCommandCompletion) {
         completion(state.map(Result.success) ?? .failure(failure))
     }
-    func play(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
+    func play(completion: @escaping PlaybackCommandCompletion) { playCount += 1; complete(completion) }
     func pause(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
     func toggle(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
-    func seek(seconds: Double, completion: @escaping PlaybackCommandCompletion) { complete(completion) }
-    func next(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
+    func seek(seconds: Double, completion: @escaping PlaybackCommandCompletion) { seekPositions.append(seconds); complete(completion) }
+    func next(completion: @escaping PlaybackCommandCompletion) { nextCount += 1; complete(completion) }
     func previous(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
     func setQueue(items: [QueueItem], index: Int, revision: UInt64, completion: @escaping PlaybackCommandCompletion) {
         complete(completion)
@@ -111,6 +148,7 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     func setReplayGainMode(_ mode: ReplayGainMode, completion: @escaping PlaybackCommandCompletion) { complete(completion) }
     func setReplayGainPreamp(_ db: Double, completion: @escaping PlaybackCommandCompletion) { complete(completion) }
     func setEQ(enabled: Bool, bands: [EQBand], completion: @escaping PlaybackCommandCompletion) { complete(completion) }
+    func setRepeatMode(_ mode: RepeatMode, completion: @escaping PlaybackCommandCompletion) { complete(completion) }
 
     func getState(completion: @escaping (PlaybackSnapshot) -> Void) {
         stateRequestCount += 1

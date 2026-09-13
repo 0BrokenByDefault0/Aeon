@@ -236,6 +236,27 @@ final class QueueSchedulerTests: XCTestCase {
         }
     }
 
+    func testUnavailableCurrentTrackFailsExplicitlyWithoutStartingTheEngine() throws {
+        let graph = RecordingGraph()
+        let scheduler = QueueScheduler(graph: graph, resolver: FixtureResolver()) { _ in .unavailable }
+        let failed = expectation(description: "current media failure")
+        scheduler.onEvent = { event in
+            guard case .failed(let trackID, let error, _) = event else { return }
+            XCTAssertEqual(trackID, "a")
+            XCTAssertEqual(error, .media(trackID: "a", capability: .unavailable))
+            failed.fulfill()
+        }
+        try scheduler.setQueue([a], index: 0, revision: 1)
+
+        XCTAssertThrowsError(try scheduler.play()) { error in
+            XCTAssertEqual(error as? QueueSchedulerError, .media(trackID: "a", capability: .unavailable))
+        }
+        wait(for: [failed], timeout: 1)
+        XCTAssertEqual(scheduler.currentTrackID, "a")
+        XCTAssertNil(scheduler.preparedNextTrackID)
+        XCTAssertFalse(graph.started)
+    }
+
     func testReleaseResolvedMediaOnReplacementAndFailure() throws {
         let (scheduler, _, resolver) = try makeScheduler([a, b])
         try scheduler.prepareCurrent(position: 0)

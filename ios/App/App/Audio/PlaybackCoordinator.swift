@@ -48,11 +48,13 @@ protocol PlaybackScheduling: AnyObject {
     func replaceQueue(_ items: [QueueItem], index: Int, revision: UInt64) throws
     func invalidatePendingSchedule()
     func setReplayGain(mode: ReplayGainMode, preampDB: Double)
+    func setRepeatMode(_ mode: RepeatMode) throws
 }
 
 extension PlaybackScheduling {
     var currentSourceFormat: SourceFormatDescriptor? { nil }
     func setReplayGain(mode: ReplayGainMode, preampDB: Double) {}
+    func setRepeatMode(_ mode: RepeatMode) throws {}
 }
 
 extension QueueScheduler: PlaybackScheduling {}
@@ -179,6 +181,7 @@ final class PlaybackCoordinator {
     private var masterVolume: Double
     private var eqEnabled: Bool
     private var eqBands: [EQBand]
+    private var repeatMode: RepeatMode
     private var route: RouteDescriptor?
     private var sourceFormat: SourceFormatDescriptor?
     private var outputFormat: OutputFormatDescriptor?
@@ -219,6 +222,7 @@ final class PlaybackCoordinator {
         masterVolume = restored?.masterVolume ?? 1
         eqEnabled = restored?.eqEnabled ?? false
         eqBands = restored?.eqBands ?? []
+        repeatMode = restored?.repeatMode ?? .off
         route = restored?.route
         sourceFormat = restored?.sourceFormat
         outputFormat = restored?.outputFormat
@@ -251,6 +255,7 @@ final class PlaybackCoordinator {
             }
             do {
                 scheduler.setReplayGain(mode: replayGainMode, preampDB: replayGainPreampDB)
+                try scheduler.setRepeatMode(repeatMode)
                 if !queue.isEmpty {
                     guard let index = queueIndex, queue.indices.contains(index) else {
                         throw CoordinatorError.invalidQueueIndex
@@ -378,7 +383,25 @@ final class PlaybackCoordinator {
     }
 
     func next(completion: @escaping PlaybackCommandCompletion) {
-        move(command: scheduler.next, eventCode: "TRACK_NEXT", completion: completion)
+        command(completion: completion) { [self] in
+            guard initialized else { throw CoordinatorError.notInitialized }
+            let shouldWrap = repeatMode == .all && !queue.isEmpty && queueIndex == queue.indices.last
+            if shouldWrap {
+                let resume = scheduler.isPlaying
+                try scheduler.setQueue(queue, index: 0, revision: queueRevision)
+                try scheduler.setRepeatMode(repeatMode)
+                try scheduler.prepareCurrent(position: 0)
+                if resume { try scheduler.play() }
+            } else {
+                try scheduler.next()
+            }
+            acceptedSchedulerGeneration = scheduler.currentGeneration
+            syncSchedulerState()
+            sourceFormat = scheduler.currentSourceFormat
+            outputFormat = graph.outputDescriptor()
+            route = outputFormat?.route
+            return try publish(eventCode: "TRACK_NEXT")
+        }
     }
 
     func previous(completion: @escaping PlaybackCommandCompletion) {
@@ -475,6 +498,18 @@ final class PlaybackCoordinator {
             try graph.setEQ(enabled: eqEnabled, bands: bands)
             eqBands = bands
             return try publish(eventCode: "EQ_CHANGED")
+        }
+    }
+
+    func setRepeatMode(_ mode: RepeatMode, completion: @escaping PlaybackCommandCompletion) {
+        command(completion: completion) { [self] in
+            guard initialized else { throw CoordinatorError.notInitialized }
+            if repeatMode == mode { return currentSnapshot() }
+            try scheduler.setRepeatMode(mode)
+            repeatMode = mode
+            acceptedSchedulerGeneration = scheduler.currentGeneration
+            syncSchedulerState()
+            return try publish(eventCode: "REPEAT_CHANGED")
         }
     }
 
@@ -669,8 +704,33 @@ final class PlaybackCoordinator {
                 _ = try? publish(eventCode: "TRACK_HANDOFF")
             case .completed:
                 syncSchedulerState()
-                intent = .paused
-                _ = try? publish(eventCode: "PLAYBACK_COMPLETED")
+                do {
+                    if repeatMode == .one {
+                        try scheduler.seek(seconds: 0)
+                        try scheduler.play()
+                        acceptedSchedulerGeneration = scheduler.currentGeneration
+                        syncSchedulerState()
+                        intent = .playing
+                        _ = try publish(eventCode: "TRACK_REPEATED")
+                    } else if repeatMode == .all, !queue.isEmpty {
+                        try scheduler.setQueue(queue, index: 0, revision: queueRevision)
+                        try scheduler.setRepeatMode(repeatMode)
+                        try scheduler.prepareCurrent(position: 0)
+                        try scheduler.play()
+                        acceptedSchedulerGeneration = scheduler.currentGeneration
+                        syncSchedulerState()
+                        sourceFormat = scheduler.currentSourceFormat
+                        intent = .playing
+                        _ = try publish(eventCode: "QUEUE_REPEATED")
+                    } else {
+                        intent = .paused
+                        _ = try publish(eventCode: "PLAYBACK_COMPLETED")
+                    }
+                } catch {
+                    intent = .paused
+                    _ = try? publish(eventCode: "PLAYBACK_STOPPED")
+                    fail(error, completion: nil)
+                }
             case .failed(let failedTrackID, let error, _):
                 syncSchedulerState()
                 if recovery != nil {
@@ -741,6 +801,7 @@ final class PlaybackCoordinator {
             masterVolume: masterVolume,
             eqEnabled: eqEnabled,
             eqBands: eqBands,
+            repeatMode: repeatMode,
             route: route,
             sourceFormat: sourceFormat,
             outputFormat: outputFormat,

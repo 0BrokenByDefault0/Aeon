@@ -63,6 +63,7 @@ struct AppServices {
     let libraryImporter: LibraryImporter
     let skyRepository: SkyRepository
     let audioEngineGraph: AudioEngineGraph
+    let spectrumAnalyzer: SpectrumAnalyzer
     let queueScheduler: QueueScheduler
     let playbackCoordinator: PlaybackCoordinator
     let audioSessionController: AudioSessionController
@@ -94,6 +95,11 @@ struct AppServices {
             fileManager: fileManager
         )
         let stateStore = PlaybackStateStore(baseURL: stateRoot, fileManager: fileManager)
+        try seedPlaybackFixtureIfRequested(
+            catalog: catalog,
+            mediaStore: mediaStore,
+            stateStore: stateStore
+        )
         let diagnostics = DiagnosticsLog(
             url: diagnosticsRoot.appendingPathComponent("audio.jsonl", isDirectory: false),
             fileManager: fileManager
@@ -120,6 +126,8 @@ struct AppServices {
         let audioSession = AudioSessionController()
         try audioSession.activate()
         let graph = AudioEngineGraph()
+        let spectrumAnalyzer = try SpectrumAnalyzer(source: graph)
+        try spectrumAnalyzer.start()
         let scheduler = QueueScheduler(graph: graph, resolver: mediaStore, probe: metadataProbe)
         let mediaInfo = NativePlaybackMediaInfoProvider(resolver: mediaStore, probe: metadataProbe)
         let recovery = RecoveryCoordinator(scheduler: scheduler, graph: graph, session: audioSession)
@@ -132,13 +140,19 @@ struct AppServices {
             recovery: recovery
         )
         audioSession.onEvent = { [weak coordinator] event in coordinator?.handleAudioSessionEvent(event) }
-        let playbackController = PlaybackController(coordinator: coordinator)
+        let playbackController = PlaybackController(coordinator: coordinator, playlistStore: catalog)
+        spectrumAnalyzer.bind(to: playbackController)
         let remoteCommands = RemoteCommandCoordinator(
             controller: playbackController,
             catalog: catalog,
             artworkStore: artwork
         )
-        let skySceneController = SkySceneController(repository: skyRepository, catalog: catalog, playback: playbackController)
+        let skySceneController = SkySceneController(
+            repository: skyRepository,
+            catalog: catalog,
+            playback: playbackController,
+            spectrum: spectrumAnalyzer
+        )
         playbackController.start()
         return AppServices(
             catalogDatabase: database,
@@ -154,6 +168,7 @@ struct AppServices {
             libraryImporter: libraryImporter,
             skyRepository: skyRepository,
             audioEngineGraph: graph,
+            spectrumAnalyzer: spectrumAnalyzer,
             queueScheduler: scheduler,
             playbackCoordinator: coordinator,
             audioSessionController: audioSession,
@@ -162,6 +177,101 @@ struct AppServices {
             remoteCommandCoordinator: remoteCommands,
             skySceneController: skySceneController
         )
+    }
+
+    private static func seedPlaybackFixtureIfRequested(
+        catalog: CatalogRepository,
+        mediaStore: MediaStore,
+        stateStore: PlaybackStateStore
+    ) throws {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let marker = arguments.firstIndex(of: "-AeonPlaybackFixture"),
+              arguments.indices.contains(marker + 1),
+              arguments[marker + 1] == "loaded",
+              try catalog.album(id: "playback-fixture-album") == nil else { return }
+
+        let date = Date(timeIntervalSince1970: 20_000)
+        let album = CatalogAlbum(
+            id: "playback-fixture-album",
+            sequence: 1,
+            title: "The Silver Chamber",
+            artist: "Arden Vale",
+            year: "2026",
+            genre: "Ambient",
+            artworkKey: nil,
+            importedAt: date,
+            updatedAt: date
+        )
+        let titles = ["A Signal Carried Across the Quiet", "Position of the Returning Light", "Actual Output"]
+        let tracks = try titles.enumerated().map { index, title -> CatalogTrack in
+            let trackID = "playback-fixture-track-\(index + 1)"
+            let destination = mediaStore.mediaURL(stableID: trackID, fileExtension: "wav")
+            try fixtureWAV(frequency: 110 + Double(index) * 110, duration: 8).write(to: destination, options: .atomic)
+            return CatalogTrack(
+                id: trackID,
+                albumID: album.id,
+                sequence: index + 1,
+                discNumber: 1,
+                trackNumber: index + 1,
+                title: title,
+                artist: "",
+                duration: 8,
+                byteCount: Int64((try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0),
+                mediaReference: .native(relativePath: destination.lastPathComponent),
+                importedAt: date
+            )
+        }
+        try catalog.insertAlbum(album, tracks: tracks)
+        let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
+        try stateStore.save(PlaybackSnapshot(
+            version: 0,
+            trackID: tracks[0].id,
+            queueRevision: 1,
+            queue: queue,
+            queueIndex: 0,
+            position: 0,
+            intent: .paused,
+            replayGainMode: .off,
+            replayGainPreampDB: 0,
+            masterVolume: 0.9,
+            eqEnabled: false,
+            eqBands: EQView.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: 0) },
+            route: nil,
+            sourceFormat: nil,
+            outputFormat: nil,
+            timestamp: date
+        ))
+    }
+
+    private static func fixtureWAV(frequency: Double, duration: Double) -> Data {
+        let sampleRate = 48_000
+        let sampleCount = Int(Double(sampleRate) * duration)
+        let dataByteCount = sampleCount * MemoryLayout<Int16>.size
+        var data = Data()
+        data.reserveCapacity(44 + dataByteCount)
+        data.append(contentsOf: "RIFF".utf8)
+        appendLittleEndian(UInt32(36 + dataByteCount), to: &data)
+        data.append(contentsOf: "WAVEfmt ".utf8)
+        appendLittleEndian(UInt32(16), to: &data)
+        appendLittleEndian(UInt16(1), to: &data)
+        appendLittleEndian(UInt16(1), to: &data)
+        appendLittleEndian(UInt32(sampleRate), to: &data)
+        appendLittleEndian(UInt32(sampleRate * 2), to: &data)
+        appendLittleEndian(UInt16(2), to: &data)
+        appendLittleEndian(UInt16(16), to: &data)
+        data.append(contentsOf: "data".utf8)
+        appendLittleEndian(UInt32(dataByteCount), to: &data)
+        for frame in 0..<sampleCount {
+            let envelope = min(1, Double(frame) / 800) * min(1, Double(sampleCount - frame) / 800)
+            let sample = Int16(sin(2 * .pi * frequency * Double(frame) / Double(sampleRate)) * 8_000 * envelope)
+            appendLittleEndian(sample, to: &data)
+        }
+        return data
+    }
+
+    private static func appendLittleEndian<Value: FixedWidthInteger>(_ value: Value, to data: inout Data) {
+        var littleEndian = value.littleEndian
+        withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
     }
 }
 
@@ -316,6 +426,10 @@ final class AppContainer: ObservableObject {
 
     func applicationDidEnterForeground() {
         services?.playbackController.applicationDidEnterForeground()
+    }
+
+    func applicationDidEnterBackground() {
+        services?.playbackController.applicationDidEnterBackground()
     }
 
     func restoreCatalog(from sourceURL: URL) {

@@ -48,14 +48,8 @@ struct AeonArtworkTintHost<Content: View>: View {
     }
 
     private func resolvedTint(trackID: String?) -> Color? {
-        guard let trackID,
-              let track = try? catalog.track(id: trackID),
-              let album = try? catalog.album(id: track.albumID),
-              let key = album.artworkKey,
-              let url = try? artworkStore.url(forKey: key),
-              let image = UIImage(contentsOfFile: url.path),
-              let sampled = AeonArtworkTint.sample(image) else { return nil }
-        return Color(uiColor: sampled)
+        AeonArtworkTint.resolve(trackID: trackID, catalog: catalog, artworkStore: artworkStore)
+            .map(Color.init(uiColor:))
     }
 }
 
@@ -95,6 +89,17 @@ struct AeonChrome<PlayerBar: View>: View {
                             .frame(width: AeonTheme.Space.sidebar)
                             .frame(maxHeight: .infinity)
                             .transition(.move(edge: .leading))
+                    }
+                    if playerLoaded && !portraitSidebarVisible {
+                        portraitPlayerBar(
+                            width: min(
+                                AeonTheme.Space.sidePanel,
+                                geometry.size.width - (AeonTheme.Space.edge * 2)
+                            ),
+                            height: max(0, geometry.size.height - geometry.safeAreaInsets.bottom),
+                            leadingInset: max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading)
+                        )
+                        .transition(.move(edge: .bottom))
                     }
                     Button { portraitSidebarVisible.toggle() } label: {
                         Image(systemName: portraitSidebarVisible ? "xmark" : "line.3.horizontal")
@@ -136,6 +141,16 @@ struct AeonChrome<PlayerBar: View>: View {
         }
     }
 
+    private func portraitPlayerBar(width: CGFloat, height: CGFloat, leadingInset: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Spacer()
+            Color.black.opacity(artworkTint == nil ? 0.32 : 0.58).frame(height: 8)
+            playerBar.frame(minHeight: AeonTheme.Space.playerBar)
+        }
+        .frame(width: width, height: height)
+        .padding(.leading, leadingInset)
+    }
+
     private var sidebar: some View {
         AeonGlass {
             VStack(alignment: .leading, spacing: 0) {
@@ -147,6 +162,10 @@ struct AeonChrome<PlayerBar: View>: View {
                     .padding(.bottom, AeonTheme.Space.section)
                 ForEach(AeonDestination.allCases) { item in navigationButton(item, compact: false) }
                 Spacer()
+                if playerLoaded {
+                    Color.black.opacity(artworkTint == nil ? 0.32 : 0.58).frame(height: 8)
+                    playerBar.frame(minHeight: AeonTheme.Space.playerBar)
+                }
             }
         }
         .ignoresSafeArea(edges: .vertical)
