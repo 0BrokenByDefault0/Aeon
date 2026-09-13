@@ -4,6 +4,8 @@ struct SkyHUD: View {
     @ObservedObject var controller: SkySceneController
     let importProgress: LibraryImportProgress?
     let viewportSize: CGSize
+    let showCensus: Bool
+    let reduceMotionOverride: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -19,7 +21,7 @@ struct SkyHUD: View {
                 }
                 .accessibilityIdentifier("aeon.sky.capture")
                 if controller.playingStarID != nil {
-                    Button("LOCATE") { controller.locatePlaying(reduceMotion: reduceMotion) }
+                    Button("LOCATE") { controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride) }
                         .accessibilityIdentifier("aeon.sky.locate-playing")
                 }
                 if let captureURL = controller.captureURL {
@@ -35,7 +37,8 @@ struct SkyHUD: View {
 
             Spacer()
 
-            HStack(alignment: .bottom, spacing: 12) {
+            if showCensus || importProgress != nil {
+                HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(controller.censusText)
                     Text(controller.planetProgressText)
@@ -56,6 +59,7 @@ struct SkyHUD: View {
                 .accessibilityAddTraits(.updatesFrequently)
                 .accessibilityIdentifier("aeon.sky.hud")
                 Spacer()
+                }
             }
         }
     }

@@ -66,6 +66,12 @@ struct CatalogListeningState: Codable, Equatable {
     let lastPlayedAt: Date?
 }
 
+struct CatalogSettingRecord: Codable, Equatable {
+    let key: String
+    let value: Data
+    let updatedAt: Date
+}
+
 enum SkyRecordKind: String, Codable, CaseIterable {
     case region
     case constellation

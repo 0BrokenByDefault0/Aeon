@@ -128,6 +128,7 @@ struct AeonToggleStyle: ToggleStyle {
             }
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .frame(minHeight: AeonTheme.Space.minimumTarget)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityValue(configuration.isOn ? "On" : "Off")
@@ -249,13 +250,39 @@ struct AeonEmptyState: View {
 
     var body: some View {
         VStack(spacing: AeonTheme.Space.large) {
-            Image(systemName: "circle.grid.cross").font(.system(size: 38, weight: .ultraLight))
+            AeonRouteMark()
             AeonDisplayText(title, size: 30).multilineTextAlignment(.center)
             if let detail { Text(detail).font(AeonTheme.FontToken.ui(.body)).foregroundStyle(AeonTheme.ColorToken.boneSecondary).multilineTextAlignment(.center) }
             if let actionTitle, let action { Button(actionTitle, action: action).buttonStyle(AeonButtonStyle(tier: .filled)) }
         }
         .foregroundStyle(AeonTheme.ColorToken.bone)
         .padding(AeonTheme.Space.section)
+    }
+}
+
+struct AeonRouteMark: View {
+    var body: some View {
+        Canvas { context, size in
+            let points = [
+                CGPoint(x: size.width * 0.14, y: size.height * 0.72),
+                CGPoint(x: size.width * 0.38, y: size.height * 0.34),
+                CGPoint(x: size.width * 0.66, y: size.height * 0.58),
+                CGPoint(x: size.width * 0.88, y: size.height * 0.20)
+            ]
+            var path = Path()
+            path.move(to: points[0])
+            points.dropFirst().forEach { path.addLine(to: $0) }
+            context.stroke(path, with: .color(AeonTheme.ColorToken.boneTertiary), lineWidth: 0.75)
+            for (index, point) in points.enumerated() {
+                let radius: CGFloat = index == points.count - 1 ? 3.5 : 2.2
+                context.fill(
+                    Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
+                    with: .color(index == points.count - 1 ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.boneSecondary)
+                )
+            }
+        }
+        .frame(width: 68, height: 48)
+        .accessibilityHidden(true)
     }
 }
 

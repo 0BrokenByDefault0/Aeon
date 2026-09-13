@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SkyMetalView: UIViewRepresentable {
     @ObservedObject var controller: SkySceneController
+    let reduceMotionOverride: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeCoordinator() -> Coordinator { Coordinator(controller: controller) }
@@ -21,12 +22,12 @@ struct SkyMetalView: UIViewRepresentable {
 
     func updateUIView(_ view: MTKView, context: Context) {
         context.coordinator.controller = controller
-        context.coordinator.reduceMotion = reduceMotion
+        context.coordinator.reduceMotion = reduceMotion || reduceMotionOverride
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
             camera: controller.camera,
             playingStarID: controller.playingStarID,
-            spectrum: reduceMotion ? .zero : controller.spectrumLevels
+            spectrum: (reduceMotion || reduceMotionOverride) ? .zero : controller.spectrumLevels
         )
         context.coordinator.renderer?.configureFrameRate(for: view)
     }

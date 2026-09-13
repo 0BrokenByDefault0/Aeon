@@ -111,7 +111,9 @@ struct AeonRootView: View {
         case .ready:
             if let services = container.services {
                 AeonReadyShell(
+                    container: container,
                     services: services,
+                    roots: container.roots!,
                     importProgress: container.libraryImportProgress,
                     importError: container.libraryImportError,
                     importFiles: { isSelectingAudio = true },
@@ -215,27 +217,36 @@ struct AeonRootView: View {
 }
 
 private struct AeonReadyShell: View {
+    let container: AppContainer
     let services: AppServices
+    let roots: AppStorageRoots
     let importProgress: LibraryImportProgress?
     let importError: String?
     let importFiles: () -> Void
     let importFolder: () -> Void
     @ObservedObject private var playback: PlaybackController
     @StateObject private var libraryController: LibraryController
+    @StateObject private var playlistsController: PlaylistsController
+    @StateObject private var settingsController: SettingsController
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var destination = AeonDestination.sky
     @State private var portraitSidebarVisible = false
     @State private var nowPlayingVisible = false
+    @State private var nowPlayingSection: NowPlayingSection?
 
     init(
+        container: AppContainer,
         services: AppServices,
+        roots: AppStorageRoots,
         importProgress: LibraryImportProgress?,
         importError: String?,
         importFiles: @escaping () -> Void,
         importFolder: @escaping () -> Void
     ) {
+        self.container = container
         self.services = services
+        self.roots = roots
         self.importProgress = importProgress
         self.importError = importError
         self.importFiles = importFiles
@@ -249,6 +260,24 @@ private struct AeonReadyShell: View {
             skyRepository: services.skyRepository,
             skyController: services.skySceneController,
             metadataEnricher: services.metadataEnricher
+        ))
+        _playlistsController = StateObject(wrappedValue: PlaylistsController(
+            repository: services.catalogRepository,
+            playback: services.playbackController
+        ))
+        _settingsController = StateObject(wrappedValue: SettingsController(
+            repository: services.catalogRepository,
+            artworkStore: services.artworkStore,
+            diagnostics: services.diagnosticsLog,
+            playback: services.playbackController,
+            archiveWriter: services.archiveWriter,
+            archiveRestorer: services.archiveRestorer,
+            roots: roots,
+            didRestore: {
+                _ = try? services.skyRepository.backfill()
+                services.skySceneController.reload()
+            },
+            eraseAction: { [weak container] in container?.eraseEverything() ?? false }
         ))
     }
 
@@ -265,6 +294,9 @@ private struct AeonReadyShell: View {
                             controller: services.skySceneController,
                             importProgress: importProgress,
                             readableInsets: readableInsets,
+                            showHUD: settingsController.preferences.hud,
+                            highContrast: settingsController.preferences.highSkyContrast,
+                            reduceMotionOverride: settingsController.preferences.reduceMotion,
                             importFiles: importFiles,
                             importFolder: importFolder
                         )
@@ -281,13 +313,16 @@ private struct AeonReadyShell: View {
                         AeonChrome(
                             destination: $destination,
                             portraitSidebarVisible: $portraitSidebarVisible,
-                            playerLoaded: playback.snapshot?.trackID != nil
+                                playerLoaded: playback.snapshot?.trackID != nil
                         ) {
                             PlayerBar(
                                 playback: playback,
                                 catalog: services.catalogRepository,
                                 artworkStore: services.artworkStore,
-                                open: { nowPlayingVisible = true }
+                                open: {
+                                    nowPlayingSection = nil
+                                    nowPlayingVisible = true
+                                }
                             )
                         }
                     }
@@ -296,8 +331,9 @@ private struct AeonReadyShell: View {
         }
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
         .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
-        .onAppear { services.spectrumAnalyzer.setReduceMotion(reduceMotion) }
-        .onChange(of: reduceMotion) { services.spectrumAnalyzer.setReduceMotion($0) }
+        .onAppear { services.spectrumAnalyzer.setReduceMotion(reduceMotion || settingsController.preferences.reduceMotion) }
+        .onChange(of: reduceMotion) { services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion) }
+        .onChange(of: settingsController.preferences.reduceMotion) { services.spectrumAnalyzer.setReduceMotion(reduceMotion || $0) }
     }
 
     private func nowPlayingPanel(geometry: GeometryProxy, insets: AeonReadableInsets) -> some View {
@@ -307,6 +343,8 @@ private struct AeonReadyShell: View {
             spectrum: services.spectrumAnalyzer,
             catalog: services.catalogRepository,
             artworkStore: services.artworkStore,
+            initialSection: nowPlayingSection,
+            reduceMotionOverride: settingsController.preferences.reduceMotion,
             close: { nowPlayingVisible = false },
             locate: { albumID, reduced in
                 services.skySceneController.locate(id: albumID, reduceMotion: reduced)
@@ -342,6 +380,31 @@ private struct AeonReadyShell: View {
                 )
                 .padding(.top, insets.top)
                 .padding(.bottom, regular ? insets.bottom : 0)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .ignoresSafeArea(edges: .vertical)
+        } else if destination == .playlists {
+            let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
+                ? AeonTheme.Space.playerBar : 0)
+            AeonGlass {
+                PlaylistsScreen(controller: playlistsController, contentBottomInset: bottomInset)
+                    .padding(.top, insets.top)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .ignoresSafeArea(edges: .vertical)
+        } else if destination == .settings {
+            let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
+                ? AeonTheme.Space.playerBar : 0)
+            AeonGlass {
+                SettingsScreen(controller: settingsController, contentBottomInset: bottomInset) { section in
+                    nowPlayingSection = section
+                    nowPlayingVisible = true
+                }
+                .padding(.top, insets.top)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)

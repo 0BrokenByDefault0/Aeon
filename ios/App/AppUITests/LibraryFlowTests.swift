@@ -54,11 +54,16 @@ final class LibraryFlowTests: XCTestCase {
     }
 
     private func openLibrary(in app: XCUIApplication) {
+        let button = app.buttons["aeon.navigation.library"]
+        if button.waitForExistence(timeout: 2) {
+            button.tap()
+            XCTAssertTrue(app.descendants(matching: .any)["aeon.library.screen"].waitForExistence(timeout: 8))
+            return
+        }
         let menu = app.buttons["aeon.navigation.menu"]
-        if menu.waitForExistence(timeout: 2), menu.label == "Open navigation" {
+        if menu.waitForExistence(timeout: 12), menu.label == "Open navigation" {
             menu.tap()
         }
-        let button = app.buttons["aeon.navigation.library"]
         XCTAssertTrue(button.waitForExistence(timeout: 12))
         button.tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.library.screen"].waitForExistence(timeout: 8))

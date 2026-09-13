@@ -115,6 +115,15 @@
 		A63000000000000000000006 /* QueueControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000016 /* QueueControllerTests.swift */; };
 		A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000017 /* SpectrumAnalyzerTests.swift */; };
 		A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000018 /* PlaybackFlowTests.swift */; };
+		A64000000000000000000001 /* ArchiveWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000011 /* ArchiveWriter.swift */; };
+		A64000000000000000000002 /* ArchiveReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000012 /* ArchiveReader.swift */; };
+		A64000000000000000000003 /* PlaylistsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000013 /* PlaylistsController.swift */; };
+		A64000000000000000000004 /* PlaylistsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000014 /* PlaylistsScreen.swift */; };
+		A64000000000000000000005 /* SettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000015 /* SettingsController.swift */; };
+		A64000000000000000000006 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000016 /* SettingsScreen.swift */; };
+		A64000000000000000000007 /* PlaylistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000017 /* PlaylistTests.swift */; };
+		A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000018 /* ArchiveCompatibilityTests.swift */; };
+		A64000000000000000000009 /* SettingsFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000019 /* SettingsFlowTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -245,6 +254,15 @@
 		A63000000000000000000016 /* QueueControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueControllerTests.swift; sourceTree = "<group>"; };
 		A63000000000000000000017 /* SpectrumAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumAnalyzerTests.swift; sourceTree = "<group>"; };
 		A63000000000000000000018 /* PlaybackFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackFlowTests.swift; sourceTree = "<group>"; };
+		A64000000000000000000011 /* ArchiveWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveWriter.swift; sourceTree = "<group>"; };
+		A64000000000000000000012 /* ArchiveReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveReader.swift; sourceTree = "<group>"; };
+		A64000000000000000000013 /* PlaylistsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsController.swift; sourceTree = "<group>"; };
+		A64000000000000000000014 /* PlaylistsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsScreen.swift; sourceTree = "<group>"; };
+		A64000000000000000000015 /* SettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsController.swift; sourceTree = "<group>"; };
+		A64000000000000000000016 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		A64000000000000000000017 /* PlaylistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistTests.swift; sourceTree = "<group>"; };
+		A64000000000000000000018 /* ArchiveCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveCompatibilityTests.swift; sourceTree = "<group>"; };
+		A64000000000000000000019 /* SettingsFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFlowTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -383,6 +401,8 @@
 				A62000000000000000000016 /* LibraryControllerTests.swift */,
 				A63000000000000000000016 /* QueueControllerTests.swift */,
 				A63000000000000000000017 /* SpectrumAnalyzerTests.swift */,
+				A64000000000000000000017 /* PlaylistTests.swift */,
+				A64000000000000000000018 /* ArchiveCompatibilityTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -490,6 +510,8 @@
 				A5D000000000000000000013 /* ArtworkProcessor.swift */,
 				A5D000000000000000000014 /* MetadataEnricher.swift */,
 				A5D000000000000000000015 /* LibraryImporter.swift */,
+				A64000000000000000000011 /* ArchiveWriter.swift */,
+				A64000000000000000000012 /* ArchiveReader.swift */,
 			);
 			path = Import;
 			sourceTree = "<group>";
@@ -512,6 +534,8 @@
 				A60000000000000000000021 /* Sky */,
 				A62000000000000000000020 /* Library */,
 				A63000000000000000000020 /* Player */,
+				A64000000000000000000020 /* Playlists */,
+				A64000000000000000000021 /* Settings */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -537,6 +561,24 @@
 				A63000000000000000000014 /* EQView.swift */,
 			);
 			path = Player;
+			sourceTree = "<group>";
+		};
+		A64000000000000000000020 /* Playlists */ = {
+			isa = PBXGroup;
+			children = (
+				A64000000000000000000013 /* PlaylistsController.swift */,
+				A64000000000000000000014 /* PlaylistsScreen.swift */,
+			);
+			path = Playlists;
+			sourceTree = "<group>";
+		};
+		A64000000000000000000021 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A64000000000000000000015 /* SettingsController.swift */,
+				A64000000000000000000016 /* SettingsScreen.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		A60000000000000000000021 /* Sky */ = {
@@ -566,6 +608,7 @@
 				A61000000000000000000015 /* AdaptiveChromeTests.swift */,
 				A62000000000000000000017 /* LibraryFlowTests.swift */,
 				A63000000000000000000018 /* PlaybackFlowTests.swift */,
+				A64000000000000000000019 /* SettingsFlowTests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -800,6 +843,8 @@
 				A5D000000000000000000003 /* ArtworkProcessor.swift in Sources */,
 				A5D000000000000000000004 /* MetadataEnricher.swift in Sources */,
 				A5D000000000000000000005 /* LibraryImporter.swift in Sources */,
+				A64000000000000000000001 /* ArchiveWriter.swift in Sources */,
+				A64000000000000000000002 /* ArchiveReader.swift in Sources */,
 				A5E000000000000000000001 /* PlaybackController.swift in Sources */,
 				A5E000000000000000000002 /* AudioSessionController.swift in Sources */,
 				A5E000000000000000000003 /* RemoteCommandCoordinator.swift in Sources */,
@@ -830,6 +875,10 @@
 				A63000000000000000000003 /* QueueView.swift in Sources */,
 				A63000000000000000000004 /* EQView.swift in Sources */,
 				A63000000000000000000005 /* SpectrumAnalyzer.swift in Sources */,
+				A64000000000000000000003 /* PlaylistsController.swift in Sources */,
+				A64000000000000000000004 /* PlaylistsScreen.swift in Sources */,
+				A64000000000000000000005 /* SettingsController.swift in Sources */,
+				A64000000000000000000006 /* SettingsScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -865,6 +914,8 @@
 				A62000000000000000000006 /* LibraryControllerTests.swift in Sources */,
 				A63000000000000000000006 /* QueueControllerTests.swift in Sources */,
 				A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */,
+				A64000000000000000000007 /* PlaylistTests.swift in Sources */,
+				A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -877,6 +928,7 @@
 				A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */,
 				A62000000000000000000007 /* LibraryFlowTests.swift in Sources */,
 				A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */,
+				A64000000000000000000009 /* SettingsFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

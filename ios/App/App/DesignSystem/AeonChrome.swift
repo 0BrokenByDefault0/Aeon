@@ -101,7 +101,7 @@ struct AeonChrome<PlayerBar: View>: View {
                         )
                         .transition(.move(edge: .bottom))
                     }
-                    Button { portraitSidebarVisible.toggle() } label: {
+                    Button {} label: {
                         Image(systemName: portraitSidebarVisible ? "xmark" : "line.3.horizontal")
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     }
@@ -111,6 +111,7 @@ struct AeonChrome<PlayerBar: View>: View {
                     .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
                     .padding(.leading, max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading))
                     .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
+                    .highPriorityGesture(TapGesture().onEnded { portraitSidebarVisible.toggle() })
                     .accessibilityLabel(portraitSidebarVisible ? "Close navigation" : "Open navigation")
                     .accessibilityIdentifier("aeon.navigation.menu")
                 } else {

@@ -1,10 +1,17 @@
 import SwiftUI
 
+enum NowPlayingSection: String, Hashable {
+    case equalizer
+    case spectrum
+}
+
 struct NowPlayingView: View {
     @ObservedObject var playback: PlaybackController
     @ObservedObject var spectrum: SpectrumAnalyzer
     let catalog: CatalogRepository
     let artworkStore: ArtworkStore
+    let initialSection: NowPlayingSection?
+    let reduceMotionOverride: Bool
     let close: () -> Void
     let locate: (String, Bool) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -14,8 +21,9 @@ struct NowPlayingView: View {
 
     var body: some View {
         AeonGlass {
-            ScrollView {
-                if let presentation = PlayerPresentation.resolve(
+            ScrollViewReader { proxy in
+                ScrollView {
+                    if let presentation = PlayerPresentation.resolve(
                     snapshot: playback.snapshot,
                     catalog: catalog,
                     artworkStore: artworkStore
@@ -29,26 +37,31 @@ struct NowPlayingView: View {
                         queueControls(snapshot: snapshot)
                         volume(snapshot: snapshot)
                         secondary(presentation: presentation, snapshot: snapshot)
-                        EQView(playback: playback)
-                        spectrumSection
+                        EQView(playback: playback).id(NowPlayingSection.equalizer)
+                        spectrumSection.id(NowPlayingSection.spectrum)
+                        }
+                        .padding(.horizontal, AeonTheme.Space.edge)
+                        .padding(.bottom, AeonTheme.Space.section)
+                        .frame(maxWidth: 620)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        AeonEmptyState(title: "Nothing in the player", detail: nil, actionTitle: nil, action: nil)
+                            .frame(maxWidth: .infinity, minHeight: 420)
                     }
-                    .padding(.horizontal, AeonTheme.Space.edge)
-                    .padding(.bottom, AeonTheme.Space.section)
-                    .frame(maxWidth: 620)
-                    .frame(maxWidth: .infinity)
-                } else {
-                    AeonEmptyState(title: "Nothing in the player", detail: nil, actionTitle: nil, action: nil)
-                        .frame(maxWidth: .infinity, minHeight: 420)
+                }
+                .scrollIndicators(.hidden)
+                .onAppear {
+                    guard let initialSection else { return }
+                    DispatchQueue.main.async { proxy.scrollTo(initialSection, anchor: .top) }
                 }
             }
-            .scrollIndicators(.hidden)
         }
         .background(AeonTheme.ColorToken.void.opacity(0.72).ignoresSafeArea())
         .sheet(isPresented: $queuePresented) {
             QueueView(playback: playback, catalog: catalog, close: { queuePresented = false })
         }
-        .onAppear { spectrum.setReduceMotion(reduceMotion) }
-        .onChange(of: reduceMotion) { spectrum.setReduceMotion($0) }
+        .onAppear { spectrum.setReduceMotion(reduceMotion || reduceMotionOverride) }
+        .onChange(of: reduceMotion) { spectrum.setReduceMotion($0 || reduceMotionOverride) }
     }
 
     private func heading(snapshot: PlaybackSnapshot) -> some View {

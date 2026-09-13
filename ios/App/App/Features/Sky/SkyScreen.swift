@@ -4,22 +4,31 @@ struct SkyScreen: View {
     @ObservedObject var controller: SkySceneController
     let importProgress: LibraryImportProgress?
     let readableInsets: AeonReadableInsets
+    let showHUD: Bool
+    let highContrast: Bool
+    let reduceMotionOverride: Bool
     let importFiles: () -> Void
     let importFolder: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                SkyMetalView(controller: controller)
+                SkyMetalView(controller: controller, reduceMotionOverride: reduceMotionOverride)
                     .ignoresSafeArea()
                     .opacity(controller.cameraCrossfade ? 0.28 : 1)
                     .animation(.linear(duration: 0.12), value: controller.cameraCrossfade)
-                SkyLabelOverlay(controller: controller, viewport: geometry.size)
+                SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: highContrast)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                 SkyAccessibilityOverlay(controller: controller)
                     .allowsHitTesting(false)
-                SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size)
+                SkyHUD(
+                    controller: controller,
+                    importProgress: importProgress,
+                    viewportSize: geometry.size,
+                    showCensus: showHUD,
+                    reduceMotionOverride: reduceMotionOverride
+                )
                     .padding(.horizontal, 18)
                     .padding(.top, max(8, geometry.safeAreaInsets.top))
                     .padding(.bottom, max(8, readableInsets.bottom))
@@ -111,6 +120,7 @@ struct SkyScreen: View {
 private struct SkyLabelOverlay: View {
     @ObservedObject var controller: SkySceneController
     let viewport: CGSize
+    let highContrast: Bool
 
     var body: some View {
         ZStack {
@@ -118,7 +128,7 @@ private struct SkyLabelOverlay: View {
                 Text(label.text)
                     .font(.system(size: label.isRegion ? 12 : 10, weight: .medium, design: .monospaced))
                     .tracking(label.isRegion ? 1.6 : 0.8)
-                    .foregroundStyle(.white.opacity(label.isRegion ? 0.9 : 0.82))
+                    .foregroundStyle(.white.opacity(highContrast ? 1 : (label.isRegion ? 0.9 : 0.82)))
                     .shadow(color: .black, radius: 3)
                     .position(label.position)
             }

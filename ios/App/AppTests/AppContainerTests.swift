@@ -14,6 +14,8 @@ final class AppContainerTests: XCTestCase {
         XCTAssertTrue(services.playbackStateStore === container.services?.playbackStateStore)
         XCTAssertTrue(services.diagnosticsLog === container.services?.diagnosticsLog)
         XCTAssertTrue(services.metadataProbe === container.services?.metadataProbe)
+        XCTAssertTrue(services.archiveWriter === container.services?.archiveWriter)
+        XCTAssertTrue(services.archiveRestorer === container.services?.archiveRestorer)
         XCTAssertTrue(services.skyRepository === container.services?.skyRepository)
         XCTAssertTrue(services.audioEngineGraph === container.services?.audioEngineGraph)
         XCTAssertTrue(services.spectrumAnalyzer === container.services?.spectrumAnalyzer)
@@ -101,5 +103,50 @@ final class AppContainerTests: XCTestCase {
         XCTAssertEqual(issue.catalogRecovery, recovery)
         XCTAssertEqual(container.roots, roots)
         XCTAssertNil(container.services)
+    }
+
+    func testEraseQuarantinesOwnedDataPreservesAdoptedAndLegacyStorageThenPurgesAfterRelaunch() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let roots = try AppStorageRoots.temporary(at: root, fileManager: .default)
+        let adopted = roots.documentsURL.appendingPathComponent("Music/Owned/adopted.wav", isDirectory: false)
+        let copied = roots.documentsURL.appendingPathComponent("Music/_Imported/album/copied.wav", isDirectory: false)
+        let indexedDB = roots.applicationSupportURL.appendingPathComponent("WebKit/WebsiteData/IndexedDB/legacy.data", isDirectory: false)
+        for url in [adopted, copied, indexedDB] {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(url.lastPathComponent.utf8).write(to: url)
+        }
+
+        var first: AppContainer? = AppContainer(
+            rootsProvider: { roots },
+            servicesFactory: { try AppServices.production(roots: $0) },
+            inspectLegacyLibrary: false
+        )
+        let oldServices = try XCTUnwrap(first?.services)
+        let album = CatalogAlbum(
+            id: "owned", sequence: 1, title: "Owned", artist: "Aeon", year: "2026", genre: "",
+            artworkKey: nil, importedAt: Date(timeIntervalSince1970: 1), updatedAt: Date(timeIntervalSince1970: 1)
+        )
+        try oldServices.catalogRepository.insertAlbum(album, tracks: [])
+
+        XCTAssertTrue(try XCTUnwrap(first).eraseEverything())
+        XCTAssertTrue(try XCTUnwrap(first?.services).catalogRepository.albumPage().isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: adopted.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: indexedDB.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copied.path))
+        let quarantine = roots.applicationSupportURL.appendingPathComponent("Aeon/EraseQuarantine", isDirectory: true)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: quarantine.appendingPathComponent("pending.json").path))
+
+        first?.services?.catalogDatabase.close()
+        first = nil
+        let relaunched = AppContainer(
+            rootsProvider: { roots },
+            servicesFactory: { try AppServices.production(roots: $0) },
+            inspectLegacyLibrary: false
+        )
+        XCTAssertEqual(relaunched.launchState, .ready)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: quarantine.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: adopted.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: indexedDB.path))
     }
 }

@@ -61,6 +61,8 @@ struct AppServices {
     let artworkProcessor: ArtworkProcessor
     let metadataEnricher: MetadataEnricher
     let libraryImporter: LibraryImporter
+    let archiveWriter: ArchiveWriter
+    let archiveRestorer: ArchiveRestorer
     let skyRepository: SkyRepository
     let audioEngineGraph: AudioEngineGraph
     let spectrumAnalyzer: SpectrumAnalyzer
@@ -121,6 +123,21 @@ struct AppServices {
             metadataEnricher: metadataEnricher,
             fileManager: fileManager
         )
+        let archiveWriter = ArchiveWriter(
+            repository: catalog,
+            artworkStore: artwork,
+            mediaStore: mediaStore,
+            temporaryRoot: roots.temporaryURL.appendingPathComponent("Archives", isDirectory: true),
+            fileManager: fileManager
+        )
+        let archiveRestorer = ArchiveRestorer(
+            repository: catalog,
+            artworkStore: artwork,
+            mediaStore: mediaStore,
+            playbackStateStore: stateStore,
+            restoreRoot: aeonSupport.appendingPathComponent("Restore", isDirectory: true),
+            fileManager: fileManager
+        )
         let skyRepository = SkyRepository(catalog: catalog, artworkStore: artwork)
         try skyRepository.backfill()
         let audioSession = AudioSessionController()
@@ -166,6 +183,8 @@ struct AppServices {
             artworkProcessor: artworkProcessor,
             metadataEnricher: metadataEnricher,
             libraryImporter: libraryImporter,
+            archiveWriter: archiveWriter,
+            archiveRestorer: archiveRestorer,
             skyRepository: skyRepository,
             audioEngineGraph: graph,
             spectrumAnalyzer: spectrumAnalyzer,
@@ -334,6 +353,7 @@ final class AppContainer: ObservableObject {
     private let cleanupFileManager: FileManager
     private var libraryImportTask: Task<Void, Never>?
     private var libraryImportCancellation: LibraryImportCancellation?
+    private let processEraseToken = UUID().uuidString
 
     init(
         rootsProvider: @escaping RootsProvider,
@@ -384,9 +404,17 @@ final class AppContainer: ObservableObject {
 
     func importLibrary(urls: [URL], mode: LibraryImportGroupingMode) {
         guard case .ready = launchState,
+              let resolvedServices = services,
               let importer = services?.libraryImporter,
               libraryImportTask == nil else { return }
         let cancellation = LibraryImportCancellation()
+        let effectiveMode: LibraryImportGroupingMode
+        if mode == .smart,
+           (try? resolvedServices.catalogRepository.setting(Bool.self, forKey: SettingsController.importGroupingKey)) ?? true {
+            effectiveMode = .single
+        } else {
+            effectiveMode = mode
+        }
         libraryImportCancellation = cancellation
         libraryImportProgress = LibraryImportProgress(
             phase: .scanning,
@@ -400,7 +428,7 @@ final class AppContainer: ObservableObject {
         libraryImportTask = Task { [weak self] in
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    try await importer.importURLs(urls, mode: mode, cancellation: cancellation) { progress in
+                    try await importer.importURLs(urls, mode: effectiveMode, cancellation: cancellation) { progress in
                         Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
                     }
                 }.value
@@ -430,6 +458,56 @@ final class AppContainer: ObservableObject {
 
     func applicationDidEnterBackground() {
         services?.playbackController.applicationDidEnterBackground()
+    }
+
+    @discardableResult
+    func eraseEverything() -> Bool {
+        guard let roots, let currentServices = services else { return false }
+        currentServices.playbackController.pause()
+        currentServices.catalogDatabase.close()
+        launchState = .launching
+        services = nil
+
+        let supportRoot = roots.applicationSupportURL.appendingPathComponent("Aeon", isDirectory: true)
+        let quarantineBase = supportRoot.appendingPathComponent("EraseQuarantine", isDirectory: true)
+        let quarantine = quarantineBase.appendingPathComponent(UUID().uuidString.lowercased(), isDirectory: true)
+        let marker = quarantineBase.appendingPathComponent("pending.json", isDirectory: false)
+        let targets: [(source: URL, name: String)] = [
+            (supportRoot.appendingPathComponent("Catalog", isDirectory: true), "support-Catalog"),
+            (supportRoot.appendingPathComponent("Artwork", isDirectory: true), "support-Artwork"),
+            (supportRoot.appendingPathComponent("Media", isDirectory: true), "support-Media"),
+            (supportRoot.appendingPathComponent("State", isDirectory: true), "support-State"),
+            (roots.documentsURL.appendingPathComponent("Music/_Imported", isDirectory: true), "documents-Imported"),
+            (roots.documentsURL.appendingPathComponent("Music/_Migrated", isDirectory: true), "documents-Migrated"),
+            (roots.documentsURL.appendingPathComponent("Music/_Restored", isDirectory: true), "documents-Restored")
+        ]
+        var moved: [(source: URL, destination: URL)] = []
+        do {
+            try cleanupFileManager.createDirectory(at: quarantine, withIntermediateDirectories: true)
+            for target in targets where cleanupFileManager.fileExists(atPath: target.source.path) {
+                let destination = quarantine.appendingPathComponent(target.name, isDirectory: true)
+                try cleanupFileManager.moveItem(at: target.source, to: destination)
+                moved.append((target.source, destination))
+            }
+            let markerData = try JSONSerialization.data(withJSONObject: ["token": processEraseToken], options: [.sortedKeys])
+            try markerData.write(to: marker, options: .atomic)
+            services = try servicesFactory(roots)
+            launchState = .ready
+            return true
+        } catch {
+            services?.catalogDatabase.close()
+            services = nil
+            for value in moved.reversed() where cleanupFileManager.fileExists(atPath: value.destination.path) {
+                try? cleanupFileManager.createDirectory(at: value.source.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? cleanupFileManager.moveItem(at: value.destination, to: value.source)
+            }
+            try? cleanupFileManager.removeItem(at: quarantineBase)
+            services = try? servicesFactory(roots)
+            launchState = services == nil
+                ? .recovery(AppRecoveryState(code: "erase_failed", message: "Aeon could not create a fresh catalogue. The quarantined library was restored."))
+                : .ready
+            return false
+        }
     }
 
     func restoreCatalog(from sourceURL: URL) {
@@ -478,6 +556,7 @@ final class AppContainer: ObservableObject {
                 roots = resolvedRoots
                 let resolvedServices = try servicesFactory(resolvedRoots)
                 services = resolvedServices
+                completePendingEraseIfNeeded(roots: resolvedRoots)
             }
             if inspectLegacyLibrary { beginLegacyInspection() }
             else { launchState = .ready }
@@ -495,6 +574,15 @@ final class AppContainer: ObservableObject {
                 message: "Aeon could not open its native storage. Check available device storage, then retry."
             ))
         }
+    }
+
+    private func completePendingEraseIfNeeded(roots: AppStorageRoots) {
+        let quarantine = roots.applicationSupportURL.appendingPathComponent("Aeon/EraseQuarantine", isDirectory: true)
+        let marker = quarantine.appendingPathComponent("pending.json", isDirectory: false)
+        guard let data = try? Data(contentsOf: marker),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+              object["token"] != processEraseToken else { return }
+        try? cleanupFileManager.removeItem(at: quarantine)
     }
 
     private func beginLegacyInspection() {

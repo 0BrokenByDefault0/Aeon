@@ -531,6 +531,26 @@ final class CatalogRepository {
         )
     }
 
+    func listeningStates(offset: Int = 0, limit: Int = CatalogDatabase.maximumPageSize) throws -> [CatalogListeningState] {
+        try validatePage(offset: offset, limit: limit)
+        return try database.query(
+            "SELECT * FROM listening ORDER BY track_id LIMIT ? OFFSET ?",
+            [.integer(Int64(limit)), .integer(Int64(offset))]
+        ).map { row in
+            guard let trackID = row.string("track_id"), let plays = row.int64("play_count"),
+                  let completed = row.int64("completed_count"), let position = row.double("last_position") else {
+                throw CatalogRepositoryError.decodeFailed("listening")
+            }
+            return CatalogListeningState(
+                trackID: trackID,
+                playCount: plays,
+                completedCount: completed,
+                lastPosition: position,
+                lastPlayedAt: row.double("last_played_at").map(Date.init(timeIntervalSince1970:))
+            )
+        }
+    }
+
     func setSetting<Value: Encodable>(_ value: Value, forKey key: String, at date: Date = Date()) throws {
         try validateSettingKey(key)
         let data = try encoder.encode(value)
@@ -555,6 +575,19 @@ final class CatalogRepository {
     func removeSetting(forKey key: String) throws {
         try validateSettingKey(key)
         try database.execute("DELETE FROM settings WHERE key = ?", [.text(key)])
+    }
+
+    func settingRecords(offset: Int = 0, limit: Int = CatalogDatabase.maximumPageSize) throws -> [CatalogSettingRecord] {
+        try validatePage(offset: offset, limit: limit)
+        return try database.query(
+            "SELECT key, value, updated_at FROM settings ORDER BY key LIMIT ? OFFSET ?",
+            [.integer(Int64(limit)), .integer(Int64(offset))]
+        ).map { row in
+            guard let key = row.string("key"), let value = row.data("value"), let updated = row.double("updated_at") else {
+                throw CatalogRepositoryError.decodeFailed("setting")
+            }
+            return CatalogSettingRecord(key: key, value: value, updatedAt: Date(timeIntervalSince1970: updated))
+        }
     }
 
     func upsertSkyRecord(_ record: SkyRecord) throws {
@@ -764,6 +797,219 @@ final class CatalogRepository {
         }
         if published { notifyObservers() }
         return published
+    }
+
+    func restoreArchive(
+        _ archive: AeonArchiveCatalog,
+        mediaReferences: [String: MediaReference],
+        artworkKeys: [String: String]
+    ) throws {
+        guard archive.v == AeonArchiveCatalog.version else { throw CatalogRepositoryError.invalidRecord }
+        let existingAlbums = try database.query("SELECT id, sequence, artwork_key FROM albums ORDER BY sequence")
+        let existingSequences = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, Int64)? in
+            guard let id = row.string("id"), let sequence = row.int64("sequence") else { return nil }
+            return (id, sequence)
+        })
+        let replacingIDs = Set(archive.albums.map(\.id))
+        let existingArtwork = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, String)? in
+            guard let id = row.string("id"), let key = row.string("artwork_key") else { return nil }
+            return (id, key)
+        })
+        var reserved = Set(existingSequences.compactMap { replacingIDs.contains($0.key) ? nil : $0.value })
+        var nextSequence = max(existingSequences.values.max() ?? 0, archive.albums.map(\.sequence).max() ?? 0) + 1
+        var resolvedSequences: [String: Int64] = [:]
+        for album in archive.albums.sorted(by: { ($0.sequence, $0.id) < ($1.sequence, $1.id) }) {
+            let sequence: Int64
+            if let existing = existingSequences[album.id] { sequence = existing }
+            else if album.sequence > 0, !reserved.contains(album.sequence) { sequence = album.sequence }
+            else {
+                while reserved.contains(nextSequence) { nextSequence += 1 }
+                sequence = nextSequence
+                nextSequence += 1
+            }
+            reserved.insert(sequence)
+            resolvedSequences[album.id] = sequence
+        }
+
+        for album in archive.albums {
+            try validateID(album.id)
+            for track in album.tracks {
+                try validateID(track.id)
+                guard track.albumID == album.id, mediaReferences[track.id] != nil else {
+                    throw CatalogRepositoryError.missingReference(track.id)
+                }
+                if let row = try database.query("SELECT album_id FROM tracks WHERE id = ?", [.text(track.id)]).first,
+                   row.string("album_id") != album.id {
+                    throw CatalogRepositoryError.duplicateStableID(track.id)
+                }
+            }
+        }
+
+        try database.transaction {
+            for value in archive.albums {
+                let album = CatalogAlbum(
+                    id: value.id,
+                    sequence: resolvedSequences[value.id]!,
+                    title: value.title,
+                    artist: value.artist,
+                    year: value.year,
+                    genre: value.genre,
+                    artworkKey: artworkKeys[value.id] ?? existingArtwork[value.id],
+                    importedAt: Date(timeIntervalSince1970: value.importedAt),
+                    updatedAt: Date(timeIntervalSince1970: value.updatedAt)
+                )
+                try validate(album)
+                if existingSequences[album.id] == nil { try insert(album) }
+                else { try updateAlbumRow(album) }
+
+                if existingSequences[album.id] != nil {
+                    let maximum = try database.scalar(
+                        "SELECT COALESCE(MAX(sequence), 0) AS value FROM tracks WHERE album_id = ?",
+                        [.text(album.id)]
+                    )?.int64 ?? 0
+                    if maximum > 0 {
+                        try database.execute(
+                            "UPDATE tracks SET sequence = sequence + ? WHERE album_id = ?",
+                            [.integer(maximum + Int64(value.tracks.count) + 1), .text(album.id)]
+                        )
+                    }
+                }
+                for archivedTrack in value.tracks {
+                    let track = CatalogTrack(
+                        id: archivedTrack.id,
+                        albumID: album.id,
+                        sequence: archivedTrack.sequence,
+                        discNumber: archivedTrack.discNumber,
+                        trackNumber: archivedTrack.trackNumber,
+                        title: archivedTrack.title,
+                        artist: archivedTrack.artist,
+                        duration: archivedTrack.duration,
+                        byteCount: archivedTrack.byteCount,
+                        mediaReference: mediaReferences[archivedTrack.id]!,
+                        importedAt: Date(timeIntervalSince1970: archivedTrack.importedAt)
+                    )
+                    try validate(track, expectedAlbumID: album.id)
+                    let media = try encodeMediaReference(track.mediaReference, expectedTrackID: track.id)
+                    try database.execute(
+                        """
+                        INSERT INTO tracks(
+                            id, album_id, sequence, disc_number, track_number, title, artist,
+                            normalized_title, normalized_artist, duration, byte_count,
+                            media_kind, media_path, media_bookmark, imported_at
+                        ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET album_id = excluded.album_id,
+                            sequence = excluded.sequence, disc_number = excluded.disc_number,
+                            track_number = excluded.track_number, title = excluded.title,
+                            artist = excluded.artist, normalized_title = excluded.normalized_title,
+                            normalized_artist = excluded.normalized_artist, duration = excluded.duration,
+                            byte_count = excluded.byte_count, media_kind = excluded.media_kind,
+                            media_path = excluded.media_path, media_bookmark = excluded.media_bookmark,
+                            imported_at = excluded.imported_at
+                        """,
+                        [
+                            .text(track.id), .text(track.albumID), .integer(Int64(track.sequence)),
+                            track.discNumber.map { .integer(Int64($0)) } ?? .null,
+                            track.trackNumber.map { .integer(Int64($0)) } ?? .null,
+                            .text(track.title), .text(track.artist), .text(Self.normalize(track.title)),
+                            .text(Self.normalize(track.artist)), track.duration.map(SQLiteValue.real) ?? .null,
+                            .integer(track.byteCount), .text(media.0), media.1, media.2,
+                            .real(track.importedAt.timeIntervalSince1970)
+                        ]
+                    )
+                }
+                let restoredTrackIDs = Set(value.tracks.map(\.id))
+                let obsoleteRows = try database.query(
+                    "SELECT id FROM tracks WHERE album_id = ?",
+                    [.text(album.id)]
+                )
+                for row in obsoleteRows {
+                    guard let id = row.string("id"), !restoredTrackIDs.contains(id) else { continue }
+                    try database.execute("DELETE FROM tracks WHERE id = ?", [.text(id)])
+                }
+            }
+
+            for playlist in archive.playlists {
+                try validateID(playlist.id)
+                guard !playlist.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw CatalogRepositoryError.invalidRecord
+                }
+                try database.execute(
+                    """
+                    INSERT INTO playlists(id, name, created_at, updated_at) VALUES(?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET name = excluded.name, updated_at = excluded.updated_at
+                    """,
+                    [.text(playlist.id), .text(playlist.name), .real(playlist.createdAt), .real(playlist.updatedAt)]
+                )
+                try database.execute("DELETE FROM playlist_items WHERE playlist_id = ?", [.text(playlist.id)])
+                for (position, trackID) in playlist.trackIDs.enumerated() {
+                    guard try recordExists(table: "tracks", id: trackID) else {
+                        throw CatalogRepositoryError.missingReference(trackID)
+                    }
+                    try database.execute(
+                        "INSERT INTO playlist_items(playlist_id, position, track_id) VALUES(?, ?, ?)",
+                        [.text(playlist.id), .integer(Int64(position)), .text(trackID)]
+                    )
+                }
+            }
+
+            for listening in archive.listening {
+                guard try recordExists(table: "tracks", id: listening.trackID) else {
+                    throw CatalogRepositoryError.missingReference(listening.trackID)
+                }
+                try database.execute(
+                    """
+                    INSERT INTO listening(track_id, play_count, completed_count, last_position, last_played_at)
+                    VALUES(?, ?, ?, ?, ?)
+                    ON CONFLICT(track_id) DO UPDATE SET
+                        play_count = MAX(listening.play_count, excluded.play_count),
+                        completed_count = MAX(listening.completed_count, excluded.completed_count),
+                        last_position = CASE WHEN excluded.last_played_at >= COALESCE(listening.last_played_at, 0)
+                            THEN excluded.last_position ELSE listening.last_position END,
+                        last_played_at = CASE
+                            WHEN excluded.last_played_at IS NULL THEN listening.last_played_at
+                            WHEN listening.last_played_at IS NULL THEN excluded.last_played_at
+                            ELSE MAX(listening.last_played_at, excluded.last_played_at) END
+                    """,
+                    [
+                        .text(listening.trackID), .integer(listening.playCount), .integer(listening.completedCount),
+                        .real(listening.lastPosition), listening.lastPlayedAt.map(SQLiteValue.real) ?? .null
+                    ]
+                )
+            }
+
+            for setting in archive.settings {
+                try validateSettingKey(setting.key)
+                try database.execute(
+                    """
+                    INSERT INTO settings(key, value, updated_at) VALUES(?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                    """,
+                    [.text(setting.key), .blob(setting.value), .real(setting.updatedAt)]
+                )
+            }
+            if let seed = archive.skySeed {
+                try database.execute(
+                    """
+                    INSERT INTO settings(key, value, updated_at) VALUES('sky.seed', ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+                    """,
+                    [.blob(try encoder.encode(seed)), .real(archive.exportedAt)]
+                )
+            }
+            for record in archive.skyRecords {
+                try validateID(record.id)
+                try database.execute(
+                    """
+                    INSERT INTO sky_records(id, kind, sequence, payload, updated_at) VALUES(?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, sequence = excluded.sequence,
+                        payload = excluded.payload, updated_at = excluded.updated_at
+                    """,
+                    [.text(record.id), .text(record.kind.rawValue), .integer(record.sequence),
+                     .blob(record.payload), .real(record.updatedAt)]
+                )
+            }
+        }
+        notifyObservers()
     }
 
     func observeLibrary(_ observer: @escaping (CatalogSnapshot) -> Void) -> CatalogObservation {

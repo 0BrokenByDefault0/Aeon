@@ -76,8 +76,9 @@ final class PlaybackFlowTests: XCTestCase {
     }
 
     private func openNavigationIfNeeded(in app: XCUIApplication) {
+        if app.buttons["aeon.navigation.settings"].waitForExistence(timeout: 2) { return }
         let menu = app.buttons["aeon.navigation.menu"]
-        if menu.waitForExistence(timeout: 2), menu.label == "Open navigation" { menu.tap() }
+        if menu.waitForExistence(timeout: 12), menu.label == "Open navigation" { menu.tap() }
     }
 
     private func scrollUp(in app: XCUIApplication, until element: XCUIElement) {

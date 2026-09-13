@@ -625,17 +625,17 @@ npm run test:ios -- -only-testing:AppTests/QueueControllerTests \
 - Playback, Library, Sky, and footer settings hierarchy.
 - Streaming full backup and catalogue-only export; transactional restore of legacy v1/v2 and native v3 archives.
 
-- [ ] Test playlist creation, stable item ordering, missing-track display, delete, queue conversion, and referential cleanup after album deletion.
-- [ ] Put creation behind the header `+`; keep inline create only in the `No routes charted yet.` empty state. Use a bundled celestial route mark rather than an emoji or generic music-note symbol.
-- [ ] Build Settings sections exactly as Playback, Library, The Sky, then a plain footer. EQ/Spectrum rows deep-link to Now Playing; they are not duplicated controls.
-- [ ] Preserve current metadata lookup, storage, backup, and `the sky goes dark` copy. Exclude the sample-data generator and all developer buttons from release builds.
-- [ ] Implement filled-on/bare-off `AeonToggle`, explicit storage measurement, resumable artwork repair, HUD/contrast/motion settings, sleep timer, diagnostics export, and activity-log export.
-- [ ] Implement catalogue-only JSON export first. Include schema version, stable IDs, metadata, playlists, listening stats, settings, queue checkpoint, sky seed, star coordinates, and planet records; omit audio and artwork bytes.
-- [ ] Implement a streaming ZIP64 store-mode writer for full backups with data descriptors and CRC32. Never stage a second whole-library copy or hold a complete archive in RAM. Include `isolation-backup.json` compatibility metadata plus native v3 fields.
-- [ ] Implement a bounded central-directory reader for store and deflate methods, ZIP32 and ZIP64, path traversal rejection, duplicate-path rejection, size/count limits, CRC verification, and extraction through `.incoming` files.
-- [ ] Restore 4.x v1/v2 fixtures produced by the existing JS writer. Restore v3 into staging catalogue/files, validate every relationship and checksum, then publish in one transaction. Merge by stable ID, keep the higher play count, and never erase the existing library before validation succeeds.
-- [ ] Route full export/import through native document pickers. Cancellation leaves the catalogue unchanged and removes only operation-owned partial files.
-- [ ] Implement Erase Everything with the locked copy and typed `ERASE`. Quarantine the database/artwork/copied-media set first, create a fresh catalogue, then delete the quarantine only after successful relaunch; preserve adopted files and legacy IndexedDB.
+- [x] Test playlist creation, stable item ordering, missing-track display, delete, queue conversion, and referential cleanup after album deletion.
+- [x] Put creation behind the header `+`; keep inline create only in the `No routes charted yet.` empty state. Use a bundled celestial route mark rather than an emoji or generic music-note symbol.
+- [x] Build Settings sections exactly as Playback, Library, The Sky, then a plain footer. EQ/Spectrum rows deep-link to Now Playing; they are not duplicated controls.
+- [x] Preserve current metadata lookup, storage, backup, and `the sky goes dark` copy. Exclude the sample-data generator and all developer buttons from release builds.
+- [x] Implement filled-on/bare-off `AeonToggle`, explicit storage measurement, resumable artwork repair, HUD/contrast/motion settings, sleep timer, diagnostics export, and activity-log export.
+- [x] Implement catalogue-only JSON export first. Include schema version, stable IDs, metadata, playlists, listening stats, settings, queue checkpoint, sky seed, star coordinates, and planet records; omit audio and artwork bytes.
+- [x] Implement a streaming ZIP64 store-mode writer for full backups with data descriptors and CRC32. Never stage a second whole-library copy or hold a complete archive in RAM. Include `isolation-backup.json` compatibility metadata plus native v3 fields.
+- [x] Implement a bounded central-directory reader for store and deflate methods, ZIP32 and ZIP64, path traversal rejection, duplicate-path rejection, size/count limits, CRC verification, and extraction through `.incoming` files.
+- [x] Restore 4.x v1/v2 fixtures produced by the existing JS writer. Restore v3 into staging catalogue/files, validate every relationship and checksum, then publish in one transaction. Merge by stable ID, keep the higher play count, and never erase the existing library before validation succeeds.
+- [x] Route full export/import through native document pickers. Cancellation leaves the catalogue unchanged and removes only operation-owned partial files.
+- [x] Implement Erase Everything with the locked copy and typed `ERASE`. Quarantine the database/artwork/copied-media set first, create a fresh catalogue, then delete the quarantine only after successful relaunch; preserve adopted files and legacy IndexedDB.
 
 **Gate**
 
