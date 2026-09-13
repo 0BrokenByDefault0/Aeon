@@ -14,6 +14,7 @@ final class AppContainerTests: XCTestCase {
         XCTAssertTrue(services.playbackStateStore === container.services?.playbackStateStore)
         XCTAssertTrue(services.diagnosticsLog === container.services?.diagnosticsLog)
         XCTAssertTrue(services.metadataProbe === container.services?.metadataProbe)
+        XCTAssertTrue(services.skyRepository === container.services?.skyRepository)
         XCTAssertTrue(services.audioEngineGraph === container.services?.audioEngineGraph)
         XCTAssertTrue(services.queueScheduler === container.services?.queueScheduler)
         XCTAssertTrue(services.playbackCoordinator === container.services?.playbackCoordinator)

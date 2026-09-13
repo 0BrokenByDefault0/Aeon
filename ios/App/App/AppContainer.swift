@@ -61,6 +61,7 @@ struct AppServices {
     let artworkProcessor: ArtworkProcessor
     let metadataEnricher: MetadataEnricher
     let libraryImporter: LibraryImporter
+    let skyRepository: SkyRepository
     let audioEngineGraph: AudioEngineGraph
     let queueScheduler: QueueScheduler
     let playbackCoordinator: PlaybackCoordinator
@@ -113,6 +114,8 @@ struct AppServices {
             metadataEnricher: metadataEnricher,
             fileManager: fileManager
         )
+        let skyRepository = SkyRepository(catalog: catalog, artworkStore: artwork)
+        try skyRepository.backfill()
         let audioSession = AudioSessionController()
         try audioSession.activate()
         let graph = AudioEngineGraph()
@@ -147,6 +150,7 @@ struct AppServices {
             artworkProcessor: artworkProcessor,
             metadataEnricher: metadataEnricher,
             libraryImporter: libraryImporter,
+            skyRepository: skyRepository,
             audioEngineGraph: graph,
             queueScheduler: scheduler,
             playbackCoordinator: coordinator,
@@ -287,6 +291,7 @@ final class AppContainer: ObservableObject {
                         Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
                     }
                 }.value
+                _ = try self?.services?.skyRepository.backfill()
                 self?.libraryImportResult = result
             } catch LibraryImportError.cancelled {
                 self?.libraryImportError = "Import paused. Select the same files or folder to resume."
@@ -420,6 +425,9 @@ final class AppContainer: ObservableObject {
                         self.launchState = .migrating(progress)
                     }
                     if progress.sourceComplete { self.legacyBridgeRequired = false }
+                }
+                if progress.catalogueReady {
+                    _ = try? services.skyRepository.backfill()
                 }
             }
             migrationCoordinator = coordinator

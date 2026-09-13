@@ -72,6 +72,13 @@
 		A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000015 /* PlaybackControllerTests.swift */; };
 		A5E000000000000000000006 /* AudioSessionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000016 /* AudioSessionPolicyTests.swift */; };
 		A5E000000000000000000007 /* RecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000017 /* RecoveryTests.swift */; };
+		A5F000000000000000000001 /* SkyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000011 /* SkyModels.swift */; };
+		A5F000000000000000000002 /* SkyComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000012 /* SkyComposer.swift */; };
+		A5F000000000000000000003 /* SkyRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000013 /* SkyRepository.swift */; };
+		A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000014 /* PlanetTextureGenerator.swift */; };
+		A5F000000000000000000005 /* SkyComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000015 /* SkyComposerTests.swift */; };
+		A5F000000000000000000006 /* PlanetModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000016 /* PlanetModelTests.swift */; };
+		A5F000000000000000000007 /* sky-catalogue-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000017 /* sky-catalogue-v1.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -159,6 +166,13 @@
 		A5E000000000000000000015 /* PlaybackControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControllerTests.swift; sourceTree = "<group>"; };
 		A5E000000000000000000016 /* AudioSessionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionPolicyTests.swift; sourceTree = "<group>"; };
 		A5E000000000000000000017 /* RecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTests.swift; sourceTree = "<group>"; };
+		A5F000000000000000000011 /* SkyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyModels.swift; sourceTree = "<group>"; };
+		A5F000000000000000000012 /* SkyComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyComposer.swift; sourceTree = "<group>"; };
+		A5F000000000000000000013 /* SkyRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyRepository.swift; sourceTree = "<group>"; };
+		A5F000000000000000000014 /* PlanetTextureGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanetTextureGenerator.swift; sourceTree = "<group>"; };
+		A5F000000000000000000015 /* SkyComposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyComposerTests.swift; sourceTree = "<group>"; };
+		A5F000000000000000000016 /* PlanetModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanetModelTests.swift; sourceTree = "<group>"; };
+		A5F000000000000000000017 /* sky-catalogue-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/sky-catalogue-v1.json; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -233,6 +247,7 @@
 			children = (
 				A52000000000000000000020 /* Audio */,
 				A5E000000000000000000020 /* Playback */,
+				A5F000000000000000000020 /* Sky */,
 				A5B000000000000000000020 /* Domain */,
 				A5D000000000000000000020 /* Import */,
 				A58000000000000000000020 /* Migration */,
@@ -285,6 +300,9 @@
 				A5E000000000000000000015 /* PlaybackControllerTests.swift */,
 				A5E000000000000000000016 /* AudioSessionPolicyTests.swift */,
 				A5E000000000000000000017 /* RecoveryTests.swift */,
+				A5F000000000000000000015 /* SkyComposerTests.swift */,
+				A5F000000000000000000016 /* PlanetModelTests.swift */,
+				A5F000000000000000000017 /* sky-catalogue-v1.json */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -316,6 +334,17 @@
 				A5E000000000000000000014 /* RecoveryCoordinator.swift */,
 			);
 			path = Playback;
+			sourceTree = "<group>";
+		};
+		A5F000000000000000000020 /* Sky */ = {
+			isa = PBXGroup;
+			children = (
+				A5F000000000000000000011 /* SkyModels.swift */,
+				A5F000000000000000000012 /* SkyComposer.swift */,
+				A5F000000000000000000013 /* SkyRepository.swift */,
+				A5F000000000000000000014 /* PlanetTextureGenerator.swift */,
+			);
+			path = Sky;
 			sourceTree = "<group>";
 		};
 		A5B000000000000000000020 /* Domain */ = {
@@ -506,6 +535,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A53000000000000000000005 /* audio in Resources */,
+				A5F000000000000000000007 /* sky-catalogue-v1.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -614,6 +644,10 @@
 				A5E000000000000000000002 /* AudioSessionController.swift in Sources */,
 				A5E000000000000000000003 /* RemoteCommandCoordinator.swift in Sources */,
 				A5E000000000000000000004 /* RecoveryCoordinator.swift in Sources */,
+				A5F000000000000000000001 /* SkyModels.swift in Sources */,
+				A5F000000000000000000002 /* SkyComposer.swift in Sources */,
+				A5F000000000000000000003 /* SkyRepository.swift in Sources */,
+				A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -641,6 +675,8 @@
 				A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */,
 				A5E000000000000000000006 /* AudioSessionPolicyTests.swift in Sources */,
 				A5E000000000000000000007 /* RecoveryTests.swift in Sources */,
+				A5F000000000000000000005 /* SkyComposerTests.swift in Sources */,
+				A5F000000000000000000006 /* PlanetModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

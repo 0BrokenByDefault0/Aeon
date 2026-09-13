@@ -418,16 +418,16 @@ npm run test:ios -- -only-testing:AppTests/PlaybackControllerTests \
 - Deterministic backfill and incremental placement with permanent coordinates.
 - Fixed-output planet descriptors and textures derived from immutable album cohorts.
 
-- [ ] Lock the grammar in tests: one album is one star; artists get figure lines only at two or more albums; Various Artists gets no figure; no usable genre becomes Uncharted; local majority ties go to the earliest imported album.
-- [ ] Test placement precedence exactly as the handoff specifies. Network-off results must be identical across launches and devices.
-- [ ] Persist a star coordinate at first placement. Rebuild, import, playback, migration, lookup-cache refresh, rotation, and renderer changes must not alter it. Only confirmed charting/manual metadata edits may generate a new coordinate.
-- [ ] Place new artists outward from the origin using collision-tested deterministic candidate positions. Add albums by an existing artist near its existing figure without moving earlier stars.
-- [ ] Give Uncharted album-hash positions independent of arrival order. It has no figure lines, region glow, or alarm color.
-- [ ] Form planets at album counts 20, 40, 60, and so on. Store ordered member IDs/timestamps, frontier radius, formation timestamp, seed, and descriptor. Deleting or retagging an album never changes membership.
-- [ ] Backfill existing libraries in import order and write all missing planets in one transaction. Re-running backfill is a no-op.
-- [ ] Derive band colors from quantized artwork samples; rotation from average known tempo; turbulence from known dynamic range; rings from genre purity; missing inputs use seed-derived defaults. Listening stats change vibrancy only, not surface identity.
-- [ ] Generate the base 512×512 RGBA planet texture with fixed-width integer math and a versioned algorithm. Commit expected SHA-256 hashes for at least twelve fixtures so the same seed produces byte-identical pixels.
-- [ ] Test that the 10,000-album fixture has 500 planets, no duplicate membership, bounded placement time, and no overlap with its saved frontier exclusion zones.
+- [x] Lock the grammar in tests: one album is one star; artists get figure lines only at two or more albums; Various Artists gets no figure; no usable genre becomes Uncharted; local majority ties go to the earliest imported album.
+- [x] Test placement precedence exactly as the handoff specifies. Network-off results must be identical across launches and devices.
+- [x] Persist a star coordinate at first placement. Rebuild, import, playback, migration, lookup-cache refresh, rotation, and renderer changes must not alter it. Only confirmed charting/manual metadata edits may generate a new coordinate.
+- [x] Place new artists outward from the origin using collision-tested deterministic candidate positions. Add albums by an existing artist near its existing figure without moving earlier stars.
+- [x] Give Uncharted album-hash positions independent of arrival order. It has no figure lines, region glow, or alarm color.
+- [x] Form planets at album counts 20, 40, 60, and so on. Store ordered member IDs/timestamps, frontier radius, formation timestamp, seed, and descriptor. Deleting or retagging an album never changes membership.
+- [x] Backfill existing libraries in import order and write all missing planets in one transaction. Re-running backfill is a no-op.
+- [x] Derive band colors from quantized artwork samples; rotation from average known tempo; turbulence from known dynamic range; rings from genre purity; missing inputs use seed-derived defaults. Listening stats change vibrancy only, not surface identity.
+- [x] Generate the base 512×512 RGBA planet texture with fixed-width integer math and a versioned algorithm. Commit expected SHA-256 hashes for at least twelve fixtures so the same seed produces byte-identical pixels.
+- [x] Test that the 10,000-album fixture has 500 planets, no duplicate membership, bounded placement time, and no overlap with its saved frontier exclusion zones.
 
 **Gate**
 

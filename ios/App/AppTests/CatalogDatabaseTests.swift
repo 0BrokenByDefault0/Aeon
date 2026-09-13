@@ -85,6 +85,10 @@ final class CatalogDatabaseTests: XCTestCase {
         try fixture?.execute("INSERT INTO playlists(id, name, created_at, updated_at) VALUES('list', 'Route', 1, 1)")
         try fixture?.execute("INSERT INTO playlist_items(playlist_id, position, track_id) VALUES('list', 0, 'track')")
         try fixture?.execute("INSERT INTO listening(track_id, play_count, completed_count, last_position) VALUES('track', 7, 2, 3)")
+        try fixture?.execute(
+            "INSERT INTO sky_records(id, kind, sequence, payload, updated_at) VALUES('planet:1', 'planet', 1, ?, 1)",
+            [.blob(Data("{\"legacy\":true}".utf8))]
+        )
         fixture?.close()
         fixture = nil
 
@@ -99,6 +103,14 @@ final class CatalogDatabaseTests: XCTestCase {
         XCTAssertEqual(try migrated.scalar("SELECT COUNT(*) AS value FROM tracks")?.int64, 1)
         XCTAssertEqual(try migrated.scalar("SELECT COUNT(*) AS value FROM playlist_items")?.int64, 1)
         XCTAssertEqual(try migrated.scalar("SELECT play_count AS value FROM listening WHERE track_id = 'track'")?.int64, 7)
+        XCTAssertEqual(
+            try migrated.query("SELECT payload FROM sky_records WHERE id = 'planet:1'").first?.data("payload"),
+            Data("{\"legacy\":true}".utf8)
+        )
+        try migrated.execute(
+            "INSERT INTO sky_records(id, kind, sequence, payload, updated_at) VALUES('star:fixture', 'star', 1, ?, 1)",
+            [.blob(Data("{}".utf8))]
+        )
         XCTAssertTrue(try migrated.foreignKeysEnabled)
         XCTAssertTrue((try migrated.query("PRAGMA foreign_key_check")).isEmpty)
         try migrated.execute("UPDATE tracks SET media_kind = 'documents', media_path = 'Music/track.wav' WHERE id = 'track'")

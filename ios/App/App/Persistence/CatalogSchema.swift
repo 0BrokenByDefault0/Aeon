@@ -1,7 +1,7 @@
 import Foundation
 
 enum CatalogSchema {
-    static let currentVersion = 3
+    static let currentVersion = 4
 
     static let versionOne = [
         """
@@ -175,5 +175,22 @@ enum CatalogSchema {
         "CREATE INDEX tracks_artist_idx ON tracks(normalized_artist, album_id)",
         "CREATE INDEX playlist_items_track_idx ON playlist_items(track_id)",
         "CREATE INDEX listening_recent_idx ON listening(last_played_at DESC)"
+    ]
+
+    static let versionFour = [
+        "ALTER TABLE sky_records RENAME TO sky_records_v3",
+        "DROP INDEX sky_records_kind_idx",
+        """
+        CREATE TABLE sky_records (
+            id TEXT PRIMARY KEY NOT NULL CHECK(length(id) BETWEEN 1 AND 512),
+            kind TEXT NOT NULL CHECK(kind IN ('region', 'constellation', 'star', 'planet', 'camera')),
+            sequence INTEGER NOT NULL,
+            payload BLOB NOT NULL,
+            updated_at REAL NOT NULL
+        ) WITHOUT ROWID
+        """,
+        "INSERT INTO sky_records SELECT id, kind, sequence, payload, updated_at FROM sky_records_v3",
+        "DROP TABLE sky_records_v3",
+        "CREATE INDEX sky_records_kind_idx ON sky_records(kind, sequence)"
     ]
 }

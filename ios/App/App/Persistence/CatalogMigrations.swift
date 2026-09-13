@@ -17,6 +17,7 @@ enum CatalogMigrations {
             case 1: statements = CatalogSchema.versionOne
             case 2: statements = CatalogSchema.versionTwo
             case 3: statements = CatalogSchema.versionThree
+            case 4: statements = CatalogSchema.versionFour
             default: throw CatalogMigrationError.missingMigration(version)
             }
             try database.transaction {

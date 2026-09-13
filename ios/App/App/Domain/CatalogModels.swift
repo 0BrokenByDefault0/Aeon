@@ -68,6 +68,7 @@ struct CatalogListeningState: Codable, Equatable {
 enum SkyRecordKind: String, Codable, CaseIterable {
     case region
     case constellation
+    case star
     case planet
     case camera
 }
