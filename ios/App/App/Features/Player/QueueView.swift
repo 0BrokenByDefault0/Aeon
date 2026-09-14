@@ -99,8 +99,8 @@ struct QueueView: View {
         }
         .padding(AeonTheme.Space.medium)
         .background(
-            RoundedRectangle(cornerRadius: AeonTheme.Radius.card, style: .continuous)
-                .fill(AeonTheme.ColorToken.surfaceRaised.opacity(0.74))
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                .fill(AeonTheme.ColorToken.chamber.opacity(0.74))
         )
     }
 
