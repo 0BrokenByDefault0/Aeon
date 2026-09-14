@@ -39,7 +39,24 @@ final class LibraryFlowTests: XCTestCase {
         app.menuItems["Select All"].tap()
         title.typeText("Glass Archive Revised")
         app.buttons["aeon.album.editor.save"].tap()
-        XCTAssertTrue(app.staticTexts["Glass Archive Revised"].waitForExistence(timeout: 6))
+        if !app.staticTexts["Glass Archive Revised"].waitForExistence(timeout: 6) {
+            // Either the save was refused and the sheet is still up, or it committed and
+            // the detail view is showing a stale album. The editor's own controls say
+            // which, so record them rather than failing on the title alone.
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "album-rename-not-visible"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTFail(
+                """
+                Renamed title never appeared.
+                editor still presented: save=\(app.buttons["aeon.album.editor.save"].exists) \
+                titleField=\(app.textFields["aeon.album.editor.title"].exists)
+                detail present: \(app.descendants(matching: .any)["aeon.album.detail"].exists)
+                find-in-sky hittable: \(app.buttons["aeon.album.find-in-sky"].isHittable)
+                """
+            )
+        }
         app.buttons["aeon.album.find-in-sky"].tap()
         XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.star-selection"].waitForExistence(timeout: 6))

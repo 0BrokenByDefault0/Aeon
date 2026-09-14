@@ -24,6 +24,10 @@ on:
         description: 'Build the .ipa without the test suite. Manual runs only, for getting a build onto a device when an unrelated test is red.'
         type: boolean
         default: false
+      test_filter:
+        description: 'Run only these tests, e.g. "--family=iphone -only-testing:AppUITests/LibraryFlowTests". Manual runs only; a full run takes over an hour, which is a slow way to debug one shard.'
+        type: string
+        default: ''
 
 jobs:
   ipa:
@@ -74,7 +78,7 @@ jobs:
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
         env:
           AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-5.0.xcresult
-        run: npm run test:ios
+        run: npm run test:ios -- ${{ inputs.test_filter }}
 
       - name: Upload native test evidence
         if: always()

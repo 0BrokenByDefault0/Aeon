@@ -208,7 +208,12 @@ final class AeonScreenMatrixTests: XCTestCase {
         XCTAssertTrue(app.buttons["aeon.navigation.sky"].waitForExistence(timeout: 4))
     }
 
-    private func scroll(in app: XCUIApplication, until element: XCUIElement) {
+    private func scroll(
+        in app: XCUIApplication,
+        until element: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let window = app.windows.firstMatch.frame
         let scrollView = app.scrollViews.firstMatch
         for _ in 0..<30 where !element.exists || !element.isHittable {
@@ -218,7 +223,24 @@ final class AeonScreenMatrixTests: XCTestCase {
                 app.swipeUp()
             }
         }
-        XCTAssertTrue(element.isHittable)
+        if !element.isHittable {
+            // A bare assert here says only that something is unreachable, which is not
+            // enough to tell an unscrollable list from one whose last row sits under the
+            // chrome. Record the geometry that distinguishes them.
+            let attachment = XCTAttachment(screenshot: app.screenshot())
+            attachment.name = "unreachable-\(element.identifier)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTFail(
+                """
+                \(element.identifier) never became hittable.
+                exists=\(element.exists) frame=\(element.exists ? "\(element.frame)" : "n/a")
+                window=\(window) scrollView=\(scrollView.exists ? "\(scrollView.frame)" : "absent")
+                """,
+                file: file,
+                line: line
+            )
+        }
     }
 
     private func capture(_ app: XCUIApplication, name: String) {
