@@ -19,6 +19,11 @@ on:
       - 'capacitor.config.json'
       - '.github/workflows/ios-ipa.yml'
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Build the .ipa without the test suite. Manual runs only, for getting a build onto a device when an unrelated test is red.'
+        type: boolean
+        default: false
 
 jobs:
   ipa:
@@ -27,7 +32,9 @@ jobs:
     # written. (This was not what stopped the 2026-08-28 builds: every job
     # on the account, Linux included, was being refused a runner.)
     runs-on: macos-latest
-    timeout-minutes: 60
+    # The runner executes every test shard rather than stopping at the first
+    # failure, across both simulator families, which does not fit in 60.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +68,9 @@ jobs:
         run: pod install --repo-update
 
       - name: Verify native tests
+        # Push builds are always gated on the suite. Only an explicit manual run
+        # can ask for a build without it.
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
         env:
           AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-5.0.xcresult
         run: npm run test:ios
