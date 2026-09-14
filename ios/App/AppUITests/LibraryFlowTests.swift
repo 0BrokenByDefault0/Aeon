@@ -27,39 +27,110 @@ final class LibraryFlowTests: XCTestCase {
         let app = launch(fixture: "populated")
         openLibrary(in: app)
         let album = app.buttons["aeon.library.album.library-fixture-album-12"]
-        XCTAssertTrue(album.waitForExistence(timeout: 8))
+        guard album.waitForExistence(timeout: 8) else {
+            fail("Fixture album did not appear", in: app)
+            return
+        }
         album.tap()
         XCTAssertTrue(app.buttons["aeon.album.play"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.buttons["aeon.album.find-in-sky"].exists)
         app.buttons["aeon.album.edit"].tap()
         let title = app.textFields["aeon.album.editor.title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        guard title.waitForExistence(timeout: 5) else {
+            fail("Editor did not open", in: app)
+            return
+        }
         title.tap()
         title.press(forDuration: 1)
-        app.menuItems["Select All"].tap()
-        title.typeText("Glass Archive Revised")
-        app.buttons["aeon.album.editor.save"].tap()
-        if !app.staticTexts["Glass Archive Revised"].waitForExistence(timeout: 6) {
-            // Either the save was refused and the sheet is still up, or it committed and
-            // the detail view is showing a stale album. The editor's own controls say
-            // which, so record them rather than failing on the title alone.
-            let attachment = XCTAttachment(screenshot: app.screenshot())
-            attachment.name = "album-rename-not-visible"
-            attachment.lifetime = .keepAlways
-            add(attachment)
-            XCTFail(
-                """
-                Renamed title never appeared.
-                editor still presented: save=\(app.buttons["aeon.album.editor.save"].exists) \
-                titleField=\(app.textFields["aeon.album.editor.title"].exists)
-                detail present: \(app.descendants(matching: .any)["aeon.album.detail"].exists)
-                find-in-sky hittable: \(app.buttons["aeon.album.find-in-sky"].isHittable)
-                """
-            )
+        let selectAll = app.menuItems["Select All"]
+        guard selectAll.waitForExistence(timeout: 3) else {
+            fail("Could not select the original title for replacement", in: app)
+            return
         }
-        app.buttons["aeon.album.find-in-sky"].tap()
+        selectAll.tap()
+        let renamedTitle = "Glass Archive Revised"
+        title.typeText(renamedTitle)
+        guard title.value as? String == renamedTitle else {
+            fail("Title entry failed before Save; actual value: \(String(describing: title.value))", in: app)
+            return
+        }
+
+        let save = app.buttons["aeon.album.editor.save"]
+        guard reveal(save, in: app), save.isEnabled else {
+            fail("Save is not reachable and enabled", in: app)
+            return
+        }
+        save.tap()
+
+        // A background detail remains in the accessibility tree while a sheet is
+        // presented. Its existence is not evidence that the editor dismissed.
+        guard wait(for: title, predicate: "exists == false") else {
+            let saveError = app.staticTexts["aeon.album.editor.save-error"]
+            fail("Editor remained open after Save. Error: \(saveError.exists ? saveError.label : "none exposed")", in: app)
+            return
+        }
+        let detailTitle = app.staticTexts["aeon.album.title"]
+        guard wait(for: detailTitle, predicate: "label == %@", value: renamedTitle) else {
+            fail("Editor dismissed, but the detail title did not update", in: app)
+            return
+        }
+
+        // Reopen the same catalog ID so this also exercises a fresh repository read,
+        // rather than accepting the editor's in-memory draft as proof of persistence.
+        app.buttons["aeon.album.close"].tap()
+        guard album.waitForExistence(timeout: 6) else {
+            fail("Library album did not reappear after closing detail", in: app)
+            return
+        }
+        guard reveal(album, in: app) else { return }
+        album.tap()
+        guard wait(for: detailTitle, predicate: "label == %@", value: renamedTitle) else {
+            fail("The renamed title was not retained when reopening the same album", in: app)
+            return
+        }
+        let findInSky = app.buttons["aeon.album.find-in-sky"]
+        guard reveal(findInSky, in: app) else { return }
+        findInSky.tap()
         XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.star-selection"].waitForExistence(timeout: 6))
+    }
+
+    private func wait(for element: XCUIElement, predicate: String, value: String? = nil) -> Bool {
+        let condition = value.map { NSPredicate(format: predicate, $0) } ?? NSPredicate(format: predicate)
+        return XCTWaiter.wait(
+            for: [XCTNSPredicateExpectation(predicate: condition, object: element)],
+            timeout: 6
+        ) == .completed
+    }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        if element.exists && element.isHittable { return true }
+        let scroll = app.scrollViews.containing(.any, identifier: element.identifier).firstMatch
+        guard scroll.exists else {
+            fail("No owning scroll view for \(element.identifier)", in: app)
+            return false
+        }
+        for _ in 0..<8 {
+            if element.exists && element.isHittable { return true }
+            scroll.swipeUp()
+        }
+        guard element.exists && element.isHittable else {
+            fail("Unreachable \(element.identifier); target=\(element.frame), scroll=\(scroll.frame)", in: app)
+            return false
+        }
+        return true
+    }
+
+    private func fail(_ message: String, in app: XCUIApplication) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "album-edit-failure"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "album-edit-hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        XCTFail(message)
     }
 
     private func launch(fixture: String) -> XCUIApplication {

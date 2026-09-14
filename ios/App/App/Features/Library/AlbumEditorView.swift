@@ -15,6 +15,7 @@ struct AlbumEditorView: View {
     @State private var lookupRunning = false
     @State private var pendingMovementCount = 0
     @State private var confirmingMove = false
+    @State private var saveError: String?
 
     init(controller: LibraryController, album: CatalogAlbum) {
         self.controller = controller
@@ -57,6 +58,12 @@ struct AlbumEditorView: View {
                     Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                 }
 
+                if let saveError {
+                    Text(saveError)
+                        .font(AeonTheme.FontToken.ui(.callout))
+                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                        .accessibilityIdentifier("aeon.album.editor.save-error")
+                }
                 Button("SAVE CHANGES") { requestSave() }
                     .buttonStyle(AeonButtonStyle(tier: .filled))
                     .disabled(!valid)
@@ -104,6 +111,7 @@ struct AlbumEditorView: View {
             .buttonStyle(.plain)
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .accessibilityLabel("Cancel editing")
+            .accessibilityIdentifier("aeon.album.editor.cancel")
         }
     }
 
@@ -182,6 +190,7 @@ struct AlbumEditorView: View {
     }
 
     private func requestSave() {
+        saveError = nil
         let count = controller.movementCount(for: draft)
         if count > 0 {
             pendingMovementCount = count
@@ -192,6 +201,11 @@ struct AlbumEditorView: View {
     }
 
     private func commit() {
-        if controller.saveAlbum(draft, artworkData: artworkData) { dismiss() }
+        if controller.saveAlbum(draft, artworkData: artworkData) {
+            dismiss()
+        } else {
+            // Keep the draft and distinguish a refused save from a dismissal failure.
+            saveError = "The album could not be saved. Your edits are still here. Try again or cancel to leave them unsaved."
+        }
     }
 }
