@@ -12,9 +12,22 @@ on:
       - 'app/**'
       - 'ios/**'
       - 'package.json'
+      - 'package-lock.json'
+      - 'tests/**'
+      - 'test/**'
+      - 'scripts/**'
       - 'capacitor.config.json'
       - '.github/workflows/ios-ipa.yml'
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Build the .ipa without the test suite. Manual runs only, for getting a build onto a device when an unrelated test is red.'
+        type: boolean
+        default: false
+      test_filter:
+        description: 'Run only these tests, e.g. "--family=iphone -only-testing:AppUITests/LibraryFlowTests". Manual runs only; a full run takes over an hour, which is a slow way to debug one shard.'
+        type: string
+        default: ''
 
 jobs:
   ipa:
@@ -23,7 +36,9 @@ jobs:
     # written. (This was not what stopped the 2026-08-28 builds: every job
     # on the account, Linux included, was being refused a runner.)
     runs-on: macos-latest
-    timeout-minutes: 40
+    # The runner executes every test shard rather than stopping at the first
+    # failure, across both simulator families, which does not fit in 60.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -32,14 +47,47 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
-      - name: Sync web assets into the iOS shell
-        run: npx cap sync ios
+      - name: Verify playback and library regressions
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
+        run: |
+          npm test
+          npm run check
+          npx playwright install chromium
+          npm run test:browser
+          npm run test:interface:ci
+          npm run test:arrival
+          npm run test:sky-chrome
+          npm run test:native-audio
+          npm run test:legacy-migration
+
+      - name: Sync migration assets into the iOS shell
+        run: |
+          npx cap sync ios
+          cmp app/legacy-migration.html ios/App/App/public/legacy-migration.html
+          cmp app/legacy-migration.js ios/App/App/public/legacy-migration.js
 
       - name: Install pods
         working-directory: ios/App
         run: pod install --repo-update
+
+      - name: Verify native tests
+        # Push builds are always gated on the suite. Only an explicit manual run
+        # can ask for a build without it.
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
+        env:
+          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-5.0.xcresult
+        run: npm run test:ios -- ${{ inputs.test_filter }}
+
+      - name: Upload native test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-5.0-xcresult
+          path: ${{ runner.temp }}/Aeon-5.0-*.xcresult
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Build unsigned
         working-directory: ios/App
@@ -61,14 +109,16 @@ jobs:
         run: |
           APP="build/Build/Products/Release-iphoneos/App.app"
           test -d "$APP" || { echo "App.app was not produced"; ls -R build/Build/Products || true; exit 1; }
-          mkdir -p Payload
-          cp -R "$APP" Payload/
-          zip -qry ISOLATION-unsigned.ipa Payload
-          ls -lh ISOLATION-unsigned.ipa
+          PACKAGE_OUTPUT="$PWD/Aeon-5.0-unsigned.ipa"
+          PACKAGE_ROOT="$(mktemp -d)"
+          mkdir -p "$PACKAGE_ROOT/Payload"
+          cp -R "$APP" "$PACKAGE_ROOT/Payload/"
+          (cd "$PACKAGE_ROOT" && zip -qry "$PACKAGE_OUTPUT" Payload)
+          ls -lh Aeon-5.0-unsigned.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ISOLATION-unsigned-ipa
-          path: ios/App/ISOLATION-unsigned.ipa
+          name: Aeon-5.0-unsigned-ipa
+          path: ios/App/Aeon-5.0-unsigned.ipa
           if-no-files-found: error
           retention-days: 30

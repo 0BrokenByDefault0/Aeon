@@ -51,6 +51,7 @@ const server = http.createServer((req, res) => {
     res.setHeader("content-type",
       file.endsWith(".html") ? "text/html" :
       file.endsWith(".js") ? "text/javascript" :
+      file.endsWith(".css") ? "text/css" :
       file.endsWith(".webmanifest") ? "application/manifest+json" : "application/octet-stream");
     res.end(fs.readFileSync(file));
   } catch { res.statusCode = 404; res.end(); }
@@ -58,8 +59,8 @@ const server = http.createServer((req, res) => {
 
 let passed = 0, failed = 0;
 const ok = (name, cond, detail) => {
-  if (cond) { passed++; console.log(`  ✓ ${name}`); }
-  else { failed++; console.log(`  ✗ ${name}${detail !== undefined ? `  →  ${JSON.stringify(detail)}` : ""}`); }
+  if (cond) { passed++; console.log(`  PASS ${name}`); }
+  else { failed++; console.log(`  FAIL ${name}${detail !== undefined ? `  →  ${JSON.stringify(detail)}` : ""}`); }
 };
 const fixture = f => path.join(HERE, f);
 
@@ -91,11 +92,12 @@ function readZip(file) {
 }
 
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM || "/opt/pw-browsers/chromium",
+  executablePath: process.env.CHROMIUM || chromium.executablePath(),
 });
 
 async function session() {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -229,6 +231,7 @@ server.listen(PORT);
 {
   console.log("\nnative storage path");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   await ctx.addInitScript(() => {
     const disk = {};
     window.__disk = disk;
@@ -381,6 +384,7 @@ server.listen(PORT);
     listing[dir] = [...entries].map(([name, v]) => ({ name, type: v.type, size: v.size, uri: "file:///DOCUMENTS/" + (dir ? dir + "/" : "") + name }));
 
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   await ctx.addInitScript(l => {
     const written = {};
     window.__written = written;
@@ -704,17 +708,27 @@ server.listen(PORT);
   console.log("\nworlds");
   const { ctx, page } = await session();
   const inks = await page.evaluate(() => {
-    for (let i = 0; i < 250; i++) {
+    // a world per PER_WORLD albums, so a big sky is needed to see many
+    for (let i = 0; i < 720; i++) {
       const a = { id: "p-" + i, title: "R" + i, artist: "A" + (i % 30), genre: "test",
         year: 2000, seq: ++seqCounter, added: Date.now(), mock: true, tracks: 1 };
       state.albums.push(a); state.tracks.set(a.id, []);
     }
     sky.rebuild();
     const ws = sky.worlds();
-    return { n: ws.length, distinct: new Set(ws.map(w => w.ink)).size,
+    return { n: ws.length,
+      distinct: new Set(ws.map(w => w.ink)).size,
+      surfaces: new Set(ws.map(w => w.type)).size,
+      pairs: new Set(ws.map(w => w.type + "/" + w.ink)).size,
+      rings: ws.filter(w => w.ring).length,
       allHaveInk: ws.every(w => Number.isInteger(w.ink)) };
   });
-  ok("twelve worlds wake for a large library", inks.n >= 12, inks);
+  ok("a world is rare — one per PER_WORLD albums", inks.n >= 12 && inks.n <= 16, inks);
+  ok("every surface a world can have turns up", inks.surfaces >= 8, inks);
+  ok("some worlds are ringed and some are not",
+    inks.rings > 0 && inks.rings < inks.n, inks);
+  ok("no two worlds share both a surface and a palette",
+    inks.pairs === inks.n, inks);
   ok("and the first twelve are twelve different colours",
     inks.distinct >= 12 && inks.allHaveInk, inks);
   await ctx.close();
@@ -724,6 +738,7 @@ server.listen(PORT);
 {
   console.log("\ngestures");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -768,23 +783,33 @@ server.listen(PORT);
   await page.waitForTimeout(800);
   ok("closing one sheet and opening another keeps the new one", await isOpen("sheetGuide") === true);
 
-  // a sheet mid-scroll must scroll, not leave
+  /* A sheet mid-scroll must scroll, not leave. It has to be a sheet with
+     somewhere to scroll to — the guide is three lines now — so the queue
+     is filled until it certainly overflows. */
+  await page.evaluate(() => {
+    closeSheet("sheetGuide");
+    /* the content is filler on purpose: what is under test is the
+       gesture on a sheet that has somewhere to scroll to, not the queue */
+    document.querySelector("#qList").innerHTML = "<div style='height:2200px'></div>";
+    openSheet("sheetQueue");
+  });
+  await page.waitForTimeout(700);
   const scrolled = await page.evaluate(() => {
-    const b = document.querySelector("#sheetGuide .sheet-body");
+    const b = document.querySelector("#sheetQueue .sheet-body");
     b.scrollTop = 10000;                 // as far as this sheet will go
     return b.scrollTop;
   });
-  await swipe("#sheetGuide .sheet-body", 195, 300, 700);
+  await swipe("#sheetQueue .sheet-body", 195, 300, 700);
   await page.waitForTimeout(600);
   ok("a scrolled sheet scrolls instead of closing",
-    scrolled > 0 && await isOpen("sheetGuide") === true, { scrolled });
+    scrolled > 0 && await isOpen("sheetQueue") === true, { scrolled });
 
   /* …but the handle is never the scroller's to take: pulling it must
      close the sheet even mid-scroll, which is the guarantee that makes
      the gesture trustworthy on a device */
-  await swipe("#sheetGuide .grab", 195, 120, 640);
+  await swipe("#sheetQueue .grab", 195, 120, 640);
   await page.waitForTimeout(600);
-  ok("the handle closes a scrolled sheet anyway", await isOpen("sheetGuide") === false);
+  ok("the handle closes a scrolled sheet anyway", await isOpen("sheetQueue") === false);
   await page.waitForTimeout(400);
 
   // a sheet whose content fits hands its whole surface to the gesture
@@ -896,6 +921,7 @@ server.listen(PORT);
 {
   console.log("\nthe transport");
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  await ctx.route(/https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/, r => r.abort());
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -909,10 +935,13 @@ server.listen(PORT);
   await page.evaluate(() => switchTab("library"));
   await page.waitForTimeout(600);
 
-  const heights = await page.evaluate(() =>
-    [...document.querySelectorAll("#libGrid .alb")].map(e => Math.round(e.getBoundingClientRect().height)));
+  const boxes = await page.evaluate(() =>
+    [...document.querySelectorAll("#libGrid .alb")].map(e => {
+      const r = e.getBoundingClientRect();
+      return Math.round(r.width) + "x" + Math.round(r.height);
+    }));
   ok("every record is the same size on the shelf",
-    heights.length > 3 && new Set(heights).size === 1, heights);
+    boxes.length > 3 && new Set(boxes).size === 1, boxes);
 
   ok("returning to the library keeps the cards it already built",
     await page.evaluate(async () => {
@@ -971,7 +1000,107 @@ server.listen(PORT);
   const landed = await page.evaluate(() => Math.round(audio.currentTime));
   ok("letting go commits the seek", Math.abs(landed - 50) < 10, landed);
 
+  /* Nothing may ever put its own source on the shared element. A frame of
+     silence pushed through it to "unlock" playback fired play and ended
+     like any track would: the glyph flickered to pause and back, the
+     ended handler advanced the queue, and the record the collector
+     actually tapped never got the element at all. */
+  ok("no source but the record's own ever reaches the element",
+    await page.evaluate(async () => {
+      const before = audio.src;
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      document.body.dispatchEvent(new TouchEvent("touchstart", { bubbles: true }));
+      await new Promise(r => setTimeout(r, 250));
+      return audio.src === before && !/^data:/.test(audio.src);
+    }) === true);
+
+  /* A pause the app did not make — the lock screen, Control Center, a
+     call — must stay a pause. A standing "should be playing" intent turned
+     every one of them into a restart, and the record fought the hand. */
+  const resume = await page.evaluate(async () => {
+    let plays = 0;
+    const real = audio.play.bind(audio);
+    audio.play = () => { plays++; return Promise.resolve(); };
+    const fire = e => audio.dispatchEvent(new Event(e));
+
+    loadToken++; pendingStart = { token: loadToken };
+    fire("pause");                       // paused from outside the app
+    fire("canplay");                     // and the element readies itself
+    const afterOutsidePause = plays;
+
+    pendingStart = { token: loadToken };  // a start still owed, nothing paused
+    fire("canplay");
+    const afterRetry = plays;
+    fire("canplay");                     // the retry is one attempt, not a loop
+    const afterSecondCanplay = plays;
+
+    pendingStart = { token: loadToken };
+    loadToken++;                         // a newer source supersedes it
+    fire("canplay");
+    const afterStaleToken = plays;
+
+    audio.play = real;
+    return { afterOutsidePause, afterRetry, afterSecondCanplay, afterStaleToken };
+  });
+  ok("a pause from outside the app is never undone", resume.afterOutsidePause === 0, resume);
+  ok("a track that could not start gets one more attempt", resume.afterRetry === 1, resume);
+  ok("and only one", resume.afterSecondCanplay === 1, resume);
+  ok("a superseded load never starts itself", resume.afterStaleToken === 1, resume);
+
   ok("no errors at the transport", errors.length === 0, errors);
+  await ctx.close();
+}
+
+/* Real PCM through the complete graph after restoring a cold session. */
+{
+  console.log("\nrestored audio output");
+  const {ctx,page,errors}=await session();
+  await page.evaluate(async()=>{
+    const rate=16000,frames=rate*8,bytes=new ArrayBuffer(44+frames*2),v=new DataView(bytes);
+    const text=(p,s)=>[...s].forEach((c,i)=>v.setUint8(p+i,c.charCodeAt(0)));
+    text(0,"RIFF");v.setUint32(4,36+frames*2,true);text(8,"WAVEfmt ");
+    v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+    v.setUint32(24,rate,true);v.setUint32(28,rate*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);
+    text(36,"data");v.setUint32(40,frames*2,true);
+    for(let i=0;i<frames;i++)v.setInt16(44+i*2,Math.sin(i*440*2*Math.PI/rate)*8000,true);
+    await dbPut("albums",{id:"tone-album",title:"Recovery",artist:"Test",seq:1});
+    await dbPut("tracks",{id:"tone",albumId:"tone-album",idx:1,title:"Tone",blob:new Blob([bytes],{type:"audio/wav"})});
+    await kvSet("lastPlayed",{albumId:"tone-album",trackId:"tone",qIndex:0,queue:[{albumId:"tone-album",trackId:"tone"}]});
+  });
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector("#playerBar").classList.contains("show"));
+  await page.click("#pbPlay");
+  await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2&&actx?.state==="running");
+  ok("first Play after a cold restore produces a real signal",await page.evaluate(()=>{
+    analyser.getByteFrequencyData(fftBuf);return fftBuf.some(v=>v>0);
+  }));
+  await page.click("#pbPlay");
+  const held=await page.evaluate(()=>audio.currentTime);
+  await page.evaluate(()=>window.dispatchEvent(new Event("pageshow")));
+  await page.waitForTimeout(250);
+  ok("returning to the app honors a paused track",await page.evaluate(t=>audio.paused&&Math.abs(audio.currentTime-t)<.1,held));
+  // The paused state is the contract; a foreground event cannot start music.
+  ok("foreground never starts a paused transport",await page.evaluate(()=>audio.paused));
+  await page.evaluate(async()=>{await actx.close()});
+  await page.click("#pbPlay");
+  await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2&&actx?.state==="running");
+  await page.waitForTimeout(200);
+  ok("a replaced output engine carries a real signal",await page.evaluate(()=>{
+    analyser.getByteFrequencyData(fftBuf);return fftBuf.some(v=>v>0);
+  }));
+  await page.evaluate(async()=>{
+    Object.defineProperty(document,"hidden",{configurable:true,value:true});
+    document.dispatchEvent(new Event("visibilitychange"));
+    await actx.suspend();
+    Object.defineProperty(document,"hidden",{configurable:true,value:false});
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.waitForFunction(()=>actx.state==="running");
+  await page.waitForTimeout(200);
+  ok("foreground recovery restores the audio signal",await page.evaluate(()=>{
+    analyser.getByteFrequencyData(fftBuf);return !audio.paused&&fftBuf.some(v=>v>0);
+  }));
+  ok("no errors during real audio restoration",errors.length===0,errors);
   await ctx.close();
 }
 

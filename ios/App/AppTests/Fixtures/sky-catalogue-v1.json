@@ -1,0 +1,14 @@
+[
+  {"seed":1,"colors":[[32,64,96,255],[160,96,32,255],[64,160,128,255]],"rotationMillis":500,"turbulence":140,"hasRings":true,"sha256":"6d3d8c8c2893d221f89b807a4d3b1bf02ffbb5b59c055ea7ba9f46d988a0b74e"},
+  {"seed":2,"colors":[[0,32,64,255],[96,128,160,255],[224,192,128,255]],"rotationMillis":640,"turbulence":256,"hasRings":false,"sha256":"7d5f0d394171a00c6122ed4c7112076f2906a7d8330c304bb81c7a9b01d75d27"},
+  {"seed":3,"colors":[[224,32,32,255],[32,224,64,255],[32,64,224,255]],"rotationMillis":400,"turbulence":512,"hasRings":true,"sha256":"3f6e5a0e5424b32fd0cf9a3cc07cb382ea733c78ca69d6a5c02aa4f87a668a39"},
+  {"seed":17,"colors":[[64,64,64,255],[128,128,128,255],[192,192,192,255]],"rotationMillis":750,"turbulence":0,"hasRings":false,"sha256":"4935f8bd06553962f43425bf3dfe686c47e27e9ae77abb1214a67bfae2d59992"},
+  {"seed":42,"colors":[[0,0,0,255],[32,32,32,255],[64,64,64,255]],"rotationMillis":1000,"turbulence":1024,"hasRings":true,"sha256":"4bc5042fd3800bc1d0ab237c4db8e8ee788b39e81d00e6c5ce7ed3994a664eab"},
+  {"seed":99,"colors":[[224,192,160,255],[160,96,64,255],[96,32,0,255]],"rotationMillis":333,"turbulence":777,"hasRings":false,"sha256":"13c89476b0b4379f2577fa278941e1f1aa0cc96b2f15e8f0feded0d59be8588a"},
+  {"seed":256,"colors":[[32,96,160,255]],"rotationMillis":480,"turbulence":200,"hasRings":true,"sha256":"fa8b944bdfce80b838a135b6706ff592e498f3ba89abe246f815272f9f552189"},
+  {"seed":65535,"colors":[[192,224,224,255],[96,160,192,255]],"rotationMillis":555,"turbulence":333,"hasRings":false,"sha256":"6b8d1e16bb418e4e98c5d4200003e13590fec5fc64112e45188632df29acc499"},
+  {"seed":4294967295,"colors":[[160,32,128,255],[32,160,224,255],[224,224,32,255]],"rotationMillis":666,"turbulence":901,"hasRings":true,"sha256":"decf536ecd1be1f4ac233c6b33e8d2bfb0a8b999fb1c1dbab141ea21755a03bd"},
+  {"seed":9223372036854775807,"colors":[[224,224,224,255],[128,96,160,255],[32,0,64,255]],"rotationMillis":444,"turbulence":444,"hasRings":false,"sha256":"88e0145211ccb1bb9cb4094c5a01fda051a808addb4297e72496512cdfba4fd6"},
+  {"seed":18446744073709551614,"colors":[[32,224,192,255],[0,96,128,255]],"rotationMillis":888,"turbulence":88,"hasRings":true,"sha256":"ebf46eb11d1aa2c974b3d9254dce2ba4ea1f31105722e7cb5c26f9370bacc4d6"},
+  {"seed":1311768467463790320,"colors":[[96,0,32,255],[192,64,32,255],[224,160,96,255]],"rotationMillis":720,"turbulence":620,"hasRings":false,"sha256":"06ca5e9668d9b6da58c5a51317f3b60371c849637deb33604f4357fb104e1c03"}
+]

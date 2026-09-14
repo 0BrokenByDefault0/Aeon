@@ -286,3 +286,22 @@ test("numbers inside a name compare as numbers", () => {
   assert.ok(c("Part 10", "Part 2") > 0);
   assert.equal(c("Same", "same"), 0);
 });
+
+test('queue move preserves the exact playing occurrence among duplicates',()=>{
+  const duplicate={albumId:'a',trackId:'same'};
+  const queue=[duplicate,{albumId:'a',trackId:'next'},duplicate];
+  const out=core().moveQueue(queue,2,0,2);
+  assert.equal(out.qIndex,1);
+  assert.deepEqual(out.queue,[queue[1],queue[2],queue[0]]);
+  assert.equal(queue[1].trackId,'next');
+});
+test('moving the playing item preserves playback identity',()=>{
+  const q=[{trackId:'a'},{trackId:'b'},{trackId:'c'}];
+  const out=core().moveQueue(q,1,1,0);
+  assert.equal(out.qIndex,0);assert.equal(out.queue[0],q[1]);
+});
+test('invalid queue moves leave state alone',()=>{
+  const q=[{trackId:'a'}];
+  assert.deepEqual(core().moveQueue(q,0,-1,0),{queue:q,qIndex:0});
+  assert.deepEqual(core().moveQueue(q,0,0,99),{queue:q,qIndex:0});
+});

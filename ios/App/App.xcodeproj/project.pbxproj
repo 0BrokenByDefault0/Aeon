@@ -10,25 +10,281 @@
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
-		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		95BC4554FE072BEFDBC5F139 /* Pods_AppTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
+		A50000000000000000000001 /* SmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000002 /* SmokeTests.swift */; };
+		A50000000000000000000003 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000000000000000000004 /* XCTest.framework */; };
+		A52000000000000000000001 /* PlaybackModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000011 /* PlaybackModels.swift */; };
+		A52000000000000000000002 /* DiagnosticsLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000012 /* DiagnosticsLog.swift */; };
+		A52000000000000000000003 /* PlaybackStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000013 /* PlaybackStateStore.swift */; };
+		A52000000000000000000004 /* PlaybackModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000014 /* PlaybackModelsTests.swift */; };
+		A52000000000000000000005 /* PlaybackStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52000000000000000000015 /* PlaybackStateStoreTests.swift */; };
+		A53000000000000000000001 /* MediaStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000011 /* MediaStore.swift */; };
+		A53000000000000000000002 /* MetadataProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000012 /* MetadataProbe.swift */; };
+		A53000000000000000000003 /* MediaStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000013 /* MediaStoreTests.swift */; };
+		A53000000000000000000004 /* MetadataProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000014 /* MetadataProbeTests.swift */; };
+		A53000000000000000000005 /* audio in Resources */ = {isa = PBXBuildFile; fileRef = A53000000000000000000015 /* audio */; };
+		A54000000000000000000001 /* AudioEngineGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000011 /* AudioEngineGraph.swift */; };
+		A54000000000000000000002 /* ReplayGain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000012 /* ReplayGain.swift */; };
+		A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000013 /* ReplayGainAndEQTests.swift */; };
+		A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54000000000000000000014 /* AudioEngineGraphTests.swift */; };
+		A55000000000000000000001 /* QueueScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55000000000000000000011 /* QueueScheduler.swift */; };
+		A55000000000000000000002 /* QueueSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55000000000000000000012 /* QueueSchedulerTests.swift */; };
+		A56000000000000000000001 /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56000000000000000000011 /* PlaybackCoordinator.swift */; };
+		A56000000000000000000002 /* PlaybackCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A56000000000000000000012 /* PlaybackCoordinatorTests.swift */; };
+		A57000000000000000000001 /* NativeAudioPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57000000000000000000011 /* NativeAudioPlugin.swift */; };
+		A58000000000000000000001 /* LegacyMigrationPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000011 /* LegacyMigrationPlugin.swift */; };
+		A58000000000000000000002 /* LegacyMigrationViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000012 /* LegacyMigrationViewController.swift */; };
+		A5C000000000000000000001 /* LegacyMigrationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C000000000000000000011 /* LegacyMigrationModels.swift */; };
+		A5C000000000000000000002 /* LegacyMigrationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C000000000000000000012 /* LegacyMigrationCoordinator.swift */; };
+		A5C000000000000000000003 /* LegacyMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C000000000000000000013 /* LegacyMigrationTests.swift */; };
+		A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58000000000000000000013 /* LegacyDataAccessTests.swift */; };
+		A59000000000000000000001 /* AeonApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000011 /* AeonApp.swift */; };
+		A59000000000000000000002 /* AppContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000012 /* AppContainer.swift */; };
+		A59000000000000000000003 /* AeonRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000013 /* AeonRootView.swift */; };
+		A59000000000000000000004 /* AppContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59000000000000000000014 /* AppContainerTests.swift */; };
+		A5A000000000000000000001 /* AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5A00000000000000000000E /* AppUITests.swift */; };
+		A5A000000000000000000002 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A50000000000000000000004 /* XCTest.framework */; };
+		A5B000000000000000000001 /* CatalogModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000011 /* CatalogModels.swift */; };
+		A5B000000000000000000002 /* CatalogSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000012 /* CatalogSchema.swift */; };
+		A5B000000000000000000003 /* CatalogMigrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000013 /* CatalogMigrations.swift */; };
+		A5B000000000000000000004 /* CatalogDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000014 /* CatalogDatabase.swift */; };
+		A5B000000000000000000005 /* CatalogRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000015 /* CatalogRepository.swift */; };
+		A5B000000000000000000006 /* ArtworkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000016 /* ArtworkStore.swift */; };
+		A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000017 /* CatalogDatabaseTests.swift */; };
+		A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000018 /* CatalogRepositoryTests.swift */; };
+		A5B000000000000000000009 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = A5B000000000000000000019 /* libsqlite3.tbd */; };
+		A5D000000000000000000001 /* AudioTagReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000011 /* AudioTagReader.swift */; };
+		A5D000000000000000000002 /* ImportGrouper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000012 /* ImportGrouper.swift */; };
+		A5D000000000000000000003 /* ArtworkProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000013 /* ArtworkProcessor.swift */; };
+		A5D000000000000000000004 /* MetadataEnricher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000014 /* MetadataEnricher.swift */; };
+		A5D000000000000000000005 /* LibraryImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000015 /* LibraryImporter.swift */; };
+		AE9000000000000000000001 /* ImportPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000011 /* ImportPicker.swift */; };
+		AE9000000000000000000002 /* ImportedFolderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000012 /* ImportedFolderStore.swift */; };
+		A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000016 /* AudioTagReaderTests.swift */; };
+		A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000017 /* LibraryImporterTests.swift */; };
+		AE9000000000000000000003 /* ImportPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000013 /* ImportPickerTests.swift */; };
+		AE9000000000000000000004 /* ImportedFolderStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000014 /* ImportedFolderStoreTests.swift */; };
+		A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000018 /* MetadataEnricherTests.swift */; };
+		A5E000000000000000000001 /* PlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000011 /* PlaybackController.swift */; };
+		A5E000000000000000000002 /* AudioSessionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000012 /* AudioSessionController.swift */; };
+		A5E000000000000000000003 /* RemoteCommandCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000013 /* RemoteCommandCoordinator.swift */; };
+		A5E000000000000000000004 /* RecoveryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000014 /* RecoveryCoordinator.swift */; };
+		A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000015 /* PlaybackControllerTests.swift */; };
+		A5E000000000000000000006 /* AudioSessionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000016 /* AudioSessionPolicyTests.swift */; };
+		A5E000000000000000000007 /* RecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000017 /* RecoveryTests.swift */; };
+		A5F000000000000000000001 /* SkyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000011 /* SkyModels.swift */; };
+		A5F000000000000000000002 /* SkyComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000012 /* SkyComposer.swift */; };
+		A5F000000000000000000003 /* SkyRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000013 /* SkyRepository.swift */; };
+		A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000014 /* PlanetTextureGenerator.swift */; };
+		A5F000000000000000000005 /* SkyComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000015 /* SkyComposerTests.swift */; };
+		A5F000000000000000000006 /* PlanetModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000016 /* PlanetModelTests.swift */; };
+		A5F000000000000000000007 /* sky-catalogue-v1.json in Resources */ = {isa = PBXBuildFile; fileRef = A5F000000000000000000017 /* sky-catalogue-v1.json */; };
+		A60000000000000000000001 /* SkyCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000011 /* SkyCamera.swift */; };
+		A60000000000000000000002 /* SkyHitTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000012 /* SkyHitTester.swift */; };
+		A60000000000000000000003 /* SkyRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* SkyRenderer.swift */; };
+		A60000000000000000000004 /* SkyMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* SkyMetalView.swift */; };
+		A60000000000000000000005 /* SkyShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* SkyShaders.metal */; };
+		A60000000000000000000006 /* SkySceneController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000016 /* SkySceneController.swift */; };
+		A60000000000000000000007 /* SkyScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000017 /* SkyScreen.swift */; };
+		A60000000000000000000008 /* SkyAccessibilityOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000018 /* SkyAccessibilityOverlay.swift */; };
+		A60000000000000000000009 /* SkyHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000019 /* SkyHUD.swift */; };
+		A6000000000000000000000A /* SkyCameraTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001A /* SkyCameraTests.swift */; };
+		A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001B /* SkyHitTestingTests.swift */; };
+		A6000000000000000000000C /* SkyInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6000000000000000000001C /* SkyInteractionTests.swift */; };
+		A61000000000000000000001 /* AeonTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000011 /* AeonTheme.swift */; };
+		A61000000000000000000002 /* AeonComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000012 /* AeonComponents.swift */; };
+		A61000000000000000000003 /* AeonChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000013 /* AeonChrome.swift */; };
+		A61000000000000000000004 /* DesignTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000014 /* DesignTokenTests.swift */; };
+		A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000015 /* AdaptiveChromeTests.swift */; };
+		A61000000000000000000006 /* AeonNocturne-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000016 /* AeonNocturne-Regular.otf */; };
+		A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000017 /* GUST-FONT-LICENSE.txt */; };
+		A61000000000000000000008 /* LPPL-1.3c.tex in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000018 /* LPPL-1.3c.tex */; };
+		A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000019 /* README-Aeon-Nocturne.txt */; };
+		A62000000000000000000001 /* LibraryController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000011 /* LibraryController.swift */; };
+		A62000000000000000000002 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000012 /* LibraryScreen.swift */; };
+		A62000000000000000000003 /* AlbumDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000013 /* AlbumDetailView.swift */; };
+		A62000000000000000000004 /* AlbumEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000014 /* AlbumEditorView.swift */; };
+		A62000000000000000000005 /* SearchResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000015 /* SearchResultsView.swift */; };
+		A62000000000000000000006 /* LibraryControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000016 /* LibraryControllerTests.swift */; };
+		A62000000000000000000007 /* LibraryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000017 /* LibraryFlowTests.swift */; };
+		A63000000000000000000001 /* PlayerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000011 /* PlayerBar.swift */; };
+		A63000000000000000000002 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000012 /* NowPlayingView.swift */; };
+		A63000000000000000000003 /* QueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000013 /* QueueView.swift */; };
+		A63000000000000000000004 /* EQView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000014 /* EQView.swift */; };
+		A63000000000000000000005 /* SpectrumAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000015 /* SpectrumAnalyzer.swift */; };
+		A63000000000000000000006 /* QueueControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000016 /* QueueControllerTests.swift */; };
+		A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000017 /* SpectrumAnalyzerTests.swift */; };
+		A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63000000000000000000018 /* PlaybackFlowTests.swift */; };
+		A64000000000000000000001 /* ArchiveWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000011 /* ArchiveWriter.swift */; };
+		A64000000000000000000002 /* ArchiveReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000012 /* ArchiveReader.swift */; };
+		A64000000000000000000003 /* PlaylistsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000013 /* PlaylistsController.swift */; };
+		A64000000000000000000004 /* PlaylistsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000014 /* PlaylistsScreen.swift */; };
+		A64000000000000000000005 /* SettingsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000015 /* SettingsController.swift */; };
+		A64000000000000000000006 /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000016 /* SettingsScreen.swift */; };
+		A64000000000000000000007 /* PlaylistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000017 /* PlaylistTests.swift */; };
+		A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000018 /* ArchiveCompatibilityTests.swift */; };
+		A64000000000000000000009 /* SettingsFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000019 /* SettingsFlowTests.swift */; };
+		AE9000000000000000000006 /* ImportPickerPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000016 /* ImportPickerPresentationTests.swift */; };
+		AE9000000000000000000005 /* PlayerNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000015 /* PlayerNavigationTests.swift */; };
+		A65000000000000000000001 /* AudioIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000011 /* AudioIntegrationTests.swift */; };
+		A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000012 /* AeonAccessibilityTests.swift */; };
+		A65000000000000000000003 /* AeonScreenMatrixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000013 /* AeonScreenMatrixTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A50000000000000000000006 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 504EC3031FED79650016851F;
+			remoteInfo = App;
+		};
+		A5A000000000000000000006 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 504EC3031FED79650016851F;
+			remoteInfo = App;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		7446EDE89CF257007A136E41 /* Pods-AppTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppTests.debug.xcconfig"; path = "Pods/Target Support Files/Pods-AppTests/Pods-AppTests.debug.xcconfig"; sourceTree = "<group>"; };
+		A50000000000000000000002 /* SmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTests.swift; sourceTree = "<group>"; };
+		A50000000000000000000004 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = System/Library/Frameworks/XCTest.framework; sourceTree = SDKROOT; };
+		A50000000000000000000005 /* AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A52000000000000000000011 /* PlaybackModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackModels.swift; sourceTree = "<group>"; };
+		A52000000000000000000012 /* DiagnosticsLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsLog.swift; sourceTree = "<group>"; };
+		A52000000000000000000013 /* PlaybackStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackStateStore.swift; sourceTree = "<group>"; };
+		A52000000000000000000014 /* PlaybackModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackModelsTests.swift; sourceTree = "<group>"; };
+		A52000000000000000000015 /* PlaybackStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackStateStoreTests.swift; sourceTree = "<group>"; };
+		A53000000000000000000011 /* MediaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStore.swift; sourceTree = "<group>"; };
+		A53000000000000000000012 /* MetadataProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataProbe.swift; sourceTree = "<group>"; };
+		A53000000000000000000013 /* MediaStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaStoreTests.swift; sourceTree = "<group>"; };
+		A53000000000000000000014 /* MetadataProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataProbeTests.swift; sourceTree = "<group>"; };
+		A53000000000000000000015 /* audio */ = {isa = PBXFileReference; lastKnownFileType = folder; name = audio; path = ../../../test/fixtures/audio; sourceTree = "<group>"; };
+		A54000000000000000000011 /* AudioEngineGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineGraph.swift; sourceTree = "<group>"; };
+		A54000000000000000000012 /* ReplayGain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayGain.swift; sourceTree = "<group>"; };
+		A54000000000000000000013 /* ReplayGainAndEQTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayGainAndEQTests.swift; sourceTree = "<group>"; };
+		A54000000000000000000014 /* AudioEngineGraphTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioEngineGraphTests.swift; sourceTree = "<group>"; };
+		A55000000000000000000011 /* QueueScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueScheduler.swift; sourceTree = "<group>"; };
+		A55000000000000000000012 /* QueueSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueSchedulerTests.swift; sourceTree = "<group>"; };
+		A56000000000000000000011 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
+		A56000000000000000000012 /* PlaybackCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinatorTests.swift; sourceTree = "<group>"; };
+		A57000000000000000000011 /* NativeAudioPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAudioPlugin.swift; sourceTree = "<group>"; };
+		A58000000000000000000011 /* LegacyMigrationPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationPlugin.swift; sourceTree = "<group>"; };
+		A58000000000000000000012 /* LegacyMigrationViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationViewController.swift; sourceTree = "<group>"; };
+		A58000000000000000000013 /* LegacyDataAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyDataAccessTests.swift; sourceTree = "<group>"; };
+		A5C000000000000000000011 /* LegacyMigrationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationModels.swift; sourceTree = "<group>"; };
+		A5C000000000000000000012 /* LegacyMigrationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationCoordinator.swift; sourceTree = "<group>"; };
+		A5C000000000000000000013 /* LegacyMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMigrationTests.swift; sourceTree = "<group>"; };
+		A59000000000000000000011 /* AeonApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonApp.swift; sourceTree = "<group>"; };
+		A59000000000000000000012 /* AppContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainer.swift; sourceTree = "<group>"; };
+		A59000000000000000000013 /* AeonRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonRootView.swift; sourceTree = "<group>"; };
+		A59000000000000000000014 /* AppContainerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppContainerTests.swift; sourceTree = "<group>"; };
+		A5A00000000000000000000D /* AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A5A00000000000000000000E /* AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUITests.swift; sourceTree = "<group>"; };
+		A5B000000000000000000011 /* CatalogModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogModels.swift; sourceTree = "<group>"; };
+		A5B000000000000000000012 /* CatalogSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSchema.swift; sourceTree = "<group>"; };
+		A5B000000000000000000013 /* CatalogMigrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogMigrations.swift; sourceTree = "<group>"; };
+		A5B000000000000000000014 /* CatalogDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDatabase.swift; sourceTree = "<group>"; };
+		A5B000000000000000000015 /* CatalogRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogRepository.swift; sourceTree = "<group>"; };
+		A5B000000000000000000016 /* ArtworkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkStore.swift; sourceTree = "<group>"; };
+		A5B000000000000000000017 /* CatalogDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogDatabaseTests.swift; sourceTree = "<group>"; };
+		A5B000000000000000000018 /* CatalogRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogRepositoryTests.swift; sourceTree = "<group>"; };
+		A5B000000000000000000019 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.text-based-dylib-definition; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		A5D000000000000000000011 /* AudioTagReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReader.swift; sourceTree = "<group>"; };
+		A5D000000000000000000012 /* ImportGrouper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportGrouper.swift; sourceTree = "<group>"; };
+		A5D000000000000000000013 /* ArtworkProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkProcessor.swift; sourceTree = "<group>"; };
+		A5D000000000000000000014 /* MetadataEnricher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataEnricher.swift; sourceTree = "<group>"; };
+		A5D000000000000000000015 /* LibraryImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImporter.swift; sourceTree = "<group>"; };
+		AE9000000000000000000011 /* ImportPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPicker.swift; sourceTree = "<group>"; };
+		AE9000000000000000000012 /* ImportedFolderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedFolderStore.swift; sourceTree = "<group>"; };
+		A5D000000000000000000016 /* AudioTagReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReaderTests.swift; sourceTree = "<group>"; };
+		A5D000000000000000000017 /* LibraryImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImporterTests.swift; sourceTree = "<group>"; };
+		AE9000000000000000000013 /* ImportPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPickerTests.swift; sourceTree = "<group>"; };
+		AE9000000000000000000014 /* ImportedFolderStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedFolderStoreTests.swift; sourceTree = "<group>"; };
+		A5D000000000000000000018 /* MetadataEnricherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataEnricherTests.swift; sourceTree = "<group>"; };
+		A5E000000000000000000011 /* PlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackController.swift; sourceTree = "<group>"; };
+		A5E000000000000000000012 /* AudioSessionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionController.swift; sourceTree = "<group>"; };
+		A5E000000000000000000013 /* RemoteCommandCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteCommandCoordinator.swift; sourceTree = "<group>"; };
+		A5E000000000000000000014 /* RecoveryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryCoordinator.swift; sourceTree = "<group>"; };
+		A5E000000000000000000015 /* PlaybackControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackControllerTests.swift; sourceTree = "<group>"; };
+		A5E000000000000000000016 /* AudioSessionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioSessionPolicyTests.swift; sourceTree = "<group>"; };
+		A5E000000000000000000017 /* RecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecoveryTests.swift; sourceTree = "<group>"; };
+		A5F000000000000000000011 /* SkyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyModels.swift; sourceTree = "<group>"; };
+		A5F000000000000000000012 /* SkyComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyComposer.swift; sourceTree = "<group>"; };
+		A5F000000000000000000013 /* SkyRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyRepository.swift; sourceTree = "<group>"; };
+		A5F000000000000000000014 /* PlanetTextureGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanetTextureGenerator.swift; sourceTree = "<group>"; };
+		A5F000000000000000000015 /* SkyComposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyComposerTests.swift; sourceTree = "<group>"; };
+		A5F000000000000000000016 /* PlanetModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanetModelTests.swift; sourceTree = "<group>"; };
+		A5F000000000000000000017 /* sky-catalogue-v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Fixtures/sky-catalogue-v1.json; sourceTree = "<group>"; };
+		A60000000000000000000011 /* SkyCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyCamera.swift; sourceTree = "<group>"; };
+		A60000000000000000000012 /* SkyHitTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHitTester.swift; sourceTree = "<group>"; };
+		A60000000000000000000013 /* SkyRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyRenderer.swift; sourceTree = "<group>"; };
+		A60000000000000000000014 /* SkyMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyMetalView.swift; sourceTree = "<group>"; };
+		A60000000000000000000015 /* SkyShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = SkyShaders.metal; sourceTree = "<group>"; };
+		A60000000000000000000016 /* SkySceneController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkySceneController.swift; sourceTree = "<group>"; };
+		A60000000000000000000017 /* SkyScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyScreen.swift; sourceTree = "<group>"; };
+		A60000000000000000000018 /* SkyAccessibilityOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyAccessibilityOverlay.swift; sourceTree = "<group>"; };
+		A60000000000000000000019 /* SkyHUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHUD.swift; sourceTree = "<group>"; };
+		A6000000000000000000001A /* SkyCameraTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyCameraTests.swift; sourceTree = "<group>"; };
+		A6000000000000000000001B /* SkyHitTestingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyHitTestingTests.swift; sourceTree = "<group>"; };
+		A6000000000000000000001C /* SkyInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyInteractionTests.swift; sourceTree = "<group>"; };
+		A61000000000000000000011 /* AeonTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonTheme.swift; sourceTree = "<group>"; };
+		A61000000000000000000012 /* AeonComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonComponents.swift; sourceTree = "<group>"; };
+		A61000000000000000000013 /* AeonChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonChrome.swift; sourceTree = "<group>"; };
+		A61000000000000000000014 /* DesignTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokenTests.swift; sourceTree = "<group>"; };
+		A61000000000000000000015 /* AdaptiveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveChromeTests.swift; sourceTree = "<group>"; };
+		A61000000000000000000016 /* AeonNocturne-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "AeonNocturne-Regular.otf"; sourceTree = "<group>"; };
+		A61000000000000000000017 /* GUST-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GUST-FONT-LICENSE.txt"; sourceTree = "<group>"; };
+		A61000000000000000000018 /* LPPL-1.3c.tex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LPPL-1.3c.tex"; sourceTree = "<group>"; };
+		A61000000000000000000019 /* README-Aeon-Nocturne.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "README-Aeon-Nocturne.txt"; sourceTree = "<group>"; };
+		A62000000000000000000011 /* LibraryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryController.swift; sourceTree = "<group>"; };
+		A62000000000000000000012 /* LibraryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScreen.swift; sourceTree = "<group>"; };
+		A62000000000000000000013 /* AlbumDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumDetailView.swift; sourceTree = "<group>"; };
+		A62000000000000000000014 /* AlbumEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumEditorView.swift; sourceTree = "<group>"; };
+		A62000000000000000000015 /* SearchResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResultsView.swift; sourceTree = "<group>"; };
+		A62000000000000000000016 /* LibraryControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryControllerTests.swift; sourceTree = "<group>"; };
+		A62000000000000000000017 /* LibraryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFlowTests.swift; sourceTree = "<group>"; };
+		A63000000000000000000011 /* PlayerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerBar.swift; sourceTree = "<group>"; };
+		A63000000000000000000012 /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
+		A63000000000000000000013 /* QueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueView.swift; sourceTree = "<group>"; };
+		A63000000000000000000014 /* EQView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EQView.swift; sourceTree = "<group>"; };
+		A63000000000000000000015 /* SpectrumAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumAnalyzer.swift; sourceTree = "<group>"; };
+		A63000000000000000000016 /* QueueControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueControllerTests.swift; sourceTree = "<group>"; };
+		A63000000000000000000017 /* SpectrumAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpectrumAnalyzerTests.swift; sourceTree = "<group>"; };
+		A63000000000000000000018 /* PlaybackFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackFlowTests.swift; sourceTree = "<group>"; };
+		A64000000000000000000011 /* ArchiveWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveWriter.swift; sourceTree = "<group>"; };
+		A64000000000000000000012 /* ArchiveReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveReader.swift; sourceTree = "<group>"; };
+		A64000000000000000000013 /* PlaylistsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsController.swift; sourceTree = "<group>"; };
+		A64000000000000000000014 /* PlaylistsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsScreen.swift; sourceTree = "<group>"; };
+		A64000000000000000000015 /* SettingsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsController.swift; sourceTree = "<group>"; };
+		A64000000000000000000016 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
+		A64000000000000000000017 /* PlaylistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistTests.swift; sourceTree = "<group>"; };
+		A64000000000000000000018 /* ArchiveCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveCompatibilityTests.swift; sourceTree = "<group>"; };
+		A64000000000000000000019 /* SettingsFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFlowTests.swift; sourceTree = "<group>"; };
+		AE9000000000000000000016 /* ImportPickerPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPickerPresentationTests.swift; sourceTree = "<group>"; };
+		AE9000000000000000000015 /* PlayerNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerNavigationTests.swift; sourceTree = "<group>"; };
+		A65000000000000000000011 /* AudioIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioIntegrationTests.swift; sourceTree = "<group>"; };
+		A65000000000000000000012 /* AeonAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonAccessibilityTests.swift; sourceTree = "<group>"; };
+		A65000000000000000000013 /* AeonScreenMatrixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonScreenMatrixTests.swift; sourceTree = "<group>"; };
+		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
+		EA415E4B71310C82A009E840 /* Pods-AppTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppTests.release.xcconfig"; path = "Pods/Target Support Files/Pods-AppTests/Pods-AppTests.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -37,7 +293,25 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A5B000000000000000000009 /* libsqlite3.tbd in Frameworks */,
 				A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A50000000000000000000007 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A50000000000000000000003 /* XCTest.framework in Frameworks */,
+				95BC4554FE072BEFDBC5F139 /* Pods_AppTests.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5A000000000000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5A000000000000000000002 /* XCTest.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -47,7 +321,9 @@
 		27E2DDA53C4D2A4D1A88CE4A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A5B000000000000000000019 /* libsqlite3.tbd */,
 				AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */,
+				AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -56,6 +332,8 @@
 			isa = PBXGroup;
 			children = (
 				504EC3061FED79650016851F /* App */,
+				A50000000000000000000008 /* AppTests */,
+				A5A000000000000000000008 /* AppUITests */,
 				504EC3051FED79650016851F /* Products */,
 				7F8756D8B27F46E3366F6CEA /* Pods */,
 				27E2DDA53C4D2A4D1A88CE4A /* Frameworks */,
@@ -66,6 +344,8 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				A50000000000000000000005 /* AppTests.xctest */,
+				A5A00000000000000000000D /* AppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,9 +353,20 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				A61000000000000000000020 /* DesignSystem */,
+				A61000000000000000000021 /* Resources */,
+				A52000000000000000000020 /* Audio */,
+				A5E000000000000000000020 /* Playback */,
+				A5F000000000000000000020 /* Sky */,
+				A5B000000000000000000020 /* Domain */,
+				A5D000000000000000000020 /* Import */,
+				A58000000000000000000020 /* Migration */,
+				A5B000000000000000000021 /* Persistence */,
+				A59000000000000000000020 /* Features */,
+				A59000000000000000000011 /* AeonApp.swift */,
+				A59000000000000000000012 /* AppContainer.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
-				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
@@ -90,8 +381,263 @@
 			children = (
 				FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */,
 				AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */,
+				7446EDE89CF257007A136E41 /* Pods-AppTests.debug.xcconfig */,
+				EA415E4B71310C82A009E840 /* Pods-AppTests.release.xcconfig */,
 			);
 			name = Pods;
+			sourceTree = "<group>";
+		};
+		A50000000000000000000008 /* AppTests */ = {
+			isa = PBXGroup;
+			children = (
+				A50000000000000000000002 /* SmokeTests.swift */,
+				A52000000000000000000014 /* PlaybackModelsTests.swift */,
+				A52000000000000000000015 /* PlaybackStateStoreTests.swift */,
+				A53000000000000000000013 /* MediaStoreTests.swift */,
+				A53000000000000000000014 /* MetadataProbeTests.swift */,
+				A54000000000000000000013 /* ReplayGainAndEQTests.swift */,
+				A54000000000000000000014 /* AudioEngineGraphTests.swift */,
+				A55000000000000000000012 /* QueueSchedulerTests.swift */,
+				A56000000000000000000012 /* PlaybackCoordinatorTests.swift */,
+				A58000000000000000000013 /* LegacyDataAccessTests.swift */,
+				A59000000000000000000014 /* AppContainerTests.swift */,
+				A5B000000000000000000017 /* CatalogDatabaseTests.swift */,
+				A5B000000000000000000018 /* CatalogRepositoryTests.swift */,
+				A5C000000000000000000013 /* LegacyMigrationTests.swift */,
+				A5D000000000000000000016 /* AudioTagReaderTests.swift */,
+				A5D000000000000000000017 /* LibraryImporterTests.swift */,
+				AE9000000000000000000013 /* ImportPickerTests.swift */,
+				AE9000000000000000000014 /* ImportedFolderStoreTests.swift */,
+				A5D000000000000000000018 /* MetadataEnricherTests.swift */,
+				A5E000000000000000000015 /* PlaybackControllerTests.swift */,
+				A5E000000000000000000016 /* AudioSessionPolicyTests.swift */,
+				A5E000000000000000000017 /* RecoveryTests.swift */,
+				A5F000000000000000000015 /* SkyComposerTests.swift */,
+				A5F000000000000000000016 /* PlanetModelTests.swift */,
+				A5F000000000000000000017 /* sky-catalogue-v1.json */,
+				A6000000000000000000001A /* SkyCameraTests.swift */,
+				A6000000000000000000001B /* SkyHitTestingTests.swift */,
+				A61000000000000000000014 /* DesignTokenTests.swift */,
+				A62000000000000000000016 /* LibraryControllerTests.swift */,
+				A63000000000000000000016 /* QueueControllerTests.swift */,
+				A63000000000000000000017 /* SpectrumAnalyzerTests.swift */,
+				A64000000000000000000017 /* PlaylistTests.swift */,
+				A64000000000000000000018 /* ArchiveCompatibilityTests.swift */,
+				A65000000000000000000011 /* AudioIntegrationTests.swift */,
+				A53000000000000000000015 /* audio */,
+			);
+			path = AppTests;
+			sourceTree = "<group>";
+		};
+		A52000000000000000000020 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				A52000000000000000000011 /* PlaybackModels.swift */,
+				A52000000000000000000012 /* DiagnosticsLog.swift */,
+				A52000000000000000000013 /* PlaybackStateStore.swift */,
+				A53000000000000000000011 /* MediaStore.swift */,
+				A53000000000000000000012 /* MetadataProbe.swift */,
+				A54000000000000000000011 /* AudioEngineGraph.swift */,
+				A55000000000000000000011 /* QueueScheduler.swift */,
+				A56000000000000000000011 /* PlaybackCoordinator.swift */,
+				A57000000000000000000011 /* NativeAudioPlugin.swift */,
+				A54000000000000000000012 /* ReplayGain.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		A5E000000000000000000020 /* Playback */ = {
+			isa = PBXGroup;
+			children = (
+				A5E000000000000000000011 /* PlaybackController.swift */,
+				A5E000000000000000000012 /* AudioSessionController.swift */,
+				A5E000000000000000000013 /* RemoteCommandCoordinator.swift */,
+				A5E000000000000000000014 /* RecoveryCoordinator.swift */,
+				A63000000000000000000015 /* SpectrumAnalyzer.swift */,
+			);
+			path = Playback;
+			sourceTree = "<group>";
+		};
+		A5F000000000000000000020 /* Sky */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000020 /* Metal */,
+				A5F000000000000000000011 /* SkyModels.swift */,
+				A5F000000000000000000012 /* SkyComposer.swift */,
+				A5F000000000000000000013 /* SkyRepository.swift */,
+				A5F000000000000000000014 /* PlanetTextureGenerator.swift */,
+			);
+			path = Sky;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000020 /* Metal */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000011 /* SkyCamera.swift */,
+				A60000000000000000000012 /* SkyHitTester.swift */,
+				A60000000000000000000013 /* SkyRenderer.swift */,
+				A60000000000000000000014 /* SkyMetalView.swift */,
+				A60000000000000000000015 /* SkyShaders.metal */,
+			);
+			path = Metal;
+			sourceTree = "<group>";
+		};
+		A61000000000000000000020 /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				A61000000000000000000011 /* AeonTheme.swift */,
+				A61000000000000000000012 /* AeonComponents.swift */,
+				A61000000000000000000013 /* AeonChrome.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		A61000000000000000000021 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A61000000000000000000016 /* AeonNocturne-Regular.otf */,
+				A61000000000000000000017 /* GUST-FONT-LICENSE.txt */,
+				A61000000000000000000018 /* LPPL-1.3c.tex */,
+				A61000000000000000000019 /* README-Aeon-Nocturne.txt */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A5B000000000000000000020 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				A5B000000000000000000011 /* CatalogModels.swift */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		A5B000000000000000000021 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				A5B000000000000000000014 /* CatalogDatabase.swift */,
+				A5B000000000000000000012 /* CatalogSchema.swift */,
+				A5B000000000000000000015 /* CatalogRepository.swift */,
+				A5B000000000000000000013 /* CatalogMigrations.swift */,
+				A5B000000000000000000016 /* ArtworkStore.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		A5D000000000000000000020 /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				A5D000000000000000000011 /* AudioTagReader.swift */,
+				A5D000000000000000000012 /* ImportGrouper.swift */,
+				A5D000000000000000000013 /* ArtworkProcessor.swift */,
+				A5D000000000000000000014 /* MetadataEnricher.swift */,
+				A5D000000000000000000015 /* LibraryImporter.swift */,
+				AE9000000000000000000011 /* ImportPicker.swift */,
+				AE9000000000000000000012 /* ImportedFolderStore.swift */,
+				A64000000000000000000011 /* ArchiveWriter.swift */,
+				A64000000000000000000012 /* ArchiveReader.swift */,
+			);
+			path = Import;
+			sourceTree = "<group>";
+		};
+		A58000000000000000000020 /* Migration */ = {
+			isa = PBXGroup;
+			children = (
+				A5C000000000000000000011 /* LegacyMigrationModels.swift */,
+				A5C000000000000000000012 /* LegacyMigrationCoordinator.swift */,
+				A58000000000000000000011 /* LegacyMigrationPlugin.swift */,
+				A58000000000000000000012 /* LegacyMigrationViewController.swift */,
+			);
+			path = Migration;
+			sourceTree = "<group>";
+		};
+		A59000000000000000000020 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				A59000000000000000000021 /* Root */,
+				A60000000000000000000021 /* Sky */,
+				A62000000000000000000020 /* Library */,
+				A63000000000000000000020 /* Player */,
+				A64000000000000000000020 /* Playlists */,
+				A64000000000000000000021 /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		A62000000000000000000020 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				A62000000000000000000011 /* LibraryController.swift */,
+				A62000000000000000000012 /* LibraryScreen.swift */,
+				A62000000000000000000013 /* AlbumDetailView.swift */,
+				A62000000000000000000014 /* AlbumEditorView.swift */,
+				A62000000000000000000015 /* SearchResultsView.swift */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		A63000000000000000000020 /* Player */ = {
+			isa = PBXGroup;
+			children = (
+				A63000000000000000000011 /* PlayerBar.swift */,
+				A63000000000000000000012 /* NowPlayingView.swift */,
+				A63000000000000000000013 /* QueueView.swift */,
+				A63000000000000000000014 /* EQView.swift */,
+			);
+			path = Player;
+			sourceTree = "<group>";
+		};
+		A64000000000000000000020 /* Playlists */ = {
+			isa = PBXGroup;
+			children = (
+				A64000000000000000000013 /* PlaylistsController.swift */,
+				A64000000000000000000014 /* PlaylistsScreen.swift */,
+			);
+			path = Playlists;
+			sourceTree = "<group>";
+		};
+		A64000000000000000000021 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A64000000000000000000015 /* SettingsController.swift */,
+				A64000000000000000000016 /* SettingsScreen.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A60000000000000000000021 /* Sky */ = {
+			isa = PBXGroup;
+			children = (
+				A60000000000000000000016 /* SkySceneController.swift */,
+				A60000000000000000000017 /* SkyScreen.swift */,
+				A60000000000000000000018 /* SkyAccessibilityOverlay.swift */,
+				A60000000000000000000019 /* SkyHUD.swift */,
+			);
+			path = Sky;
+			sourceTree = "<group>";
+		};
+		A59000000000000000000021 /* Root */ = {
+			isa = PBXGroup;
+			children = (
+				A59000000000000000000013 /* AeonRootView.swift */,
+			);
+			path = Root;
+			sourceTree = "<group>";
+		};
+		A5A000000000000000000008 /* AppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A5A00000000000000000000E /* AppUITests.swift */,
+				A6000000000000000000001C /* SkyInteractionTests.swift */,
+				A61000000000000000000015 /* AdaptiveChromeTests.swift */,
+				A62000000000000000000017 /* LibraryFlowTests.swift */,
+				A63000000000000000000018 /* PlaybackFlowTests.swift */,
+				A64000000000000000000019 /* SettingsFlowTests.swift */,
+				AE9000000000000000000016 /* ImportPickerPresentationTests.swift */,
+				AE9000000000000000000015 /* PlayerNavigationTests.swift */,
+				A65000000000000000000012 /* AeonAccessibilityTests.swift */,
+				A65000000000000000000013 /* AeonScreenMatrixTests.swift */,
+			);
+			path = AppUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -116,6 +662,43 @@
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A50000000000000000000009 /* AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A5000000000000000000000A /* Build configuration list for PBXNativeTarget "AppTests" */;
+			buildPhases = (
+				C18537B2040151A5E671824C /* [CP] Check Pods Manifest.lock */,
+				A5000000000000000000000B /* Sources */,
+				A50000000000000000000007 /* Frameworks */,
+				A5000000000000000000000C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A5000000000000000000000D /* PBXTargetDependency */,
+			);
+			name = AppTests;
+			productName = AppTests;
+			productReference = A50000000000000000000005 /* AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A5A000000000000000000009 /* AppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A5A00000000000000000000A /* Build configuration list for PBXNativeTarget "AppUITests" */;
+			buildPhases = (
+				A5A000000000000000000004 /* Sources */,
+				A5A000000000000000000003 /* Frameworks */,
+				A5A000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A5A000000000000000000007 /* PBXTargetDependency */,
+			);
+			name = AppUITests;
+			productName = AppUITests;
+			productReference = A5A00000000000000000000D /* AppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -130,6 +713,14 @@
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
 					};
+					A50000000000000000000009 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = 504EC3031FED79650016851F;
+					};
+					A5A000000000000000000009 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = 504EC3031FED79650016851F;
+					};
 				};
 			};
 			buildConfigurationList = 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */;
@@ -141,13 +732,13 @@
 				Base,
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
-			packageReferences = (
-			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				A50000000000000000000009 /* AppTests */,
+				A5A000000000000000000009 /* AppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -161,8 +752,27 @@
 				50B271D11FEDC1A000F3C39B /* public in Resources */,
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
-				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				A61000000000000000000006 /* AeonNocturne-Regular.otf in Resources */,
+				A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */,
+				A61000000000000000000008 /* LPPL-1.3c.tex in Resources */,
+				A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5000000000000000000000C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A53000000000000000000005 /* audio in Resources */,
+				A5F000000000000000000007 /* sky-catalogue-v1.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5A000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -202,6 +812,28 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-App/Pods-App-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		C18537B2040151A5E671824C /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-AppTests-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -210,20 +842,148 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				A59000000000000000000001 /* AeonApp.swift in Sources */,
+				A59000000000000000000002 /* AppContainer.swift in Sources */,
+				A59000000000000000000003 /* AeonRootView.swift in Sources */,
+				A5B000000000000000000001 /* CatalogModels.swift in Sources */,
+				A5B000000000000000000002 /* CatalogSchema.swift in Sources */,
+				A5B000000000000000000003 /* CatalogMigrations.swift in Sources */,
+				A5B000000000000000000004 /* CatalogDatabase.swift in Sources */,
+				A5B000000000000000000005 /* CatalogRepository.swift in Sources */,
+				A5B000000000000000000006 /* ArtworkStore.swift in Sources */,
+				A52000000000000000000001 /* PlaybackModels.swift in Sources */,
+				A52000000000000000000002 /* DiagnosticsLog.swift in Sources */,
+				A52000000000000000000003 /* PlaybackStateStore.swift in Sources */,
+				A53000000000000000000001 /* MediaStore.swift in Sources */,
+				A53000000000000000000002 /* MetadataProbe.swift in Sources */,
+				A54000000000000000000001 /* AudioEngineGraph.swift in Sources */,
+				A55000000000000000000001 /* QueueScheduler.swift in Sources */,
+				A56000000000000000000001 /* PlaybackCoordinator.swift in Sources */,
+				A57000000000000000000001 /* NativeAudioPlugin.swift in Sources */,
+				A58000000000000000000001 /* LegacyMigrationPlugin.swift in Sources */,
+				A58000000000000000000002 /* LegacyMigrationViewController.swift in Sources */,
+				A5C000000000000000000001 /* LegacyMigrationModels.swift in Sources */,
+				A5C000000000000000000002 /* LegacyMigrationCoordinator.swift in Sources */,
+				A54000000000000000000002 /* ReplayGain.swift in Sources */,
+				A5D000000000000000000001 /* AudioTagReader.swift in Sources */,
+				A5D000000000000000000002 /* ImportGrouper.swift in Sources */,
+				A5D000000000000000000003 /* ArtworkProcessor.swift in Sources */,
+				A5D000000000000000000004 /* MetadataEnricher.swift in Sources */,
+				A5D000000000000000000005 /* LibraryImporter.swift in Sources */,
+				AE9000000000000000000001 /* ImportPicker.swift in Sources */,
+				AE9000000000000000000002 /* ImportedFolderStore.swift in Sources */,
+				A64000000000000000000001 /* ArchiveWriter.swift in Sources */,
+				A64000000000000000000002 /* ArchiveReader.swift in Sources */,
+				A5E000000000000000000001 /* PlaybackController.swift in Sources */,
+				A5E000000000000000000002 /* AudioSessionController.swift in Sources */,
+				A5E000000000000000000003 /* RemoteCommandCoordinator.swift in Sources */,
+				A5E000000000000000000004 /* RecoveryCoordinator.swift in Sources */,
+				A5F000000000000000000001 /* SkyModels.swift in Sources */,
+				A5F000000000000000000002 /* SkyComposer.swift in Sources */,
+				A5F000000000000000000003 /* SkyRepository.swift in Sources */,
+				A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */,
+				A60000000000000000000001 /* SkyCamera.swift in Sources */,
+				A60000000000000000000002 /* SkyHitTester.swift in Sources */,
+				A60000000000000000000003 /* SkyRenderer.swift in Sources */,
+				A60000000000000000000004 /* SkyMetalView.swift in Sources */,
+				A60000000000000000000005 /* SkyShaders.metal in Sources */,
+				A60000000000000000000006 /* SkySceneController.swift in Sources */,
+				A60000000000000000000007 /* SkyScreen.swift in Sources */,
+				A60000000000000000000008 /* SkyAccessibilityOverlay.swift in Sources */,
+				A60000000000000000000009 /* SkyHUD.swift in Sources */,
+				A61000000000000000000001 /* AeonTheme.swift in Sources */,
+				A61000000000000000000002 /* AeonComponents.swift in Sources */,
+				A61000000000000000000003 /* AeonChrome.swift in Sources */,
+				A62000000000000000000001 /* LibraryController.swift in Sources */,
+				A62000000000000000000002 /* LibraryScreen.swift in Sources */,
+				A62000000000000000000003 /* AlbumDetailView.swift in Sources */,
+				A62000000000000000000004 /* AlbumEditorView.swift in Sources */,
+				A62000000000000000000005 /* SearchResultsView.swift in Sources */,
+				A63000000000000000000001 /* PlayerBar.swift in Sources */,
+				A63000000000000000000002 /* NowPlayingView.swift in Sources */,
+				A63000000000000000000003 /* QueueView.swift in Sources */,
+				A63000000000000000000004 /* EQView.swift in Sources */,
+				A63000000000000000000005 /* SpectrumAnalyzer.swift in Sources */,
+				A64000000000000000000003 /* PlaylistsController.swift in Sources */,
+				A64000000000000000000004 /* PlaylistsScreen.swift in Sources */,
+				A64000000000000000000005 /* SettingsController.swift in Sources */,
+				A64000000000000000000006 /* SettingsScreen.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5000000000000000000000B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A50000000000000000000001 /* SmokeTests.swift in Sources */,
+				A52000000000000000000004 /* PlaybackModelsTests.swift in Sources */,
+				A52000000000000000000005 /* PlaybackStateStoreTests.swift in Sources */,
+				A53000000000000000000003 /* MediaStoreTests.swift in Sources */,
+				A53000000000000000000004 /* MetadataProbeTests.swift in Sources */,
+				A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */,
+				A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */,
+				A55000000000000000000002 /* QueueSchedulerTests.swift in Sources */,
+				A56000000000000000000002 /* PlaybackCoordinatorTests.swift in Sources */,
+				A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */,
+				A59000000000000000000004 /* AppContainerTests.swift in Sources */,
+				A5B000000000000000000007 /* CatalogDatabaseTests.swift in Sources */,
+				A5B000000000000000000008 /* CatalogRepositoryTests.swift in Sources */,
+				A5C000000000000000000003 /* LegacyMigrationTests.swift in Sources */,
+				A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */,
+				A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */,
+				AE9000000000000000000003 /* ImportPickerTests.swift in Sources */,
+				AE9000000000000000000004 /* ImportedFolderStoreTests.swift in Sources */,
+				A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */,
+				A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */,
+				A5E000000000000000000006 /* AudioSessionPolicyTests.swift in Sources */,
+				A5E000000000000000000007 /* RecoveryTests.swift in Sources */,
+				A5F000000000000000000005 /* SkyComposerTests.swift in Sources */,
+				A5F000000000000000000006 /* PlanetModelTests.swift in Sources */,
+				A6000000000000000000000A /* SkyCameraTests.swift in Sources */,
+				A6000000000000000000000B /* SkyHitTestingTests.swift in Sources */,
+				A61000000000000000000004 /* DesignTokenTests.swift in Sources */,
+				A62000000000000000000006 /* LibraryControllerTests.swift in Sources */,
+				A63000000000000000000006 /* QueueControllerTests.swift in Sources */,
+				A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */,
+				A64000000000000000000007 /* PlaylistTests.swift in Sources */,
+				A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */,
+				A65000000000000000000001 /* AudioIntegrationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A5A000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A5A000000000000000000001 /* AppUITests.swift in Sources */,
+				A6000000000000000000000C /* SkyInteractionTests.swift in Sources */,
+				A61000000000000000000005 /* AdaptiveChromeTests.swift in Sources */,
+				A62000000000000000000007 /* LibraryFlowTests.swift in Sources */,
+				A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */,
+				A64000000000000000000009 /* SettingsFlowTests.swift in Sources */,
+				AE9000000000000000000006 /* ImportPickerPresentationTests.swift in Sources */,
+				AE9000000000000000000005 /* PlayerNavigationTests.swift in Sources */,
+				A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */,
+				A65000000000000000000003 /* AeonScreenMatrixTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
-/* Begin PBXVariantGroup section */
-		504EC30B1FED79650016851F /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				504EC30C1FED79650016851F /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
+/* Begin PBXTargetDependency section */
+		A5000000000000000000000D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 504EC3031FED79650016851F /* App */;
+			targetProxy = A50000000000000000000006 /* PBXContainerItemProxy */;
 		};
+		A5A000000000000000000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 504EC3031FED79650016851F /* App */;
+			targetProxy = A5A000000000000000000006 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
 		504EC3101FED79650016851F /* LaunchScreen.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
@@ -283,7 +1043,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -334,7 +1094,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
@@ -348,16 +1108,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 50;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 3.6;
+				MARKETING_VERSION = 5.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -368,16 +1130,94 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 50;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 3.6;
+				MARKETING_VERSION = 5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_VERSION = 5.0;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A5000000000000000000000E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7446EDE89CF257007A136E41 /* Pods-AppTests.debug.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 50;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App.app/App";
+			};
+			name = Debug;
+		};
+		A5000000000000000000000F /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = EA415E4B71310C82A009E840 /* Pods-AppTests.release.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 50;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/App.app/App";
+			};
+			name = Release;
+		};
+		A5A00000000000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 50;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = App;
+			};
+			name = Debug;
+		};
+		A5A00000000000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 50;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MARKETING_VERSION = 5.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.isolation.sky.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = App;
 			};
 			name = Release;
 		};
@@ -398,6 +1238,24 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A5000000000000000000000A /* Build configuration list for PBXNativeTarget "AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A5000000000000000000000E /* Debug */,
+				A5000000000000000000000F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A5A00000000000000000000A /* Build configuration list for PBXNativeTarget "AppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A5A00000000000000000000B /* Debug */,
+				A5A00000000000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

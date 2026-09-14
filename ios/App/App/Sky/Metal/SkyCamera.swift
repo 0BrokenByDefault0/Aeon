@@ -1,0 +1,138 @@
+import CoreGraphics
+import Foundation
+
+enum SkyZoomTier: String, Codable, CaseIterable, Sendable {
+    case galaxy
+    case region
+    case constellation
+    case system
+}
+
+struct SkyViewport: Equatable, Sendable {
+    let size: CGSize
+
+    var center: CGPoint { CGPoint(x: size.width / 2, y: size.height / 2) }
+}
+
+struct SkyCameraState: Codable, Equatable, Sendable {
+    static let minimumScale = 0.08
+    static let maximumScale = 12.0
+    static let home = SkyCameraState(centerX: 0, centerY: 0, scale: 0.72, selectedID: nil)
+
+    var centerX: Double
+    var centerY: Double
+    var scale: Double
+    var selectedID: String?
+
+    var sanitized: SkyCameraState {
+        guard centerX.isFinite, centerY.isFinite, scale.isFinite else { return .home }
+        var value = self
+        value.scale = min(Self.maximumScale, max(Self.minimumScale, scale))
+        return value
+    }
+
+    var tier: SkyZoomTier {
+        switch scale {
+        case ..<0.45: return .galaxy
+        case ..<1.2: return .region
+        case ..<3.2: return .constellation
+        default: return .system
+        }
+    }
+
+    func screenPoint(for point: SkyPoint, viewport: SkyViewport) -> CGPoint {
+        CGPoint(
+            x: viewport.center.x + (Double(point.x) - centerX) * scale,
+            y: viewport.center.y + (Double(point.y) - centerY) * scale
+        )
+    }
+
+    func worldPoint(for point: CGPoint, viewport: SkyViewport) -> CGPoint {
+        CGPoint(
+            x: centerX + Double(point.x - viewport.center.x) / scale,
+            y: centerY + Double(point.y - viewport.center.y) / scale
+        )
+    }
+
+    func panned(screenTranslation: CGSize) -> SkyCameraState {
+        var result = self
+        result.centerX -= Double(screenTranslation.width) / scale
+        result.centerY -= Double(screenTranslation.height) / scale
+        return result
+    }
+
+    func zoomed(by factor: Double, anchor: CGPoint, viewport: SkyViewport) -> SkyCameraState {
+        let worldAnchor = worldPoint(for: anchor, viewport: viewport)
+        let nextScale = min(Self.maximumScale, max(Self.minimumScale, scale * factor))
+        var result = self
+        result.scale = nextScale
+        result.centerX = Double(worldAnchor.x) - Double(anchor.x - viewport.center.x) / nextScale
+        result.centerY = Double(worldAnchor.y) - Double(anchor.y - viewport.center.y) / nextScale
+        return result
+    }
+
+    func zoomedOutOneTier(anchor: CGPoint, viewport: SkyViewport) -> SkyCameraState {
+        let target: Double
+        switch tier {
+        case .galaxy: target = Self.minimumScale
+        case .region: target = 0.3
+        case .constellation: target = 0.9
+        case .system: target = 2.6
+        }
+        return zoomed(by: target / scale, anchor: anchor, viewport: viewport)
+    }
+
+    func reframed(from oldViewport: SkyViewport, to newViewport: SkyViewport) -> SkyCameraState {
+        self
+    }
+
+    static func framing(points: [SkyPoint], viewport: SkyViewport, padding: CGFloat = 56) -> SkyCameraState {
+        guard let first = points.first else { return .home }
+        var minX = Double(first.x)
+        var maxX = minX
+        var minY = Double(first.y)
+        var maxY = minY
+        for point in points.dropFirst() {
+            minX = min(minX, Double(point.x))
+            maxX = max(maxX, Double(point.x))
+            minY = min(minY, Double(point.y))
+            maxY = max(maxY, Double(point.y))
+        }
+        let availableWidth = max(1, viewport.size.width - padding * 2)
+        let availableHeight = max(1, viewport.size.height - padding * 2)
+        let widthScale = Double(availableWidth) / max(1, maxX - minX)
+        let heightScale = Double(availableHeight) / max(1, maxY - minY)
+        return SkyCameraState(
+            centerX: (minX + maxX) / 2,
+            centerY: (minY + maxY) / 2,
+            scale: min(Self.maximumScale, max(Self.minimumScale, min(widthScale, heightScale))),
+            selectedID: nil
+        )
+    }
+}
+
+enum SkyCameraTransitionKind: Equatable, Sendable {
+    case flight
+    case crossFade
+}
+
+struct SkyCameraTransition: Equatable, Sendable {
+    let target: SkyCameraState
+    let kind: SkyCameraTransitionKind
+
+    static func locate(
+        _ point: SkyPoint,
+        from camera: SkyCameraState,
+        reduceMotion: Bool
+    ) -> SkyCameraTransition {
+        SkyCameraTransition(
+            target: SkyCameraState(
+                centerX: Double(point.x),
+                centerY: Double(point.y),
+                scale: max(camera.scale, 3.2),
+                selectedID: camera.selectedID
+            ),
+            kind: reduceMotion ? .crossFade : .flight
+        )
+    }
+}
