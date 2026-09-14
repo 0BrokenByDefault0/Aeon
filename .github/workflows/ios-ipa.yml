@@ -46,6 +46,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Verify playback and library regressions
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
         run: |
           npm test
           npm run check
