@@ -3,32 +3,49 @@ import UIKit
 
 enum AeonTheme {
     enum ColorToken {
-        static let void = Color(red: 0.003, green: 0.004, blue: 0.007)
-        static let chamber = Color(red: 0.063, green: 0.075, blue: 0.098)
-        static let chamberOpaque = Color(red: 0.063, green: 0.075, blue: 0.098).opacity(0.98)
-        static let bone = Color(red: 0.93, green: 0.91, blue: 0.84)
-        static let boneSecondary = Color(red: 0.72, green: 0.71, blue: 0.68)
-        static let boneTertiary = Color(red: 0.55, green: 0.56, blue: 0.57)
-        static let silver = Color(red: 0.55, green: 0.61, blue: 0.70)
-        static let rule = Color.white.opacity(0.24)
-        static let strongRule = Color.white.opacity(0.48)
+        // Core editorial palette from the Aeon 5 product-design handoff.
+        static let void = Color(red: 10 / 255, green: 10 / 255, blue: 11 / 255)
+        static let chamber = Color(red: 21 / 255, green: 22 / 255, blue: 25 / 255)
+        static let chamberOpaque = chamber.opacity(0.98)
+        static let surfaceSelected = Color(red: 29 / 255, green: 31 / 255, blue: 35 / 255)
+
+        static let bone = Color(red: 242 / 255, green: 236 / 255, blue: 217 / 255)
+        static let ivorySecondary = Color(red: 216 / 255, green: 208 / 255, blue: 185 / 255)
+        static let textPrimary = Color(red: 244 / 255, green: 242 / 255, blue: 236 / 255)
+        static let boneSecondary = Color(red: 183 / 255, green: 184 / 255, blue: 188 / 255)
+        static let boneTertiary = Color(red: 133 / 255, green: 135 / 255, blue: 141 / 255)
+
+        // Retained as a compatibility alias for older surfaces; new selection states
+        // should prefer surfaceSelected or ivorySecondary.
+        static let silver = ivorySecondary
+        static let rule = Color.white.opacity(0.16)
+        static let strongRule = Color.white.opacity(0.30)
         static let danger = Color(red: 0.87, green: 0.36, blue: 0.31)
     }
 
     enum Space {
         static let hairline: CGFloat = 0.5
-        static let compactEdge: CGFloat = 18
+        static let compactEdge: CGFloat = 20
         static let edge: CGFloat = 24
+        static let xSmall: CGFloat = 4
         static let small: CGFloat = 8
         static let medium: CGFloat = 12
-        static let large: CGFloat = 18
-        static let section: CGFloat = 28
+        static let regular: CGFloat = 16
+        static let large: CGFloat = 24
+        static let section: CGFloat = 40
+        static let hero: CGFloat = 48
         static let minimumTarget: CGFloat = 44
-        static let compactDock: CGFloat = 68
+        static let compactDock: CGFloat = 74
         static let playerBar: CGFloat = 72
         static let sidebar: CGFloat = 196
         static let sidePanel: CGFloat = 560
         static let textContentMaximum: CGFloat = 900
+    }
+
+    enum Radius {
+        static let compact: CGFloat = 14
+        static let control: CGFloat = 16
+        static let surface: CGFloat = 18
     }
 
     enum Stroke {
@@ -38,16 +55,18 @@ enum AeonTheme {
     }
 
     enum Shadow {
-        static let glassRadius: CGFloat = 22
-        static let glassY: CGFloat = 12
+        static let glassRadius: CGFloat = 18
+        static let glassY: CGFloat = 10
         static let artworkRadius: CGFloat = 14
         static let artworkY: CGFloat = 8
     }
 
     enum Duration {
         static let immediate = 0.12
+        static let press = 0.16
         static let chrome = 0.24
         static let sheet = 0.34
+        static let constellationBreath = 5.2
         static let toast = 3.2
     }
 
