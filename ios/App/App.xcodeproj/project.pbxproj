@@ -128,6 +128,7 @@
 		A64000000000000000000007 /* PlaylistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000017 /* PlaylistTests.swift */; };
 		A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000018 /* ArchiveCompatibilityTests.swift */; };
 		A64000000000000000000009 /* SettingsFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000019 /* SettingsFlowTests.swift */; };
+		AE9000000000000000000006 /* ImportPickerPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000016 /* ImportPickerPresentationTests.swift */; };
 		AE9000000000000000000005 /* PlayerNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000015 /* PlayerNavigationTests.swift */; };
 		A65000000000000000000001 /* AudioIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000011 /* AudioIntegrationTests.swift */; };
 		A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000012 /* AeonAccessibilityTests.swift */; };
@@ -275,6 +276,7 @@
 		A64000000000000000000017 /* PlaylistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistTests.swift; sourceTree = "<group>"; };
 		A64000000000000000000018 /* ArchiveCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveCompatibilityTests.swift; sourceTree = "<group>"; };
 		A64000000000000000000019 /* SettingsFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFlowTests.swift; sourceTree = "<group>"; };
+		AE9000000000000000000016 /* ImportPickerPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPickerPresentationTests.swift; sourceTree = "<group>"; };
 		AE9000000000000000000015 /* PlayerNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerNavigationTests.swift; sourceTree = "<group>"; };
 		A65000000000000000000011 /* AudioIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioIntegrationTests.swift; sourceTree = "<group>"; };
 		A65000000000000000000012 /* AeonAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonAccessibilityTests.swift; sourceTree = "<group>"; };
@@ -630,6 +632,7 @@
 				A62000000000000000000017 /* LibraryFlowTests.swift */,
 				A63000000000000000000018 /* PlaybackFlowTests.swift */,
 				A64000000000000000000019 /* SettingsFlowTests.swift */,
+				AE9000000000000000000016 /* ImportPickerPresentationTests.swift */,
 				AE9000000000000000000015 /* PlayerNavigationTests.swift */,
 				A65000000000000000000012 /* AeonAccessibilityTests.swift */,
 				A65000000000000000000013 /* AeonScreenMatrixTests.swift */,
@@ -958,6 +961,7 @@
 				A62000000000000000000007 /* LibraryFlowTests.swift in Sources */,
 				A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */,
 				A64000000000000000000009 /* SettingsFlowTests.swift in Sources */,
+				AE9000000000000000000006 /* ImportPickerPresentationTests.swift in Sources */,
 				AE9000000000000000000005 /* PlayerNavigationTests.swift in Sources */,
 				A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */,
 				A65000000000000000000003 /* AeonScreenMatrixTests.swift in Sources */,

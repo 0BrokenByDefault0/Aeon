@@ -54,7 +54,14 @@ final class LegacyDataAccessTests: XCTestCase {
         XCTAssertEqual(snapshot.ids[.playlists], ["upgrade-playlist"])
         let keyValueIDs = Set(snapshot.ids[.kv] ?? [])
         XCTAssertTrue(keyValueIDs.contains("skySeed"))
-        XCTAssertTrue(keyValueIDs.isSubset(of: ["log", "skySeed"]), "Unexpected keys: \(keyValueIDs)")
+        // The legacy app writes its own key/value entries while it boots — settings on
+        // every save, trackOrderFix as a one-time marker — so the seeded skySeed is not
+        // the only key present. What matters is that nothing outside the legacy app's
+        // own vocabulary appears in the snapshot.
+        let legacyOwnedKeys: Set<String> = [
+            "log", "skySeed", "settings", "seq", "lastPlayed", "plays", "trackOrderFix"
+        ]
+        XCTAssertTrue(keyValueIDs.isSubset(of: legacyOwnedKeys), "Unexpected keys: \(keyValueIDs)")
         XCTAssertEqual(snapshot.blobs.map(\.ownerID), ["upgrade-album", "upgrade-blob"])
 
         _ = try await callAsync("db = window.__aeonMigrationTestDB; await dbClearAll(); db = null; return true;", in: seedWebView)

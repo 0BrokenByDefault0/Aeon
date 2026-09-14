@@ -435,19 +435,25 @@ final class LibraryImporter: @unchecked Sendable {
     private func materialize(_ url: URL) async throws {
         let keys: Set<URLResourceKey> = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
         let values = try? url.resourceValues(forKeys: keys)
-        // Either the item is on disk and flagged ubiquitous, or nothing is there yet and
-        // only its ".icloud" placeholder stands in for it.
-        let placeholderOnly = values == nil
-            && fileManager.fileExists(atPath: ubiquitousPlaceholderURL(for: url).path)
-        guard values?.isUbiquitousItem == true || placeholderOnly else { return }
         if values?.ubiquitousItemDownloadingStatus == .current { return }
-        try? fileManager.startDownloadingUbiquitousItem(at: url)
 
+        // `resourceValues` succeeds even for a path that does not exist, handing back a
+        // record with every field nil, so whether it returned a value proves nothing.
+        // Ask the file system instead: something worth waiting for is either flagged
+        // ubiquitous, or absent with a ".icloud" placeholder standing in its place.
+        let isUbiquitous = values?.isUbiquitousItem == true
+        let hasPlaceholder = fileManager.fileExists(atPath: ubiquitousPlaceholderURL(for: url).path)
+        if !isUbiquitous, fileManager.fileExists(atPath: url.path) { return }
+        guard isUbiquitous || hasPlaceholder else { return }
+
+        try? fileManager.startDownloadingUbiquitousItem(at: url)
         let deadline = Date().addingTimeInterval(downloadTimeout)
         while Date() < deadline {
             try await Task.sleep(nanoseconds: 250_000_000)
-            guard let status = try? url.resourceValues(forKeys: keys).ubiquitousItemDownloadingStatus else { continue }
-            if status == .current { return }
+            let refreshed = try? url.resourceValues(forKeys: keys)
+            if refreshed?.ubiquitousItemDownloadingStatus == .current { return }
+            // The placeholder was replaced by the real file.
+            if refreshed?.isUbiquitousItem != true, fileManager.fileExists(atPath: url.path) { return }
         }
         throw LibraryImportError.sourceUnavailable
     }
