@@ -177,7 +177,11 @@ final class AeonScreenMatrixTests: XCTestCase {
         app.buttons["aeon.navigation.playlists"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.playlists.screen"].waitForExistence(timeout: 8))
         capture(app, name: "screen-playlists-empty")
+        let create = app.buttons["aeon.playlists.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        create.tap()
         let name = app.textFields["aeon.playlists.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
         name.typeText("Screen Matrix Route\n")
         let route = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Screen Matrix Route")).firstMatch
