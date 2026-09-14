@@ -99,6 +99,10 @@ final class AeonScreenMatrixTests: XCTestCase {
         var app = launch(["-AeonSkyFixture", "empty"])
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 12))
         capture(app, name: "screen-empty")
+        let importMusic = app.buttons["aeon.library.import"]
+        XCTAssertTrue(importMusic.isHittable)
+        importMusic.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["aeon.library.import.files"].isHittable)
         XCTAssertTrue(app.buttons["aeon.library.import.folder"].isHittable)
         capture(app, name: "screen-import")
