@@ -19,12 +19,18 @@ struct PlaylistsScreen: View {
 
             if controller.playlists.isEmpty {
                 Spacer(minLength: AeonTheme.Space.section)
-                AeonEmptyState(
-                    title: "No routes charted yet.",
-                    detail: "Build a route through the records you return to.",
-                    actionTitle: "CREATE PLAYLIST",
-                    action: { creationPresented = true }
-                )
+                VStack(spacing: AeonTheme.Space.large) {
+                    AeonEmptyState(
+                        title: "No routes charted yet.",
+                        detail: "Build a route through the records you return to.",
+                        actionTitle: nil,
+                        action: nil
+                    )
+                    Button("CREATE PLAYLIST") { creationPresented = true }
+                        .buttonStyle(AeonButtonStyle(tier: .filled))
+                        .frame(maxWidth: 320)
+                        .accessibilityIdentifier("aeon.playlists.create")
+                }
                 .frame(maxWidth: 440)
                 .frame(maxWidth: .infinity)
                 Spacer(minLength: AeonTheme.Space.section)
