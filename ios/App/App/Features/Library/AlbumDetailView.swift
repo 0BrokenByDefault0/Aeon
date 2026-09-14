@@ -13,13 +13,15 @@ struct AlbumDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                 header
-                artworkStage
-                actions
+                hero
+                primaryActions
                 metadata
                 tracks
             }
             .padding(AeonTheme.Space.edge)
             .padding(.bottom, AeonTheme.Space.section)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
@@ -44,12 +46,11 @@ struct AlbumDetailView: View {
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
-            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-            .contentShape(Rectangle())
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .accessibilityLabel(embedded ? "Back to library" : "Close album")
             .accessibilityIdentifier("aeon.album.close")
             AeonBreadcrumb(text: "Album")
+            Spacer(minLength: 0)
             Menu {
                 Button("EDIT") { editing = true }
                 Button("DELETE ALBUM", role: .destructive) { confirmingDelete = true }
@@ -63,27 +64,31 @@ struct AlbumDetailView: View {
         }
     }
 
-    private var artworkStage: some View {
-        VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+    private var hero: some View {
+        VStack(spacing: AeonTheme.Space.large) {
             let image = album.artworkKey
                 .flatMap { controller.thumbnails[$0] }
                 .map { Image(uiImage: $0) }
-            AeonArtwork(image: image, size: embedded ? 220 : 280)
+            AeonArtwork(image: image, size: embedded ? 230 : 300)
                 .frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 5) {
-                AeonDisplayText(album.title, size: 38, maximumLines: 3)
+            VStack(spacing: 6) {
+                AeonDisplayText(album.title, size: 40, maximumLines: 3)
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .accessibilityIdentifier("aeon.album.title")
                 Text(album.artist)
                     .font(AeonTheme.FontToken.ui(.title3, weight: .medium))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .multilineTextAlignment(.center)
                 if let status = controller.status(for: album.id) { AeonLabel(text: status) }
             }
+            .frame(maxWidth: 560)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private var actions: some View {
-        VStack(spacing: AeonTheme.Space.small) {
+    private var primaryActions: some View {
+        VStack(spacing: AeonTheme.Space.medium) {
             HStack(spacing: AeonTheme.Space.small) {
                 Button("PLAY") { controller.playAlbum(id: album.id) }
                     .buttonStyle(AeonButtonStyle(tier: .filled))
@@ -92,7 +97,7 @@ struct AlbumDetailView: View {
                     .buttonStyle(AeonButtonStyle(tier: .hairline))
                     .accessibilityIdentifier("aeon.album.find-in-sky")
             }
-            HStack(spacing: AeonTheme.Space.small) {
+            HStack(spacing: AeonTheme.Space.large) {
                 Button("EDIT") { editing = true }
                     .buttonStyle(AeonButtonStyle(tier: .bare))
                     .accessibilityIdentifier("aeon.album.edit")
@@ -112,17 +117,17 @@ struct AlbumDetailView: View {
                 }
             }
         } label: {
-            Text("ADD TO PLAYLIST")
+            Label("ADD TO PLAYLIST", systemImage: "text.badge.plus")
                 .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
-                .tracking(1.2)
+                .tracking(1.0)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
         }
-        .foregroundStyle(AeonTheme.ColorToken.bone)
+        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         .accessibilityIdentifier("aeon.album.add-playlist")
     }
 
     private var metadata: some View {
-        HStack(spacing: AeonTheme.Space.large) {
+        HStack(alignment: .top, spacing: AeonTheme.Space.section) {
             if !album.year.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 metadataValue("YEAR", album.year)
             }
@@ -130,6 +135,13 @@ struct AlbumDetailView: View {
                 metadataValue("GENRE", album.genre)
             }
             metadataValue("TRACKS", "\(controller.selectedTracks.count)")
+        }
+        .padding(.vertical, AeonTheme.Space.large)
+        .overlay(alignment: .top) {
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
         }
     }
 
