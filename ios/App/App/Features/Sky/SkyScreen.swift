@@ -3,6 +3,7 @@ import SwiftUI
 struct SkyScreen: View {
     @ObservedObject var controller: SkySceneController
     let importProgress: LibraryImportProgress?
+    let importError: String?
     let readableInsets: AeonReadableInsets
     let showHUD: Bool
     let highContrast: Bool
@@ -75,6 +76,14 @@ struct SkyScreen: View {
                     .buttonStyle(.bordered)
                     .tint(.white)
                     .accessibilityIdentifier("aeon.library.import.folder")
+            }
+            if let importError, !importError.isEmpty {
+                Text(importError)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 360)
+                    .accessibilityIdentifier("aeon.sky.import.error")
             }
         }
         .padding(28)

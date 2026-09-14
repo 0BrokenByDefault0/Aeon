@@ -3,9 +3,9 @@ import UniformTypeIdentifiers
 
 struct AeonRootView: View {
     @ObservedObject var container: AppContainer
-    @State private var isRestoringCatalog = false
-    @State private var isSelectingAudio = false
-    @State private var isSelectingFolder = false
+    /// One picker at a time. Several `fileImporter` modifiers stacked on a single view
+    /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
+    @State private var picker: ImportPickerKind?
 
     var body: some View {
         ZStack {
@@ -26,29 +26,45 @@ struct AeonRootView: View {
                 .allowsHitTesting(false)
         }
         .preferredColorScheme(.dark)
-        .fileImporter(
-            isPresented: $isRestoringCatalog,
-            allowedContentTypes: [.data],
-            allowsMultipleSelection: false
-        ) { result in
-            guard case .success(let urls) = result, let url = urls.first else { return }
-            container.restoreCatalog(from: url)
+        .sheet(item: $picker) { kind in
+            ImportDocumentPicker(kind: kind) { outcome in
+                picker = nil
+                handle(outcome, kind: kind)
+            }
+            .ignoresSafeArea()
         }
-        .fileImporter(
-            isPresented: $isSelectingAudio,
-            allowedContentTypes: [.audio],
-            allowsMultipleSelection: true
-        ) { result in
-            guard case .success(let urls) = result else { return }
-            container.importLibrary(urls: urls, mode: .smart)
+        .alert(
+            "Import",
+            isPresented: Binding(
+                get: { container.libraryImportError != nil },
+                set: { if !$0 { container.dismissLibraryImportError() } }
+            )
+        ) {
+            Button("OK", role: .cancel) { container.dismissLibraryImportError() }
+        } message: {
+            Text(container.libraryImportError ?? "")
         }
-        .fileImporter(
-            isPresented: $isSelectingFolder,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            guard case .success(let urls) = result else { return }
-            container.importLibrary(urls: urls, mode: .folder)
+    }
+
+    private func handle(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
+        switch outcome {
+        case .cancelled:
+            return
+        case .failed(let message):
+            container.reportLibraryImportProblem(message)
+        case .picked(let urls):
+            switch kind {
+            case .audioFiles:
+                container.importLibrary(urls: urls, mode: .smart)
+            case .folder:
+                container.importLibrary(urls: urls, mode: .folder)
+            case .catalogArchive:
+                guard let url = urls.first else {
+                    container.reportLibraryImportProblem("No catalogue file was selected.")
+                    return
+                }
+                container.restoreCatalog(from: url)
+            }
         }
     }
 
@@ -116,8 +132,8 @@ struct AeonRootView: View {
                     roots: container.roots!,
                     importProgress: container.libraryImportProgress,
                     importError: container.libraryImportError,
-                    importFiles: { isSelectingAudio = true },
-                    importFolder: { isSelectingFolder = true }
+                    importFiles: { picker = .audioFiles },
+                    importFolder: { picker = .folder }
                 )
             }
         case .recovery(let issue):
@@ -133,7 +149,7 @@ struct AeonRootView: View {
                     .frame(maxWidth: 480)
                 if issue.catalogRecovery != nil {
                     HStack(spacing: 12) {
-                        Button("Restore Catalogue") { isRestoringCatalog = true }
+                        Button("Restore Catalogue") { picker = .catalogArchive }
                             .buttonStyle(.bordered)
                             .tint(.white)
                             .accessibilityIdentifier("aeon.launch.restore")
@@ -294,6 +310,7 @@ private struct AeonReadyShell: View {
                         SkyScreen(
                             controller: services.skySceneController,
                             importProgress: importProgress,
+                            importError: importError,
                             readableInsets: readableInsets,
                             showHUD: settingsController.preferences.hud,
                             highContrast: settingsController.preferences.highSkyContrast,

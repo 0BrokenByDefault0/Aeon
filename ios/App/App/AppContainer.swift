@@ -61,6 +61,7 @@ struct AppServices {
     let artworkProcessor: ArtworkProcessor
     let metadataEnricher: MetadataEnricher
     let libraryImporter: LibraryImporter
+    let importedFolderStore: ImportedFolderStore
     let archiveWriter: ArchiveWriter
     let archiveRestorer: ArchiveRestorer
     let skyRepository: SkyRepository
@@ -125,6 +126,7 @@ struct AppServices {
             metadataEnricher: metadataEnricher,
             fileManager: fileManager
         )
+        let importedFolderStore = ImportedFolderStore(repository: catalog)
         let archiveWriter = ArchiveWriter(
             repository: catalog,
             artworkStore: artwork,
@@ -201,6 +203,7 @@ struct AppServices {
             artworkProcessor: artworkProcessor,
             metadataEnricher: metadataEnricher,
             libraryImporter: libraryImporter,
+            importedFolderStore: importedFolderStore,
             archiveWriter: archiveWriter,
             archiveRestorer: archiveRestorer,
             skyRepository: skyRepository,
@@ -427,11 +430,49 @@ final class AppContainer: ObservableObject {
         launchState = .ready
     }
 
+    /// Reports a problem that happened before an import could start. The import surfaces
+    /// use the same channel as import failures so the user always sees a reason.
+    func reportLibraryImportProblem(_ message: String) {
+        libraryImportError = message
+    }
+
+    func dismissLibraryImportError() {
+        libraryImportError = nil
+    }
+
     func importLibrary(urls: [URL], mode: LibraryImportGroupingMode) {
-        guard case .ready = launchState,
-              let resolvedServices = services,
-              let importer = services?.libraryImporter,
-              libraryImportTask == nil else { return }
+        guard libraryImportTask == nil else {
+            libraryImportError = "An import is already running. Wait for it to finish, or pause it, then choose the source again."
+            return
+        }
+        guard case .ready = launchState, let resolvedServices = services else {
+            libraryImportError = "Aeon is still opening your library. Try the import again in a moment."
+            return
+        }
+        guard !urls.isEmpty else {
+            libraryImportError = "Nothing was selected. Choose audio files or a folder to import."
+            return
+        }
+        let importer = resolvedServices.libraryImporter
+
+        // A folder grant dies with the picked URL, so persist its bookmark while the
+        // grant is still live. Failing to persist is not fatal — this import can still
+        // run — but a later one would have to ask for the folder again.
+        if mode == .folder {
+            for url in urls {
+                let accessed = url.startAccessingSecurityScopedResource()
+                defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    try resolvedServices.importedFolderStore.remember(url)
+                } catch {
+                    try? resolvedServices.diagnosticsLog.record(
+                        eventCode: "library.import.bookmark_failed",
+                        filePath: url.lastPathComponent
+                    )
+                }
+            }
+        }
+
         let cancellation = LibraryImportCancellation()
         let effectiveMode: LibraryImportGroupingMode
         if mode == .smart,
@@ -463,7 +504,11 @@ final class AppContainer: ObservableObject {
             } catch LibraryImportError.cancelled {
                 self?.libraryImportError = "Import paused. Select the same files or folder to resume."
             } catch LibraryImportError.noSupportedAudio {
-                self?.libraryImportError = "No supported audio files were found."
+                self?.libraryImportError = "No supported audio files were found. Aeon reads \(AudioTagReader.supportedExtensions.sorted().joined(separator: ", "))."
+            } catch LibraryImportError.accessDenied {
+                self?.libraryImportError = "Aeon could not open that location. Choose files or a folder on this iPhone or in iCloud Drive, and make sure the location is still available."
+            } catch LibraryImportError.sourceUnavailable {
+                self?.libraryImportError = "Those files have not finished downloading from iCloud. Open them once in the Files app, then import again."
             } catch {
                 self?.libraryImportError = "Import stopped before the next album could be committed. Select the same source to resume."
             }

@@ -116,12 +116,74 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertLessThanOrEqual(probe.peakConcurrentCalls, LibraryImporter.maximumConcurrentProbes)
     }
 
+    func testUnreachableSelectionReportsAccessDeniedInsteadOfSucceedingSilently() async throws {
+        let missing = root.appendingPathComponent("Gone/01 Missing.wav")
+        let importer = makeImporter(reader: StubTagReader(values: [:]), probe: StubProbe())
+
+        do {
+            _ = try await importer.importURLs([missing], mode: .smart)
+            XCTFail("Expected an access failure")
+        } catch {
+            XCTAssertEqual(error as? LibraryImportError, .accessDenied)
+        }
+    }
+
+    func testUndownloadedICloudPlaceholdersAreTreatedAsTheFilesTheyStandForRatherThanSkipped() async throws {
+        let folder = root.appendingPathComponent("Cloud", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        // What iCloud Drive leaves on disk for a file whose contents are not local.
+        try Data().write(to: folder.appendingPathComponent(".01 Remote.flac.icloud"))
+        let importer = makeImporter(reader: StubTagReader(values: [:]), probe: StubProbe())
+
+        do {
+            _ = try await importer.importURLs([folder], mode: .folder)
+            XCTFail("Expected the placeholder to be reported as unavailable")
+        } catch {
+            // Found, attempted, and reported — not silently skipped into an empty folder.
+            XCTAssertEqual(error as? LibraryImportError, .sourceUnavailable)
+        }
+    }
+
+    func testFolderWithoutAnySupportedAudioStillReportsNoSupportedAudio() async throws {
+        let folder = root.appendingPathComponent("Documents", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("notes".utf8).write(to: folder.appendingPathComponent("notes.txt"))
+        let importer = makeImporter(reader: StubTagReader(values: [:]), probe: StubProbe())
+
+        do {
+            _ = try await importer.importURLs([folder], mode: .folder)
+            XCTFail("Expected no supported audio")
+        } catch {
+            XCTAssertEqual(error as? LibraryImportError, .noSupportedAudio)
+        }
+    }
+
+    func testNestedFoldersAreDiscoveredRecursivelyWhileHiddenDirectoriesAreLeftAlone() async throws {
+        let folder = root.appendingPathComponent("Collection", isDirectory: true)
+        let nested = folder.appendingPathComponent("Artist/Album", isDirectory: true)
+        let hidden = folder.appendingPathComponent(".Trash", isDirectory: true)
+        let track = nested.appendingPathComponent("01 Deep.wav")
+        let trashed = hidden.appendingPathComponent("02 Trashed.wav")
+        try writeAudio(track); try writeAudio(trashed)
+        let tags = AudioTags(title: "Deep", artist: "Artist", albumArtist: nil, album: "Album", year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil)
+        let importer = makeImporter(
+            reader: StubTagReader(values: [track.lastPathComponent: tags, trashed.lastPathComponent: tags]),
+            probe: StubProbe()
+        )
+
+        let result = try await importer.importURLs([folder], mode: .folder)
+        XCTAssertEqual(result.importedTracks, 1)
+        let album = try XCTUnwrap(repository.albumPage().first)
+        XCTAssertEqual(try repository.tracks(albumID: album.id).map(\.title), ["Deep"])
+    }
+
     private func makeImporter(reader: AudioTagReading, probe: MediaProbing) -> LibraryImporter {
         LibraryImporter(
             repository: repository, mediaStore: mediaStore,
             tagReader: reader, artworkProcessor: ArtworkProcessor(store: artworkStore),
             metadataProbe: probe, metadataEnricher: nil,
-            now: { Date(timeIntervalSince1970: 1_700_000_000) }
+            now: { Date(timeIntervalSince1970: 1_700_000_000) },
+            downloadTimeout: 0.2
         )
     }
 

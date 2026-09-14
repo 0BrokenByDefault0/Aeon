@@ -29,7 +29,7 @@ struct NowPlayingView: View {
                     artworkStore: artworkStore
                 ), let snapshot = playback.snapshot {
                     VStack(spacing: AeonTheme.Space.section) {
-                        heading(snapshot: snapshot)
+                        heading(queuePosition: snapshot.queueIndex.map { (index: $0, count: snapshot.queue.count) })
                         artworkStage(presentation)
                         metadata(presentation: presentation, snapshot: snapshot)
                         seek(presentation: presentation, snapshot: snapshot)
@@ -45,8 +45,23 @@ struct NowPlayingView: View {
                         .frame(maxWidth: 620)
                         .frame(maxWidth: .infinity)
                     } else {
-                        AeonEmptyState(title: "Nothing in the player", detail: nil, actionTitle: nil, action: nil)
-                            .frame(maxWidth: .infinity, minHeight: 420)
+                        // The player covers Aeon's own chrome, so an empty player needs
+                        // its own way back. Without one the only exit is the host app's
+                        // system back indicator, which Aeon must not depend on.
+                        VStack(spacing: AeonTheme.Space.section) {
+                            heading(queuePosition: nil)
+                            AeonEmptyState(
+                                title: "Nothing in the player",
+                                detail: "Choose a track from your library and it will appear here.",
+                                actionTitle: "BACK TO AEON",
+                                action: close
+                            )
+                            .accessibilityIdentifier("aeon.player.empty")
+                        }
+                        .padding(.horizontal, AeonTheme.Space.edge)
+                        .padding(.bottom, AeonTheme.Space.section)
+                        .frame(maxWidth: 620, minHeight: 420)
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 .scrollIndicators(.hidden)
@@ -64,15 +79,16 @@ struct NowPlayingView: View {
         .onChange(of: reduceMotion) { spectrum.setReduceMotion($0 || reduceMotionOverride || AeonTestOverrides.reduceMotion) }
     }
 
-    private func heading(snapshot: PlaybackSnapshot) -> some View {
+    private func heading(queuePosition: (index: Int, count: Int)?) -> some View {
         HStack(spacing: AeonTheme.Space.medium) {
-            if let index = snapshot.queueIndex {
-                Text("\(index + 1) / \(snapshot.queue.count)")
+            if let queuePosition {
+                Text("\(queuePosition.index + 1) / \(queuePosition.count)")
                     .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     .monospacedDigit()
             }
             AeonBreadcrumb(text: "Now Playing")
+            Spacer(minLength: 0)
             Button(action: close) {
                 Image(systemName: "xmark")
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
