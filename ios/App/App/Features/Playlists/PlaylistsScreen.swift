@@ -244,7 +244,7 @@ private struct PlaylistDetailView: View {
         }
     }
 
-    private func trackRow(_ route: PlaylistResolvedItem, index: Int) -> some View {
+    private func trackRow(_ route: PlaylistRouteItem, index: Int) -> some View {
         AeonRow(
             title: route.item.trackTitle,
             detail: route.unavailable
