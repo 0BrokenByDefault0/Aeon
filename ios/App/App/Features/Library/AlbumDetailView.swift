@@ -44,6 +44,8 @@ struct AlbumDetailView: View {
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
+            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            .contentShape(Rectangle())
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .accessibilityLabel(embedded ? "Back to library" : "Close album")
             .accessibilityIdentifier("aeon.album.close")

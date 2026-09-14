@@ -27,17 +27,21 @@ final class SkyAccessibilityView: UIView {
     private weak var controller: SkySceneController?
     private var catalogueSignature = 0
     private var selectedID: String?
+    private var accessibilityEnabled: Bool {
+        UIAccessibility.isVoiceOverRunning
+            || ProcessInfo.processInfo.arguments.contains("-AeonAccessibilityTesting")
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        guard UIAccessibility.isVoiceOverRunning, !bounds.isEmpty, let controller else { return }
+        guard accessibilityEnabled, !bounds.isEmpty, let controller else { return }
         rebuild(controller: controller)
     }
 
     func update(controller: SkySceneController) {
         self.controller = controller
-        accessibilityElementsHidden = !UIAccessibility.isVoiceOverRunning
-        guard UIAccessibility.isVoiceOverRunning else {
+        accessibilityElementsHidden = !accessibilityEnabled
+        guard accessibilityEnabled else {
             orderedElements = []
             accessibilityElements = nil
             accessibilityCustomRotors = nil
@@ -65,6 +69,10 @@ final class SkyAccessibilityView: UIView {
             element.accessibilityLabel = region.name
             element.accessibilityHint = "Region, \(region.starCount) albums"
             element.accessibilityTraits = .header
+            element.accessibilityIdentifier = "aeon.sky.accessibility.region.\(region.id)"
+            let regionPoints = (starsByRegion[region.id] ?? [])
+                .map { controller.camera.screenPoint(for: $0.coordinate, viewport: viewport) }
+            element.accessibilityFrameInContainerSpace = frame(for: regionPoints, fallback: viewport.center)
             elements.append(element)
             let constellations = constellationsByRegion[region.id] ?? []
             for constellation in constellations {
@@ -72,6 +80,10 @@ final class SkyAccessibilityView: UIView {
                 constellationElement.accessibilityLabel = constellation.artistName
                 constellationElement.accessibilityHint = "Constellation, \(constellation.albumIDs.count) albums. Activate to locate."
                 constellationElement.accessibilityTraits = .button
+                constellationElement.accessibilityIdentifier = "aeon.sky.accessibility.constellation.\(constellation.id)"
+                let constellationPoints = constellation.albumIDs.compactMap { starsByID[$0] }
+                    .map { controller.camera.screenPoint(for: $0.coordinate, viewport: viewport) }
+                constellationElement.accessibilityFrameInContainerSpace = frame(for: constellationPoints, fallback: viewport.center)
                 constellationElement.action = { [weak controller] in
                     controller?.locate(id: constellation.id, reduceMotion: UIAccessibility.isReduceMotionEnabled)
                     return true
@@ -92,6 +104,7 @@ final class SkyAccessibilityView: UIView {
             element.accessibilityLabel = "World \(planet.index)"
             element.accessibilityHint = "Planet formed from albums \((planet.index - 1) * 20 + 1) through \(planet.index * 20). Activate to select."
             element.accessibilityTraits = controller.camera.selectedID == planet.id ? [.button, .selected] : .button
+            element.accessibilityIdentifier = "aeon.sky.accessibility.planet.\(planet.id)"
             let point = controller.camera.screenPoint(for: planet.coordinate, viewport: viewport)
             element.accessibilityFrameInContainerSpace = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
             element.action = { [weak controller] in controller?.select(.planet(planet.id)); return true }
@@ -117,12 +130,26 @@ final class SkyAccessibilityView: UIView {
         viewport: SkyViewport
     ) -> Element {
         let element = Element(accessibilityContainer: self)
-        element.accessibilityLabel = "\(star.albumID), \(star.artistName)"
+        element.accessibilityLabel = controller.accessibilityLabel(for: star, region: region)
         element.accessibilityHint = "Album in \(region). Activate to select."
         element.accessibilityTraits = controller.camera.selectedID == star.albumID ? [.button, .selected] : .button
+        element.accessibilityIdentifier = "aeon.sky.accessibility.star.\(star.albumID)"
         let point = controller.camera.screenPoint(for: star.coordinate, viewport: viewport)
         element.accessibilityFrameInContainerSpace = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
         element.action = { [weak controller] in controller?.select(.star(star.albumID)); return true }
         return element
+    }
+
+    private func frame(for points: [CGPoint], fallback: CGPoint) -> CGRect {
+        let center: CGPoint
+        if points.isEmpty {
+            center = fallback
+        } else {
+            center = CGPoint(
+                x: points.map(\.x).reduce(0, +) / CGFloat(points.count),
+                y: points.map(\.y).reduce(0, +) / CGFloat(points.count)
+            )
+        }
+        return CGRect(x: center.x - 22.5, y: center.y - 22.5, width: 45, height: 45)
     }
 }

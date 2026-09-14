@@ -59,6 +59,7 @@ struct AeonChrome<PlayerBar: View>: View {
     let playerLoaded: Bool
     let playerBar: PlayerBar
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.aeonArtworkTint) private var artworkTint
 
     init(
@@ -180,17 +181,27 @@ struct AeonChrome<PlayerBar: View>: View {
         } label: {
             Group {
                 if compact {
-                    VStack(spacing: 4) {
+                    if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
                         Image(systemName: item.symbol)
-                        Text(item.title).font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                            .font(.system(size: 24, weight: .regular))
+                    } else {
+                        VStack(spacing: 4) {
+                            Image(systemName: item.symbol)
+                            Text(item.title).font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                        }
                     }
                 } else {
-                    HStack(spacing: AeonTheme.Space.medium) {
-                        Image(systemName: item.symbol).frame(width: 24)
-                        Text(item.title).font(AeonTheme.FontToken.metric(.caption, weight: .medium))
-                        Spacer()
+                    if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+                        Image(systemName: item.symbol)
+                            .font(.system(size: 24, weight: .regular))
+                    } else {
+                        HStack(spacing: AeonTheme.Space.medium) {
+                            Image(systemName: item.symbol).frame(width: 24)
+                            Text(item.title).font(AeonTheme.FontToken.metric(.caption, weight: .medium))
+                            Spacer()
+                        }
+                        .padding(.horizontal, AeonTheme.Space.edge)
                     }
-                    .padding(.horizontal, AeonTheme.Space.edge)
                 }
             }
             .foregroundStyle(destination == item ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.boneSecondary)

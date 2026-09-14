@@ -67,10 +67,10 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     var defaultState: AudioEngineGraphDefaultState {
         AudioEngineGraphDefaultState(
-            eqBypassed: equalizer.bypass,
-            masterVolume: engine.mainMixerNode.outputVolume,
-            replayGainA: playerA.volume,
-            replayGainB: playerB.volume
+            eqBypassed: !eqEnabled,
+            masterVolume: masterVolume,
+            replayGainA: replayGainA,
+            replayGainB: replayGainB
         )
     }
 
@@ -273,7 +273,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func setMasterVolume(_ linear: Float) {
         masterVolume = linear.isFinite && (0...1).contains(linear) ? linear : 1
-        engine.mainMixerNode.outputVolume = masterVolume
+        if isConfigured { engine.mainMixerNode.outputVolume = masterVolume }
     }
 
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {
@@ -290,11 +290,12 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func setEQ(enabled: Bool, bands: [EQBand]) throws {
         try validateEQBands(bands)
-        try configure()
         eqEnabled = enabled
         eqBands = bands
-        applyEQBands()
-        equalizer.bypass = !enabled
+        if isConfigured {
+            applyEQBands()
+            equalizer.bypass = !enabled
+        }
     }
 
     func installSpectrumTap(bufferSize: AVAudioFrameCount, handler: @escaping AVAudioNodeTapBlock) throws {
@@ -327,15 +328,17 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
         let session = AVAudioSession.sharedInstance()
         let output = session.currentRoute.outputs.first
-        let hardwareFormat = engine.outputNode.outputFormat(forBus: 0)
-        let formatSampleRate = hardwareFormat.sampleRate.isFinite && hardwareFormat.sampleRate > 0
-            ? hardwareFormat.sampleRate
-            : nil
+        let hardwareFormat = isConfigured ? engine.outputNode.outputFormat(forBus: 0) : nil
+        let formatSampleRate = hardwareFormat.flatMap { format in
+            format.sampleRate.isFinite && format.sampleRate > 0 ? format.sampleRate : nil
+        }
         let sessionSampleRate = session.sampleRate.isFinite && session.sampleRate > 0
             ? session.sampleRate
             : nil
         let sampleRate = formatSampleRate ?? sessionSampleRate
-        let formatChannelCount = hardwareFormat.channelCount > 0 ? Int(hardwareFormat.channelCount) : nil
+        let formatChannelCount = hardwareFormat.flatMap { format in
+            format.channelCount > 0 ? Int(format.channelCount) : nil
+        }
         let routeChannelCount: Int?
         if let channels = output?.channels, !channels.isEmpty {
             routeChannelCount = channels.count

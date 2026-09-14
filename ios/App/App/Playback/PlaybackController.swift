@@ -57,7 +57,10 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     private var latestVersion: UInt64 = 0
     private var positionTimer: Timer?
 
-    init(coordinator: PlaybackCoordinating, playlistStore: QueuePlaylistPersisting? = nil) {
+    init(
+        coordinator: PlaybackCoordinating,
+        playlistStore: QueuePlaylistPersisting? = nil
+    ) {
         self.coordinator = coordinator
         self.playlistStore = playlistStore
         coordinator.delegate = self
@@ -252,5 +255,252 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
 
     private func refreshPosition() {
         coordinator.getState { [weak self] snapshot in self?.accept(snapshot: snapshot) }
+    }
+}
+
+/// Deterministic playback authority used by simulator fixtures. It preserves the
+/// same command/state contract as the native coordinator without opening CoreAudio.
+final class PlaybackFixtureCoordinator: PlaybackCoordinating {
+    weak var delegate: PlaybackCoordinatorDelegate?
+    private var state: FixtureState
+
+    init(snapshot: PlaybackSnapshot?) {
+        state = FixtureState(snapshot: snapshot ?? FixtureState.emptySnapshot())
+    }
+
+    func initialize(completion: @escaping PlaybackCommandCompletion) {
+        completion(.success(state.snapshot()))
+    }
+
+    func load(
+        trackID: String,
+        mediaRef: MediaReference,
+        queue requestedQueue: [QueueItem]?,
+        index requestedIndex: Int?,
+        completion: @escaping PlaybackCommandCompletion
+    ) {
+        guard !trackID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            completion(.failure(failure(code: "invalid_track", message: "Track identifier is required", trackID: trackID)))
+            return
+        }
+        let items = requestedQueue ?? [QueueItem(trackID: trackID, albumID: "fixture", mediaRef: mediaRef)]
+        let index = requestedIndex ?? (items.firstIndex { $0.trackID == trackID } ?? 0)
+        guard items.indices.contains(index) else {
+            completion(.failure(failure(code: "invalid_queue", message: "Queue index is invalid", trackID: trackID)))
+            return
+        }
+        state.queue = items
+        state.queueIndex = index
+        state.trackID = items[index].trackID
+        state.position = 0
+        state.intent = .paused
+        publish(completion)
+    }
+
+    func play(completion: @escaping PlaybackCommandCompletion) {
+        guard state.trackID != nil else {
+            completion(.failure(failure(code: "no_track", message: "No track is loaded", trackID: nil)))
+            return
+        }
+        state.intent = .playing
+        publish(completion)
+    }
+
+    func pause(completion: @escaping PlaybackCommandCompletion) {
+        state.intent = .paused
+        publish(completion)
+    }
+
+    func toggle(completion: @escaping PlaybackCommandCompletion) {
+        state.intent = state.intent == .playing ? .paused : .playing
+        publish(completion)
+    }
+
+    func seek(seconds: Double, completion: @escaping PlaybackCommandCompletion) {
+        guard seconds.isFinite, seconds >= 0 else {
+            completion(.failure(failure(code: "invalid_position", message: "Playback position is invalid", trackID: state.trackID)))
+            return
+        }
+        state.position = seconds
+        publish(completion)
+    }
+
+    func next(completion: @escaping PlaybackCommandCompletion) {
+        guard let index = state.queueIndex, !state.queue.isEmpty else {
+            completion(.failure(failure(code: "no_track", message: "No track is loaded", trackID: nil)))
+            return
+        }
+        let nextIndex = min(index + 1, state.queue.count - 1)
+        state.queueIndex = nextIndex
+        state.trackID = state.queue[nextIndex].trackID
+        state.position = 0
+        publish(completion)
+    }
+
+    func previous(completion: @escaping PlaybackCommandCompletion) {
+        guard let index = state.queueIndex, !state.queue.isEmpty else {
+            completion(.failure(failure(code: "no_track", message: "No track is loaded", trackID: nil)))
+            return
+        }
+        let previousIndex = max(index - 1, 0)
+        state.queueIndex = previousIndex
+        state.trackID = state.queue[previousIndex].trackID
+        state.position = 0
+        publish(completion)
+    }
+
+    func setQueue(
+        items: [QueueItem],
+        index: Int,
+        revision: UInt64,
+        completion: @escaping PlaybackCommandCompletion
+    ) {
+        guard revision > state.queueRevision else {
+            completion(.failure(failure(code: "stale_queue", message: "Queue revision is stale", trackID: state.trackID)))
+            return
+        }
+        guard items.indices.contains(index) || (items.isEmpty && index == 0) else {
+            completion(.failure(failure(code: "invalid_queue", message: "Queue index is invalid", trackID: state.trackID)))
+            return
+        }
+        state.queue = items
+        state.queueRevision = revision
+        state.queueIndex = items.isEmpty ? nil : index
+        state.trackID = items.isEmpty ? nil : items[index].trackID
+        state.position = items.isEmpty ? 0 : state.position
+        publish(completion)
+    }
+
+    func setVolume(_ value: Float, completion: @escaping PlaybackCommandCompletion) {
+        guard value.isFinite, (0...1).contains(value) else {
+            completion(.failure(failure(code: "invalid_volume", message: "Volume is invalid", trackID: state.trackID)))
+            return
+        }
+        state.masterVolume = Double(value)
+        publish(completion)
+    }
+
+    func setReplayGainMode(_ mode: ReplayGainMode, completion: @escaping PlaybackCommandCompletion) {
+        state.replayGainMode = mode
+        publish(completion)
+    }
+
+    func setReplayGainPreamp(_ db: Double, completion: @escaping PlaybackCommandCompletion) {
+        guard db.isFinite else {
+            completion(.failure(failure(code: "invalid_replay_gain", message: "ReplayGain preamp is invalid", trackID: state.trackID)))
+            return
+        }
+        state.replayGainPreampDB = db
+        publish(completion)
+    }
+
+    func setEQ(enabled: Bool, bands: [EQBand], completion: @escaping PlaybackCommandCompletion) {
+        state.eqEnabled = enabled
+        state.eqBands = bands
+        publish(completion)
+    }
+
+    func setRepeatMode(_ mode: RepeatMode, completion: @escaping PlaybackCommandCompletion) {
+        state.repeatMode = mode
+        publish(completion)
+    }
+
+    func getState(completion: @escaping (PlaybackSnapshot) -> Void) {
+        completion(state.snapshot())
+    }
+
+    private func publish(_ completion: @escaping PlaybackCommandCompletion) {
+        state.version += 1
+        completion(.success(state.snapshot()))
+    }
+
+    private func failure(code: String, message: String, trackID: String?) -> PlaybackFailure {
+        PlaybackFailure(code: code, message: message, recoverable: true, trackID: trackID)
+    }
+}
+
+private struct FixtureState {
+    var schemaVersion: Int
+    var version: UInt64
+    var trackID: String?
+    var queueRevision: UInt64
+    var queue: [QueueItem]
+    var queueIndex: Int?
+    var position: Double
+    var intent: PlaybackIntent
+    var replayGainMode: ReplayGainMode
+    var replayGainPreampDB: Double
+    var masterVolume: Double
+    var eqEnabled: Bool
+    var eqBands: [EQBand]
+    var repeatMode: RepeatMode
+    var route: RouteDescriptor?
+    var sourceFormat: SourceFormatDescriptor?
+    var outputFormat: OutputFormatDescriptor?
+    var timestamp: Date
+
+    init(snapshot: PlaybackSnapshot) {
+        schemaVersion = snapshot.schemaVersion
+        version = snapshot.version
+        trackID = snapshot.trackID
+        queueRevision = snapshot.queueRevision
+        queue = snapshot.queue
+        queueIndex = snapshot.queueIndex
+        position = snapshot.position
+        intent = snapshot.intent
+        replayGainMode = snapshot.replayGainMode
+        replayGainPreampDB = snapshot.replayGainPreampDB
+        masterVolume = snapshot.masterVolume
+        eqEnabled = snapshot.eqEnabled
+        eqBands = snapshot.eqBands
+        repeatMode = snapshot.repeatMode
+        route = snapshot.route
+        sourceFormat = snapshot.sourceFormat
+        outputFormat = snapshot.outputFormat
+        timestamp = snapshot.timestamp
+    }
+
+    func snapshot() -> PlaybackSnapshot {
+        PlaybackSnapshot(
+            schemaVersion: schemaVersion,
+            version: version,
+            trackID: trackID,
+            queueRevision: queueRevision,
+            queue: queue,
+            queueIndex: queueIndex,
+            position: position,
+            intent: intent,
+            replayGainMode: replayGainMode,
+            replayGainPreampDB: replayGainPreampDB,
+            masterVolume: masterVolume,
+            eqEnabled: eqEnabled,
+            eqBands: eqBands,
+            repeatMode: repeatMode,
+            route: route,
+            sourceFormat: sourceFormat,
+            outputFormat: outputFormat,
+            timestamp: timestamp
+        )
+    }
+
+    static func emptySnapshot() -> PlaybackSnapshot {
+        PlaybackSnapshot(
+            version: 0,
+            trackID: nil,
+            queueRevision: 0,
+            queue: [],
+            queueIndex: nil,
+            position: 0,
+            intent: .paused,
+            replayGainMode: .off,
+            replayGainPreampDB: 0,
+            masterVolume: 1,
+            eqEnabled: false,
+            eqBands: [],
+            route: nil,
+            sourceFormat: nil,
+            outputFormat: nil,
+            timestamp: Date()
+        )
     }
 }

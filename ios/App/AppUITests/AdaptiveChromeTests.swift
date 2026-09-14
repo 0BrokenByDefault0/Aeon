@@ -46,7 +46,7 @@ final class AdaptiveChromeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AeonSkyFixture", "small"]
         if accessibilityText {
-            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityExtraExtraExtraLarge"]
+            app.launchArguments.append("-AeonAX5Testing")
         }
         app.launch()
         return app

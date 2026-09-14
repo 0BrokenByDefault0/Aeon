@@ -1,0 +1,153 @@
+import XCTest
+
+final class AeonAccessibilityTests: XCTestCase {
+    func testNativeRootAndEveryVisibleDestinationExposeSemanticControls() {
+        let app = launch([
+            "-AeonLibraryFixture", "populated",
+            "-AeonAccessibilityTesting"
+        ])
+
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.root"].waitForExistence(timeout: 12))
+        XCTAssertEqual(app.webViews.count, 0)
+        openNavigationIfNeeded(in: app)
+        let destinations = ["sky", "library", "playlists", "settings"]
+        XCTAssertEqual(
+            destinations.compactMap { app.buttons["aeon.navigation.\($0)"].label.lowercased() },
+            destinations
+        )
+        for destination in destinations {
+            assertMinimumTarget(app.buttons["aeon.navigation.\(destination)"])
+        }
+
+        app.buttons["aeon.navigation.library"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.library.screen"].waitForExistence(timeout: 6))
+        let album = app.buttons["aeon.library.album.library-fixture-album-12"]
+        scroll(in: app, until: album)
+        album.tap()
+        XCTAssertTrue(app.buttons["aeon.album.close"].waitForExistence(timeout: 6))
+        for id in ["aeon.album.close", "aeon.album.actions", "aeon.album.play", "aeon.album.find-in-sky", "aeon.album.edit"] {
+            assertMinimumTarget(app.descendants(matching: .any)[id])
+        }
+        app.buttons["aeon.album.edit"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.album.editor"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["aeon.album.editor.title"].label.isEmpty)
+        app.buttons["CANCEL"].tap()
+        app.buttons["aeon.album.close"].tap()
+
+        openNavigationIfNeeded(in: app)
+        app.buttons["aeon.navigation.playlists"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.playlists.screen"].waitForExistence(timeout: 5))
+        openNavigationIfNeeded(in: app)
+        app.buttons["aeon.navigation.settings"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.settings.screen"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.webViews.count, 0)
+    }
+
+    func testSkyTraversalIsRegionThenConstellationThenAlbumWithSelectedPlanetState() throws {
+        var app = launch(["-AeonSkyFixture", "small", "-AeonAccessibilityTesting"])
+        XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 12))
+
+        let regions = elements(in: app, prefix: "aeon.sky.accessibility.region.")
+        let constellations = elements(in: app, prefix: "aeon.sky.accessibility.constellation.")
+        let stars = elements(in: app, prefix: "aeon.sky.accessibility.star.")
+        XCTAssertFalse(regions.isEmpty)
+        XCTAssertFalse(constellations.isEmpty)
+        XCTAssertEqual(stars.count, 48)
+        XCTAssertFalse(regions[0].label.isEmpty)
+        XCTAssertEqual(constellations[0].elementType, .button)
+        XCTAssertTrue(stars[0].label.contains("Artist"))
+        XCTAssertTrue(stars[0].label.contains("in "))
+        assertMinimumTarget(regions[0])
+        assertMinimumTarget(constellations[0])
+        assertMinimumTarget(stars[0])
+
+        let ordered = app.descendants(matching: .any).allElementsBoundByIndex.map(\.identifier)
+        let firstRegion = ordered.firstIndex(where: { $0.hasPrefix("aeon.sky.accessibility.region.") })
+        let firstConstellation = ordered.firstIndex(where: { $0.hasPrefix("aeon.sky.accessibility.constellation.") })
+        let firstStar = ordered.firstIndex(where: { $0.hasPrefix("aeon.sky.accessibility.star.") })
+        XCTAssertLessThan(try XCTUnwrap(firstRegion), try XCTUnwrap(firstConstellation))
+        XCTAssertLessThan(try XCTUnwrap(firstConstellation), try XCTUnwrap(firstStar))
+
+        app.terminate()
+        app = launch(["-AeonSkyFixture", "planet-selected", "-AeonAccessibilityTesting"])
+        let planet = app.descendants(matching: .any)["aeon.sky.accessibility.planet.planet:1"]
+        XCTAssertTrue(planet.waitForExistence(timeout: 12))
+        XCTAssertEqual(planet.elementType, .button)
+        XCTAssertTrue(planet.isSelected)
+        assertMinimumTarget(planet)
+    }
+
+    func testHUDUsesAnnouncementsAndTextInsteadOfColorAlone() {
+        let app = launch(["-AeonSkyFixture", "small", "-AeonAccessibilityTesting"])
+        openNavigationIfNeeded(in: app)
+        app.buttons["aeon.navigation.settings"].tap()
+        let hudToggle = app.descendants(matching: .any)["aeon.settings.hud"]
+        scroll(in: app, until: hudToggle)
+        XCTAssertTrue(["0", "Off"].contains(hudToggle.value as? String ?? ""))
+        hudToggle.tap()
+        XCTAssertTrue(["1", "On"].contains(hudToggle.value as? String ?? ""))
+        openNavigationIfNeeded(in: app)
+        app.buttons["aeon.navigation.sky"].tap()
+        let hud = app.descendants(matching: .any)["aeon.sky.hud"]
+        XCTAssertTrue(hud.waitForExistence(timeout: 5))
+        XCTAssertTrue(hud.label.localizedCaseInsensitiveContains("albums adrift"))
+    }
+
+    func testPlaybackStatesUseTextInsteadOfColorAlone() {
+        let app = launch(["-AeonPlaybackFixture", "loaded"])
+        XCTAssertTrue(app.buttons["aeon.player.open"].waitForExistence(timeout: 12))
+        app.buttons["aeon.player.open"].tap()
+        XCTAssertTrue(app.staticTexts["IN THE PLAYER"].waitForExistence(timeout: 5))
+        let transport = app.buttons["aeon.player.primary-toggle"]
+        XCTAssertEqual(transport.label, "Play")
+        assertMinimumTarget(transport)
+        transport.tap()
+        XCTAssertTrue(app.staticTexts["PLAYING"].waitForExistence(timeout: 5))
+        XCTAssertEqual(transport.label, "Pause")
+    }
+
+    func testPlaybackErrorExplainsRecoveryWithoutColorAlone() {
+        let app = launch(["-AeonPlaybackFixture", "error"])
+        XCTAssertTrue(app.buttons["aeon.player.open"].waitForExistence(timeout: 12))
+        app.buttons["aeon.player.open"].tap()
+        let failure = app.buttons["aeon.player.failure"]
+        XCTAssertTrue(failure.waitForExistence(timeout: 5))
+        XCTAssertTrue(failure.label.localizedCaseInsensitiveContains("could not be decoded"))
+    }
+
+    private func launch(_ arguments: [String]) -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments += arguments
+        app.launch()
+        return app
+    }
+
+    private func openNavigationIfNeeded(in app: XCUIApplication) {
+        if app.buttons["aeon.navigation.sky"].waitForExistence(timeout: 2) { return }
+        let menu = app.buttons["aeon.navigation.menu"]
+        if menu.waitForExistence(timeout: 10), menu.label == "Open navigation" { menu.tap() }
+        XCTAssertTrue(app.buttons["aeon.navigation.sky"].waitForExistence(timeout: 4))
+    }
+
+    private func elements(in app: XCUIApplication, prefix: String) -> [XCUIElement] {
+        app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix))
+            .allElementsBoundByIndex
+    }
+
+    private func assertMinimumTarget(
+        _ element: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(element.exists, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.width, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.height, 44, file: file, line: line)
+    }
+
+    private func scroll(in app: XCUIApplication, until element: XCUIElement) {
+        for _ in 0..<8 where !element.exists || !element.isHittable { app.swipeUp() }
+        XCTAssertTrue(element.isHittable)
+    }
+}

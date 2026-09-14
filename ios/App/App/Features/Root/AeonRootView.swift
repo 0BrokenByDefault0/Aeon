@@ -229,6 +229,7 @@ private struct AeonReadyShell: View {
     @StateObject private var playlistsController: PlaylistsController
     @StateObject private var settingsController: SettingsController
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var destination = AeonDestination.sky
     @State private var portraitSidebarVisible = false
@@ -331,13 +332,24 @@ private struct AeonReadyShell: View {
         }
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
         .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
-        .onAppear { services.spectrumAnalyzer.setReduceMotion(reduceMotion || settingsController.preferences.reduceMotion) }
-        .onChange(of: reduceMotion) { services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion) }
-        .onChange(of: settingsController.preferences.reduceMotion) { services.spectrumAnalyzer.setReduceMotion(reduceMotion || $0) }
+        .onAppear { services.spectrumAnalyzer.setReduceMotion(effectiveReduceMotion) }
+        .onChange(of: reduceMotion) {
+            services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion)
+        }
+        .onChange(of: settingsController.preferences.reduceMotion) {
+            services.spectrumAnalyzer.setReduceMotion(reduceMotion || $0 || AeonTestOverrides.reduceMotion)
+        }
+    }
+
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion
     }
 
     private func nowPlayingPanel(geometry: GeometryProxy, insets: AeonReadableInsets) -> some View {
         let regular = horizontalSizeClass == .regular
+        let width = regular
+            ? regularPanelWidth(in: geometry)
+            : geometry.size.width
         return NowPlayingView(
             playback: playback,
             spectrum: services.spectrumAnalyzer,
@@ -352,10 +364,11 @@ private struct AeonReadyShell: View {
                 nowPlayingVisible = false
             }
         )
+        .padding(.leading, regularContentLeadingPadding(regular: regular))
         .padding(.top, insets.top)
         .padding(.bottom, regular ? insets.bottom : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
+        .frame(width: width)
         .ignoresSafeArea(edges: .vertical)
     }
 
@@ -366,6 +379,9 @@ private struct AeonReadyShell: View {
         insets: AeonReadableInsets
     ) -> some View {
         let regular = horizontalSizeClass == .regular
+        let width = regular
+            ? regularPanelWidth(in: geometry)
+            : geometry.size.width
         if destination == .library {
             AeonGlass {
                 LibraryScreen(
@@ -378,23 +394,25 @@ private struct AeonReadyShell: View {
                         if !regular { self.destination = .sky }
                     }
                 )
+                .padding(.leading, regularContentLeadingPadding(regular: regular))
                 .padding(.top, insets.top)
                 .padding(.bottom, regular ? insets.bottom : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
-            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .frame(width: width)
+            .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else if destination == .playlists {
             let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
                 ? AeonTheme.Space.playerBar : 0)
             AeonGlass {
                 PlaylistsScreen(controller: playlistsController, contentBottomInset: bottomInset)
+                    .padding(.leading, regularContentLeadingPadding(regular: regular))
                     .padding(.top, insets.top)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
-            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .frame(width: width)
+            .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else if destination == .settings {
             let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
@@ -404,11 +422,12 @@ private struct AeonReadyShell: View {
                     nowPlayingSection = section
                     nowPlayingVisible = true
                 }
+                .padding(.leading, regularContentLeadingPadding(regular: regular))
                 .padding(.top, insets.top)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
-            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .frame(width: width)
+            .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else {
             AeonGlass {
@@ -421,16 +440,36 @@ private struct AeonReadyShell: View {
                         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     Spacer()
                 }
+                .padding(.leading, regularContentLeadingPadding(regular: regular))
                 .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
                 .padding(.top, max(AeonTheme.Space.small, insets.top))
                 .padding(.bottom, max(AeonTheme.Space.edge, insets.bottom))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .frame(width: regular ? min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56) : geometry.size.width)
-            .padding(.leading, regular ? AeonTheme.Space.sidebar : 0)
+            .frame(width: width)
+            .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
             .accessibilityIdentifier("aeon.destination.\(destination.rawValue)")
         }
+    }
+
+    private func regularPanelWidth(in geometry: GeometryProxy) -> CGFloat {
+        if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+            return geometry.size.width
+        }
+        return min(AeonTheme.Space.sidePanel, geometry.size.width * 0.56)
+    }
+
+    private func regularPanelLeadingPadding(regular: Bool) -> CGFloat {
+        guard regular else { return 0 }
+        return dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText
+            ? 0
+            : AeonTheme.Space.sidebar
+    }
+
+    private func regularContentLeadingPadding(regular: Bool) -> CGFloat {
+        guard regular, dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText else { return 0 }
+        return AeonTheme.Space.sidebar
     }
 }
 

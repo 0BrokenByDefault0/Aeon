@@ -17,19 +17,26 @@ struct SkyMetalView: UIViewRepresentable {
         view.accessibilityTraits = .image
         view.accessibilityIdentifier = "aeon.sky.canvas"
         context.coordinator.install(on: view)
+        if AeonTestOverrides.staticSky {
+            view.enableSetNeedsDisplay = true
+            view.isPaused = true
+            view.setNeedsDisplay()
+        }
         return view
     }
 
     func updateUIView(_ view: MTKView, context: Context) {
+        let effectiveReduceMotion = reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
         context.coordinator.controller = controller
-        context.coordinator.reduceMotion = reduceMotion || reduceMotionOverride
+        context.coordinator.reduceMotion = effectiveReduceMotion
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
             camera: controller.camera,
             playingStarID: controller.playingStarID,
-            spectrum: (reduceMotion || reduceMotionOverride) ? .zero : controller.spectrumLevels
+            spectrum: effectiveReduceMotion ? .zero : controller.spectrumLevels
         )
         context.coordinator.renderer?.configureFrameRate(for: view)
+        if AeonTestOverrides.staticSky { view.setNeedsDisplay() }
     }
 
     @MainActor

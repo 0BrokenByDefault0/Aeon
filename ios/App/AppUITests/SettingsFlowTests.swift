@@ -135,8 +135,17 @@ final class SettingsFlowTests: XCTestCase {
 
     private func scrollToBottom(in app: XCUIApplication) {
         let erase = app.buttons["aeon.settings.erase"]
-        for _ in 0..<8 where !erase.isHittable { app.swipeUp() }
-        XCTAssertTrue(erase.isHittable)
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0..<12 where !isFullyVisible(erase, in: scrollView) {
+            if scrollView.exists { scrollView.swipeUp() }
+            else { app.swipeUp() }
+        }
+        XCTAssertTrue(isFullyVisible(erase, in: scrollView))
+    }
+
+    private func isFullyVisible(_ element: XCUIElement, in scrollView: XCUIElement) -> Bool {
+        guard element.exists, element.isHittable, scrollView.exists else { return false }
+        return scrollView.frame.insetBy(dx: 1, dy: 1).contains(element.frame)
     }
 
     private func scroll(in app: XCUIApplication, until element: XCUIElement) {

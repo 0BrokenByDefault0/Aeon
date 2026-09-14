@@ -139,6 +139,7 @@ struct AlbumEditorView: View {
                 .padding(.horizontal, AeonTheme.Space.medium)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
                 .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                .accessibilityLabel(label.capitalized)
                 .accessibilityIdentifier(identifier)
         }
     }

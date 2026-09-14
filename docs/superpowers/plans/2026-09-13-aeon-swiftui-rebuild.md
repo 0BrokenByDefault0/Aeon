@@ -670,16 +670,16 @@ npm test
 - Automated accessibility/layout/migration/audio evidence.
 - Physical-device evidence and a fresh unsigned Aeon 5.0 IPA.
 
-- [ ] Run VoiceOver identifier/label/trait tests across every screen and state. Confirm sky rotor order, HUD announcements, visible focus, 44×44 targets, logical traversal, and no color-only status.
-- [ ] Run normal, AX5, Increase Contrast, Reduce Transparency, Reduce Motion, light/dark system setting, iPhone portrait/landscape, and iPad portrait/landscape matrices. Aeon remains visually dark; system appearance must not invert it.
-- [ ] Capture deterministic screenshots for empty, import, library grid/list, album detail, editor, playing/paused/error, queue drag, playlists empty/detail, settings, Uncharted, constellation, planet-selected, and iPad split layouts. Review them line-by-line against the Claude handoff.
-- [ ] Re-run the original browser/Node suites against the untouched behavioral reference. Record deliberate native differences rather than weakening old assertions.
-- [ ] Run native integration queues across 44.1 → 96 → 48 kHz, exact PCM gapless boundaries, compressed seek tolerance, queue replacement, restore-without-autoplay, corrupt/missing/unsupported media, and all recovery levels.
-- [ ] Execute installed upgrades from the last 4.x native build with empty, path-backed, blob-backed, mixed, interrupted, missing-file, and 10,000-record fixture libraries. Compare manifests and confirm no source mutation.
+- [x] Run VoiceOver identifier/label/trait tests across every screen and state. Confirm sky rotor order, HUD announcements, visible focus, 44×44 targets, logical traversal, and no color-only status.
+- [x] Run normal, AX5, Increase Contrast, Reduce Transparency, Reduce Motion, light/dark system setting, iPhone portrait/landscape, and iPad portrait/landscape matrices. Aeon remains visually dark; system appearance must not invert it.
+- [x] Capture deterministic screenshots for empty, import, library grid/list, album detail, editor, playing/paused/error, queue drag, playlists empty/detail, settings, Uncharted, constellation, planet-selected, and iPad split layouts. Review them line-by-line against the Claude handoff.
+- [x] Re-run the original browser/Node suites against the untouched behavioral reference. Record deliberate native differences rather than weakening old assertions.
+- [x] Run native integration queues across 44.1 → 96 → 48 kHz, exact PCM gapless boundaries, compressed seek tolerance, queue replacement, restore-without-autoplay, corrupt/missing/unsupported media, and all recovery levels.
+- [x] Execute installed upgrades from the last 4.x native build with empty, path-backed, blob-backed, mixed, interrupted, missing-file, and 10,000-record fixture libraries. Compare manifests and confirm no source mutation.
 - [ ] Execute the physical-device matrix on iPhone and iPad: speaker, wired/USB DAC, Bluetooth/AirPods, AirPlay, locked screen, background, incoming interruption, route removal, Control Center, hardware commands, mixed rates, import folder, migration, rotation, and sustained playback.
-- [ ] Update CI so it installs dependencies, runs Node/browser oracle tests, runs all XCTest/XCUITest suites, copies/syncs migration assets, installs pods, and compiles a new Release `App.app` with signing disabled. Package that build only; never repackage an old payload.
-- [ ] Keep Capacitor pods and `app/legacy-migration.*` in 5.0 solely for legacy reads. Assert in UI tests that the root controller and every visible screen are SwiftUI and that the normal `index.html` is never loaded.
-- [ ] Fill `docs/releases/5.0.md` with exact test counts, device/OS/hardware, format matrix, source/output caveat, migration results, accessibility results, known limitations, and the deliberate omission list.
+- [x] Update CI so it installs dependencies, runs Node/browser oracle tests, runs all XCTest/XCUITest suites, copies/syncs migration assets, installs pods, and compiles a new Release `App.app` with signing disabled. Package that build only; never repackage an old payload.
+- [x] Keep Capacitor pods and `app/legacy-migration.*` in 5.0 solely for legacy reads. Assert in UI tests that the root controller and every visible screen are SwiftUI and that the normal `index.html` is never loaded.
+- [x] Fill `docs/releases/5.0.md` with exact test counts, device/OS/hardware, format matrix, source/output caveat, migration results, accessibility results, known limitations, and the deliberate omission list.
 
 **Automated gate**
 

@@ -77,7 +77,9 @@ struct AppServices {
     @MainActor
     static func production(
         roots: AppStorageRoots,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        startSpectrum: Bool = true,
+        startPlayback: Bool = true
     ) throws -> AppServices {
         let aeonSupport = roots.applicationSupportURL.appendingPathComponent("Aeon", isDirectory: true)
         let stateRoot = aeonSupport.appendingPathComponent("State", isDirectory: true)
@@ -144,7 +146,7 @@ struct AppServices {
         try audioSession.activate()
         let graph = AudioEngineGraph()
         let spectrumAnalyzer = try SpectrumAnalyzer(source: graph)
-        try spectrumAnalyzer.start()
+        if startSpectrum { try spectrumAnalyzer.start() }
         let scheduler = QueueScheduler(graph: graph, resolver: mediaStore, probe: metadataProbe)
         let mediaInfo = NativePlaybackMediaInfoProvider(resolver: mediaStore, probe: metadataProbe)
         let recovery = RecoveryCoordinator(scheduler: scheduler, graph: graph, session: audioSession)
@@ -157,7 +159,10 @@ struct AppServices {
             recovery: recovery
         )
         audioSession.onEvent = { [weak coordinator] event in coordinator?.handleAudioSessionEvent(event) }
-        let playbackController = PlaybackController(coordinator: coordinator, playlistStore: catalog)
+        let playbackAuthority: PlaybackCoordinating = startPlayback
+            ? coordinator
+            : PlaybackFixtureCoordinator(snapshot: stateStore.load())
+        let playbackController = PlaybackController(coordinator: playbackAuthority, playlistStore: catalog)
         spectrumAnalyzer.bind(to: playbackController)
         let remoteCommands = RemoteCommandCoordinator(
             controller: playbackController,
@@ -171,6 +176,19 @@ struct AppServices {
             spectrum: spectrumAnalyzer
         )
         playbackController.start()
+        if let marker = ProcessInfo.processInfo.arguments.firstIndex(of: "-AeonPlaybackFixture"),
+           ProcessInfo.processInfo.arguments.indices.contains(marker + 1),
+           ProcessInfo.processInfo.arguments[marker + 1] == "error" {
+            playbackController.accept(
+                failure: PlaybackFailure(
+                    code: "decoder_error",
+                    message: "This file could not be decoded. Choose another copy or remove it from the queue.",
+                    recoverable: true,
+                    trackID: "playback-fixture-track-1"
+                ),
+                version: 0
+            )
+        }
         return AppServices(
             catalogDatabase: database,
             catalogRepository: catalog,
@@ -206,7 +224,7 @@ struct AppServices {
         let arguments = ProcessInfo.processInfo.arguments
         guard let marker = arguments.firstIndex(of: "-AeonPlaybackFixture"),
               arguments.indices.contains(marker + 1),
-              arguments[marker + 1] == "loaded",
+              ["loaded", "error"].contains(arguments[marker + 1]),
               try catalog.album(id: "playback-fixture-album") == nil else { return }
 
         let date = Date(timeIntervalSince1970: 20_000)
@@ -385,7 +403,14 @@ final class AppContainer: ObservableObject {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         return AppContainer(
             rootsProvider: { try AppStorageRoots.temporary(at: root, fileManager: fileManager) },
-            servicesFactory: { try AppServices.production(roots: $0, fileManager: fileManager) },
+            servicesFactory: {
+                try AppServices.production(
+                    roots: $0,
+                    fileManager: fileManager,
+                    startSpectrum: false,
+                    startPlayback: false
+                )
+            },
             inspectLegacyLibrary: false,
             cleanupURL: root,
             cleanupFileManager: fileManager

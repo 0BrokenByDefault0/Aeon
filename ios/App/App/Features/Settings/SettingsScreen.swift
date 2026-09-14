@@ -6,6 +6,7 @@ struct SettingsScreen: View {
     @ObservedObject var controller: SettingsController
     let openNowPlaying: (NowPlayingSection) -> Void
     let contentBottomInset: CGFloat
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var restoring = false
     @State private var erasePresented = false
     @State private var eraseText = ""
@@ -21,8 +22,10 @@ struct SettingsScreen: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
+        GeometryReader { geometry in
+            let horizontalInset = AeonTheme.Space.edge
+            ScrollView {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                 VStack(alignment: .leading, spacing: 2) {
                     AeonBreadcrumb(text: "Aeon / Preferences")
                     AeonDisplayText("Settings", size: 42, maximumLines: 1)
@@ -33,7 +36,7 @@ struct SettingsScreen: View {
                     settingRow(title: "Sleep timer", detail: "Fades out, then stops.") {
                         EmptyView()
                     }
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
+                    LazyVGrid(columns: actionColumns(minimum: 96), spacing: 8) {
                         ForEach(SettingsSleepTimer.allCases) { value in
                             Button(value.label) { controller.setSleepTimer(value) }
                                 .buttonStyle(AeonButtonStyle(tier: controller.sleepTimer == value ? .filled : .hairline))
@@ -98,6 +101,9 @@ struct SettingsScreen: View {
                         Text(storageText)
                             .font(AeonTheme.FontToken.metric(.caption))
                             .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .accessibilityIdentifier("aeon.settings.storage-value")
                     }
                 }
@@ -120,13 +126,18 @@ struct SettingsScreen: View {
                     .accessibilityIdentifier("aeon.settings.reduce-motion")
                 }
 
-                footer
+                    footer
+                }
+                .frame(
+                    width: max(0, geometry.size.width - (horizontalInset * 2)),
+                    alignment: .leading
+                )
+                .padding(.horizontal, horizontalInset)
+                .padding(.vertical, AeonTheme.Space.medium)
+                .padding(.bottom, contentBottomInset + AeonTheme.Space.edge)
             }
-            .padding(.horizontal, AeonTheme.Space.edge)
-            .padding(.vertical, AeonTheme.Space.medium)
-            .padding(.bottom, contentBottomInset + AeonTheme.Space.edge)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         .fileImporter(isPresented: $restoring, allowedContentTypes: [.zip], allowsMultipleSelection: false) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
             controller.restore(from: url)
@@ -181,6 +192,7 @@ struct SettingsScreen: View {
             content()
         }
         .padding(.top, AeonTheme.Space.large)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
     }
 
@@ -189,10 +201,19 @@ struct SettingsScreen: View {
         detail: String,
         @ViewBuilder trailing: () -> Trailing
     ) -> some View {
-        HStack(alignment: .center, spacing: AeonTheme.Space.medium) {
-            settingText(title: title, detail: detail)
-            Spacer(minLength: AeonTheme.Space.small)
-            trailing()
+        Group {
+            if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                    settingText(title: title, detail: detail)
+                    trailing()
+                }
+            } else {
+                HStack(alignment: .center, spacing: AeonTheme.Space.medium) {
+                    settingText(title: title, detail: detail)
+                    Spacer(minLength: AeonTheme.Space.small)
+                    trailing()
+                }
+            }
         }
         .frame(minHeight: AeonTheme.Space.minimumTarget)
     }
@@ -202,6 +223,7 @@ struct SettingsScreen: View {
             Text(title).font(AeonTheme.FontToken.ui(.body, weight: .medium)).foregroundStyle(AeonTheme.ColorToken.bone)
             Text(detail).font(AeonTheme.FontToken.metric(.caption)).foregroundStyle(AeonTheme.ColorToken.boneTertiary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -214,7 +236,10 @@ struct SettingsScreen: View {
             Text("Restore by choosing a full backup zip. Catalogue exports contain tags, playlists, history, queue, and sky records without audio or artwork bytes.")
                 .font(AeonTheme.FontToken.metric(.caption))
                 .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 8)], spacing: 8) {
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            LazyVGrid(columns: actionColumns(minimum: 160), spacing: 8) {
                 Button("FULL BACKUP (.ZIP)") { controller.exportFullBackup() }
                     .buttonStyle(AeonButtonStyle(tier: .filled))
                     .accessibilityIdentifier("aeon.settings.backup-full")
@@ -231,26 +256,67 @@ struct SettingsScreen: View {
                     .buttonStyle(AeonButtonStyle(tier: .bare))
                     .accessibilityIdentifier("aeon.settings.diagnostics")
             }
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Erase everything").font(AeonTheme.FontToken.ui(.body, weight: .medium))
-                    Text("Albums, audio, playlists, and the log — the sky goes dark.")
-                        .font(AeonTheme.FontToken.metric(.caption))
-                        .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        eraseDescription
+                        eraseButton
+                    }
+                } else {
+                    HStack {
+                        eraseDescription
+                        Spacer()
+                        eraseButton
+                    }
                 }
-                Spacer()
-                Button("ERASE") { eraseText = ""; erasePresented = true }
-                    .buttonStyle(AeonButtonStyle(tier: .bare, destructive: true))
-                    .accessibilityIdentifier("aeon.settings.erase")
             }
             Text("AEON / 5.0 · YOUR MUSIC, YOUR DEVICE")
                 .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
                 .tracking(1.8)
                 .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+                .lineLimit(nil)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
                 .padding(.top, AeonTheme.Space.large)
         }
         .padding(.top, AeonTheme.Space.large)
+    }
+
+    private var eraseDescription: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Erase everything")
+                .font(AeonTheme.FontToken.ui(.body, weight: .medium))
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Albums, audio, playlists, and the log — the sky goes dark.")
+                .font(AeonTheme.FontToken.metric(.caption))
+                .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func actionColumns(minimum: CGFloat) -> [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+            return [GridItem(.flexible())]
+        }
+        return [GridItem(.adaptive(minimum: minimum), spacing: 8)]
+    }
+
+    private var eraseButton: some View {
+        Button { eraseText = ""; erasePresented = true } label: {
+            if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+                Image(systemName: "trash")
+                    .font(.system(size: 24, weight: .regular))
+            } else {
+                Text("ERASE")
+            }
+        }
+            .buttonStyle(AeonButtonStyle(tier: .bare, destructive: true))
+            .accessibilityLabel("Erase everything")
+            .accessibilityIdentifier("aeon.settings.erase")
     }
 
     private var storageText: String {

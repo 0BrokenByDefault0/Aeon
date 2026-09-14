@@ -83,6 +83,13 @@ final class SkySceneController: ObservableObject {
         return "\(remaining) until the next world"
     }
 
+    func accessibilityLabel(for star: SkyStar, region: String) -> String {
+        guard let album = try? catalog.album(id: star.albumID) else {
+            return "Album \(star.albumID), \(star.artistName), in \(region)"
+        }
+        return "\(album.title), \(album.artist), album in \(region), \(album.genre)"
+    }
+
     func setCamera(_ value: SkyCameraState, persist: Bool = false) {
         cameraTask?.cancel()
         cameraCrossfade = false

@@ -17,7 +17,7 @@ struct LibraryScreen: View {
                     album: album,
                     embedded: true,
                     close: controller.dismissAlbum,
-                    findInSky: { id in findInSky(id, reduceMotion) }
+                    findInSky: { id in findInSky(id, effectiveReduceMotion) }
                 )
             } else {
                 library
@@ -37,7 +37,7 @@ struct LibraryScreen: View {
                     close: controller.dismissAlbum,
                     findInSky: { id in
                         controller.dismissAlbum()
-                        findInSky(id, reduceMotion)
+                        findInSky(id, effectiveReduceMotion)
                     }
                 )
             }
@@ -50,6 +50,10 @@ struct LibraryScreen: View {
             }
         }
         .accessibilityIdentifier("aeon.library.screen")
+    }
+
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || AeonTestOverrides.reduceMotion
     }
 
     private var library: some View {

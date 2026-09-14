@@ -40,14 +40,16 @@ struct AeonGlass<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
 
     var body: some View {
+        let opaque = reduceTransparency || AeonTestOverrides.reduceTransparency
+        let increasedContrast = contrast == .increased || AeonTestOverrides.increasedContrast
         content
             .background {
                 ZStack {
-                    if reduceTransparency {
+                    if opaque {
                         AeonTheme.ColorToken.chamberOpaque
                     } else {
                         AeonBlur(style: .systemUltraThinMaterialDark)
-                        AeonTheme.ColorToken.chamber.opacity(contrast == .increased ? 0.78 : 0.58)
+                        AeonTheme.ColorToken.chamber.opacity(increasedContrast ? 0.78 : 0.58)
                         artworkTint?.opacity(0.10)
                     }
                     LinearGradient(
@@ -57,7 +59,7 @@ struct AeonGlass<Content: View>: View {
                     )
                 }
             }
-            .overlay(Rectangle().stroke(contrast == .increased ? AeonTheme.ColorToken.strongRule : AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+            .overlay(Rectangle().stroke(increasedContrast ? AeonTheme.ColorToken.strongRule : AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
             .shadow(color: .black.opacity(0.42), radius: AeonTheme.Shadow.glassRadius, y: AeonTheme.Shadow.glassY)
     }
 }
@@ -94,8 +96,15 @@ struct AeonButtonStyle: ButtonStyle {
             .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
             .tracking(1.2)
             .foregroundStyle(foreground)
+            .lineLimit(nil)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, AeonTheme.Space.large)
-            .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
+            .frame(
+                minWidth: AeonTheme.Space.minimumTarget,
+                maxWidth: .infinity,
+                minHeight: AeonTheme.Space.minimumTarget
+            )
             .background(background.opacity(configuration.isPressed ? 0.72 : 1))
             .overlay(Rectangle().stroke(border, lineWidth: tier == .bare ? 0 : AeonTheme.Stroke.hairline))
             .opacity(isEnabled ? 1 : 0.42)
@@ -110,20 +119,22 @@ struct AeonButtonStyle: ButtonStyle {
 }
 
 struct AeonToggleStyle: ToggleStyle {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     func makeBody(configuration: Configuration) -> some View {
         Button { configuration.isOn.toggle() } label: {
-            HStack {
-                configuration.label
-                Spacer()
-                ZStack(alignment: configuration.isOn ? .trailing : .leading) {
-                    Rectangle()
-                        .fill(configuration.isOn ? AeonTheme.ColorToken.bone : .clear)
-                        .overlay(Rectangle().stroke(AeonTheme.ColorToken.strongRule, lineWidth: AeonTheme.Stroke.hairline))
-                        .frame(width: 48, height: 28)
-                    Rectangle()
-                        .fill(configuration.isOn ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
-                        .frame(width: 20, height: 20)
-                        .padding(4)
+            Group {
+                if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        configuration.label
+                        toggleIndicator(isOn: configuration.isOn)
+                    }
+                } else {
+                    HStack {
+                        configuration.label
+                        Spacer()
+                        toggleIndicator(isOn: configuration.isOn)
+                    }
                 }
             }
             .foregroundStyle(AeonTheme.ColorToken.bone)
@@ -132,6 +143,19 @@ struct AeonToggleStyle: ToggleStyle {
         }
         .buttonStyle(.plain)
         .accessibilityValue(configuration.isOn ? "On" : "Off")
+    }
+
+    private func toggleIndicator(isOn: Bool) -> some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Rectangle()
+                .fill(isOn ? AeonTheme.ColorToken.bone : .clear)
+                .overlay(Rectangle().stroke(AeonTheme.ColorToken.strongRule, lineWidth: AeonTheme.Stroke.hairline))
+                .frame(width: 48, height: 28)
+            Rectangle()
+                .fill(isOn ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
+                .frame(width: 20, height: 20)
+                .padding(4)
+        }
     }
 }
 

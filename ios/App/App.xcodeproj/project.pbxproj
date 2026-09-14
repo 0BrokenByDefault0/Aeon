@@ -124,6 +124,9 @@
 		A64000000000000000000007 /* PlaylistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000017 /* PlaylistTests.swift */; };
 		A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000018 /* ArchiveCompatibilityTests.swift */; };
 		A64000000000000000000009 /* SettingsFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A64000000000000000000019 /* SettingsFlowTests.swift */; };
+		A65000000000000000000001 /* AudioIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000011 /* AudioIntegrationTests.swift */; };
+		A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000012 /* AeonAccessibilityTests.swift */; };
+		A65000000000000000000003 /* AeonScreenMatrixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000013 /* AeonScreenMatrixTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -263,6 +266,9 @@
 		A64000000000000000000017 /* PlaylistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistTests.swift; sourceTree = "<group>"; };
 		A64000000000000000000018 /* ArchiveCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveCompatibilityTests.swift; sourceTree = "<group>"; };
 		A64000000000000000000019 /* SettingsFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFlowTests.swift; sourceTree = "<group>"; };
+		A65000000000000000000011 /* AudioIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioIntegrationTests.swift; sourceTree = "<group>"; };
+		A65000000000000000000012 /* AeonAccessibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonAccessibilityTests.swift; sourceTree = "<group>"; };
+		A65000000000000000000013 /* AeonScreenMatrixTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AeonScreenMatrixTests.swift; sourceTree = "<group>"; };
 		AAAB1024DA0EB30BE54F8C2E /* Pods_AppTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_AppTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -403,6 +409,7 @@
 				A63000000000000000000017 /* SpectrumAnalyzerTests.swift */,
 				A64000000000000000000017 /* PlaylistTests.swift */,
 				A64000000000000000000018 /* ArchiveCompatibilityTests.swift */,
+				A65000000000000000000011 /* AudioIntegrationTests.swift */,
 				A53000000000000000000015 /* audio */,
 			);
 			path = AppTests;
@@ -609,6 +616,8 @@
 				A62000000000000000000017 /* LibraryFlowTests.swift */,
 				A63000000000000000000018 /* PlaybackFlowTests.swift */,
 				A64000000000000000000019 /* SettingsFlowTests.swift */,
+				A65000000000000000000012 /* AeonAccessibilityTests.swift */,
+				A65000000000000000000013 /* AeonScreenMatrixTests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -916,6 +925,7 @@
 				A63000000000000000000007 /* SpectrumAnalyzerTests.swift in Sources */,
 				A64000000000000000000007 /* PlaylistTests.swift in Sources */,
 				A64000000000000000000008 /* ArchiveCompatibilityTests.swift in Sources */,
+				A65000000000000000000001 /* AudioIntegrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -929,6 +939,8 @@
 				A62000000000000000000007 /* LibraryFlowTests.swift in Sources */,
 				A63000000000000000000008 /* PlaybackFlowTests.swift in Sources */,
 				A64000000000000000000009 /* SettingsFlowTests.swift in Sources */,
+				A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */,
+				A65000000000000000000003 /* AeonScreenMatrixTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

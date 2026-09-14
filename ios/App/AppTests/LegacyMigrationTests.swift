@@ -164,6 +164,77 @@ final class LegacyMigrationTests: XCTestCase {
         }
     }
 
+    func testEmptyLegacyCataloguePublishesAnExactEmptyManifest() throws {
+        let snapshot = LegacyMigrationInventorySnapshot(
+            inventory: LegacyMigrationInventory(
+                databaseName: "isolation-db",
+                schemaVersion: 1,
+                counts: ["albums": 0, "tracks": 0, "playlists": 0, "kv": 0]
+            ),
+            ids: [.albums: [], .tracks: [], .playlists: [], .kv: []],
+            records: [.albums: [], .tracks: [], .playlists: [], .kv: []],
+            blobs: []
+        )
+        let sourceManifest = snapshot
+
+        try makeCoordinator().prepare(snapshot: snapshot)
+
+        XCTAssertEqual(snapshot, sourceManifest)
+        XCTAssertTrue(try repository.albumPage().isEmpty)
+        XCTAssertEqual(try repository.database.scalar("SELECT COUNT(*) AS value FROM tracks")?.int64, 0)
+        XCTAssertEqual(try repository.setting(Bool.self, forKey: LegacyMigrationCoordinator.publicationMarker), true)
+    }
+
+    func testTenThousandRecordUpgradePublishesBoundedStableRowsWithoutSourceMutation() throws {
+        let count = 5_000
+        var albumIDs: [String] = []
+        var trackIDs: [String] = []
+        var albums: [[String: LegacyJSONValue]] = []
+        var tracks: [[String: LegacyJSONValue]] = []
+        albumIDs.reserveCapacity(count)
+        trackIDs.reserveCapacity(count)
+        albums.reserveCapacity(count)
+        tracks.reserveCapacity(count)
+        for index in 1 ... count {
+            let albumID = "scale-album-\(index)"
+            let trackID = "scale-track-\(index)"
+            albumIDs.append(albumID)
+            trackIDs.append(trackID)
+            albums.append([
+                "id": .string(albumID), "seq": .number(Double(index)),
+                "title": .string("Scale Album \(index)"), "artist": .string("Aeon")
+            ])
+            tracks.append([
+                "id": .string(trackID), "albumId": .string(albumID), "idx": .number(1),
+                "title": .string("Scale Track \(index)"), "artist": .string("Aeon"),
+                "path": .string("Music/Aeon/Scale/\(index).m4a"), "bytes": .number(1),
+                "adopted": .bool(true)
+            ])
+        }
+        let snapshot = LegacyMigrationInventorySnapshot(
+            inventory: LegacyMigrationInventory(
+                databaseName: "isolation-db",
+                schemaVersion: 1,
+                counts: ["albums": count, "tracks": count, "playlists": 0, "kv": 0]
+            ),
+            ids: [.albums: albumIDs, .tracks: trackIDs, .playlists: [], .kv: []],
+            records: [.albums: albums, .tracks: tracks, .playlists: [], .kv: []],
+            blobs: []
+        )
+        let sourceManifest = snapshot
+
+        try makeCoordinator().prepare(snapshot: snapshot)
+
+        XCTAssertEqual(snapshot, sourceManifest)
+        XCTAssertEqual(try repository.database.scalar("SELECT COUNT(*) AS value FROM albums")?.int64, Int64(count))
+        XCTAssertEqual(try repository.database.scalar("SELECT COUNT(*) AS value FROM tracks")?.int64, Int64(count))
+        XCTAssertEqual(try repository.tracks(albumID: "scale-album-5000").map(\.id), ["scale-track-5000"])
+        XCTAssertEqual(
+            try repository.track(id: "scale-track-1")?.mediaReference,
+            .documents(relativePath: "Music/Aeon/Scale/1.m4a")
+        )
+    }
+
     func testBadChunkCRCLeavesCheckpointAndSourceUntouched() throws {
         let audio = try Data(contentsOf: fixturesURL.appendingPathComponent("pcm-96000.wav"))
         let snapshot = makeSnapshot(artworkBytes: nil, audioBytes: audio.count)

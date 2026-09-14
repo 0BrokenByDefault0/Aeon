@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SkyHUD: View {
     @ObservedObject var controller: SkySceneController
@@ -7,6 +8,7 @@ struct SkyHUD: View {
     let showCensus: Bool
     let reduceMotionOverride: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var announcedTier: SkyZoomTier?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +23,11 @@ struct SkyHUD: View {
                 }
                 .accessibilityIdentifier("aeon.sky.capture")
                 if controller.playingStarID != nil {
-                    Button("LOCATE") { controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride) }
+                    Button("LOCATE") {
+                        controller.locatePlaying(
+                            reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
+                        )
+                    }
                         .accessibilityIdentifier("aeon.sky.locate-playing")
                 }
                 if let captureURL = controller.captureURL {
@@ -61,6 +67,12 @@ struct SkyHUD: View {
                 Spacer()
                 }
             }
+        }
+        .onAppear { announcedTier = controller.camera.tier }
+        .onChange(of: controller.camera.tier) { tier in
+            guard announcedTier != tier else { return }
+            announcedTier = tier
+            UIAccessibility.post(notification: .announcement, argument: "Sky altitude, \(tier.rawValue)")
         }
     }
 

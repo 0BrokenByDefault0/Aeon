@@ -60,8 +60,8 @@ struct NowPlayingView: View {
         .sheet(isPresented: $queuePresented) {
             QueueView(playback: playback, catalog: catalog, close: { queuePresented = false })
         }
-        .onAppear { spectrum.setReduceMotion(reduceMotion || reduceMotionOverride) }
-        .onChange(of: reduceMotion) { spectrum.setReduceMotion($0 || reduceMotionOverride) }
+        .onAppear { spectrum.setReduceMotion(effectiveReduceMotion) }
+        .onChange(of: reduceMotion) { spectrum.setReduceMotion($0 || reduceMotionOverride || AeonTestOverrides.reduceMotion) }
     }
 
     private func heading(snapshot: PlaybackSnapshot) -> some View {
@@ -204,7 +204,7 @@ struct NowPlayingView: View {
 
     private func secondary(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
-            Button("LOCATE") { locate(presentation.album.id, reduceMotion) }
+            Button("LOCATE") { locate(presentation.album.id, effectiveReduceMotion) }
                 .buttonStyle(AeonButtonStyle(tier: .hairline))
                 .accessibilityIdentifier("aeon.player.locate")
             if let source = sourceDescription(snapshot.sourceFormat), !source.isEmpty {
@@ -230,14 +230,18 @@ struct NowPlayingView: View {
                     Rectangle()
                         .fill(AeonTheme.ColorToken.bone)
                         .frame(maxWidth: .infinity)
-                        .frame(height: reduceMotion ? 2 : max(2, CGFloat(value) * 86))
+                        .frame(height: effectiveReduceMotion ? 2 : max(2, CGFloat(value) * 86))
                 }
             }
             .frame(height: 88, alignment: .bottom)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(reduceMotion ? "Spectrum still under Reduce Motion" : "Live audio spectrum")
+            .accessibilityLabel(effectiveReduceMotion ? "Spectrum still under Reduce Motion" : "Live audio spectrum")
             .accessibilityIdentifier("aeon.player.spectrum")
         }
+    }
+
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
     }
 
     private func transportButton(_ symbol: String, label: String, identifier: String, action: @escaping () -> Void) -> some View {

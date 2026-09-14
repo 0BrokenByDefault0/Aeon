@@ -1,6 +1,6 @@
 {
   "name": "isolation",
-  "version": "2.0.0",
+  "version": "5.0.0",
   "private": true,
   "description": "A music library that composes itself as a night sky.",
   "scripts": {
@@ -13,11 +13,14 @@
     "test:browser": "node test/run.mjs",
     "fixtures": "python3 test/fixtures.py",
     "test:interface": "node test/interface.mjs",
+    "test:interface:ci": "node scripts/test-interface-ci.mjs",
     "test:arrival": "node test/arrival.mjs",
     "test:sky-chrome": "node test/sky-chrome.mjs",
     "test:native-audio": "node test/native-audio-contract.mjs",
     "test:legacy-migration": "node test/legacy-migration-contract.mjs",
-    "test:ios": "node scripts/test-ios.mjs"
+    "test:ios": "node scripts/test-ios.mjs --family=all",
+    "test:ios:iphone": "node scripts/test-ios.mjs --family=iphone",
+    "test:ios:ipad": "node scripts/test-ios.mjs --family=ipad"
   },
   "dependencies": {
     "@capacitor/core": "^6.0.0",
