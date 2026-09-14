@@ -16,7 +16,7 @@ struct AeonRootView: View {
                     .accessibilityHidden(true)
             }
 
-            Color.black.ignoresSafeArea()
+            AeonTheme.ColorToken.void.ignoresSafeArea()
             content
             Color.clear
                 .frame(width: 1, height: 1)
@@ -331,7 +331,7 @@ private struct AeonReadyShell: View {
                         AeonChrome(
                             destination: $destination,
                             portraitSidebarVisible: $portraitSidebarVisible,
-                                playerLoaded: playback.snapshot?.trackID != nil
+                            playerLoaded: playback.snapshot?.trackID != nil
                         ) {
                             PlayerBar(
                                 playback: playback,
@@ -405,7 +405,8 @@ private struct AeonReadyShell: View {
                     controller: libraryController,
                     importProgress: importProgress,
                     importError: importError,
-                    importAction: importFiles,
+                    importFiles: importFiles,
+                    importFolder: importFolder,
                     findInSky: { id, reduceMotion in
                         libraryController.findInSky(id: id, reduceMotion: reduceMotion)
                         if !regular { self.destination = .sky }
@@ -451,7 +452,7 @@ private struct AeonReadyShell: View {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     AeonBreadcrumb(text: destination.title)
                     AeonDisplayText(destination.title.capitalized, size: 42, maximumLines: 2)
-                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     Text("The native \(destination.rawValue) surface is connected to this persistent sky.")
                         .font(AeonTheme.FontToken.ui(.body))
                         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
