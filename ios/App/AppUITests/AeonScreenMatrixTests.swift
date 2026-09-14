@@ -221,7 +221,7 @@ final class AeonScreenMatrixTests: XCTestCase {
         let window = app.windows.firstMatch.frame
         let scrollView = app.scrollViews.firstMatch
         for _ in 0..<30 where !element.exists || !element.isHittable {
-            if min(window.width, window.height) >= 700, scrollView.exists {
+            if scrollView.exists {
                 scrollView.swipeUp()
             } else {
                 app.swipeUp()
