@@ -85,6 +85,10 @@ function evidencePath(device,shard){
     :`${resultBundle}-${suffix}.xcresult`;
 }
 
+// Every shard runs even after one fails. Stopping at the first failure hides whatever
+// is behind it, so a suite with several broken shards takes one full CI round per
+// shard to diagnose. The run still fails, just with the whole picture.
+const failures=[];
 for(const device of destinations){
   for(const shard of shards){
     console.log(`Running ${shard.name} on ${device.name}`);
@@ -98,6 +102,13 @@ for(const device of destinations){
       ...shard.arguments
     ],{stdio:'inherit'});
     if(result.error)throw result.error;
-    if(result.status!==0)process.exit(result.status??1);
+    if(result.status!==0)failures.push(`${device.name}: ${shard.name}`);
   }
 }
+
+if(failures.length){
+  console.error(`\n${failures.length} of ${destinations.length*shards.length} shards failed:`);
+  for(const failure of failures)console.error(`  ${failure}`);
+  process.exit(1);
+}
+console.log(`\nAll ${destinations.length*shards.length} shards passed.`);

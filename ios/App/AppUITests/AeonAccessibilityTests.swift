@@ -141,9 +141,14 @@ final class AeonAccessibilityTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
+        // Frames come back through a coordinate-space conversion, so a target authored
+        // as exactly 44 points reports as 43.99999999999994. The tolerance absorbs that
+        // rounding and nothing else: a genuinely undersized target still fails.
+        let minimum: CGFloat = 44
+        let tolerance: CGFloat = 0.01
         XCTAssertTrue(element.exists, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(element.frame.width, 44, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(element.frame.height, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.width, minimum - tolerance, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.height, minimum - tolerance, file: file, line: line)
     }
 
     private func scroll(in app: XCUIApplication, until element: XCUIElement) {
