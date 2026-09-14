@@ -1,3 +1,4 @@
+import Dispatch
 import SwiftUI
 import UIKit
 
@@ -49,18 +50,18 @@ struct AeonGlass<Content: View>: View {
                         AeonTheme.ColorToken.chamberOpaque
                     } else {
                         AeonBlur(style: .systemUltraThinMaterialDark)
-                        AeonTheme.ColorToken.chamber.opacity(increasedContrast ? 0.78 : 0.58)
-                        artworkTint?.opacity(0.10)
+                        AeonTheme.ColorToken.chamber.opacity(increasedContrast ? 0.88 : 0.72)
+                        artworkTint?.opacity(0.055)
                     }
-                    LinearGradient(
-                        colors: [.white.opacity(0.07), .clear, .white.opacity(0.025)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
                 }
             }
-            .overlay(Rectangle().stroke(increasedContrast ? AeonTheme.ColorToken.strongRule : AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
-            .shadow(color: .black.opacity(0.42), radius: AeonTheme.Shadow.glassRadius, y: AeonTheme.Shadow.glassY)
+            .overlay(
+                Rectangle().stroke(
+                    increasedContrast ? AeonTheme.ColorToken.strongRule : AeonTheme.ColorToken.rule,
+                    lineWidth: AeonTheme.Stroke.hairline
+                )
+            )
+            .shadow(color: .black.opacity(0.34), radius: AeonTheme.Shadow.glassRadius, y: AeonTheme.Shadow.glassY)
     }
 }
 
@@ -99,14 +100,26 @@ struct AeonButtonStyle: ButtonStyle {
             .lineLimit(nil)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, AeonTheme.Space.large)
+            .padding(.horizontal, AeonTheme.Space.regular)
             .frame(
                 minWidth: AeonTheme.Space.minimumTarget,
                 maxWidth: .infinity,
                 minHeight: AeonTheme.Space.minimumTarget
             )
-            .background(background.opacity(configuration.isPressed ? 0.72 : 1))
-            .overlay(Rectangle().stroke(border, lineWidth: tier == .bare ? 0 : AeonTheme.Stroke.hairline))
+            .background {
+                if tier != .bare {
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .fill(background.opacity(configuration.isPressed ? 0.82 : 1))
+                }
+            }
+            .overlay {
+                if tier == .hairline {
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .stroke(border, lineWidth: AeonTheme.Stroke.hairline)
+                }
+            }
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: AeonTheme.Duration.press), value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.42)
     }
 
@@ -114,48 +127,23 @@ struct AeonButtonStyle: ButtonStyle {
         if destructive { return AeonTheme.ColorToken.danger }
         return tier == .filled ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.bone
     }
-    private var background: Color { tier == .filled ? AeonTheme.ColorToken.bone : .clear }
-    private var border: Color { destructive ? AeonTheme.ColorToken.danger : AeonTheme.ColorToken.rule }
-}
 
-struct AeonToggleStyle: ToggleStyle {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    func makeBody(configuration: Configuration) -> some View {
-        Button { configuration.isOn.toggle() } label: {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
-                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                        configuration.label
-                        toggleIndicator(isOn: configuration.isOn)
-                    }
-                } else {
-                    HStack {
-                        configuration.label
-                        Spacer()
-                        toggleIndicator(isOn: configuration.isOn)
-                    }
-                }
-            }
-            .foregroundStyle(AeonTheme.ColorToken.bone)
-            .frame(minHeight: AeonTheme.Space.minimumTarget)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(configuration.isOn ? "On" : "Off")
+    private var background: Color {
+        tier == .filled ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.surfaceSelected.opacity(0.72)
     }
 
-    private func toggleIndicator(isOn: Bool) -> some View {
-        ZStack(alignment: isOn ? .trailing : .leading) {
-            Rectangle()
-                .fill(isOn ? AeonTheme.ColorToken.bone : .clear)
-                .overlay(Rectangle().stroke(AeonTheme.ColorToken.strongRule, lineWidth: AeonTheme.Stroke.hairline))
-                .frame(width: 48, height: 28)
-            Rectangle()
-                .fill(isOn ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
-                .frame(width: 20, height: 20)
-                .padding(4)
-        }
+    private var border: Color {
+        destructive ? AeonTheme.ColorToken.danger.opacity(0.72) : AeonTheme.ColorToken.rule
+    }
+}
+
+// Kept for compatibility with older feature views. New settings surfaces use the
+// native SwiftUI switch style directly so VoiceOver and platform behavior stay native.
+struct AeonToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Toggle(isOn: configuration.$isOn) { configuration.label }
+            .toggleStyle(.switch)
+            .tint(AeonTheme.ColorToken.bone)
     }
 }
 
@@ -165,17 +153,28 @@ struct AeonSegment<Value: Hashable>: View {
     let label: (Value) -> String
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: AeonTheme.Space.xSmall) {
             ForEach(values, id: \.self) { value in
                 Button(label(value).uppercased()) { selection = value }
                     .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
                     .foregroundStyle(selection == value ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
                     .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget)
-                    .background(selection == value ? AeonTheme.ColorToken.bone : .clear)
-                    .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                    .background {
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                            .fill(selection == value ? AeonTheme.ColorToken.bone : .clear)
+                    }
                     .accessibilityAddTraits(selection == value ? .isSelected : [])
             }
         }
+        .padding(AeonTheme.Space.xSmall)
+        .background(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.72))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+        )
     }
 }
 
@@ -192,10 +191,14 @@ struct AeonRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: AeonTheme.Space.medium) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(AeonTheme.FontToken.ui(.body, weight: .medium)).foregroundStyle(AeonTheme.ColorToken.bone)
+            VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
+                Text(title)
+                    .font(AeonTheme.FontToken.ui(.body, weight: .medium))
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                 if let detail, !detail.isEmpty {
-                    Text(detail).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    Text(detail)
+                        .font(AeonTheme.FontToken.ui(.caption))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -204,7 +207,9 @@ struct AeonRow<Trailing: View>: View {
         }
         .padding(.vertical, AeonTheme.Space.small)
         .frame(minHeight: 62)
-        .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+        }
     }
 }
 
@@ -236,8 +241,9 @@ struct AeonArtwork: View {
     var body: some View {
         ZStack {
             AeonTheme.ColorToken.chamber
-            if let image { image.resizable().scaledToFill() }
-            else {
+            if let image {
+                image.resizable().scaledToFill()
+            } else {
                 Image(systemName: "circle.grid.cross")
                     .font(.system(size: size * 0.24, weight: .ultraLight))
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
@@ -246,7 +252,11 @@ struct AeonArtwork: View {
         .frame(width: size, height: size)
         .clipped()
         .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
-        .background(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline).offset(x: AeonTheme.Stroke.artworkOffset, y: AeonTheme.Stroke.artworkOffset))
+        .background(
+            Rectangle()
+                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                .offset(x: AeonTheme.Stroke.artworkOffset, y: AeonTheme.Stroke.artworkOffset)
+        )
         .shadow(color: .black.opacity(0.52), radius: AeonTheme.Shadow.artworkRadius, y: AeonTheme.Shadow.artworkY)
     }
 }
@@ -255,13 +265,17 @@ struct AeonSheet<Content: View>: View {
     let content: Content
 
     init(@ViewBuilder content: () -> Content) { self.content = content() }
+
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(AeonTheme.ColorToken.boneSecondary).frame(width: 34, height: 3).padding(.vertical, 12)
+            Capsule()
+                .fill(AeonTheme.ColorToken.boneSecondary.opacity(0.74))
+                .frame(width: 34, height: 3)
+                .padding(.vertical, AeonTheme.Space.medium)
             content
         }
         .frame(maxWidth: AeonTheme.Space.textContentMaximum)
-        .background { AeonGlass { Color.clear } }
+        .background(AeonTheme.ColorToken.chamberOpaque)
         .presentationDragIndicator(.hidden)
     }
 }
@@ -275,9 +289,18 @@ struct AeonEmptyState: View {
     var body: some View {
         VStack(spacing: AeonTheme.Space.large) {
             AeonRouteMark()
-            AeonDisplayText(title, size: 30).multilineTextAlignment(.center)
-            if let detail { Text(detail).font(AeonTheme.FontToken.ui(.body)).foregroundStyle(AeonTheme.ColorToken.boneSecondary).multilineTextAlignment(.center) }
-            if let actionTitle, let action { Button(actionTitle, action: action).buttonStyle(AeonButtonStyle(tier: .filled)) }
+            AeonDisplayText(title, size: 34)
+                .multilineTextAlignment(.center)
+            if let detail {
+                Text(detail)
+                    .font(AeonTheme.FontToken.ui(.body))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(AeonButtonStyle(tier: .filled))
+            }
         }
         .foregroundStyle(AeonTheme.ColorToken.bone)
         .padding(AeonTheme.Space.section)
@@ -285,6 +308,9 @@ struct AeonEmptyState: View {
 }
 
 struct AeonRouteMark: View {
+    var width: CGFloat = 68
+    var height: CGFloat = 48
+
     var body: some View {
         Canvas { context, size in
             let points = [
@@ -296,17 +322,106 @@ struct AeonRouteMark: View {
             var path = Path()
             path.move(to: points[0])
             points.dropFirst().forEach { path.addLine(to: $0) }
-            context.stroke(path, with: .color(AeonTheme.ColorToken.boneTertiary), lineWidth: 0.75)
+            context.stroke(path, with: .color(AeonTheme.ColorToken.ivorySecondary.opacity(0.72)), lineWidth: 0.75)
             for (index, point) in points.enumerated() {
                 let radius: CGFloat = index == points.count - 1 ? 3.5 : 2.2
                 context.fill(
                     Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
-                    with: .color(index == points.count - 1 ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.boneSecondary)
+                    with: .color(index == points.count - 1 ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.ivorySecondary)
                 )
             }
         }
-        .frame(width: 68, height: 48)
+        .frame(width: width, height: height)
         .accessibilityHidden(true)
+    }
+}
+
+struct AeonImportSheet: View {
+    let selectFiles: () -> Void
+    let selectFolder: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        AeonSheet {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                    AeonLabel(text: "Bring music into Aeon")
+                    AeonDisplayText("Choose a source", size: 32, maximumLines: 2)
+                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                    Text("Aeon reads the music you choose without pretending it can browse every location on your device.")
+                        .font(AeonTheme.FontToken.ui(.body))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                importOption(
+                    title: "Files",
+                    detail: "Choose one or more supported audio files.",
+                    symbol: "waveform",
+                    identifier: "aeon.library.import.files",
+                    action: selectFiles
+                )
+                importOption(
+                    title: "Folder",
+                    detail: "Choose a folder from a location iOS allows Aeon to access.",
+                    symbol: "folder",
+                    identifier: "aeon.library.import.folder",
+                    action: selectFolder
+                )
+            }
+            .padding(.horizontal, AeonTheme.Space.edge)
+            .padding(.bottom, AeonTheme.Space.edge)
+        }
+        .presentationDetents([.medium])
+        .accessibilityIdentifier("aeon.import.sheet")
+    }
+
+    private func importOption(
+        title: String,
+        detail: String,
+        symbol: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            dismiss()
+            DispatchQueue.main.asyncAfter(deadline: .now() + AeonTheme.Duration.chrome) {
+                action()
+            }
+        } label: {
+            HStack(spacing: AeonTheme.Space.regular) {
+                Image(systemName: symbol)
+                    .font(.system(size: 19, weight: .regular))
+                    .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
+                    Text(title)
+                        .font(AeonTheme.FontToken.ui(.body, weight: .semibold))
+                        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    Text(detail)
+                        .font(AeonTheme.FontToken.ui(.caption))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: AeonTheme.Space.small)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            }
+            .padding(.horizontal, AeonTheme.Space.regular)
+            .padding(.vertical, AeonTheme.Space.medium)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.76))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                    .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -329,8 +444,10 @@ struct AeonProgressBar: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                Rectangle().fill(AeonTheme.ColorToken.rule)
-                Rectangle().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * min(1, max(0, value)))
+                Capsule().fill(AeonTheme.ColorToken.rule)
+                Capsule()
+                    .fill(AeonTheme.ColorToken.bone)
+                    .frame(width: geometry.size.width * min(1, max(0, value)))
             }
         }
         .frame(height: 2)
