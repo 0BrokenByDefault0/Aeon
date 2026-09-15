@@ -110,7 +110,10 @@ struct AeonButtonStyle: ButtonStyle {
         configuration.label
             .font(AeonTheme.FontToken.metric(.caption, weight: .bold))
             .tracking(AeonTheme.FontToken.labelTracking)
-            .textCase(.uppercase)
+            // No blanket .textCase here: it rewrites the accessibility label as
+            // well as the glyphs, so "Erase Everything" started announcing — and
+            // matching — as "ERASE EVERYTHING". Call sites already uppercase the
+            // ones that should be.
             .foregroundStyle(foreground)
             .lineLimit(nil)
             .multilineTextAlignment(.center)
