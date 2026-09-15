@@ -10,7 +10,8 @@ struct AeonApp: App {
     init() {
         let arguments = ProcessInfo.processInfo.arguments
         testArguments = arguments
-        let deterministicFixture = arguments.contains("-AeonSkyFixture")
+        let deterministicFixture = arguments.contains("-AeonImportSmokeTesting")
+            || arguments.contains("-AeonSkyFixture")
             || arguments.contains("-AeonLibraryFixture")
             || arguments.contains("-AeonPlaybackFixture")
         _container = StateObject(wrappedValue: deterministicFixture ? AppContainer.inMemory() : AppContainer.production())

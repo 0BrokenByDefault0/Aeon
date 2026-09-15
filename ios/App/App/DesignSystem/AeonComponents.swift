@@ -94,8 +94,8 @@ struct AeonButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
-            .tracking(1.2)
+            .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
+            .tracking(0)
             .foregroundStyle(foreground)
             .lineLimit(nil)
             .multilineTextAlignment(.center)
@@ -287,23 +287,24 @@ struct AeonEmptyState: View {
     let action: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: AeonTheme.Space.large) {
-            AeonRouteMark()
-            AeonDisplayText(title, size: 34)
-                .multilineTextAlignment(.center)
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
+                .font(AeonTheme.FontToken.ui(.title3, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
             if let detail {
                 Text(detail)
-                    .font(AeonTheme.FontToken.ui(.body))
+                    .font(AeonTheme.FontToken.ui(.callout))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .buttonStyle(AeonButtonStyle(tier: .filled))
+                    .buttonStyle(AeonButtonStyle(tier: .hairline))
             }
         }
-        .foregroundStyle(AeonTheme.ColorToken.bone)
-        .padding(AeonTheme.Space.section)
+        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 24)
     }
 }
 
@@ -333,95 +334,6 @@ struct AeonRouteMark: View {
         }
         .frame(width: width, height: height)
         .accessibilityHidden(true)
-    }
-}
-
-struct AeonImportSheet: View {
-    let selectFiles: () -> Void
-    let selectFolder: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        AeonSheet {
-            VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
-                VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                    AeonLabel(text: "Bring music into Aeon")
-                    AeonDisplayText("Choose a source", size: 32, maximumLines: 2)
-                        .foregroundStyle(AeonTheme.ColorToken.bone)
-                    Text("Aeon reads the music you choose without pretending it can browse every location on your device.")
-                        .font(AeonTheme.FontToken.ui(.body))
-                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                importOption(
-                    title: "Files",
-                    detail: "Choose one or more supported audio files.",
-                    symbol: "waveform",
-                    identifier: "aeon.library.import.files",
-                    action: selectFiles
-                )
-                importOption(
-                    title: "Folder",
-                    detail: "Choose a folder from a location iOS allows Aeon to access.",
-                    symbol: "folder",
-                    identifier: "aeon.library.import.folder",
-                    action: selectFolder
-                )
-            }
-            .padding(.horizontal, AeonTheme.Space.edge)
-            .padding(.bottom, AeonTheme.Space.edge)
-        }
-        .presentationDetents([.medium])
-        .accessibilityIdentifier("aeon.import.sheet")
-    }
-
-    private func importOption(
-        title: String,
-        detail: String,
-        symbol: String,
-        identifier: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button {
-            dismiss()
-            DispatchQueue.main.asyncAfter(deadline: .now() + AeonTheme.Duration.chrome) {
-                action()
-            }
-        } label: {
-            HStack(spacing: AeonTheme.Space.regular) {
-                Image(systemName: symbol)
-                    .font(.system(size: 19, weight: .regular))
-                    .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                    Text(title)
-                        .font(AeonTheme.FontToken.ui(.body, weight: .semibold))
-                        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-                    Text(detail)
-                        .font(AeonTheme.FontToken.ui(.caption))
-                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: AeonTheme.Space.small)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-            }
-            .padding(.horizontal, AeonTheme.Space.regular)
-            .padding(.vertical, AeonTheme.Space.medium)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
-                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.76))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
-                    .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
     }
 }
 

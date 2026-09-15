@@ -18,22 +18,22 @@ struct PlaylistsScreen: View {
                 .padding(.bottom, AeonTheme.Space.large)
 
             if controller.playlists.isEmpty {
-                Spacer(minLength: AeonTheme.Space.section)
+                Color.clear.frame(height: 24)
                 VStack(spacing: AeonTheme.Space.large) {
                     AeonEmptyState(
-                        title: "No routes charted yet.",
-                        detail: "Build a route through the records you return to.",
+                        title: "No playlists yet",
+                        detail: "Keep the tracks you return to together.",
                         actionTitle: nil,
                         action: nil
                     )
-                    Button("CREATE PLAYLIST") { creationPresented = true }
-                        .buttonStyle(AeonButtonStyle(tier: .filled))
-                        .frame(maxWidth: 320)
+                    Button("Create Playlist") { creationPresented = true }
+                        .buttonStyle(AeonButtonStyle(tier: .hairline))
+                        .frame(maxWidth: 220)
                         .accessibilityIdentifier("aeon.playlists.create")
                 }
                 .frame(maxWidth: 440)
                 .frame(maxWidth: .infinity)
-                Spacer(minLength: AeonTheme.Space.section)
+                Spacer(minLength: 16)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
@@ -52,10 +52,9 @@ struct PlaylistsScreen: View {
             AeonSheet {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                        AeonLabel(text: "New route")
-                        AeonDisplayText("Chart a playlist", size: 32, maximumLines: 2)
+                        Text("New playlist").font(AeonTheme.FontToken.ui(.title2, weight: .semibold))
                             .foregroundStyle(AeonTheme.ColorToken.bone)
-                        Text("Give this route a name. Tracks can be added from albums afterward.")
+                        Text("Choose a name, then add tracks from your albums.")
                             .font(AeonTheme.FontToken.ui(.callout))
                             .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     }
@@ -66,7 +65,7 @@ struct PlaylistsScreen: View {
                 .padding(AeonTheme.Space.edge)
                 .foregroundStyle(AeonTheme.ColorToken.bone)
             }
-            .presentationDetents([.height(310)])
+            .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $detailPresented, onDismiss: controller.dismissSelection) {
             PlaylistDetailView(controller: controller, close: { detailPresented = false })
@@ -86,8 +85,7 @@ struct PlaylistsScreen: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
-                AeonBreadcrumb(text: "Routes")
-                AeonDisplayText("Playlists", size: 42, maximumLines: 1)
+                Text("Playlists").font(AeonTheme.FontToken.ui(.title, weight: .semibold))
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .accessibilityIdentifier("aeon.playlists.screen")
                 if !controller.playlists.isEmpty {

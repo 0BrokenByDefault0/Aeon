@@ -27,10 +27,13 @@ struct SettingsScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                        AeonBreadcrumb(text: "Aeon / Preferences")
-                        AeonDisplayText("Settings", size: 42, maximumLines: 1)
+                        Text("Settings").font(AeonTheme.FontToken.ui(.title, weight: .semibold))
                             .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                             .accessibilityIdentifier("aeon.settings.screen")
+                        Text(AeonRecoveryBuildIdentity.label)
+                            .font(AeonTheme.FontToken.ui(.caption))
+                            .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                            .accessibilityIdentifier("aeon.settings.build-identity")
                     }
 
                     settingsSection("Playback") {
@@ -183,35 +186,21 @@ struct SettingsScreen: View {
     }
 
     private var sleepTimerSelector: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: AeonTheme.Space.small) {
+        HStack {
+            Text("Duration")
+                .font(AeonTheme.FontToken.ui(.callout))
+                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            Spacer()
+            Picker("Sleep timer", selection: Binding(get: { controller.sleepTimer }, set: controller.setSleepTimer)) {
                 ForEach(SettingsSleepTimer.allCases) { value in
-                    Button { controller.setSleepTimer(value) } label: {
-                        Text(value.label)
-                            .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
-                            .foregroundStyle(controller.sleepTimer == value ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
-                            .padding(.horizontal, AeonTheme.Space.regular)
-                            .frame(minHeight: AeonTheme.Space.minimumTarget)
-                            .background(
-                                Capsule()
-                                    .fill(controller.sleepTimer == value
-                                        ? AeonTheme.ColorToken.bone
-                                        : AeonTheme.ColorToken.surfaceSelected.opacity(0.66))
-                            )
-                            .overlay(
-                                Capsule().stroke(
-                                    controller.sleepTimer == value ? .clear : AeonTheme.ColorToken.rule,
-                                    lineWidth: AeonTheme.Stroke.hairline
-                                )
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(controller.sleepTimer == value ? .isSelected : [])
-                    .accessibilityIdentifier("aeon.settings.sleep.\(value.rawValue)")
+                    Text(value.label).tag(value)
                 }
             }
-            .padding(.vertical, 1)
+            .pickerStyle(.menu)
+            .tint(AeonTheme.ColorToken.textPrimary)
+            .accessibilityIdentifier("aeon.settings.sleep.selector")
         }
+        .frame(minHeight: 44)
     }
 
     private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
