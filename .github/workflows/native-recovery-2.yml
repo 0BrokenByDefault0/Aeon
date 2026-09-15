@@ -4,14 +4,21 @@ run-name: Recovery 2 - picker callback import
 on:
   push:
     branches: ['repair/native-recovery-1']
-    paths: ['.github/workflows/native-recovery-2.yml']
+    paths:
+      - '.github/workflows/native-recovery-2.yml'
+      - '.github/recovery/fix-picker-handoff.py'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: aeon-rc2-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   preview:
+    if: github.repository == '0BrokenByDefault0/Aeon' && github.ref == 'refs/heads/repair/native-recovery-1'
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
@@ -23,15 +30,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'repair/native-recovery-1'
           python3 .github/recovery/fix-picker-handoff.py
+          git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ios/App/App/Import/ImportPicker.swift ios/App/App/Features/Root/AeonRootView.swift
-          git commit -m 'fix: start copied music imports directly from picker callback'
-          git push origin HEAD:repair/native-recovery-1
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: start copied music imports directly from picker callback'
+            git push origin HEAD:repair/native-recovery-1
+          fi
           SHA="$(git rev-parse HEAD)"
           echo "AEON_SOURCE_SHA=$SHA" >> "$GITHUB_ENV"
           echo "AEON_SOURCE_SHORT=${SHA:0:8}" >> "$GITHUB_ENV"
+          printf '## Recovery 2\n\nExact app source: `%s`. Device preview; not release qualification.\n' "$SHA" >> "$GITHUB_STEP_SUMMARY"
       - name: Verify regressions and sync iOS
         shell: bash
         run: |
@@ -46,7 +58,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath build-rc2 CURRENT_PROJECT_VERSION="$((600 + GITHUB_RUN_NUMBER))" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO | xcpretty
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath build-rc2 CURRENT_PROJECT_VERSION="$((600 + GITHUB_RUN_NUMBER))" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO | tee "$RUNNER_TEMP/Aeon-RC2-build.log" | xcpretty
       - name: Stamp, verify, and package RC2
         shell: bash
         run: |
@@ -76,17 +88,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Picker presentation smoke
+        id: smoke
         continue-on-error: true
         timeout-minutes: 10
         env:
           AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-RC2.xcresult
         shell: bash
-        run: npm run test:ios -- --family=iphone -only-testing:AppUITests/ImportPickerPresentationTests
+        run: |
+          set -euo pipefail
+          npm run test:ios -- --family=iphone -only-testing:AppUITests/ImportPickerPresentationTests | tee "$RUNNER_TEMP/Aeon-RC2-smoke.log"
       - name: Upload RC2 smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Aeon-RC2-smoke-${{ github.run_id }}
-          path: ${{ runner.temp }}/Aeon-RC2*.xcresult/
+          path: |
+            ${{ runner.temp }}/Aeon-RC2*.xcresult/
+            ${{ runner.temp }}/Aeon-RC2-*.log
           if-no-files-found: warn
           retention-days: 7
+      - name: Preserve native smoke failures
+        if: ${{ always() && steps.smoke.outcome == 'failure' }}
+        run: |
+          echo '::error::Native picker smoke failed. The uploaded IPA is a diagnostic preview, not a verified import/playback fix.'
+          exit 1
