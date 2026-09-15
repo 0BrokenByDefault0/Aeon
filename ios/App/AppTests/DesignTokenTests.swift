@@ -13,6 +13,35 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertFalse(AeonTheme.FontToken.nocturnePostScriptName.localizedCaseInsensitiveContains("arthemys"))
     }
 
+    func testArchivoShipsWithItsLicenceAndResolvesBothWidths() throws {
+        XCTAssertNotNil(Bundle.main.url(forResource: AeonTheme.FontToken.resourceName, withExtension: "ttf"))
+        XCTAssertNotNil(Bundle.main.url(forResource: "OFL-Archivo", withExtension: "txt"))
+        let display = AeonTheme.FontToken.uiDisplay(size: 34)
+        let ui = AeonTheme.FontToken.uiText(size: 34)
+        XCTAssertEqual(display.familyName, AeonTheme.FontToken.family)
+        XCTAssertEqual(ui.familyName, AeonTheme.FontToken.family)
+        // Display type is the same face set wider; if the variation axis stops
+        // being applied the two collapse into one and the hierarchy is lost.
+        let name = "Aeon" as NSString
+        XCTAssertGreaterThan(
+            name.size(withAttributes: [.font: display]).width,
+            name.size(withAttributes: [.font: ui]).width
+        )
+    }
+
+    func testInstrumentGeometryIsRoundedAndSpacingRunsOneScale() {
+        XCTAssertGreaterThan(AeonTheme.Radius.small, 0)
+        XCTAssertLessThan(AeonTheme.Radius.small, AeonTheme.Radius.medium)
+        XCTAssertLessThan(AeonTheme.Radius.medium, AeonTheme.Radius.large)
+        XCTAssertLessThan(AeonTheme.Radius.large, AeonTheme.Radius.sheet)
+        XCTAssertEqual(
+            [AeonTheme.Space.small, AeonTheme.Space.medium, AeonTheme.Space.large,
+             AeonTheme.Space.section, AeonTheme.Space.vast],
+            [AeonTheme.Space.small, AeonTheme.Space.medium, AeonTheme.Space.large,
+             AeonTheme.Space.section, AeonTheme.Space.vast].sorted()
+        )
+    }
+
     func testThemeOwnsMinimumTargetsChromeClearanceAndSquareGeometry() {
         XCTAssertGreaterThanOrEqual(AeonTheme.Space.minimumTarget, 44)
         XCTAssertGreaterThan(AeonTheme.Space.compactDock, AeonTheme.Space.minimumTarget)

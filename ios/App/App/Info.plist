@@ -27,6 +27,7 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>AeonNocturne-Regular.otf</string>
+		<string>Archivo-Variable.ttf</string>
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>

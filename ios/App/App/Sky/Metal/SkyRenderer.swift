@@ -20,7 +20,9 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         var size: Float
         var flags: UInt32
         var turbulence: Float
-        var tailPadding: UInt32 = 0
+        /// Every visual parameter of a planet derives from this, so a restore
+        /// regenerates byte-identical bodies in identical places.
+        var seed: Float = 0
     }
 
     private struct GPULine {
@@ -41,6 +43,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
 
     let device: MTLDevice
     private let commandQueue: MTLCommandQueue
+    private let fieldPipeline: MTLRenderPipelineState
     private let starPipeline: MTLRenderPipelineState
     private let glowPipeline: MTLRenderPipelineState
     private let linePipeline: MTLRenderPipelineState
@@ -74,6 +77,8 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
               let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
               let vertex = library.makeFunction(name: "skyInstanceVertex"),
+              let fieldVertex = library.makeFunction(name: "skyFieldVertex"),
+              let fieldFragment = library.makeFunction(name: "skyFieldFragment"),
               let lineVertex = library.makeFunction(name: "skyLineVertex"),
               let starFragment = library.makeFunction(name: "skyStarFragment"),
               let glowFragment = library.makeFunction(name: "skyGlowFragment"),
@@ -83,6 +88,14 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         self.device = device
         commandQueue = queue
         do {
+            fieldPipeline = try Self.pipeline(
+                device: device,
+                view: view,
+                vertex: fieldVertex,
+                fragment: fieldFragment,
+                additive: false,
+                blending: false
+            )
             starPipeline = try Self.pipeline(device: device, view: view, vertex: vertex, fragment: starFragment, additive: true)
             glowPipeline = try Self.pipeline(device: device, view: view, vertex: vertex, fragment: glowFragment, additive: true)
             linePipeline = try Self.pipeline(device: device, view: view, vertex: lineVertex, fragment: lineFragment, additive: true)
@@ -93,7 +106,8 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         view.device = device
         view.delegate = self
         view.colorPixelFormat = .bgra8Unorm
-        view.clearColor = MTLClearColor(red: 0.003, green: 0.004, blue: 0.007, alpha: 1)
+        // True black: the field pass paints everything above it.
+        view.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
         view.framebufferOnly = true
         view.enableSetNeedsDisplay = false
         view.isPaused = false
@@ -147,6 +161,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)),
             spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, 0)
         )
+        encodeField(encoder, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: starCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: lineBuffer, count: lineCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: traceBuffer, count: traceCount, uniforms: &uniforms)
@@ -169,6 +184,13 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         os_signpost(.end, log: Self.performanceLog, name: "SkyFrame")
     }
 
+    /// The nebula and the dust, drawn once beneath everything else.
+    private func encodeField(_ encoder: MTLRenderCommandEncoder, uniforms: inout Uniforms) {
+        encoder.setRenderPipelineState(fieldPipeline)
+        encoder.setFragmentBytes(&uniforms, length: MemoryLayout<Uniforms>.stride, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+    }
+
     private func rebuildSelectionBuffers() {
         let selectedPlanet = planets.first { $0.id == selectedID }
         let memberIDs = Set(selectedPlanet?.members.map(\.albumID) ?? [])
@@ -184,16 +206,20 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             } else {
                 nearPlaying = false
             }
-            let alpha: Float = selectedPlanet == nil || isMember ? 1 : 0.2
+            let dimmed: Float = selectedPlanet == nil || isMember ? 1 : 0.2
+            // Brightness encodes listening: a record played through burns, one
+            // imported and never opened sits just above the threshold.
+            let listened = Float(star.magnitude) / 255
+            let brightness = (0.30 + listened * 0.70) * dimmed
             let color = star.isUncharted
-                ? SIMD4<Float>(0.72, 0.75, 0.78, alpha)
-                : SIMD4<Float>(0.92, 0.90, 0.82, alpha)
+                ? SIMD4<Float>(0.74, 0.79, 0.88, brightness * 0.62)
+                : SIMD4<Float>(1, 1, 1, brightness)
             return GPUInstance(
                 position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)),
                 color0: color,
                 color1: color,
                 color2: color,
-                size: Float(3 + Int(star.magnitude) / 48 + (isPlaying ? 2 : 0)),
+                size: 5 + listened * 7 + (isPlaying ? 3 : 0),
                 flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0),
                 turbulence: 0
             )
@@ -202,8 +228,8 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         starBuffer = makeBuffer(starInstances)
         let glows = starInstances.map {
             var value = $0
-            value.size *= 3.6
-            value.color0 *= SIMD4<Float>(0.42, 0.45, 0.55, 0.2)
+            value.size *= 4.2
+            value.color0 *= SIMD4<Float>(0.52, 0.60, 0.78, 0.11)
             value.flags |= 1
             return value
         }
@@ -241,7 +267,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         for constellation in constellations {
             for segment in constellation.figureSegments {
                 guard let from = starByID[segment.fromAlbumID], let to = starByID[segment.toAlbumID] else { continue }
-                let color = SIMD4<Float>(0.49, 0.56, 0.68, 0.28)
+                let color = SIMD4<Float>(0.62, 0.70, 0.86, 0.16)
                 lines.append(GPULine(position: SIMD2(Float(from.coordinate.x), Float(from.coordinate.y)), color: color))
                 lines.append(GPULine(position: SIMD2(Float(to.coordinate.x), Float(to.coordinate.y)), color: color))
             }
@@ -267,9 +293,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             color0: vector(0),
             color1: vector(1),
             color2: vector(2),
-            size: selected ? 46 : 28,
+            size: selected ? 64 : 38,
             flags: UInt32(selected ? 3 : 2) | (planet.descriptor.hasRings ? 0x100 : 0),
-            turbulence: Float(planet.descriptor.turbulence) / 1024
+            turbulence: Float(planet.descriptor.turbulence) / 65_535,
+            seed: Float(planet.seed % 10_000) / 10_000
         )
     }
 
@@ -334,13 +361,14 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         view: MTKView,
         vertex: MTLFunction,
         fragment: MTLFunction,
-        additive: Bool
+        additive: Bool,
+        blending: Bool = true
     ) throws -> MTLRenderPipelineState {
         let descriptor = MTLRenderPipelineDescriptor()
         descriptor.vertexFunction = vertex
         descriptor.fragmentFunction = fragment
         descriptor.colorAttachments[0].pixelFormat = view.colorPixelFormat
-        descriptor.colorAttachments[0].isBlendingEnabled = true
+        descriptor.colorAttachments[0].isBlendingEnabled = blending
         descriptor.colorAttachments[0].rgbBlendOperation = .add
         descriptor.colorAttachments[0].alphaBlendOperation = .add
         descriptor.colorAttachments[0].sourceRGBBlendFactor = additive ? .sourceAlpha : .sourceAlpha

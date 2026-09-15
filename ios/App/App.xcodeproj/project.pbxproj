@@ -104,6 +104,8 @@
 		A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000017 /* GUST-FONT-LICENSE.txt */; };
 		A61000000000000000000008 /* LPPL-1.3c.tex in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000018 /* LPPL-1.3c.tex */; };
 		A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000019 /* README-Aeon-Nocturne.txt */; };
+		A6100000000000000000000A /* Archivo-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A6100000000000000000001A /* Archivo-Variable.ttf */; };
+		A6100000000000000000000B /* OFL-Archivo.txt in Resources */ = {isa = PBXBuildFile; fileRef = A6100000000000000000001B /* OFL-Archivo.txt */; };
 		A62000000000000000000001 /* LibraryController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000011 /* LibraryController.swift */; };
 		A62000000000000000000002 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000012 /* LibraryScreen.swift */; };
 		A62000000000000000000003 /* AlbumDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000013 /* AlbumDetailView.swift */; };
@@ -249,6 +251,8 @@
 		A61000000000000000000014 /* DesignTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokenTests.swift; sourceTree = "<group>"; };
 		A61000000000000000000015 /* AdaptiveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveChromeTests.swift; sourceTree = "<group>"; };
 		A61000000000000000000016 /* AeonNocturne-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "AeonNocturne-Regular.otf"; sourceTree = "<group>"; };
+		A6100000000000000000001A /* Archivo-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Archivo-Variable.ttf"; sourceTree = "<group>"; };
+		A6100000000000000000001B /* OFL-Archivo.txt */ = {isa = PBXFileReference; lastKnownFileType = file; path = "OFL-Archivo.txt"; sourceTree = "<group>"; };
 		A61000000000000000000017 /* GUST-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GUST-FONT-LICENSE.txt"; sourceTree = "<group>"; };
 		A61000000000000000000018 /* LPPL-1.3c.tex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LPPL-1.3c.tex"; sourceTree = "<group>"; };
 		A61000000000000000000019 /* README-Aeon-Nocturne.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "README-Aeon-Nocturne.txt"; sourceTree = "<group>"; };
@@ -496,6 +500,8 @@
 			isa = PBXGroup;
 			children = (
 				A61000000000000000000016 /* AeonNocturne-Regular.otf */,
+				A6100000000000000000001A /* Archivo-Variable.ttf */,
+				A6100000000000000000001B /* OFL-Archivo.txt */,
 				A61000000000000000000017 /* GUST-FONT-LICENSE.txt */,
 				A61000000000000000000018 /* LPPL-1.3c.tex */,
 				A61000000000000000000019 /* README-Aeon-Nocturne.txt */,
@@ -754,6 +760,8 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 				A61000000000000000000006 /* AeonNocturne-Regular.otf in Resources */,
+				A6100000000000000000000A /* Archivo-Variable.ttf in Resources */,
+				A6100000000000000000000B /* OFL-Archivo.txt in Resources */,
 				A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */,
 				A61000000000000000000008 /* LPPL-1.3c.tex in Resources */,
 				A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */,

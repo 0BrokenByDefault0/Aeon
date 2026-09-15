@@ -39,6 +39,7 @@ struct PlayerBar: View {
     let catalog: CatalogRepository
     let artworkStore: ArtworkStore
     let open: () -> Void
+    @Environment(\.aeonArtworkTint) private var artworkTint
 
     var body: some View {
         if let presentation = PlayerPresentation.resolve(
@@ -46,60 +47,64 @@ struct PlayerBar: View {
             catalog: catalog,
             artworkStore: artworkStore
         ), let snapshot = playback.snapshot {
-            HStack(spacing: AeonTheme.Space.small) {
-                Button(action: open) {
-                    HStack(spacing: AeonTheme.Space.medium) {
-                        miniArtwork(presentation.artwork)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(presentation.track.title)
-                                .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
-                                .foregroundStyle(AeonTheme.ColorToken.bone)
-                                .lineLimit(1)
-                            Text(presentation.artist)
-                                .font(AeonTheme.FontToken.ui(.caption))
-                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                                .lineLimit(1)
+            VStack(spacing: 0) {
+                seekLine(snapshot: snapshot, duration: presentation.duration)
+                HStack(spacing: AeonTheme.Space.small) {
+                    Button(action: open) {
+                        HStack(spacing: AeonTheme.Space.medium) {
+                            miniArtwork(presentation.artwork)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(presentation.track.title)
+                                    .font(AeonTheme.FontToken.ui(.subheadline, weight: .semibold))
+                                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                                    .lineLimit(1)
+                                Text(presentation.artist)
+                                    .font(AeonTheme.FontToken.ui(.footnote))
+                                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                                    .lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open Now Playing for \(presentation.track.title)")
-                .accessibilityIdentifier("aeon.player.open")
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open Now Playing for \(presentation.track.title)")
+                    .accessibilityIdentifier("aeon.player.open")
 
-                transportButton(
-                    snapshot.intent == .playing ? "pause.fill" : "play.fill",
-                    label: snapshot.intent == .playing ? "Pause" : "Play",
-                    identifier: "aeon.player.toggle",
-                    action: playback.toggle
-                )
-                transportButton(
-                    "forward.end.fill",
-                    label: "Next track",
-                    identifier: "aeon.player.next",
-                    action: playback.next
-                )
-            }
-            .padding(.horizontal, AeonTheme.Space.medium)
-            .frame(minHeight: AeonTheme.Space.playerBar)
-            .background(AeonTheme.ColorToken.chamber.opacity(0.58))
-            .overlay(alignment: .top) {
-                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
-            }
-            .overlay(alignment: .bottomLeading) {
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(AeonTheme.ColorToken.ivorySecondary)
-                        .frame(
-                            width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
-                            height: 2
-                        )
+                    transportButton(
+                        snapshot.intent == .playing ? "pause.fill" : "play.fill",
+                        label: snapshot.intent == .playing ? "Pause" : "Play",
+                        identifier: "aeon.player.toggle",
+                        action: playback.toggle
+                    )
+                    transportButton(
+                        "forward.end.fill",
+                        label: "Next track",
+                        identifier: "aeon.player.next",
+                        action: playback.next
+                    )
                 }
-                .frame(height: 2)
-                .accessibilityHidden(true)
+                .frame(minHeight: AeonTheme.Space.playerBar)
+            }
+            .padding(.horizontal, AeonTheme.Space.edge)
+        }
+    }
+
+    /// One hairline across the whole width, filled to the playhead in the
+    /// artwork's own colour. It is the only accent the chrome carries, and
+    /// there is no surface behind it — the sky runs to the bottom edge.
+    private func seekLine(snapshot: PlaybackSnapshot, duration: TimeInterval) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Color.white.opacity(0.08))
+                Rectangle()
+                    .fill(artworkTint ?? AeonTheme.ColorToken.restingTint)
+                    .frame(width: geometry.size.width * progress(snapshot: snapshot, duration: duration))
             }
         }
+        .frame(height: 1)
+        .padding(.bottom, AeonTheme.Space.medium)
+        .accessibilityHidden(true)
     }
 
     private func miniArtwork(_ image: Image?) -> some View {
@@ -113,11 +118,18 @@ struct PlayerBar: View {
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
             }
         }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous))
+        .frame(width: 38, height: 38)
+        .clipShape(RoundedRectangle(cornerRadius: AeonTheme.Radius.small, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.small, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        gradient: AeonTheme.ColorToken.edgeHighlight,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
     }
 
@@ -129,7 +141,7 @@ struct PlayerBar: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
         }
         .buttonStyle(.plain)

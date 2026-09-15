@@ -1,0 +1,1408 @@
+<title>Aeon Instrument Shell</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..700&display=swap">
+<style>
+  /* ------------------------------------------------------------------
+     Aeon — UI shell, second pass.
+     True black. Two typefaces. Chrome that takes up no room.
+     The sky is a real 3D field: raymarched nebula, depth-layered dust,
+     album stars with their own optics, shaded planets with rings.
+     ------------------------------------------------------------------ */
+
+  :root {
+    --void: #000000;
+
+    /* whites only — no greys mixed from paper */
+    --w100: #ffffff;
+    --w70: rgba(255, 255, 255, 0.70);
+    --w45: rgba(255, 255, 255, 0.45);
+    --w28: rgba(255, 255, 255, 0.28);
+    --w16: rgba(255, 255, 255, 0.16);
+    --w08: rgba(255, 255, 255, 0.08);
+
+    --tint: #a9c8ff;
+
+    --pane: rgba(255, 255, 255, 0.022);
+    --pane-deep: rgba(4, 5, 8, 0.58);
+
+    /* One face. Expanded for the names of things, normal for everything you
+       operate — the settings list and the title above it share a skeleton. */
+    --display: "Archivo", "SF Pro Display", system-ui, sans-serif;
+    --ui: "Archivo", "SF Pro Text", system-ui, sans-serif;
+
+    --s1: 8px; --s2: 16px; --s3: 24px; --s4: 40px; --s5: 64px; --s6: 96px;
+    --r-lg: 22px; --r-md: 16px; --r-sm: 11px;
+
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: #000;
+    color: var(--w100);
+    font-family: var(--ui);
+    font-size: 15px;
+    font-weight: 400;
+    font-variation-settings: "wdth" 100, "wght" 400;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding-inline: 16px;
+    padding-block: 24px;
+  }
+
+  .device {
+    position: relative;
+    width: min(100%, 392px);
+    height: min(852px, calc(100dvh - 48px));
+    overflow: hidden;
+    background: #000;
+    border-radius: 34px;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 60px 160px rgba(0, 0, 0, 0.9);
+    isolation: isolate;
+    touch-action: none;
+  }
+
+  .hint {
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.22);
+    text-align: center;
+    margin: 0;
+  }
+
+  /* --- the sky ------------------------------------------------------ */
+
+  #sky { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .veil {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0);
+    transition: background 460ms cubic-bezier(0.22, 0.61, 0.16, 1);
+  }
+
+  .device[data-panel] .veil { background: rgba(0, 0, 0, 0.55); }
+
+  /* --- type --------------------------------------------------------- */
+
+  .title {
+    font-family: var(--display);
+    font-weight: 600;
+    font-stretch: 118%;
+    font-variation-settings: "wdth" 118, "wght" 600;
+    letter-spacing: -0.022em;
+    line-height: 1.02;
+    margin: 0;
+    color: var(--w100);
+  }
+
+  .t54 { font-size: 44px; }
+  .t30 { font-size: 28px; }
+  .t20 { font-size: 19px; letter-spacing: -0.015em; }
+
+  .cap {
+    font-size: 10px;
+    font-weight: 600;
+    font-variation-settings: "wdth" 100, "wght" 600;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--w45);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cap--dim { color: var(--w28); }
+  .body { font-size: 14px; line-height: 1.55; color: var(--w45); margin: 0; }
+
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 1px solid var(--w70); outline-offset: 5px; border-radius: 4px; }
+
+  /* --- edges: transparent hairlines that fade, never a boxed border --- */
+
+  .edge {
+    border: 1px solid transparent;
+    background-image:
+      linear-gradient(var(--pane), var(--pane)),
+      linear-gradient(152deg,
+        rgba(255, 255, 255, 0.34) 0%,
+        rgba(255, 255, 255, 0.10) 32%,
+        rgba(255, 255, 255, 0.02) 62%,
+        rgba(255, 255, 255, 0.11) 100%);
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+  }
+
+  .divider {
+    height: 1px;
+    border: 0;
+    margin: 0;
+    background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.05) 55%, rgba(255, 255, 255, 0));
+  }
+
+  /* --- panels ------------------------------------------------------- */
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+    transition: opacity 260ms ease, transform 380ms cubic-bezier(0.22, 0.61, 0.16, 1);
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .screen.on {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .panel {
+    background: var(--pane-deep);
+    backdrop-filter: blur(30px) saturate(118%);
+    -webkit-backdrop-filter: blur(30px) saturate(118%);
+  }
+
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 26px 150px;
+    scrollbar-width: none;
+  }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  .head { padding: 0 26px; padding-top: calc(30px + env(safe-area-inset-top, 0px)); }
+  .head .title { margin-top: 16px; }
+  .head .sub { margin-top: 12px; }
+
+  /* --- sky chrome: as close to nothing as it gets -------------------- */
+
+  .sky-top {
+    position: absolute;
+    top: calc(28px + env(safe-area-inset-top, 0px));
+    left: 26px;
+    right: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .trail { display: flex; align-items: center; gap: 9px; }
+  .trail button {
+    background: none; border: 0; padding: 4px 0; cursor: pointer;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--w28);
+  }
+  .trail button:last-child { color: var(--w100); }
+  .trail .dot { width: 2px; height: 2px; border-radius: 50%; background: var(--w28); }
+
+  .ghost {
+    background: none; border: 0; cursor: pointer; padding: 4px 0;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--w45);
+  }
+
+  .hud {
+    position: absolute;
+    left: 26px;
+    bottom: 150px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    line-height: 2.1;
+    color: var(--w28);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .starcard {
+    position: absolute;
+    left: 26px;
+    right: 26px;
+    bottom: 226px;
+    padding: 18px 20px;
+    border-radius: var(--r-lg);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 240ms ease, transform 240ms ease;
+    pointer-events: none;
+  }
+
+  .starcard[data-show="true"] { opacity: 1; transform: none; pointer-events: auto; }
+  .starcard { transition: opacity 260ms ease, transform 420ms cubic-bezier(0.22, 0.61, 0.16, 1); }
+  .starcard .lines { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+
+  /* --- library ------------------------------------------------------ */
+
+  .toolrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin-top: var(--s4);
+  }
+
+  .searchline { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+  .searchline input {
+    flex: 1; min-width: 0; background: none; border: 0; padding: 6px 0;
+    font-size: 14px; color: var(--w100);
+  }
+  .searchline input::placeholder { color: var(--w28); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px var(--s3);
+    margin-top: var(--s3);
+  }
+
+  /* Buttons centre their content when stretched; pin them so every row of
+     artwork shares one top edge. */
+  .album {
+    background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+    display: block; align-self: start;
+  }
+
+  .art {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 1;
+    border-radius: var(--r-md);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 20px 40px rgba(0, 0, 0, 0.55);
+  }
+
+  .art::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(158deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 46%);
+    pointer-events: none;
+  }
+
+  .art--a { background: radial-gradient(120% 96% at 26% 16%, #5f6fd8 0%, #221f42 52%, #05060c 100%); }
+  .art--b { background: radial-gradient(112% 100% at 78% 20%, #c08a55 0%, #40291f 55%, #08060a 100%); }
+  .art--c { background: linear-gradient(198deg, #1d5063 0%, #0c1a24 58%, #04070b 100%); }
+  .art--d { background: radial-gradient(104% 104% at 32% 82%, #a84f72 0%, #331728 56%, #07050a 100%); }
+  .art--e { background: linear-gradient(28deg, #2a2d38 0%, #6b7488 44%, #0b0d13 100%); }
+  .art--f { background: radial-gradient(94% 94% at 66% 34%, #3f8a72 0%, #17302a 54%, #05090a 100%); }
+
+  .album .name { display: block; margin-top: 16px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .album .by { display: block; margin-top: 5px; font-size: 13px; color: var(--w45); }
+  .album .mark { display: block; margin-top: 9px; color: var(--tint); }
+  .album[data-playing="true"] .art { box-shadow: inset 0 0 0 1px rgba(169, 200, 255, 0.5), 0 20px 46px rgba(0, 0, 0, 0.6); }
+
+  /* --- playlists ----------------------------------------------------- */
+
+  .route {
+    width: 100%;
+    background: none;
+    border: 0;
+    padding: 20px 0;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* --- settings ------------------------------------------------------ */
+
+  .group { margin-top: var(--s4); }
+  .group > .cap { display: block; margin-bottom: var(--s1); }
+
+  .opt {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--s3);
+    padding: 16px 0;
+  }
+
+  .opt h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.008em; }
+  .opt .body { margin-top: 5px; font-size: 12.5px; line-height: 1.45; }
+  .opt--stack { display: block; }
+
+  /* One row of chips that scrolls, never a wrapped block that pushes the
+     whole list down the screen. */
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-top: 14px;
+    padding-bottom: 2px;
+  }
+
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; }
+
+  .switch {
+    width: 46px; height: 27px; padding: 0; cursor: pointer; position: relative;
+    border-radius: 999px; border: 1px solid var(--w16); background: rgba(255, 255, 255, 0.04);
+    transition: background 200ms ease, border-color 200ms ease;
+  }
+  .switch .knob {
+    position: absolute; top: 3px; left: 3px; width: 19px; height: 19px; border-radius: 50%;
+    background: var(--w45); transition: transform 200ms ease, background 200ms ease;
+  }
+  .switch[aria-pressed="true"] { background: var(--w100); border-color: var(--w100); }
+  .switch[aria-pressed="true"] .knob { transform: translateX(19px); background: #000; }
+
+  .chip {
+    border-radius: 999px; padding: 9px 14px; cursor: pointer;
+    font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--w45); border: 1px solid var(--w08); background: none;
+    transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+  }
+  .chip[aria-pressed="true"] { background: var(--w100); color: #000; border-color: var(--w100); }
+
+  .meter { height: 2px; border-radius: 2px; background: var(--w08); margin-top: 16px; }
+  .meter span { display: block; height: 100%; border-radius: 2px; background: var(--w70); }
+
+  /* --- chrome: a player line and four glyphs, no bar ----------------- */
+
+  .chrome {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 5;
+    padding: 0 26px calc(14px + env(safe-area-inset-bottom, 0px));
+    pointer-events: none;
+  }
+
+  .chrome::before {
+    content: "";
+    position: absolute;
+    inset: -70px 0 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 42%, rgba(0, 0, 0, 0));
+    pointer-events: none;
+  }
+
+  .chrome > * { position: relative; pointer-events: auto; }
+
+  .nowline {
+    display: grid;
+    grid-template-columns: 34px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 0 0 14px;
+    cursor: pointer;
+  }
+
+  .nowline .thumb { width: 34px; height: 34px; border-radius: 9px; }
+  .nowline .meta { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .nowline .n { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nowline .a { font-size: 11.5px; color: var(--w45); }
+
+  .seekline { position: absolute; left: 0; right: 0; top: -1px; height: 1px; background: var(--w08); }
+  .seekline span { display: block; height: 100%; width: 38%; background: var(--tint); }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 46px;
+    padding: 6px 0 2px;
+  }
+
+  .nav button {
+    background: none; border: 0; padding: 6px; cursor: pointer;
+    color: rgba(255, 255, 255, 0.2);
+    transition: color 200ms ease, transform 200ms ease;
+    display: grid; place-items: center;
+  }
+  .nav button[aria-current="true"] { color: var(--w100); }
+  .nav button:active { transform: scale(0.94); }
+
+  /* --- sheets --------------------------------------------------------- */
+
+  .sheet {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    display: flex;
+    flex-direction: column;
+    background: rgba(2, 3, 5, 0.66);
+    backdrop-filter: blur(34px) saturate(116%);
+    -webkit-backdrop-filter: blur(34px) saturate(116%);
+    transform: translateY(101%);
+    transition: transform 380ms cubic-bezier(0.3, 0.9, 0.2, 1);
+  }
+  .sheet[data-open="true"] { transform: none; }
+  .sheet--album { top: 72px; border-radius: 30px 30px 0 0; box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.12); }
+
+  .grab { width: 34px; height: 3px; border-radius: 3px; background: var(--w16); margin: 12px auto 0; flex: none; }
+
+  .sheet-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 20px 26px 0;
+  }
+
+  .hero { display: flex; flex-direction: column; align-items: center; gap: var(--s3); padding-top: var(--s2); }
+  .hero .art { width: 196px; border-radius: 20px; }
+  .hero .lines { text-align: center; display: flex; flex-direction: column; gap: 12px; }
+
+  .acts { display: flex; gap: 10px; margin-top: var(--s4); }
+  .pill {
+    flex: 1; text-align: center; cursor: pointer; border-radius: 999px; padding: 15px 18px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+    border: 1px solid var(--w16); background: rgba(255, 255, 255, 0.03); color: var(--w100);
+    transition: transform 140ms ease;
+  }
+  .pill:active { transform: scale(0.985); }
+  .pill--solid { background: var(--w100); color: #000; border-color: var(--w100); }
+
+  .trk {
+    display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 14px;
+    padding: 16px 0;
+  }
+  .trk .no { font-size: 11px; font-weight: 600; color: var(--w28); font-variant-numeric: tabular-nums; }
+  .trk .nm { font-size: 14px; }
+  .trk[data-playing="true"] .nm, .trk[data-playing="true"] .no { color: var(--tint); }
+
+  /* now playing */
+  .np-stage { position: relative; display: grid; place-items: center; padding-top: var(--s3); }
+  .np-stage .art { width: 244px; border-radius: 24px; }
+  .np-stage .cast {
+    position: absolute; inset: 14% 8% -6%;
+    background: radial-gradient(60% 60% at 50% 50%, rgba(169, 200, 255, 0.22), rgba(0, 0, 0, 0) 70%);
+    filter: blur(34px);
+    pointer-events: none;
+  }
+  .np-lines { text-align: center; display: flex; flex-direction: column; gap: 12px; padding-top: var(--s4); }
+  .seekbar { padding-top: var(--s4); }
+  .seekbar .bar { height: 2px; border-radius: 2px; background: var(--w08); }
+  .seekbar .bar span { display: block; height: 100%; border-radius: 2px; width: 38%; background: var(--w100); }
+  .seekbar .times { display: flex; justify-content: space-between; margin-top: 14px; }
+  .transport { display: flex; align-items: center; justify-content: center; gap: var(--s5); padding-top: var(--s4); }
+  .transport button { background: none; border: 0; cursor: pointer; padding: 10px; color: var(--w100); }
+  .transport .side { color: var(--w45); }
+  .np-more { display: flex; justify-content: center; gap: var(--s4); padding-top: var(--s4); flex-wrap: wrap; }
+
+  @media (max-width: 430px) {
+    body { padding: 0; gap: 0; }
+    .device { width: 100%; height: 100dvh; border-radius: 0; box-shadow: none; }
+    .hint { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.001ms !important; }
+  }
+</style>
+
+<div class="device" id="device">
+  <canvas id="sky"></canvas>
+  <div class="veil" aria-hidden="true"></div>
+
+  <!-- ============================== SKY ============================== -->
+  <section class="screen on" data-screen="sky" aria-label="Sky">
+    <div class="sky-top">
+      <nav class="trail" aria-label="Altitude">
+        <button type="button">Sky</button>
+        <span class="dot"></span>
+        <button type="button">R&amp;B / Soul</button>
+      </nav>
+      <button class="ghost" type="button">Capture</button>
+    </div>
+
+    <div class="hud" id="hud">
+      <div>47 adrift</div>
+      <div>12 constellations</div>
+      <div>Next planet in 4</div>
+    </div>
+
+    <div class="edge starcard" id="starcard" data-show="false" role="button" tabindex="-1">
+      <span class="lines">
+        <span class="cap" id="starcard-cap">Doctor Velour · 2021</span>
+        <span class="title t20" id="starcard-name">Long Distance</span>
+      </span>
+      <span class="cap cap--dim">Open</span>
+    </div>
+  </section>
+
+  <!-- ============================ LIBRARY ============================ -->
+  <section class="screen panel" data-screen="library" aria-label="Library">
+    <div class="head">
+      <nav class="trail" aria-label="Location">
+        <button type="button">Aeon</button>
+        <span class="dot"></span>
+        <button type="button">Collection</button>
+      </nav>
+      <h2 class="title t54">Library</h2>
+      <div class="cap sub">23 records · 47 adrift</div>
+    </div>
+
+    <div class="scroll">
+      <div class="toolrow">
+        <span class="searchline">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.4" fill="none" stroke="rgba(255,255,255,0.35)"/><path d="M9.5 9.5 13.2 13.2" stroke="rgba(255,255,255,0.35)"/></svg>
+          <label for="q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search</label>
+          <input id="q" type="search" placeholder="Search" autocomplete="off">
+        </span>
+        <button class="ghost" type="button">Recent</button>
+      </div>
+
+      <div class="grid" id="grid">
+        <button class="album" type="button" data-playing="true">
+          <span class="art art--a"></span>
+          <span class="name">Slow Burn</span>
+          <span class="by">Doctor Velour</span>
+          <span class="cap mark" data-mark>Playing</span>
+        </button>
+        <button class="album" type="button">
+          <span class="art art--b"></span>
+          <span class="name">Long Distance</span>
+          <span class="by">Doctor Velour</span>
+        </button>
+        <button class="album" type="button">
+          <span class="art art--c"></span>
+          <span class="name">Harbour Lights</span>
+          <span class="by">Ilse Navarro</span>
+        </button>
+        <button class="album" type="button">
+          <span class="art art--d"></span>
+          <span class="name">Nightcalls</span>
+          <span class="by">Ilse Navarro</span>
+        </button>
+        <button class="album" type="button">
+          <span class="art art--e"></span>
+          <span class="name">Tape Hiss Sermons</span>
+          <span class="by">Various Artists</span>
+        </button>
+        <button class="album" type="button">
+          <span class="art art--f"></span>
+          <span class="name">Green Room</span>
+          <span class="by">Kessler Trio</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== PLAYLISTS =========================== -->
+  <section class="screen panel" data-screen="playlists" aria-label="Playlists">
+    <div class="head">
+      <nav class="trail" aria-label="Location">
+        <button type="button">Aeon</button>
+        <span class="dot"></span>
+        <button type="button">Routes</button>
+      </nav>
+      <h2 class="title t54">Playlists</h2>
+      <div class="cap sub">4 routes</div>
+    </div>
+
+    <div class="scroll">
+      <div style="margin-top:var(--s4)">
+        <button class="route" type="button"><span class="title t30">Night Drive</span><span class="cap cap--dim">18 tracks · 1 hr 12 min</span></button>
+        <hr class="divider">
+        <button class="route" type="button"><span class="title t30">Winter Rooms</span><span class="cap cap--dim">9 tracks · 38 min</span></button>
+        <hr class="divider">
+        <button class="route" type="button"><span class="title t30">Doctor Velour, all of it</span><span class="cap cap--dim">31 tracks · 2 hr 04 min</span></button>
+        <hr class="divider">
+        <button class="route" type="button"><span class="title t30">Saved queue · 12 Sep</span><span class="cap cap--dim">7 tracks · 26 min</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ SETTINGS =========================== -->
+  <section class="screen panel" data-screen="settings" aria-label="Settings">
+    <div class="head">
+      <nav class="trail" aria-label="Location">
+        <button type="button">Aeon</button>
+        <span class="dot"></span>
+        <button type="button">Preferences</button>
+      </nav>
+      <h2 class="title t54">Settings</h2>
+    </div>
+
+    <div class="scroll">
+      <div class="group">
+        <span class="cap">Playback</span>
+        <div class="opt opt--stack">
+          <div><h3>Sleep timer</h3><p class="body">Fades out, then stops.</p></div>
+          <div class="chips" data-chips>
+            <button class="chip" type="button" aria-pressed="true">Off</button>
+            <button class="chip" type="button" aria-pressed="false">15 min</button>
+            <button class="chip" type="button" aria-pressed="false">30 min</button>
+            <button class="chip" type="button" aria-pressed="false">End of album</button>
+          </div>
+        </div>
+        <hr class="divider">
+        <div class="opt">
+          <div><h3>Equalizer &amp; spectrum</h3><p class="body">In the player, where you can hear it.</p></div>
+          <button class="ghost" type="button" data-open-np>Open</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="cap">Library</span>
+        <div class="opt">
+          <div><h3>One import, one album</h3><p class="body">Files picked together stay together.</p></div>
+          <button class="switch" type="button" aria-pressed="true" aria-label="One import, one album"><span class="knob"></span></button>
+        </div>
+        <hr class="divider">
+        <div class="opt">
+          <div><h3>Metadata lookups</h3><p class="body">Off by default. The sky charts from your own tags.</p></div>
+          <button class="switch" type="button" aria-pressed="false" aria-label="Metadata lookups"><span class="knob"></span></button>
+        </div>
+        <hr class="divider">
+        <div class="opt">
+          <div><h3>Storage</h3><p class="body">4.8 GB of music · 212 MB of artwork</p><div class="meter"><span style="width:41%"></span></div></div>
+          <span class="cap">41%</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="cap">The sky</span>
+        <div class="opt">
+          <div><h3>Readout</h3><p class="body">What is adrift, and what is playing.</p></div>
+          <button class="switch" type="button" aria-pressed="true" aria-label="Readout"><span class="knob"></span></button>
+        </div>
+        <hr class="divider">
+        <div class="opt opt--stack">
+          <div><h3>Depth</h3><p class="body">How far the field falls away behind the stars.</p></div>
+          <div class="chips" data-chips>
+            <button class="chip" type="button" aria-pressed="false">Flat</button>
+            <button class="chip" type="button" aria-pressed="true">Deep</button>
+            <button class="chip" type="button" aria-pressed="false">Infinite</button>
+          </div>
+        </div>
+        <hr class="divider">
+        <div class="opt opt--stack">
+          <div><h3>Motion</h3><p class="body">Drift, flight, and planet formation.</p></div>
+          <div class="chips" data-chips>
+            <button class="chip" type="button" aria-pressed="true">Full</button>
+            <button class="chip" type="button" aria-pressed="false">Reduced</button>
+            <button class="chip" type="button" aria-pressed="false">Still</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="cap">Keeping it</span>
+        <div class="opt"><h3>Back up everything</h3><span class="cap cap--dim">.zip</span></div>
+        <hr class="divider">
+        <div class="opt"><h3>Activity log</h3><span class="cap cap--dim">1,204</span></div>
+        <hr class="divider">
+        <div class="opt"><h3 style="color:var(--w45)">Erase everything</h3><span class="cap cap--dim">Confirms by name</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== ALBUM SHEET ========================= -->
+  <div class="sheet sheet--album" id="album-sheet" data-open="false" aria-label="Album">
+    <div class="grab"></div>
+    <div class="sheet-top">
+      <span class="cap">Record</span>
+      <button class="ghost" type="button" data-close="album-sheet">Close</button>
+    </div>
+    <div class="scroll" style="padding-top:18px">
+      <div class="hero">
+        <span class="art art--b" id="sheet-art"></span>
+        <span class="lines">
+          <span class="title t30" id="sheet-name">Long Distance</span>
+          <span class="cap cap--dim" id="sheet-meta">Doctor Velour · 2021 · Soul</span>
+        </span>
+      </div>
+      <div class="acts">
+        <button class="pill pill--solid" type="button">Play</button>
+        <button class="pill" type="button">Find in sky</button>
+      </div>
+      <div style="margin-top:var(--s4)">
+        <div class="trk" data-playing="true"><span class="no">01</span><span class="nm">Long Distance</span><span class="cap cap--dim">4:12</span></div>
+        <hr class="divider">
+        <div class="trk"><span class="no">02</span><span class="nm">Copper Wire</span><span class="cap cap--dim">3:38</span></div>
+        <hr class="divider">
+        <div class="trk"><span class="no">03</span><span class="nm">Static Hymn</span><span class="cap cap--dim">5:01</span></div>
+        <hr class="divider">
+        <div class="trk"><span class="no">04</span><span class="nm">Doorframe</span><span class="cap cap--dim">2:54</span></div>
+        <hr class="divider">
+        <div class="trk"><span class="no">05</span><span class="nm">Long Distance (Reprise)</span><span class="cap cap--dim">1:47</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================== NOW PLAYING ========================= -->
+  <div class="sheet" id="np-sheet" data-open="false" aria-label="Now playing">
+    <div class="grab"></div>
+    <div class="sheet-top">
+      <span class="cap">3 of 12 · Night Drive</span>
+      <button class="ghost" type="button" data-close="np-sheet">Close</button>
+    </div>
+    <div class="scroll" style="padding-top:var(--s3);padding-bottom:60px">
+      <div class="np-stage">
+        <span class="cast" aria-hidden="true"></span>
+        <span class="art art--a"></span>
+      </div>
+      <div class="np-lines">
+        <span class="title t30">Slow Burn</span>
+        <span class="cap cap--dim">Doctor Velour</span>
+        <span class="cap cap--dim" id="np-state">Playing · 24-bit FLAC</span>
+      </div>
+      <div class="seekbar">
+        <div class="bar"><span></span></div>
+        <div class="times"><span class="cap cap--dim">1:34</span><span class="cap cap--dim">−2:38</span></div>
+      </div>
+      <div class="transport">
+        <button class="side" type="button" aria-label="Previous"><svg width="20" height="16" viewBox="0 0 20 16" aria-hidden="true"><path d="M19 1 6 8l13 7z" fill="currentColor"/><rect x="1" y="1" width="2" height="14" rx="1" fill="currentColor"/></svg></button>
+        <button type="button" aria-label="Pause" data-transport><svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><rect x="1" y="0" width="6" height="22" rx="2.4" fill="currentColor"/><rect x="13" y="0" width="6" height="22" rx="2.4" fill="currentColor"/></svg></button>
+        <button class="side" type="button" aria-label="Next"><svg width="20" height="16" viewBox="0 0 20 16" aria-hidden="true"><path d="M1 1l13 7L1 15z" fill="currentColor"/><rect x="17" y="1" width="2" height="14" rx="1" fill="currentColor"/></svg></button>
+      </div>
+      <div class="np-more">
+        <button class="ghost" type="button">Locate</button>
+        <button class="ghost" type="button">Queue</button>
+        <button class="ghost" type="button">Equalizer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================== CHROME =========================== -->
+  <div class="chrome">
+    <div class="nowline" id="nowline" role="button" tabindex="0" aria-label="Open the player">
+      <span class="seekline" aria-hidden="true"><span></span></span>
+      <span class="art thumb art--a"></span>
+      <span class="meta"><span class="n">Slow Burn</span><span class="a">Doctor Velour</span></span>
+      <button class="ghost" type="button" aria-label="Pause" data-transport style="padding:10px">
+        <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><rect x="0" y="0" width="4" height="14" rx="1.6" fill="currentColor"/><rect x="8" y="0" width="4" height="14" rx="1.6" fill="currentColor"/></svg>
+      </button>
+    </div>
+
+    <nav class="nav" aria-label="Sections">
+      <button type="button" data-tab="sky" aria-current="true" aria-label="Sky">
+        <svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true"><path d="M8.5 0c.5 4.4 3.6 7.6 8.5 8.5-4.9.9-8 4.1-8.5 8.5-.5-4.4-3.6-7.6-8.5-8.5C4.9 7.6 8 4.4 8.5 0z" fill="currentColor"/></svg>
+      </button>
+      <button type="button" data-tab="library" aria-current="false" aria-label="Library">
+        <svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true"><rect x="0.6" y="0.6" width="6.4" height="6.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="10" y="0.6" width="6.4" height="6.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="0.6" y="10" width="6.4" height="6.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="10" y="10" width="6.4" height="6.4" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+      </button>
+      <button type="button" data-tab="playlists" aria-current="false" aria-label="Playlists">
+        <svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true"><path d="M2 14 7 4l8 4.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="1.4 2.4"/><circle cx="2" cy="14" r="2" fill="currentColor"/><circle cx="7" cy="4" r="2" fill="currentColor"/><circle cx="15" cy="8.6" r="2" fill="currentColor"/></svg>
+      </button>
+      <button type="button" data-tab="settings" aria-current="false" aria-label="Settings">
+        <svg width="17" height="17" viewBox="0 0 17 17" aria-hidden="true"><path d="M0 4.2h17M0 12.8h17" stroke="currentColor" stroke-width="1.3"/><circle cx="11.5" cy="4.2" r="2.5" fill="#000" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="12.8" r="2.5" fill="#000" stroke="currentColor" stroke-width="1.3"/></svg>
+      </button>
+    </nav>
+  </div>
+</div>
+
+<p class="hint">Drag to look · scroll to fly · tap a bright star</p>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= the sky: one fullscreen raymarch ================= */
+
+  var canvas = document.getElementById("sky");
+  var gl = canvas.getContext("webgl", { antialias: false, alpha: false, powerPreference: "high-performance" });
+
+  var STAR_COUNT = 12;
+
+  /* album stars: a direction in the sky, a magnitude that encodes listening */
+  var ALBUMS = [
+    { dir: [ 0.10,  0.16, -1.00], mag: 1.00, name: "Slow Burn",         meta: "Doctor Velour · 2023", art: "art--a", playing: true },
+    { dir: [-0.32,  0.05, -1.00], mag: 0.78, name: "Long Distance",     meta: "Doctor Velour · 2021", art: "art--b" },
+    { dir: [ 0.46, -0.10, -1.00], mag: 0.62, name: "Harbour Lights",    meta: "Ilse Navarro · 2019",  art: "art--c" },
+    { dir: [ 0.66,  0.30, -0.90], mag: 0.44, name: "Nightcalls",        meta: "Ilse Navarro · 2020",  art: "art--d" },
+    { dir: [-0.60,  0.34, -0.85], mag: 0.52, name: "Tape Hiss Sermons", meta: "Various Artists · 2018", art: "art--e" },
+    { dir: [-0.14, -0.38, -1.00], mag: 0.35, name: "Green Room",        meta: "Kessler Trio · 2022",  art: "art--f" },
+    { dir: [ 0.28, -0.44, -0.95], mag: 0.28, name: "Rowhouse",          meta: "Kessler Trio · 2017",  art: "art--c" },
+    { dir: [-0.86,  0.02, -0.70], mag: 0.40, name: "Aster",             meta: "Mona Ferrer · 2016",   art: "art--d" },
+    { dir: [ 0.90,  0.12, -0.60], mag: 0.33, name: "Blue Hour",         meta: "Mona Ferrer · 2018",   art: "art--a" },
+    { dir: [ 0.04,  0.52, -0.88], mag: 0.58, name: "Cassette Chapel",   meta: "Doctor Velour · 2019", art: "art--e" },
+    { dir: [-0.44, -0.16, -0.94], mag: 0.24, name: "Quietly, Then",     meta: "Ilse Navarro · 2015",  art: "art--b" },
+    { dir: [ 0.20, -0.66, -0.80], mag: 0.30, name: "Undertow",          meta: "Kessler Trio · 2024",  art: "art--f" }
+  ].map(function (a) {
+    var d = a.dir, L = Math.sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    a.dir = [d[0] / L, d[1] / L, d[2] / L];
+    return a;
+  });
+
+  var VERT = [
+    "attribute vec2 aPos;",
+    "void main(){ gl_Position = vec4(aPos, 0.0, 1.0); }"
+  ].join("\n");
+
+  var FRAG = [
+    "precision highp float;",
+    "uniform vec2  uRes;",
+    "uniform float uTime;",
+    "uniform mat3  uCam;",
+    "uniform float uTanHalf;",
+    "uniform float uDrift;",
+    "uniform vec4  uStars[12];",
+    "uniform vec3  uTint;",
+    "uniform float uPulse;",
+
+    "float hash13(vec3 p3){",
+    "  p3 = fract(p3 * 0.1031);",
+    "  p3 += dot(p3, p3.yzx + 33.33);",
+    "  return fract((p3.x + p3.y) * p3.z);",
+    "}",
+
+    "float noise3(vec3 x){",
+    "  vec3 i = floor(x);",
+    "  vec3 f = fract(x);",
+    "  f = f * f * (3.0 - 2.0 * f);",
+    "  float a = mix(mix(hash13(i + vec3(0.0, 0.0, 0.0)), hash13(i + vec3(1.0, 0.0, 0.0)), f.x),",
+    "                mix(hash13(i + vec3(0.0, 1.0, 0.0)), hash13(i + vec3(1.0, 1.0, 0.0)), f.x), f.y);",
+    "  float b = mix(mix(hash13(i + vec3(0.0, 0.0, 1.0)), hash13(i + vec3(1.0, 0.0, 1.0)), f.x),",
+    "                mix(hash13(i + vec3(0.0, 1.0, 1.0)), hash13(i + vec3(1.0, 1.0, 1.0)), f.x), f.y);",
+    "  return mix(a, b, f.z);",
+    "}",
+
+    "float fbm(vec3 p){",
+    "  float s = 0.0;",
+    "  float a = 0.5;",
+    "  for(int i = 0; i < 4; i++){ s += a * noise3(p); p *= 2.07; a *= 0.5; }",
+    "  return s;",
+    "}",
+
+    /* dust: three depth layers of very small points — never album stars */
+    "float dust(vec3 rd){",
+    "  float acc = 0.0;",
+    "  for(int i = 0; i < 4; i++){",
+    "    float fi = float(i);",
+    "    float sc = 78.0 * pow(1.9, fi);",
+    "    vec3 p = rd * sc;",
+    "    vec3 c = floor(p);",
+    "    vec3 f = p - c;",
+    "    float h = hash13(c + fi * 19.3);",
+    "    if(h > 0.868){",
+    "      vec3 o = vec3(hash13(c + 3.1), hash13(c + 7.7), hash13(c + 11.5));",
+    "      float d = length(f - o);",
+    "      float b = smoothstep(0.15, 0.0, d) * (h - 0.868) / 0.132;",
+    "      float tw = 0.7 + 0.3 * sin(uTime * 1.1 + h * 60.0);",
+    "      acc += b * tw * (0.80 - fi * 0.20);",
+    "    }",
+    "  }",
+    "  return acc;",
+    "}",
+
+    "vec3 nebula(vec3 rd){",
+    "  vec3 q = rd * 1.9 + vec3(uDrift * 0.03, 0.0, 0.0);",
+    "  float n = fbm(q);",
+    "  float m = fbm(rd * 0.9 + 11.0);",
+    "  float mask = smoothstep(0.50, 1.08, n * 0.78 + m * 0.58);",
+    "  vec3 violet = vec3(0.26, 0.18, 0.52);",
+    "  vec3 teal = vec3(0.05, 0.22, 0.32);",
+    "  vec3 col = mix(teal, violet, smoothstep(0.25, 0.80, m));",
+    "  float lane = smoothstep(0.55, 0.05, abs(rd.y + 0.12));",
+    "  return col * mask * (0.24 + 0.20 * lane);",
+    "}",
+
+    /* a planet: banded body, soft terminator, rim light, a ring with shadow */
+    "vec4 planet(vec3 rd, vec3 pc, float pr, float seed, vec3 tilt, vec3 deep, vec3 warm,",
+    "            float bandFreq, float ringOn, out float tHit){",
+    "  tHit = -1.0;",
+    "  vec3 col = vec3(0.0);",
+    "  float a = 0.0;",
+    "  vec3 L = normalize(vec3(-0.34, 0.46, 0.82));",
+    "  float b = dot(rd, pc);",
+    "  float c = dot(pc, pc) - pr * pr;",
+    "  float disc = b * b - c;",
+    "  if(disc > 0.0){",
+    "    float t = b - sqrt(disc);",
+    "    if(t > 0.0){",
+    "      tHit = t;",
+    "      vec3 pos = rd * t;",
+    "      vec3 n = normalize(pos - pc);",
+    "      float band = fbm(vec3(n.x * 1.6, n.y * bandFreq + seed, n.z * 1.6) + seed);",
+    "      float swirl = fbm(n * 3.4 + seed * 2.0);",
+    "      vec3 base = mix(deep, warm, smoothstep(0.32, 0.78, band * 0.7 + swirl * 0.4));",
+    "      float lam = max(dot(n, L), 0.0);",
+    "      float term = smoothstep(0.0, 0.35, lam);",
+    "      float rim = pow(1.0 - max(dot(n, -rd), 0.0), 3.2);",
+    "      col = base * (0.10 + 1.30 * lam * term) + vec3(0.66, 0.78, 1.0) * rim * 0.70 * (0.30 + lam);",
+    "      a = 1.0;",
+    "    }",
+    "  }",
+    "  vec3 pn = normalize(tilt);",
+    "  float dn = dot(rd, pn);",
+    "  if(ringOn > 0.5 && abs(dn) > 0.0005){",
+    "    float tr = dot(pc, pn) / dn;",
+    "    if(tr > 0.0 && (tHit < 0.0 || tr < tHit)){",
+    "      vec3 q = rd * tr - pc;",
+    "      float r = length(q) / pr;",
+    "      if(r > 1.32 && r < 2.25){",
+    "        float band = fbm(vec3(r * 9.0, seed, 0.0));",
+    "        float edge = smoothstep(1.32, 1.42, r) * (1.0 - smoothstep(2.05, 2.25, r));",
+    "        float shade = 0.45 + 0.55 * band;",
+    "        vec3 rp = rd * tr - pc;",
+    "        float bb = dot(-rp, L);",
+    "        float cc = dot(rp, rp) - pr * pr;",
+    "        float dd = bb * bb - cc;",
+    "        float shadow = 1.0;",
+    "        if(dd > 0.0 && bb > 0.0) shadow = 0.22;",
+    "        float alpha = edge * shade * 0.62 * shadow;",
+    "        col = mix(col, vec3(0.80, 0.84, 0.95) * shade, alpha);",
+    "        a = max(a, alpha);",
+    "        if(tHit < 0.0) tHit = tr;",
+    "      }",
+    "    }",
+    "  }",
+    "  float dc = length(cross(rd, normalize(pc))) * length(pc);",
+"  float limb = smoothstep(pr * 1.30, pr * 0.99, dc) * (1.0 - step(dc, pr * 0.985));",
+"  if(a < 0.99){ col += vec3(0.42, 0.58, 0.95) * limb * 0.30; a = max(a, limb * 0.30); }",
+"  return vec4(col, a);",
+    "}",
+
+    /* album stars are drawn in screen space: core, halo, diffraction spikes */
+    "float starMark(vec2 fc, vec4 s){",
+    "  vec2 d = fc - s.xy;",
+    "  float r = length(d);",
+    "  float sz = 1.25 + s.z * 1.35;",
+    "  float core = exp(-(r * r) / (2.0 * sz * sz));",
+    "  float halo = exp(-r / (8.0 + s.z * 19.0)) * 0.26;",
+    "  float len = 9.0 + s.z * 26.0;",
+    "  float sx = max(0.0, 1.0 - abs(d.x) / len) * exp(-abs(d.y) * 1.5);",
+    "  float sy = max(0.0, 1.0 - abs(d.y) / len) * exp(-abs(d.x) * 1.5);",
+    "  return core + halo + (sx * sx + sy * sy) * 0.42;",
+    "}",
+
+    "void main(){",
+    "  vec2 fc = gl_FragCoord.xy;",
+    "  vec2 ndc = (fc / uRes) * 2.0 - 1.0;",
+    "  float aspect = uRes.x / uRes.y;",
+    "  vec3 rd = normalize(uCam * vec3(ndc.x * aspect * uTanHalf, ndc.y * uTanHalf, -1.0));",
+
+    "  vec3 col = vec3(0.0009, 0.0011, 0.0018);",
+    "  col += nebula(rd);",
+    "  col += vec3(0.88, 0.93, 1.0) * dust(rd) * 0.34;",
+
+    /* three bodies, no two alike: a banded giant with rings, a cold ice world,
+       and a small scorched rock further out */
+    "  float tA;",
+    "  vec4 pa = planet(rd, vec3(-1.75, 1.05, -6.4), 1.18, 3.7, vec3(0.32, 1.0, 0.16),",
+    "                   vec3(0.13, 0.15, 0.26), vec3(0.76, 0.67, 0.84), 7.0, 1.0, tA);",
+    "  float tB;",
+    "  vec4 pb = planet(rd, vec3(5.4, -1.6, -11.0), 0.74, 9.1, vec3(-0.20, 1.0, 0.35),",
+    "                   vec3(0.16, 0.24, 0.34), vec3(0.82, 0.90, 1.00), 3.1, 0.0, tB);",
+    "  float tC;",
+    "  vec4 pc3 = planet(rd, vec3(-5.2, -2.6, -9.6), 0.46, 21.3, vec3(0.1, 1.0, -0.2),",
+    "                    vec3(0.17, 0.10, 0.08), vec3(0.80, 0.50, 0.34), 1.6, 0.0, tC);",
+
+    "  float occluded = 0.0;",
+    "  if(pa.a > 0.85) occluded = 1.0;",
+    "  if(pb.a > 0.85) occluded = 1.0;",
+    "  if(pc3.a > 0.85) occluded = 1.0;",
+
+    "  if(occluded < 0.5){",
+    "    for(int i = 0; i < 12; i++){",
+    "      vec4 s = uStars[i];",
+    "      if(s.z > 0.0){",
+    "        float m = starMark(fc, s);",
+    "        vec3 tone = mix(vec3(1.0), uTint, s.w * 0.85);",
+    "        float amp = 0.78 + s.z * 1.60;",
+    "        float pulse = mix(1.0, uPulse, s.w);",
+    "        col += tone * m * amp * pulse;",
+    "        if(s.w > 0.5){",
+    "          float rr = length(fc - s.xy);",
+    "          col += uTint * exp(-((rr - 15.0) * (rr - 15.0)) / 26.0) * 0.16 * uPulse;",
+    "        }",
+    "      }",
+    "    }",
+    "  }",
+
+    "  col = mix(col, pc3.rgb, pc3.a);",
+    "  col = mix(col, pb.rgb, pb.a);",
+    "  col = mix(col, pa.rgb, pa.a);",
+
+    "  col = col / (col + vec3(0.88)) * 1.38;",
+    "  float vig = smoothstep(1.35, 0.25, length(ndc * vec2(0.92, 1.0)));",
+    "  col *= 0.52 + 0.48 * vig;",
+    "  float grain = (hash13(vec3(fc, floor(uTime * 24.0))) - 0.5) * 0.016;",
+    "  gl_FragColor = vec4(col + grain, 1.0);",
+    "}"
+  ].join("\n");
+
+  var prog = null, loc = {}, ok = false;
+
+  function compile(type, src) {
+    var sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+      console.warn(gl.getShaderInfoLog(sh));
+      return null;
+    }
+    return sh;
+  }
+
+  function buildGL() {
+    if (!gl) return false;
+    var vs = compile(gl.VERTEX_SHADER, VERT);
+    var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+    if (!vs || !fs) return false;
+    prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      console.warn(gl.getProgramInfoLog(prog));
+      return false;
+    }
+    gl.useProgram(prog);
+
+    var quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    var aPos = gl.getAttribLocation(prog, "aPos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+    ["uRes", "uTime", "uCam", "uTanHalf", "uDrift", "uStars", "uTint", "uPulse"].forEach(function (n) {
+      loc[n] = gl.getUniformLocation(prog, n);
+    });
+    return true;
+  }
+
+  ok = buildGL();
+  if (!ok) canvas.style.background = "radial-gradient(120% 90% at 30% 20%, #0d1120 0%, #000 72%)";
+
+  /* ---------------- camera ---------------- */
+
+  var cam = { yaw: 0, pitch: 0.04, fov: 0.92, vy: 0, vp: 0 };
+  var still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var W = 1, H = 1, dpr = 1;
+
+  function camMatrix() {
+    var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+    var cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    /* column-major: right, up, back */
+    return new Float32Array([
+      cy, 0, -sy,
+      sy * sp, cp, cy * sp,
+      sy * cp, -sp, cy * cp
+    ]);
+  }
+
+  function project(dir, m) {
+    /* world direction into camera space: transpose(m) * dir */
+    var x = m[0] * dir[0] + m[1] * dir[1] + m[2] * dir[2];
+    var y = m[3] * dir[0] + m[4] * dir[1] + m[5] * dir[2];
+    var z = m[6] * dir[0] + m[7] * dir[1] + m[8] * dir[2];
+    if (z >= -0.02) return null;
+    var th = Math.tan(cam.fov * 0.5);
+    var aspect = W / H;
+    var nx = (x / -z) / (th * aspect);
+    var ny = (y / -z) / th;
+    if (nx < -1.7 || nx > 1.7 || ny < -1.7 || ny > 1.7) return null;
+    return [(nx * 0.5 + 0.5) * W * dpr, (ny * 0.5 + 0.5) * H * dpr];
+  }
+
+  function resize() {
+    var r = canvas.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+    W = Math.max(r.width, 1);
+    H = Math.max(r.height, 1);
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+
+  var starBuf = new Float32Array(STAR_COUNT * 4);
+  var t0 = performance.now();
+  var playing = true;
+
+  /* One curve for every camera move, scaled by how far it has to travel —
+     flight, not a transition. */
+  var flight = null;
+
+  function shortestTurn(from, to) {
+    var d = (to - from) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+
+  function flyTo(dir, fov) {
+    var pitch = Math.asin(Math.max(-1, Math.min(1, dir[1])));
+    var yaw = Math.atan2(-dir[0], -dir[2]);
+    var travel = Math.abs(shortestTurn(cam.yaw, yaw)) + Math.abs(pitch - cam.pitch);
+    if (still) { cam.yaw = yaw; cam.pitch = pitch; cam.fov = fov; return; }
+    cam.vy = 0;
+    cam.vp = 0;
+    flight = {
+      yaw0: cam.yaw, pitch0: cam.pitch, fov0: cam.fov,
+      dyaw: shortestTurn(cam.yaw, yaw), pitch1: pitch, fov1: fov,
+      start: performance.now(),
+      duration: 520 + Math.min(620, travel * 420)
+    };
+  }
+
+  function advanceFlight(now) {
+    if (!flight) return false;
+    var k = Math.min(1, (now - flight.start) / flight.duration);
+    var e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    cam.yaw = flight.yaw0 + flight.dyaw * e;
+    cam.pitch = flight.pitch0 + (flight.pitch1 - flight.pitch0) * e;
+    cam.fov = flight.fov0 + (flight.fov1 - flight.fov0) * e;
+    if (k >= 1) flight = null;
+    return true;
+  }
+
+  function frame(now) {
+    var t = (now - t0) / 1000;
+    var flying = advanceFlight(now);
+    if (!still && !flying) {
+      cam.yaw += cam.vy;
+      cam.pitch += cam.vp;
+      cam.vy *= 0.93;
+      cam.vp *= 0.93;
+      cam.yaw += 0.00022; /* the field never sits perfectly still */
+    }
+    cam.pitch = Math.max(-1.15, Math.min(1.15, cam.pitch));
+
+    if (ok) {
+      var m = camMatrix();
+      for (var i = 0; i < STAR_COUNT; i++) {
+        var a = ALBUMS[i];
+        var p = a ? project(a.dir, m) : null;
+        starBuf[i * 4] = p ? p[0] : -9999;
+        starBuf[i * 4 + 1] = p ? p[1] : -9999;
+        starBuf[i * 4 + 2] = p ? a.mag : 0;
+        starBuf[i * 4 + 3] = (a && a.playing && playing) ? 1 : 0;
+      }
+      gl.useProgram(prog);
+      gl.uniform2f(loc.uRes, canvas.width, canvas.height);
+      gl.uniform1f(loc.uTime, still ? 0 : t);
+      gl.uniformMatrix3fv(loc.uCam, false, m);
+      gl.uniform1f(loc.uTanHalf, Math.tan(cam.fov * 0.5));
+      gl.uniform1f(loc.uDrift, still ? 0 : t);
+      gl.uniform4fv(loc.uStars, starBuf);
+      gl.uniform3f(loc.uTint, 0.66, 0.78, 1.0);
+      gl.uniform1f(loc.uPulse, still ? 1 : 1 + 0.18 * Math.sin(t * 1.6));
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  resize();
+  window.addEventListener("resize", resize);
+  requestAnimationFrame(frame);
+
+  /* ---------------- flight ---------------- */
+
+  var drag = null, moved = 0, pinch = null;
+
+  canvas.addEventListener("pointerdown", function (e) {
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* fine */ }
+    drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    moved = 0;
+    flight = null;
+    cam.vy = 0;
+    cam.vp = 0;
+  });
+
+  canvas.addEventListener("pointermove", function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    moved += Math.abs(dx) + Math.abs(dy);
+    var k = cam.fov / W * 1.05;
+    cam.yaw -= dx * k;
+    cam.pitch -= dy * k;
+    cam.vy = -dx * k * 0.5;
+    cam.vp = -dy * k * 0.5;
+  });
+
+  var lastTap = 0;
+
+  canvas.addEventListener("pointerup", function (e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    if (moved < 10) {
+      var now = performance.now();
+      var hit = pick(e.clientX, e.clientY);
+      if (!hit && now - lastTap < 320) {
+        /* double-tap on empty void pulls the camera back a tier */
+        flight = null;
+        cam.fov = Math.min(1.25, cam.fov * 1.55);
+      }
+      lastTap = now;
+    }
+    drag = null;
+  });
+
+  canvas.addEventListener("pointercancel", function () { drag = null; });
+
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    flight = null;
+    cam.fov = Math.max(0.30, Math.min(1.25, cam.fov * Math.exp(e.deltaY * 0.0012)));
+  }, { passive: false });
+
+  canvas.addEventListener("touchstart", function (e) {
+    if (e.touches.length === 2) {
+      pinch = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                         e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener("touchmove", function (e) {
+    if (e.touches.length === 2 && pinch) {
+      var d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                         e.touches[0].clientY - e.touches[1].clientY);
+      cam.fov = Math.max(0.30, Math.min(1.25, cam.fov * (pinch / Math.max(d, 1))));
+      pinch = d;
+    }
+  }, { passive: true });
+
+  canvas.addEventListener("touchend", function () { pinch = null; });
+
+  /* ---------------- selection ---------------- */
+
+  var card = document.getElementById("starcard");
+  var selected = null;
+
+  function pick(clientX, clientY) {
+    var r = canvas.getBoundingClientRect();
+    var px = (clientX - r.left) * dpr;
+    var py = (r.bottom - clientY) * dpr;
+    var m = camMatrix(), best = null, bestD = 46 * dpr;
+    ALBUMS.forEach(function (a) {
+      var p = project(a.dir, m);
+      if (!p) return;
+      var d = Math.hypot(p[0] - px, p[1] - py);
+      if (d < bestD) { bestD = d; best = a; }
+    });
+    selected = best;
+    if (best) {
+      document.getElementById("starcard-name").textContent = best.name;
+      document.getElementById("starcard-cap").textContent = best.meta;
+      /* centre what was tapped and close in a little — the sky answers a tap */
+      flyTo(best.dir, Math.max(0.42, Math.min(cam.fov, 0.66)));
+    }
+    card.dataset.show = best ? "true" : "false";
+    return best;
+  }
+
+  card.addEventListener("click", function () {
+    if (selected) openAlbum(selected.name, selected.meta + " · Soul", selected.art);
+  });
+
+  /* ================= chrome, panels, sheets ================= */
+
+  var device = document.getElementById("device");
+
+  function openSheet(id) { document.getElementById(id).dataset.open = "true"; }
+  function closeSheet(id) { document.getElementById(id).dataset.open = "false"; }
+
+  function showTab(name) {
+    if (name === "sky") { delete device.dataset.panel; } else { device.dataset.panel = name; }
+    document.querySelectorAll(".screen").forEach(function (s) {
+      s.classList.toggle("on", s.dataset.screen === name);
+    });
+    document.querySelectorAll(".nav button").forEach(function (b) {
+      b.setAttribute("aria-current", String(b.dataset.tab === name));
+    });
+    closeSheet("album-sheet");
+    closeSheet("np-sheet");
+  }
+
+  document.querySelectorAll(".nav button").forEach(function (b) {
+    b.addEventListener("click", function () { showTab(b.dataset.tab); });
+  });
+
+  document.querySelectorAll("[data-close]").forEach(function (b) {
+    b.addEventListener("click", function () { closeSheet(b.dataset.close); });
+  });
+
+  function openAlbum(name, meta, art) {
+    document.getElementById("sheet-name").textContent = name;
+    document.getElementById("sheet-meta").textContent = meta;
+    document.getElementById("sheet-art").className = "art " + art;
+    openSheet("album-sheet");
+  }
+
+  document.querySelectorAll("#grid .album").forEach(function (el) {
+    el.addEventListener("click", function () {
+      var art = el.querySelector(".art");
+      var cls = ["art--a", "art--b", "art--c", "art--d", "art--e", "art--f"].filter(function (c) {
+        return art.classList.contains(c);
+      })[0] || "art--a";
+      openAlbum(el.querySelector(".name").textContent,
+                el.querySelector(".by").textContent + " · 2021 · Soul", cls);
+    });
+  });
+
+  var nowline = document.getElementById("nowline");
+  nowline.addEventListener("click", function (e) {
+    if (e.target.closest("button")) return;
+    openSheet("np-sheet");
+  });
+  nowline.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSheet("np-sheet"); }
+  });
+  document.querySelectorAll("[data-open-np]").forEach(function (b) {
+    b.addEventListener("click", function () { openSheet("np-sheet"); });
+  });
+
+  /* ---------------- playback ---------------- */
+
+  var PLAY = '<svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="M2 1.2 15 9 2 16.8z" fill="currentColor"/></svg>';
+  var PLAY_SM = '<svg width="11" height="13" viewBox="0 0 11 13" aria-hidden="true"><path d="M1 1 10 6.5 1 12z" fill="currentColor"/></svg>';
+  var PAUSE = '<svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><rect x="1" y="0" width="6" height="22" rx="2.4" fill="currentColor"/><rect x="13" y="0" width="6" height="22" rx="2.4" fill="currentColor"/></svg>';
+  var PAUSE_SM = '<svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true"><rect x="0" y="0" width="4" height="14" rx="1.6" fill="currentColor"/><rect x="8" y="0" width="4" height="14" rx="1.6" fill="currentColor"/></svg>';
+
+  document.querySelectorAll("[data-transport]").forEach(function (b) {
+    b.addEventListener("click", function (e) {
+      e.stopPropagation();
+      playing = !playing;
+      document.querySelectorAll("[data-transport]").forEach(function (t) {
+        var small = t.classList.contains("ghost");
+        t.innerHTML = playing ? (small ? PAUSE_SM : PAUSE) : (small ? PLAY_SM : PLAY);
+        t.setAttribute("aria-label", playing ? "Pause" : "Play");
+      });
+      document.querySelectorAll("[data-mark]").forEach(function (m) {
+        m.textContent = playing ? "Playing" : "In the player";
+      });
+      document.getElementById("np-state").textContent =
+        (playing ? "Playing" : "Paused") + " · 24-bit FLAC";
+    });
+  });
+
+  /* ---------------- controls ---------------- */
+
+  document.querySelectorAll(".switch").forEach(function (s) {
+    s.addEventListener("click", function () {
+      s.setAttribute("aria-pressed", s.getAttribute("aria-pressed") === "true" ? "false" : "true");
+    });
+  });
+
+  document.querySelectorAll("[data-chips]").forEach(function (g) {
+    g.addEventListener("click", function (e) {
+      var chip = e.target.closest(".chip");
+      if (!chip) return;
+      g.querySelectorAll(".chip").forEach(function (c) {
+        c.setAttribute("aria-pressed", String(c === chip));
+      });
+    });
+  });
+})();
+</script>

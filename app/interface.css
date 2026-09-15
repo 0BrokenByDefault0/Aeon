@@ -217,7 +217,7 @@ body[data-playing=true] .alb.playing .meta::after{content:"PLAYING"}
  --ui:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
  --ink:#000;--void:#000;--screen:transparent;--panel:transparent;--panel-2:transparent;--plush:#0d1015;
- --bone:#f1f3f7;--bone-2:#bec4cf;--bone-3:#a0a9b8;--starlight:#f1f3f7;--dim:#bec4cf;--faint:#a0a9b8;
+ --bone:#fff;--bone-2:#bec4cf;--bone-3:#a0a9b8;--starlight:#f1f3f7;--dim:#bec4cf;--faint:#a0a9b8;
  --accent:#e8edf6;--amber:#e8edf6;--amber-hot:#fff;--red:#f1f3f7;--pink:#e8edf6;--violet:#e8edf6;--teal:#e8edf6;--gold:#e8edf6;--ice:#fff;--grid:#d0d7e3;
  --rule:#dce5f12b;--line:#dce5f12b;--line-amber:#edf3ff55;--line-soft:#dce5f11c;
  --glass:rgba(180,190,208,.08);--glass-control:rgba(180,190,208,.035);
@@ -341,7 +341,7 @@ body.sheet-open .panel,body.sheet-open #dockWrap,body.sheet-open #skyChrome{visi
 #sheetNow .sheet-body{height:calc(100% - var(--safe-t) - 12px);padding:12px 28px calc(var(--safe-b) + 18px)}
 .player-heading{min-height:36px;margin-bottom:10px}
 #nowPosition,#nowTimes{font:10px/1.5 var(--mono);color:var(--bone-2);font-variant-numeric:tabular-nums}
-#nowStage{width:min(72vw,300px,34dvh);height:auto;aspect-ratio:1;flex-shrink:0;position:relative;margin:24px auto 26px;padding:7px;background:linear-gradient(135deg,#e5edfa59,#e5edfa08 28%,#e5edfa17 68%,#e5edfa45);border:1px solid #e9f1ff66;outline:1px solid #dce5f123;outline-offset:5px;box-shadow:inset 0 1px 0 #fff5,0 22px 35px #0009}
+#nowStage{width:min(72vw,300px,34dvh,calc(38dvh - var(--safe-t) - var(--safe-b)));height:auto;aspect-ratio:1;flex-shrink:0;position:relative;margin:24px auto 26px;padding:7px;background:linear-gradient(135deg,#e5edfa59,#e5edfa08 28%,#e5edfa17 68%,#e5edfa45);border:1px solid #e9f1ff66;outline:1px solid #dce5f123;outline-offset:5px;box-shadow:inset 0 1px 0 #fff5,0 22px 35px #0009}
 #nowArt{width:100%;height:100%;border-radius:0;border:1px solid #0a0d12;box-shadow:0 0 0 1px #fff1}
 #nowTitle{font-size:34px;line-height:1.12;padding:0;margin-top:0}
 #nowArtist{font:14px/1.5 var(--ui);color:var(--bone-2);margin-top:9px;letter-spacing:0}
@@ -394,7 +394,10 @@ input[type=range]::-webkit-slider-thumb{background:linear-gradient(135deg,#fff,#
 body[data-tab]:not([data-tab="sky"]) #skyChrome{visibility:hidden;pointer-events:none}
 @media(min-width:600px){.panel{padding-left:max(28px,calc((100vw - 650px)/2));padding-right:max(28px,calc((100vw - 650px)/2))}#dockWrap{max-width:678px;left:50%;right:auto;width:100%;transform:translateX(-50%)}#libGrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:360px){.panel{padding-left:18px;padding-right:18px}.p-head h1{font-size:50px}#listeningCard{grid-template-columns:94px minmax(0,1fr);gap:14px;padding:14px}#listeningTitle{font-size:22px}#libSort{gap:19px}#libGrid{gap:22px 14px}#nowTitle{font-size:29px}#nowCtrls{gap:24px}}
-@media(max-height:740px){#nowStage{width:min(62vw,26dvh);margin:12px auto 18px}#nowTitle{font-size:27px}#nowArtist{font-size:13px;margin-top:5px}#nowCtrls{margin:9px 0 4px}#nowPlay{width:60px;height:54px}#volRow{margin-top:8px}.player-heading{margin-bottom:0}#sheetNow .btnrow{margin-top:8px}}
+@media(max-height:740px){#nowStage{width:min(62vw,26dvh,calc(30dvh - var(--safe-t) - var(--safe-b)));margin:12px auto 18px}#nowTitle{font-size:27px}#nowArtist{font-size:13px;margin-top:5px}#nowCtrls{margin:9px 0 4px}#nowPlay{width:60px;height:54px}#volRow{margin-top:8px}.player-heading{margin-bottom:0}#sheetNow .btnrow{margin-top:8px}}
+/* Short screens: the transport and the queue action still have to clear the
+   home indicator, so the stage and the rhythm around it come down a step. */
+@media(max-height:640px){#nowStage{width:min(58vw,21dvh,calc(25dvh - var(--safe-t) - var(--safe-b)));margin:8px auto 12px}#nowTitle{font-size:23px}#nowArtist{font-size:12px;margin-top:4px}#playbackStatus{margin-top:2px}#nowSeekWrap{margin-top:2px}#nowCtrls{margin:6px 0 2px}#nowPlay{width:54px;height:50px}#volRow{margin:5px 0 2px}#sheetNow .btnrow{margin-top:6px}}
 @media(prefers-reduced-motion:reduce){#airlock{display:none}*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 
@@ -443,7 +446,7 @@ body::before{content:"";position:fixed;inset:-18%;z-index:-1;pointer-events:none
 .sheet h2{font-size:40px}
 .grab::before{background:linear-gradient(90deg,transparent,rgba(174,195,229,.7),#fff,rgba(255,207,241,.4),transparent);border:0;box-shadow:0 0 10px rgba(222,233,250,.15)}
 #nowStage{background:linear-gradient(135deg,rgba(240,246,255,.26),rgba(211,225,248,.025) 25%,rgba(255,222,244,.02) 74%,rgba(238,245,255,.18));border-color:rgba(241,247,255,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 34px 70px rgba(0,0,0,.62),0 0 70px color-mix(in srgb,var(--tint) 9%,transparent)}
-#nowStage::after{content:"";position:absolute;inset:-22%;z-index:-1;pointer-events:none;background:radial-gradient(circle,color-mix(in srgb,var(--tint) 11%,transparent),transparent 63%);filter:blur(18px)}
+#nowStage::after{content:"";position:absolute;inset:-22% -10%;z-index:-1;pointer-events:none;background:radial-gradient(circle,color-mix(in srgb,var(--tint) 11%,transparent),transparent 63%);filter:blur(18px)}
 #nowArt{border-color:rgba(0,0,0,.78)}
 #nowPlay{background:linear-gradient(140deg,rgba(255,255,255,.15),rgba(255,255,255,.018) 52%,color-mix(in srgb,var(--tint) 7%,transparent));box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 16px 38px rgba(0,0,0,.31)}
 .alb .art{border-color:rgba(239,245,255,.21);outline-color:rgba(219,232,252,.075);box-shadow:0 13px 30px rgba(0,0,0,.56)}
