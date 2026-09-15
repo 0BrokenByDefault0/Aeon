@@ -122,7 +122,7 @@ jobs:
           plist = app / 'Info.plist'
           info = plistlib.loads(plist.read_bytes())
           executable = app / info['CFBundleExecutable']
-          subprocess.run(['xcrun', 'lipo', '-verify_arch', 'arm64', str(executable)], check=True)
+          subprocess.run(['xcrun', 'lipo', str(executable), '-verify_arch', 'arm64'], check=True)
           assert 'UIMainStoryboardFile' not in info, 'Unexpected legacy storyboard entry point'
           info.update(CFBundleDisplayName='AEON RC1',
                       CFBundleVersion=str(500 + int(os.environ['GITHUB_RUN_NUMBER'])),
