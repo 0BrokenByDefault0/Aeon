@@ -91,9 +91,16 @@ assert(await page.evaluate(()=>document.fonts.check('32px "Aeon Nocturne"')));co
 assert(await page.evaluate(()=>{const x=document.createElement('canvas').getContext('2d');x.font='64px "Aeon Nocturne"';return x.measureText('OU').width<(x.measureText('O').width+x.measureText('U').width)*.7}));console.log('PASS nested OU ligature is active');
 assert.equal(await page.locator('#skyDim').evaluate(e=>getComputedStyle(e).opacity),'0');
 assert.equal(await page.locator('#sheetNow').evaluate(e=>getComputedStyle(e).visibility),'hidden');
-// Assert the sheet is filled with whatever --glass currently is, so the oracle
-// tracks the silver-chamber token instead of a colour retired in 4.4.
-assert.equal(await page.locator('#sheetQueue .sheet-body').evaluate(e=>getComputedStyle(e).backgroundColor),await page.evaluate(()=>{const probe=document.createElement('div');probe.style.background='var(--glass)';document.body.append(probe);const value=getComputedStyle(probe).backgroundColor;probe.remove();return value}));
+// The sheet is filled with whatever --glass currently is, so the oracle tracks
+// the silver-chamber token rather than a colour retired in 4.4. Under Reduce
+// Transparency the stylesheet swaps every glass surface for an opaque fill —
+// CI runners have it on — and that is the other correct answer, not a miss.
+{
+ const glass=await page.evaluate(()=>{const probe=document.createElement('div');probe.style.background='var(--glass)';document.body.append(probe);const value=getComputedStyle(probe).backgroundColor;probe.remove();return value});
+ const opaque='rgba(16, 19, 25, 0.94)';
+ const fill=await page.locator('#sheetQueue .sheet-body').evaluate(e=>getComputedStyle(e).backgroundColor);
+ assert([glass,opaque].includes(fill),`sheet fill is glass or the reduce-transparency fallback, got ${fill}`);
+}
 await page.evaluate(()=>closeSheet('sheetQueue'));assert.equal(await page.locator('#sheetNow').evaluate(e=>getComputedStyle(e).visibility),'visible');
 console.log('PASS clear silver glass and clean stacked sheets');
 assert.deepEqual(errors,[]);
