@@ -1,10 +1,5 @@
 name: Build unsigned IPA
 
-# Apple only allows iOS binaries to be produced on macOS, so the build runs
-# on a hosted Mac. The result is an UNSIGNED .ipa: it cannot be installed
-# by double-clicking, but it is exactly what sideloading tools (AltStore,
-# SideStore, Sideloadly) expect — they sign it with your own Apple ID on
-# your own machine, which is the only way an unsigned build can ever run.
 on:
   push:
     branches: ['**']
@@ -21,11 +16,11 @@ on:
   workflow_dispatch:
     inputs:
       skip_tests:
-        description: 'Build the .ipa without the test suite. Manual runs only, for getting a build onto a device when an unrelated test is red.'
+        description: 'Build the .ipa without the test suite. Manual runs only.'
         type: boolean
         default: false
       test_filter:
-        description: 'Run only these tests, e.g. "--family=iphone -only-testing:AppUITests/LibraryFlowTests". Manual runs only; a full run takes over an hour, which is a slow way to debug one shard.'
+        description: 'Run only these tests. Manual runs only.'
         type: string
         default: ''
 
@@ -39,6 +34,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      - name: Record exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "AEON_BUILD_SHA=${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "AEON_BUILD_SHORT_SHA=${GITHUB_SHA:0:8}" >> "$GITHUB_ENV"
+          echo "AEON_BUILD_RUN=${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "Building commit ${GITHUB_SHA} from ${GITHUB_REF_NAME}, run ${GITHUB_RUN_NUMBER}"
+          git status --short
+          git rev-parse HEAD
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -68,9 +74,6 @@ jobs:
 
       - name: Verify native tests
         id: native_tests
-        # Keep executing the complete native suite, but record its exit code so a
-        # device-test build can still be produced while we diagnose a UI-test red.
-        # This is not release sign-off: the job is marked failed after packaging.
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
         continue-on-error: true
         env:
@@ -108,45 +111,70 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Aeon-5.0-xcresult
+          name: Aeon-5.0-xcresult-${{ github.run_number }}-${{ github.sha }}
           path: ${{ runner.temp }}/Aeon-5.0-*.xcresult
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Build unsigned device-test IPA
-        # A native UI-test failure no longer prevents a physical-device build.
-        # Earlier setup/regression failures still stop the job normally.
+      - name: Build unsigned device-test app
         working-directory: ios/App
+        shell: bash
         run: |
+          set -euo pipefail
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ONLY_ACTIVE_ARCH=NO \
             | xcpretty || exit ${PIPESTATUS[0]}
 
-      - name: Package as .ipa
+      - name: Stamp and verify built app identity
         working-directory: ios/App
+        shell: bash
         run: |
+          set -euo pipefail
           APP="build/Build/Products/Release-iphoneos/App.app"
-          test -d "$APP" || { echo "App.app was not produced"; ls -R build/Build/Products || true; exit 1; }
-          PACKAGE_OUTPUT="$PWD/Aeon-5.0-unsigned.ipa"
+          PLIST="$APP/Info.plist"
+          test -d "$APP"
+          test -f "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName AEON R${GITHUB_RUN_NUMBER}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${GITHUB_RUN_NUMBER}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :AeonBuildCommit string ${GITHUB_SHA}" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :AeonBuildCommit ${GITHUB_SHA}" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :AeonBuildRun string ${GITHUB_RUN_NUMBER}" "$PLIST" || /usr/libexec/PlistBuddy -c "Set :AeonBuildRun ${GITHUB_RUN_NUMBER}" "$PLIST"
+          echo '--- Packaged app identity ---'
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :AeonBuildCommit' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Print :AeonBuildRun' "$PLIST"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :AeonBuildCommit' "$PLIST")" = "$GITHUB_SHA"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :AeonBuildRun' "$PLIST")" = "$GITHUB_RUN_NUMBER"
+          printf 'commit=%s\nrun=%s\nref=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_NUMBER" "$GITHUB_REF_NAME" > "$APP/AEON_BUILD_IDENTITY.txt"
+
+      - name: Package uniquely named IPA
+        working-directory: ios/App
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Release-iphoneos/App.app"
+          PACKAGE_OUTPUT="$PWD/Aeon-5.0-run-${GITHUB_RUN_NUMBER}-${AEON_BUILD_SHORT_SHA}-unsigned.ipa"
           PACKAGE_ROOT="$(mktemp -d)"
           mkdir -p "$PACKAGE_ROOT/Payload"
           cp -R "$APP" "$PACKAGE_ROOT/Payload/"
           (cd "$PACKAGE_ROOT" && zip -qry "$PACKAGE_OUTPUT" Payload)
-          ls -lh Aeon-5.0-unsigned.ipa
+          unzip -p "$PACKAGE_OUTPUT" Payload/App.app/AEON_BUILD_IDENTITY.txt
+          ls -lh "$PACKAGE_OUTPUT"
 
-      - name: Upload unsigned device-test IPA
+      - name: Upload uniquely identified device-test IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Aeon-5.0-unsigned-ipa
-          path: ios/App/Aeon-5.0-unsigned.ipa
+          name: Aeon-5.0-run-${{ github.run_number }}-${{ github.sha }}-unsigned-ipa
+          path: ios/App/Aeon-5.0-run-${{ github.run_number }}-${{ env.AEON_BUILD_SHORT_SHA }}-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
 
