@@ -12,9 +12,9 @@ final class AdaptiveChromeTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(button.frame.height, 44)
         }
         app.buttons["aeon.navigation.library"].tap()
-        XCTAssertTrue(app.staticTexts["Library"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.library.screen"].waitForExistence(timeout: 4))
         ensureNavigationVisible(in: app)
-        XCTAssertTrue(app.buttons["aeon.navigation.settings"].isHittable)
+        assertHittable(app.buttons["aeon.navigation.settings"], in: app)
     }
 
     func testCompactLandscapePreservesSkyAndReachableLastDestination() {
@@ -24,9 +24,9 @@ final class AdaptiveChromeTests: XCTestCase {
         ensureNavigationVisible(in: app)
         let settings = app.buttons["aeon.navigation.settings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
-        XCTAssertTrue(settings.isHittable)
+        assertHittable(settings, in: app)
         settings.tap()
-        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.settings.screen"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.images["aeon.sky.canvas"].exists)
     }
 
@@ -36,9 +36,9 @@ final class AdaptiveChromeTests: XCTestCase {
         ensureNavigationVisible(in: app)
         let playlists = app.buttons["aeon.navigation.playlists"]
         XCTAssertTrue(playlists.waitForExistence(timeout: 4))
-        XCTAssertTrue(playlists.isHittable)
+        assertHittable(playlists, in: app)
         playlists.tap()
-        XCTAssertTrue(app.staticTexts["Playlists"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.playlists.screen"].waitForExistence(timeout: 4))
     }
 
     private func launch(accessibilityText: Bool = false) -> XCUIApplication {
@@ -53,7 +53,30 @@ final class AdaptiveChromeTests: XCTestCase {
     }
 
     private func ensureNavigationVisible(in app: XCUIApplication) {
+        let destination = app.buttons["aeon.navigation.sky"]
+        if destination.exists && destination.isHittable { return }
         let menu = app.buttons["aeon.navigation.menu"]
-        if menu.waitForExistence(timeout: 1), menu.label == "Open navigation" { menu.tap() }
+        if menu.waitForExistence(timeout: 5), menu.label == "Open navigation" { menu.tap() }
+        XCTAssertTrue(destination.waitForExistence(timeout: 5))
+        assertHittable(destination, in: app)
+    }
+
+    private func assertHittable(_ element: XCUIElement, in app: XCUIApplication) {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND hittable == true"),
+            object: element
+        )
+        guard XCTWaiter.wait(for: [expectation], timeout: 5) == .completed else {
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "adaptive-chrome-failure"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            let hierarchy = XCTAttachment(string: app.debugDescription)
+            hierarchy.name = "adaptive-chrome-hierarchy"
+            hierarchy.lifetime = .keepAlways
+            add(hierarchy)
+            XCTFail("Unreachable \(element.identifier); target=\(element.frame), windows=\(app.windows.allElementsBoundByIndex.map(\.frame))")
+            return
+        }
     }
 }

@@ -31,7 +31,16 @@ final class AeonAccessibilityTests: XCTestCase {
         app.buttons["aeon.album.edit"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.album.editor"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields["aeon.album.editor.title"].label.isEmpty)
-        app.buttons["CANCEL"].tap()
+        let cancel = app.buttons["aeon.album.editor.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertEqual(cancel.label, "Cancel editing")
+        assertMinimumTarget(cancel)
+        cancel.tap()
+        let dismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: app.textFields["aeon.album.editor.title"]
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 5), .completed)
         app.buttons["aeon.album.close"].tap()
 
         openNavigationIfNeeded(in: app)
@@ -152,7 +161,31 @@ final class AeonAccessibilityTests: XCTestCase {
     }
 
     private func scroll(in app: XCUIApplication, until element: XCUIElement) {
-        for _ in 0..<8 where !element.exists || !element.isHittable { app.swipeUp() }
-        XCTAssertTrue(element.isHittable)
+        if element.exists && element.isHittable { return }
+        let scroll = app.scrollViews.containing(.any, identifier: element.identifier).firstMatch
+        guard scroll.exists else {
+            recordScrollFailure("No owning scroll view for \(element.identifier)", in: app)
+            return
+        }
+        for _ in 0..<8 {
+            if element.exists && element.isHittable { return }
+            scroll.swipeUp()
+        }
+        guard element.exists && element.isHittable else {
+            recordScrollFailure("Unreachable \(element.identifier); target=\(element.frame), scroll=\(scroll.frame)", in: app)
+            return
+        }
+    }
+
+    private func recordScrollFailure(_ message: String, in app: XCUIApplication) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "accessibility-scroll-failure"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "accessibility-scroll-hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        XCTFail(message)
     }
 }

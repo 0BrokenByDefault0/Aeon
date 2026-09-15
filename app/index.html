@@ -4274,8 +4274,9 @@ const sky=(()=>{
        drawn there */
     const clearOfSky=(x,y,r)=>regions.every(G=>{
       if(Math.hypot(x-G.lx,y-G.ly)<G.r*1.12+r+70)return false;
-      const overhead=Math.abs(x-G.lx)<G.r*.95+r*.6;
-      return!(overhead&&y<G.ly-G.r*SQ+r*.4&&y>G.ly-G.r*SQ-130-r*.5);
+      // Reserve the whole world, not a fraction of its radius, around names.
+      const overhead=Math.abs(x-G.lx)<G.r*.95+r;
+      return!(overhead&&y<G.ly-G.r*SQ+r&&y>G.ly-G.r*SQ-130-r);
     });
     for(let p=0;p<nP;p++){
       const r=124+((hashStr("p"+p+skySeed)%64));

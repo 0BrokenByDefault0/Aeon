@@ -5,7 +5,9 @@ const copy=spawnSync('npx',['--no-install','cap','copy','ios'],{stdio:'inherit'}
 if(copy.error)throw copy.error;
 if(copy.status!==0)process.exit(copy.status??1);
 
-const familyArgument=process.argv.slice(2).find(value=>value.startsWith('--family='));
+// npm's test:ios script supplies --family=all before caller arguments. The last
+// explicit family must win so focused jobs do not run both device families.
+const familyArgument=process.argv.slice(2).filter(value=>value.startsWith('--family=')).pop();
 const family=familyArgument?.slice('--family='.length)??process.env.AEON_IOS_DEVICE_FAMILY??'all';
 if(!['all','iphone','ipad'].includes(family))throw new Error(`Unsupported simulator family: ${family}`);
 const forwardedArguments=process.argv.slice(2).filter(value=>!value.startsWith('--family='));

@@ -54,9 +54,8 @@ final class PlayerNavigationTests: XCTestCase {
     private func openNavigationIfNeeded(in app: XCUIApplication) {
         if app.buttons["aeon.navigation.settings"].waitForExistence(timeout: 2) { return }
         let menu = app.buttons["aeon.navigation.menu"]
-        if menu.waitForExistence(timeout: 12), menu.label == "Open navigation" {
-            menu.tap()
-            XCTAssertTrue(app.buttons["aeon.navigation.settings"].waitForExistence(timeout: 3))
-        }
+        XCTAssertTrue(menu.waitForExistence(timeout: 12))
+        menu.tap()
+        XCTAssertTrue(app.buttons["aeon.navigation.settings"].waitForExistence(timeout: 6))
     }
 }

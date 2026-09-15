@@ -4,10 +4,12 @@ struct LibraryScreen: View {
     @ObservedObject var controller: LibraryController
     let importProgress: LibraryImportProgress?
     let importError: String?
-    let importAction: () -> Void
+    let importFiles: () -> Void
+    let importFolder: () -> Void
     let findInSky: (String, Bool) -> Void
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var importSheetPresented = false
 
     var body: some View {
         Group {
@@ -42,6 +44,9 @@ struct LibraryScreen: View {
                 )
             }
         }
+        .sheet(isPresented: $importSheetPresented) {
+            AeonImportSheet(selectFiles: importFiles, selectFolder: importFolder)
+        }
         .overlay(alignment: .top) {
             if let message = controller.message {
                 AeonToast(message: message)
@@ -56,6 +61,10 @@ struct LibraryScreen: View {
         reduceMotion || AeonTestOverrides.reduceMotion
     }
 
+    private var hasLibraryContent: Bool {
+        controller.totalCount > 0 || !controller.albums.isEmpty
+    }
+
     private var library: some View {
         GeometryReader { geometry in
             ScrollView {
@@ -65,10 +74,12 @@ struct LibraryScreen: View {
                     if let importError, !importError.isEmpty {
                         inlineStatus(importError, symbol: "exclamationmark.triangle")
                     }
-                    if let album = controller.continueAlbum {
+                    if let album = controller.continueAlbum, hasLibraryContent {
                         continueListening(album)
                     }
-                    controls
+                    if hasLibraryContent {
+                        controls
+                    }
                     content(width: geometry.size.width)
                 }
                 .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
@@ -82,25 +93,28 @@ struct LibraryScreen: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
             AeonBreadcrumb(text: "Collection")
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .bottom, spacing: AeonTheme.Space.regular) {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                     AeonDisplayText("Library", size: 42, maximumLines: 1)
-                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     Text("\(controller.totalCount) ALBUM\(controller.totalCount == 1 ? "" : "S")")
                         .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
                         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                         .accessibilityIdentifier("aeon.library.count")
                 }
-                Spacer()
-                Button("IMPORT", action: importAction)
-                    .buttonStyle(AeonButtonStyle(tier: .hairline))
-                    .accessibilityIdentifier("aeon.library.import")
+                Spacer(minLength: 0)
+                if hasLibraryContent {
+                    Button("IMPORT") { importSheetPresented = true }
+                        .buttonStyle(AeonButtonStyle(tier: .hairline))
+                        .frame(maxWidth: 132)
+                        .accessibilityIdentifier("aeon.library.import")
+                }
             }
         }
     }
 
     private var controls: some View {
-        VStack(spacing: AeonTheme.Space.medium) {
+        VStack(spacing: AeonTheme.Space.regular) {
             HStack(spacing: AeonTheme.Space.small) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
@@ -110,7 +124,7 @@ struct LibraryScreen: View {
                 )
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .foregroundStyle(AeonTheme.ColorToken.bone)
+                .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                 .accessibilityIdentifier("aeon.library.search")
                 if controller.isSearching {
                     Button { controller.setQuery("") } label: {
@@ -121,9 +135,16 @@ struct LibraryScreen: View {
                     .accessibilityLabel("Clear search")
                 }
             }
-            .padding(.leading, AeonTheme.Space.medium)
-            .frame(minHeight: AeonTheme.Space.minimumTarget)
-            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+            .padding(.leading, AeonTheme.Space.regular)
+            .frame(minHeight: 48)
+            .background(
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.62))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                    .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+            )
 
             HStack(spacing: AeonTheme.Space.medium) {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -144,10 +165,15 @@ struct LibraryScreen: View {
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 0) {
+                HStack(spacing: AeonTheme.Space.xSmall) {
                     densityButton(.grid, symbol: "square.grid.2x2")
                     densityButton(.list, symbol: "list.bullet")
                 }
+                .padding(AeonTheme.Space.xSmall)
+                .background(
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
+                )
             }
         }
     }
@@ -156,7 +182,9 @@ struct LibraryScreen: View {
     private func content(width: CGFloat) -> some View {
         switch controller.loadState {
         case .loading:
-            ProgressView().tint(AeonTheme.ColorToken.bone).frame(maxWidth: .infinity, minHeight: 220)
+            ProgressView()
+                .tint(AeonTheme.ColorToken.bone)
+                .frame(maxWidth: .infinity, minHeight: 220)
         case .failed(let detail):
             AeonEmptyState(title: "Library unavailable", detail: detail, actionTitle: "RETRY") {
                 controller.reload(reset: true)
@@ -171,20 +199,35 @@ struct LibraryScreen: View {
                     playTrack: { albumID, trackID in controller.playAlbum(id: albumID, startingTrackID: trackID) }
                 )
             } else if controller.albums.isEmpty {
-                AeonEmptyState(
-                    title: "Your sky is quiet",
-                    detail: "Import audio files or a folder to begin charting the collection.",
-                    actionTitle: "IMPORT MUSIC",
-                    action: importAction
-                )
-                .frame(maxWidth: .infinity)
-                .accessibilityIdentifier("aeon.library.empty")
+                emptyLibrary
             } else if controller.density == .grid {
                 albumGrid(width: width)
             } else {
                 albumList
             }
         }
+    }
+
+    private var emptyLibrary: some View {
+        VStack(spacing: AeonTheme.Space.large) {
+            AeonRouteMark(width: 108, height: 70)
+            VStack(spacing: AeonTheme.Space.small) {
+                AeonDisplayText("Your sky is quiet", size: 36, maximumLines: 2)
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("Import music to begin charting the collection.")
+                    .font(AeonTheme.FontToken.ui(.body))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            Button("IMPORT MUSIC") { importSheetPresented = true }
+                .buttonStyle(AeonButtonStyle(tier: .filled))
+                .frame(maxWidth: 260)
+                .accessibilityIdentifier("aeon.library.import")
+        }
+        .frame(maxWidth: .infinity, minHeight: 300)
+        .padding(.vertical, AeonTheme.Space.hero)
+        .accessibilityIdentifier("aeon.library.empty")
     }
 
     private func albumGrid(width: CGFloat) -> some View {
@@ -206,12 +249,12 @@ struct LibraryScreen: View {
         LazyVStack(spacing: 0) {
             ForEach(controller.albums) { album in
                 Button { controller.selectAlbum(id: album.id) } label: {
-                    HStack(spacing: AeonTheme.Space.medium) {
+                    HStack(spacing: AeonTheme.Space.regular) {
                         artwork(album, size: 62)
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                             Text(album.title)
                                 .font(AeonTheme.FontToken.ui(.body, weight: .medium))
-                                .foregroundStyle(AeonTheme.ColorToken.bone)
+                                .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                             Text(detailLine(album))
                                 .font(AeonTheme.FontToken.metric(.caption2))
                                 .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
@@ -245,7 +288,7 @@ struct LibraryScreen: View {
                     .aspectRatio(1, contentMode: .fit)
                 Text(album.title)
                     .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
-                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .lineLimit(2)
                 Text(album.artist)
                     .font(AeonTheme.FontToken.ui(.caption))
@@ -262,24 +305,30 @@ struct LibraryScreen: View {
 
     private func continueListening(_ album: CatalogAlbumSummary) -> some View {
         Button { controller.selectAlbum(id: album.id) } label: {
-            AeonGlass {
-                HStack(spacing: AeonTheme.Space.large) {
-                    artwork(album, size: 76)
-                    VStack(alignment: .leading, spacing: 5) {
-                        AeonLabel(text: "Continue listening")
-                        Text(album.title)
-                            .font(AeonTheme.FontToken.ui(.headline, weight: .semibold))
-                            .foregroundStyle(AeonTheme.ColorToken.bone)
-                        Text(album.artist)
-                            .font(AeonTheme.FontToken.ui(.caption))
-                            .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(AeonTheme.ColorToken.bone)
+            HStack(spacing: AeonTheme.Space.large) {
+                artwork(album, size: 76)
+                VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
+                    AeonLabel(text: "Continue listening")
+                    Text(album.title)
+                        .font(AeonTheme.FontToken.ui(.headline, weight: .semibold))
+                        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    Text(album.artist)
+                        .font(AeonTheme.FontToken.ui(.caption))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                 }
-                .padding(AeonTheme.Space.medium)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
             }
+            .padding(AeonTheme.Space.regular)
+            .background(
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.52))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                    .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("aeon.library.continue")
@@ -302,8 +351,15 @@ struct LibraryScreen: View {
             Text(text).font(AeonTheme.FontToken.ui(.callout))
         }
         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-        .padding(AeonTheme.Space.medium)
-        .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+        .padding(AeonTheme.Space.regular)
+        .background(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.48))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+        )
     }
 
     private func densityButton(_ density: LibraryController.Density, symbol: String) -> some View {
@@ -311,10 +367,14 @@ struct LibraryScreen: View {
             Image(systemName: symbol)
                 .foregroundStyle(controller.density == density ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
                 .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                .background(controller.density == density ? AeonTheme.ColorToken.bone : .clear)
-                .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                .background(
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                        .fill(controller.density == density ? AeonTheme.ColorToken.bone : .clear)
+                )
         }
         .buttonStyle(.plain)
+        .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+        .contentShape(Rectangle())
         .accessibilityLabel("\(density.label.capitalized) view")
         .accessibilityAddTraits(controller.density == density ? .isSelected : [])
         .accessibilityIdentifier("aeon.library.density.\(density.rawValue)")
