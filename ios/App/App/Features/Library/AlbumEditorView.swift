@@ -57,17 +57,6 @@ struct AlbumEditorView: View {
                 .overlay(alignment: .top) {
                     Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                 }
-
-                if let saveError {
-                    Text(saveError)
-                        .font(AeonTheme.FontToken.ui(.callout))
-                        .foregroundStyle(AeonTheme.ColorToken.bone)
-                        .accessibilityIdentifier("aeon.album.editor.save-error")
-                }
-                Button("SAVE CHANGES") { requestSave() }
-                    .buttonStyle(AeonButtonStyle(tier: .filled))
-                    .disabled(!valid)
-                    .accessibilityIdentifier("aeon.album.editor.save")
             }
             .padding(AeonTheme.Space.edge)
             .frame(maxWidth: 680)
@@ -75,6 +64,9 @@ struct AlbumEditorView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            saveBar
+        }
         .onChange(of: photoItem) { item in
             guard let item else { return }
             Task {
@@ -93,6 +85,28 @@ struct AlbumEditorView: View {
         .accessibilityIdentifier("aeon.album.editor")
     }
 
+    private var saveBar: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+            if let saveError {
+                Text(saveError)
+                    .font(AeonTheme.FontToken.ui(.callout))
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                    .accessibilityIdentifier("aeon.album.editor.save-error")
+            }
+            Button("SAVE CHANGES") { requestSave() }
+                .buttonStyle(AeonButtonStyle(tier: .filled))
+                .frame(minHeight: AeonTheme.Space.minimumTarget)
+                .disabled(!valid)
+                .accessibilityIdentifier("aeon.album.editor.save")
+        }
+        .padding(.horizontal, AeonTheme.Space.edge)
+        .padding(.vertical, AeonTheme.Space.small)
+        .background(AeonTheme.ColorToken.void.opacity(0.96))
+        .overlay(alignment: .top) {
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+        }
+    }
+
     private var header: some View {
         HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
@@ -109,6 +123,8 @@ struct AlbumEditorView: View {
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
+            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            .contentShape(Rectangle())
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .accessibilityLabel("Cancel editing")
             .accessibilityIdentifier("aeon.album.editor.cancel")
@@ -204,7 +220,6 @@ struct AlbumEditorView: View {
         if controller.saveAlbum(draft, artworkData: artworkData) {
             dismiss()
         } else {
-            // Keep the draft and distinguish a refused save from a dismissal failure.
             saveError = "The album could not be saved. Your edits are still here. Try again or cancel to leave them unsaved."
         }
     }

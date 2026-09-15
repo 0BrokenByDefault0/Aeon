@@ -46,6 +46,8 @@ struct AlbumDetailView: View {
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
+            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            .contentShape(Rectangle())
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .accessibilityLabel(embedded ? "Back to library" : "Close album")
             .accessibilityIdentifier("aeon.album.close")
@@ -58,6 +60,8 @@ struct AlbumDetailView: View {
                 Image(systemName: "ellipsis")
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
+            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            .contentShape(Rectangle())
             .foregroundStyle(AeonTheme.ColorToken.bone)
             .accessibilityLabel("Album actions")
             .accessibilityIdentifier("aeon.album.actions")
@@ -92,14 +96,20 @@ struct AlbumDetailView: View {
             HStack(spacing: AeonTheme.Space.small) {
                 Button("PLAY") { controller.playAlbum(id: album.id) }
                     .buttonStyle(AeonButtonStyle(tier: .filled))
+                    .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
+                    .contentShape(Rectangle())
                     .accessibilityIdentifier("aeon.album.play")
                 Button("FIND IN SKY") { findInSky(album.id) }
                     .buttonStyle(AeonButtonStyle(tier: .hairline))
+                    .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
+                    .contentShape(Rectangle())
                     .accessibilityIdentifier("aeon.album.find-in-sky")
             }
             HStack(spacing: AeonTheme.Space.large) {
                 Button("EDIT") { editing = true }
                     .buttonStyle(AeonButtonStyle(tier: .bare))
+                    .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
+                    .contentShape(Rectangle())
                     .accessibilityIdentifier("aeon.album.edit")
                 playlistMenu
             }
@@ -122,6 +132,8 @@ struct AlbumDetailView: View {
                 .tracking(1.0)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
         }
+        .frame(minHeight: AeonTheme.Space.minimumTarget)
+        .contentShape(Rectangle())
         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         .accessibilityIdentifier("aeon.album.add-playlist")
     }
@@ -184,6 +196,8 @@ struct AlbumDetailView: View {
                         Image(systemName: "ellipsis")
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     }
+                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                    .contentShape(Rectangle())
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     .accessibilityLabel("Actions for \(track.title)")
                 }

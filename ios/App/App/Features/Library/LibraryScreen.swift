@@ -373,6 +373,8 @@ struct LibraryScreen: View {
                 )
         }
         .buttonStyle(.plain)
+        .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+        .contentShape(Rectangle())
         .accessibilityLabel("\(density.label.capitalized) view")
         .accessibilityAddTraits(controller.density == density ? .isSelected : [])
         .accessibilityIdentifier("aeon.library.density.\(density.rawValue)")
