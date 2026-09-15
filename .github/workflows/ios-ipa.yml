@@ -31,13 +31,7 @@ on:
 
 jobs:
   ipa:
-    # macos-latest rather than a pinned image, so the build is not broken
-    # by the retirement of whichever version was current when it was
-    # written. (This was not what stopped the 2026-08-28 builds: every job
-    # on the account, Linux included, was being refused a runner.)
     runs-on: macos-latest
-    # The runner executes every test shard across both simulator families.
-    # A healthy full matrix currently needs more than 90 minutes on hosted macOS.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
@@ -73,12 +67,42 @@ jobs:
         run: pod install --repo-update
 
       - name: Verify native tests
-        # Push builds are always gated on the suite. Only an explicit manual run
-        # can ask for a build without it.
+        id: native_tests
+        # Keep executing the complete native suite, but record its exit code so a
+        # device-test build can still be produced while we diagnose a UI-test red.
+        # This is not release sign-off: the job is marked failed after packaging.
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
+        continue-on-error: true
         env:
           AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-5.0.xcresult
-        run: npm run test:ios -- ${{ inputs.test_filter }}
+        shell: bash
+        run: |
+          set +e
+          npm run test:ios -- ${{ inputs.test_filter }}
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Surface native test failure summary
+        if: ${{ always() && steps.native_tests.outcome == 'failure' }}
+        shell: bash
+        run: |
+          set +e
+          shopt -s nullglob
+          bundles=("${RUNNER_TEMP}"/Aeon-5.0-*.xcresult "${RUNNER_TEMP}"/Aeon-5.0.xcresult)
+          if [ ${#bundles[@]} -eq 0 ]; then
+            echo 'No xcresult bundle found; native test command failed before producing test evidence.'
+            exit 0
+          fi
+          for bundle in "${bundles[@]}"; do
+            [ -d "$bundle" ] || continue
+            echo "::group::Native test summary — $(basename "$bundle")"
+            xcrun xcresulttool get test-results summary --path "$bundle" || true
+            echo '::endgroup::'
+            echo "::group::Native test tree — $(basename "$bundle")"
+            xcrun xcresulttool get test-results tests --path "$bundle" || true
+            echo '::endgroup::'
+          done
 
       - name: Upload native test evidence
         if: always()
@@ -89,7 +113,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: Build unsigned
+      - name: Build unsigned device-test IPA
+        # A native UI-test failure no longer prevents a physical-device build.
+        # Earlier setup/regression failures still stop the job normally.
         working-directory: ios/App
         run: |
           xcodebuild \
@@ -116,9 +142,17 @@ jobs:
           (cd "$PACKAGE_ROOT" && zip -qry "$PACKAGE_OUTPUT" Payload)
           ls -lh Aeon-5.0-unsigned.ipa
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload unsigned device-test IPA
+        uses: actions/upload-artifact@v4
         with:
           name: Aeon-5.0-unsigned-ipa
           path: ios/App/Aeon-5.0-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
+
+      - name: Enforce native test gate
+        if: ${{ always() && steps.native_tests.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo '::error::Native iOS tests failed. The uploaded IPA is for physical-device diagnosis/testing only and is not release-qualified.'
+          exit 1
