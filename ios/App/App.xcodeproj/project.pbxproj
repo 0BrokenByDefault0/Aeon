@@ -104,12 +104,12 @@
 		A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000017 /* GUST-FONT-LICENSE.txt */; };
 		A61000000000000000000008 /* LPPL-1.3c.tex in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000018 /* LPPL-1.3c.tex */; };
 		A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */ = {isa = PBXBuildFile; fileRef = A61000000000000000000019 /* README-Aeon-Nocturne.txt */; };
-		A62000000000000000000000 /* ClashDisplay-Semibold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A62100000000000000000000 /* ClashDisplay-Semibold.ttf */; };
-		A62000000000000000000001 /* Switzer-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A62100000000000000000001 /* Switzer-Regular.ttf */; };
-		A62000000000000000000002 /* Switzer-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A62100000000000000000002 /* Switzer-Medium.ttf */; };
-		A62000000000000000000003 /* Switzer-Semibold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A62100000000000000000003 /* Switzer-Semibold.ttf */; };
-		A62000000000000000000004 /* Switzer-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A62100000000000000000004 /* Switzer-Bold.ttf */; };
-		A62000000000000000000005 /* ITF-FREE-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = A62100000000000000000005 /* ITF-FREE-FONT-LICENSE.txt */; };
+		FEED00000000000000000000 /* ClashDisplay-Semibold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000000006 /* ClashDisplay-Semibold.ttf */; };
+		FEED00000000000000000001 /* Switzer-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000000007 /* Switzer-Regular.ttf */; };
+		FEED00000000000000000002 /* Switzer-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000000008 /* Switzer-Medium.ttf */; };
+		FEED00000000000000000003 /* Switzer-Semibold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FEED00000000000000000009 /* Switzer-Semibold.ttf */; };
+		FEED00000000000000000004 /* Switzer-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000000A /* Switzer-Bold.ttf */; };
+		FEED00000000000000000005 /* ITF-FREE-FONT-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = FEED0000000000000000000B /* ITF-FREE-FONT-LICENSE.txt */; };
 		A62000000000000000000001 /* LibraryController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000011 /* LibraryController.swift */; };
 		A62000000000000000000002 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000012 /* LibraryScreen.swift */; };
 		A62000000000000000000003 /* AlbumDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62000000000000000000013 /* AlbumDetailView.swift */; };
@@ -255,12 +255,12 @@
 		A61000000000000000000014 /* DesignTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokenTests.swift; sourceTree = "<group>"; };
 		A61000000000000000000015 /* AdaptiveChromeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveChromeTests.swift; sourceTree = "<group>"; };
 		A61000000000000000000016 /* AeonNocturne-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "AeonNocturne-Regular.otf"; sourceTree = "<group>"; };
-		A62100000000000000000000 /* ClashDisplay-Semibold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ClashDisplay-Semibold.ttf"; sourceTree = "<group>"; };
-		A62100000000000000000001 /* Switzer-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Regular.ttf"; sourceTree = "<group>"; };
-		A62100000000000000000002 /* Switzer-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Medium.ttf"; sourceTree = "<group>"; };
-		A62100000000000000000003 /* Switzer-Semibold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Semibold.ttf"; sourceTree = "<group>"; };
-		A62100000000000000000004 /* Switzer-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Bold.ttf"; sourceTree = "<group>"; };
-		A62100000000000000000005 /* ITF-FREE-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ITF-FREE-FONT-LICENSE.txt"; sourceTree = "<group>"; };
+		FEED00000000000000000006 /* ClashDisplay-Semibold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ClashDisplay-Semibold.ttf"; sourceTree = "<group>"; };
+		FEED00000000000000000007 /* Switzer-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Regular.ttf"; sourceTree = "<group>"; };
+		FEED00000000000000000008 /* Switzer-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Medium.ttf"; sourceTree = "<group>"; };
+		FEED00000000000000000009 /* Switzer-Semibold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Semibold.ttf"; sourceTree = "<group>"; };
+		FEED0000000000000000000A /* Switzer-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Switzer-Bold.ttf"; sourceTree = "<group>"; };
+		FEED0000000000000000000B /* ITF-FREE-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ITF-FREE-FONT-LICENSE.txt"; sourceTree = "<group>"; };
 		A61000000000000000000017 /* GUST-FONT-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "GUST-FONT-LICENSE.txt"; sourceTree = "<group>"; };
 		A61000000000000000000018 /* LPPL-1.3c.tex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LPPL-1.3c.tex"; sourceTree = "<group>"; };
 		A61000000000000000000019 /* README-Aeon-Nocturne.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "README-Aeon-Nocturne.txt"; sourceTree = "<group>"; };
@@ -508,12 +508,12 @@
 			isa = PBXGroup;
 			children = (
 				A61000000000000000000016 /* AeonNocturne-Regular.otf */,
-				A62100000000000000000000 /* ClashDisplay-Semibold.ttf */,
-				A62100000000000000000001 /* Switzer-Regular.ttf */,
-				A62100000000000000000002 /* Switzer-Medium.ttf */,
-				A62100000000000000000003 /* Switzer-Semibold.ttf */,
-				A62100000000000000000004 /* Switzer-Bold.ttf */,
-				A62100000000000000000005 /* ITF-FREE-FONT-LICENSE.txt */,
+				FEED00000000000000000006 /* ClashDisplay-Semibold.ttf */,
+				FEED00000000000000000007 /* Switzer-Regular.ttf */,
+				FEED00000000000000000008 /* Switzer-Medium.ttf */,
+				FEED00000000000000000009 /* Switzer-Semibold.ttf */,
+				FEED0000000000000000000A /* Switzer-Bold.ttf */,
+				FEED0000000000000000000B /* ITF-FREE-FONT-LICENSE.txt */,
 				A61000000000000000000017 /* GUST-FONT-LICENSE.txt */,
 				A61000000000000000000018 /* LPPL-1.3c.tex */,
 				A61000000000000000000019 /* README-Aeon-Nocturne.txt */,
@@ -772,12 +772,12 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 				A61000000000000000000006 /* AeonNocturne-Regular.otf in Resources */,
-				A62000000000000000000000 /* ClashDisplay-Semibold.ttf in Resources */,
-				A62000000000000000000001 /* Switzer-Regular.ttf in Resources */,
-				A62000000000000000000002 /* Switzer-Medium.ttf in Resources */,
-				A62000000000000000000003 /* Switzer-Semibold.ttf in Resources */,
-				A62000000000000000000004 /* Switzer-Bold.ttf in Resources */,
-				A62000000000000000000005 /* ITF-FREE-FONT-LICENSE.txt in Resources */,
+				FEED00000000000000000000 /* ClashDisplay-Semibold.ttf in Resources */,
+				FEED00000000000000000001 /* Switzer-Regular.ttf in Resources */,
+				FEED00000000000000000002 /* Switzer-Medium.ttf in Resources */,
+				FEED00000000000000000003 /* Switzer-Semibold.ttf in Resources */,
+				FEED00000000000000000004 /* Switzer-Bold.ttf in Resources */,
+				FEED00000000000000000005 /* ITF-FREE-FONT-LICENSE.txt in Resources */,
 				A61000000000000000000007 /* GUST-FONT-LICENSE.txt in Resources */,
 				A61000000000000000000008 /* LPPL-1.3c.tex in Resources */,
 				A61000000000000000000009 /* README-Aeon-Nocturne.txt in Resources */,
