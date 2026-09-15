@@ -14,7 +14,7 @@ await page.evaluate(async()=>{
  const blob=new Blob([v.buffer],{type:'audio/wav'});
  const a={id:'a',title:'A deliberately long album title for narrow screens',artist:'Test Artist',seq:1,trackCount:2};
  const tracks=[{id:'one',albumId:'a',idx:1,title:'The first track, with a long title',blob},{id:'two',albumId:'a',idx:2,title:'Second track',blob}];
- await dbPut('albums',a);for(const t of tracks)await dbPut('tracks',t);state.albums=[a];state.tracks.set('a',tracks);renderLibrary();switchTab('library');
+ await dbPut('albums',a);for(const t of tracks)await dbPut('tracks',t);state.albums=[a];state.tracks.set('a',tracks);renderLibrary();refreshListeningCard();switchTab('library');
 });
 await page.click('#listeningPlay');await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2);
 await page.evaluate(async()=>{audio.currentTime=12;audio.pause();await rememberPosition()});
