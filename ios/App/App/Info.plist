@@ -27,7 +27,11 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>AeonNocturne-Regular.otf</string>
-		<string>Archivo-Variable.ttf</string>
+		<string>ClashDisplay-Semibold.ttf</string>
+		<string>Switzer-Regular.ttf</string>
+		<string>Switzer-Medium.ttf</string>
+		<string>Switzer-Semibold.ttf</string>
+		<string>Switzer-Bold.ttf</string>
 	</array>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>

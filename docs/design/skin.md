@@ -48,27 +48,26 @@ identically.
 
 Metal: `shadePlanet`. Swift: `SkyRenderer.planetInstance` passes the seed.
 
-## One typeface, two widths
+## Two faces, one discipline
 
-**Archivo**, variable, `wdth 62–125 / wght 100–900`, bundled at
-`ios/App/App/Resources/Archivo-Variable.ttf` under the OFL.
+**Clash Display Semibold** says the names of things — screen titles, album and
+playlist names, planets. It is cut rather than drawn: flat terminals, tight
+apertures, very little roundness, which is what keeps a 44pt title dramatic on
+black instead of soft.
 
-- **Display** — `wdth 118`, `wght 600`, tracking `-0.022em`. Names of things:
-  screen titles, album and playlist names, planets.
-- **UI** — `wdth 100`, `wght 400–600`. Everything you operate: rows, body copy,
-  buttons, settings.
-- **Labels** — the UI face, uppercase, `wght 600`, tracked `+1.6`, tabular
-  figures. Counts, durations, coordinates.
+**Switzer** is everything you operate: rows, body copy, buttons, settings.
+Regular / Medium / Semibold / Bold. Labels are Switzer Semibold, uppercase,
+tracked `+1.6`, with tabular figures for counts and durations.
 
-There is no third face. The old mono role is the UI face with tabular figures;
-the old serif display face is gone. Because both widths come out of one
-skeleton, a settings list reads as the same voice as the title above it — that
-is the whole reason for the choice.
+Both ship from `ios/App/App/Resources/` under the ITF Free Font License, and
+both are addressed by the PostScript names of static cuts rather than through a
+variable font's axes. That is not a style choice: a SwiftUI `Font` built from a
+`UIFont` is a fixed size and stops answering Dynamic Type, which once left the
+settings storage value at 12pt under accessibility size 5.
+`Font.custom(_:size:relativeTo:)` scales; the display role passes a point size
+`AeonDisplayText` has already scaled with `@ScaledMetric`.
 
-Swift: `AeonTheme.FontToken`. It drives the variation axes through
-`kCTFontVariationAttribute` and scales with `UIFontMetrics`, so Dynamic Type
-still works; if the face is ever missing it falls back to the system family at
-the nearest width rather than dropping to body text.
+Swift: `AeonTheme.FontToken`.
 
 ## Geometry and edges
 

@@ -48,51 +48,95 @@ enum AeonImportContentTypes {
     }()
 }
 
-/// Presents a `UIDocumentPickerViewController` directly. SwiftUI's `fileImporter` cannot
-/// report why a pick failed and cannot be stacked, both of which this flow needs.
-struct ImportDocumentPicker: UIViewControllerRepresentable {
-    let kind: ImportPickerKind
-    let completion: (ImportPickerOutcome) -> Void
+/// Presents `UIDocumentPickerViewController` the way UIKit expects: modally, from
+/// the topmost view controller.
+///
+/// Embedding the picker in a SwiftUI sheet as a child controller renders it, and
+/// Open then animates and does nothing at all — the delegate never fires, because a
+/// document picker is a remote view controller that has to be presented rather than
+/// installed in a hierarchy. That is why importing did nothing on device.
+struct ImportPickerPresenter: UIViewControllerRepresentable {
+    @Binding var kind: ImportPickerKind?
+    let completion: (ImportPickerOutcome, ImportPickerKind) -> Void
 
-    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let controller = UIDocumentPickerViewController(
-            forOpeningContentTypes: kind.contentTypes,
-            asCopy: false
-        )
-        controller.allowsMultipleSelection = kind.allowsMultipleSelection
-        controller.shouldShowFileExtensions = true
-        controller.delegate = context.coordinator
-        return controller
+    func makeUIViewController(context: Context) -> UIViewController {
+        let host = UIViewController()
+        host.view.backgroundColor = .clear
+        host.view.isUserInteractionEnabled = false
+        return host
     }
 
-    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {
+    func updateUIViewController(_ host: UIViewController, context: Context) {
         context.coordinator.completion = completion
+        context.coordinator.clearSelection = { kind = nil }
+        guard let kind else { return }
+        context.coordinator.present(kind, from: host)
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
-    final class Coordinator: NSObject, UIDocumentPickerDelegate {
-        var completion: (ImportPickerOutcome) -> Void
-        private var finished = false
+    final class Coordinator: NSObject, UIDocumentPickerDelegate, UIAdaptivePresentationControllerDelegate {
+        var completion: ((ImportPickerOutcome, ImportPickerKind) -> Void)?
+        var clearSelection: (() -> Void)?
+        private var presenting: ImportPickerKind?
 
-        init(completion: @escaping (ImportPickerOutcome) -> Void) {
-            self.completion = completion
+        func present(_ kind: ImportPickerKind, from host: UIViewController) {
+            guard presenting == nil else { return }
+            presenting = kind
+            let picker = UIDocumentPickerViewController(
+                forOpeningContentTypes: kind.contentTypes,
+                asCopy: false
+            )
+            picker.allowsMultipleSelection = kind.allowsMultipleSelection
+            picker.shouldShowFileExtensions = true
+            picker.delegate = self
+            picker.presentationController?.delegate = self
+            // The import sheet dismisses itself first, so wait a turn for the
+            // presentation to settle before asking for another one.
+            DispatchQueue.main.async { [weak self, weak host] in
+                guard let presenter = host?.presentationAnchor else {
+                    self?.finish(.failed("Aeon could not open the file browser. Try again."))
+                    return
+                }
+                presenter.present(picker, animated: true)
+            }
+        }
+
+        private func finish(_ outcome: ImportPickerOutcome) {
+            guard let kind = presenting else { return }
+            presenting = nil
+            clearSelection?()
+            completion?(outcome, kind)
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-            guard !finished else { return }
-            finished = true
             guard !urls.isEmpty else {
-                completion(.failed("That location returned nothing Aeon can open. Choose a folder or files stored on this iPhone or in iCloud Drive."))
+                finish(.failed("That location returned nothing Aeon can open. Choose a folder or files stored on this iPhone or in iCloud Drive."))
                 return
             }
-            completion(.picked(urls))
+            finish(.picked(urls))
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-            guard !finished else { return }
-            finished = true
-            completion(.cancelled)
+            finish(.cancelled)
         }
+
+        /// Swiping the picker away is a cancel too; without this the selection
+        /// sticks and the next tap on IMPORT does nothing.
+        func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+            finish(.cancelled)
+        }
+    }
+}
+
+private extension UIViewController {
+    /// The controller a modal should be presented from: the top of whatever is
+    /// already presented above this one.
+    var presentationAnchor: UIViewController? {
+        var anchor: UIViewController? = view.window?.rootViewController ?? self
+        while let presented = anchor?.presentedViewController, !presented.isBeingDismissed {
+            anchor = presented
+        }
+        return anchor
     }
 }

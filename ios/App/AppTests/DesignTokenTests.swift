@@ -13,28 +13,23 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertFalse(AeonTheme.FontToken.nocturnePostScriptName.localizedCaseInsensitiveContains("arthemys"))
     }
 
-    func testArchivoShipsWithItsLicenceAndResolvesBothWidths() throws {
-        XCTAssertNotNil(Bundle.main.url(forResource: AeonTheme.FontToken.resourceName, withExtension: "ttf"))
-        XCTAssertNotNil(Bundle.main.url(forResource: "OFL-Archivo", withExtension: "txt"))
+    func testBothFacesShipWithTheirLicenceAndResolve() throws {
+        XCTAssertNotNil(Bundle.main.url(forResource: "ClashDisplay-Semibold", withExtension: "ttf"))
+        XCTAssertNotNil(Bundle.main.url(forResource: "Switzer-Regular", withExtension: "ttf"))
+        XCTAssertNotNil(Bundle.main.url(forResource: "ITF-FREE-FONT-LICENSE", withExtension: "txt"))
+
         let display = AeonTheme.FontToken.uiDisplay(size: 34)
-        let ui = AeonTheme.FontToken.uiText(size: 34)
-        XCTAssertTrue(display.familyName.hasPrefix(AeonTheme.FontToken.family), display.familyName)
-        XCTAssertTrue(ui.familyName.hasPrefix(AeonTheme.FontToken.family), ui.familyName)
-        // Display type is the same face set wider; if the variation axis stops
-        // being applied the two collapse into one and the hierarchy is lost.
-        let name = "Aeon" as NSString
-        XCTAssertGreaterThan(
-            name.size(withAttributes: [.font: display]).width,
-            name.size(withAttributes: [.font: ui]).width
-        )
+        let text = AeonTheme.FontToken.uiText(size: 15)
+        XCTAssertEqual(display.fontName, AeonTheme.FontToken.displayName)
+        XCTAssertTrue(text.familyName.hasPrefix(AeonTheme.FontToken.textFamily), text.familyName)
     }
 
-    func testEveryWeightTheInterfaceUsesResolvesToABundledInstance() {
-        // The UI role addresses the face by the PostScript name of a named
-        // instance so SwiftUI keeps scaling it with Dynamic Type. If an
-        // instance name drifts, the app silently falls back to the system font.
+    func testEveryWeightTheInterfaceUsesResolvesToABundledCut() {
+        // The interface addresses the face by the PostScript name of a static
+        // cut so SwiftUI keeps scaling it with Dynamic Type. If a name drifts,
+        // the app silently falls back to the system font.
         for weight in [Font.Weight.regular, .medium, .semibold, .bold] {
-            let name = AeonTheme.FontToken.instanceName(for: weight)
+            let name = AeonTheme.FontToken.cutName(for: weight)
             XCTAssertNotNil(UIFont(name: name, size: 15), name)
         }
     }

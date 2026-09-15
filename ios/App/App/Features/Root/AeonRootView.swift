@@ -26,13 +26,16 @@ struct AeonRootView: View {
                 .allowsHitTesting(false)
         }
         .preferredColorScheme(.dark)
-        .sheet(item: $picker) { kind in
-            ImportDocumentPicker(kind: kind) { outcome in
-                picker = nil
+        // The picker is presented by UIKit from here rather than wrapped in a
+        // sheet: a document picker installed as a child controller shows up but
+        // never reports what was chosen.
+        .background(
+            ImportPickerPresenter(kind: $picker) { outcome, kind in
                 handle(outcome, kind: kind)
             }
-            .ignoresSafeArea()
-        }
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+        )
         .alert(
             "Import",
             isPresented: Binding(

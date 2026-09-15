@@ -1,4 +1,3 @@
-import CoreText
 import SwiftUI
 import UIKit
 
@@ -120,70 +119,43 @@ enum AeonTheme {
         static let toast: Double = 40
     }
 
-    /// Archivo, one variable family, two widths.
+    /// Two faces, drawn from the same sharp, flat-terminal grotesque family.
     ///
-    /// Display type runs expanded and semibold — it is how a name of a thing is
-    /// said out loud. Everything you operate runs at normal width so menus stay
-    /// compact. Both come out of the same skeleton, which is what keeps the
-    /// settings list in harmony with the title above it.
+    /// **Clash Display Semibold** says the names of things. It is cut rather
+    /// than drawn: flat terminals, tight apertures, little roundness, which is
+    /// what keeps a title dramatic instead of soft at 44pt on black.
+    ///
+    /// **Switzer** is everything you operate — rows, body copy, buttons,
+    /// settings, counts. Same discipline at text sizes, where the display face
+    /// would be too tightly spaced to read.
+    ///
+    /// Both are addressed by the PostScript names of static cuts. A `Font` made
+    /// from a `UIFont` is a fixed size to SwiftUI and stops answering Dynamic
+    /// Type; `Font.custom(_:size:relativeTo:)` scales.
     enum FontToken {
-        static let family = "Archivo"
-        static let resourceName = "Archivo-Variable"
+        static let displayName = "ClashDisplay-Semibold"
+        static let textFamily = "Switzer"
         /// Kept: the Nocturne face still ships, with its licences, as provenance.
         static let nocturnePostScriptName = "AeonNocturne-Regular"
         static let maximumDisplayScale: CGFloat = 1.55
 
-        static let displayWidth: CGFloat = 118
-        static let uiWidth: CGFloat = 100
-
-        private static let weightAxis: Int = 0x77676874 // 'wght'
-        private static let widthAxis: Int = 0x77647468  // 'wdth'
-        private static let variationAttribute = UIFontDescriptor.AttributeName(
-            rawValue: kCTFontVariationAttribute as String
-        )
+        /// Uppercase micro labels are the only tracked-out type in the app.
+        static let labelTracking: CGFloat = 1.6
 
         /// Names of things: screen titles, album and playlist names, planets.
-        ///
-        /// Expanded width has no named instance, so this one is built from the
-        /// variation axes. `AeonDisplayText` scales the point size it passes in
-        /// with `@ScaledMetric`, so the role still answers Dynamic Type.
-        static func display(size: CGFloat, weight: CGFloat = 600) -> Font {
-            Font(uiDisplay(size: size, weight: weight) as CTFont)
+        /// `AeonDisplayText` scales the point size it passes in, so this one is
+        /// deliberately not scaled again here.
+        static func display(size: CGFloat) -> Font {
+            .custom(displayName, fixedSize: size)
         }
 
-        static func uiDisplay(size: CGFloat, weight: CGFloat = 600) -> UIFont {
-            variable(size: size, weight: weight, width: displayWidth, relativeTo: .largeTitle)
+        static func uiDisplay(size: CGFloat) -> UIFont {
+            UIFont(name: displayName, size: size) ?? .systemFont(ofSize: size, weight: .semibold)
         }
 
         /// Rows, body copy, buttons, settings.
-        ///
-        /// These go through `Font.custom(_:size:relativeTo:)` rather than a
-        /// `UIFont`: a Font built from a UIFont is a fixed size to SwiftUI and
-        /// stops following Dynamic Type, which is how a caption stayed 12pt at
-        /// accessibility size 5. The named instances only exist at normal
-        /// width, which is exactly what this role wants.
         static func ui(_ style: Font.TextStyle = .body, weight: Font.Weight = .regular) -> Font {
-            .custom(instanceName(for: weight), size: pointSize(for: style), relativeTo: style)
-        }
-
-        /// PostScript names of the bundled face's named instances.
-        static func instanceName(for weight: Font.Weight) -> String {
-            switch weight {
-            case .ultraLight: return "ArchivoRoman-Thin"
-            case .thin: return "ArchivoRoman-ExtraLight"
-            case .light: return "ArchivoRoman-Light"
-            case .medium: return "ArchivoRoman-Medium"
-            case .semibold: return "ArchivoRoman-SemiBold"
-            case .bold: return "ArchivoRoman-Bold"
-            case .heavy: return "ArchivoRoman-ExtraBold"
-            case .black: return "ArchivoRoman-Black"
-            default: return "ArchivoRoman-Regular"
-            }
-        }
-
-        /// The UI face as a `UIFont`, for the places UIKit needs one.
-        static func uiText(size: CGFloat, weight: Font.Weight = .regular) -> UIFont {
-            variable(size: size, weight: axisWeight(for: weight), width: uiWidth, relativeTo: .body)
+            .custom(cutName(for: weight), size: pointSize(for: style), relativeTo: style)
         }
 
         /// Counts, durations, coordinates — the same face, figures aligned.
@@ -191,48 +163,20 @@ enum AeonTheme {
             ui(style, weight: weight).monospacedDigit()
         }
 
-        /// Uppercase micro labels are the only tracked-out type in the app.
-        static let labelTracking: CGFloat = 1.6
-
-        private static func variable(
-            size: CGFloat,
-            weight: CGFloat,
-            width: CGFloat,
-            relativeTo style: UIFont.TextStyle
-        ) -> UIFont {
-            let descriptor = UIFontDescriptor(fontAttributes: [
-                .family: family,
-                variationAttribute: [weightAxis: weight, widthAxis: width]
-            ])
-            let base = UIFont(descriptor: descriptor, size: size)
-            // If the bundled face is missing, fall back to the system family at
-            // the nearest width rather than silently dropping to body text.
-            // A variable face can report its family as "Archivo" or as a named
-            // instance such as "Archivo SemiBold"; both are the bundled face.
-            guard base.familyName.hasPrefix(family) else {
-                return UIFontMetrics(forTextStyle: style).scaledFont(for: systemFallback(
-                    size: size,
-                    weight: weight,
-                    expanded: width > uiWidth
-                ))
-            }
-            return UIFontMetrics(forTextStyle: style).scaledFont(for: base)
+        /// The interface face as a `UIFont`, for the places UIKit needs one.
+        static func uiText(size: CGFloat, weight: Font.Weight = .regular) -> UIFont {
+            UIFont(name: cutName(for: weight), size: size)
+                ?? .systemFont(ofSize: size, weight: .regular)
         }
 
-        private static func systemFallback(size: CGFloat, weight: CGFloat, expanded: Bool) -> UIFont {
-            let systemWeight: UIFont.Weight
+        /// PostScript names of the bundled static cuts.
+        static func cutName(for weight: Font.Weight) -> String {
             switch weight {
-            case ..<450: systemWeight = .regular
-            case ..<550: systemWeight = .medium
-            case ..<650: systemWeight = .semibold
-            default: systemWeight = .bold
+            case .medium: return "Switzer-Medium"
+            case .semibold: return "Switzer-Semibold"
+            case .bold, .heavy, .black: return "Switzer-Bold"
+            default: return "Switzer-Regular"
             }
-            let base = UIFont.systemFont(ofSize: size, weight: systemWeight)
-            guard expanded else { return base }
-            let descriptor = base.fontDescriptor.addingAttributes([
-                variationAttribute: [widthAxis: 125]
-            ])
-            return UIFont(descriptor: descriptor, size: size)
         }
 
         static func pointSize(for style: Font.TextStyle) -> CGFloat {
@@ -250,45 +194,6 @@ enum AeonTheme {
             @unknown default: return 15
             }
         }
-
-        private static func uiStyle(for style: Font.TextStyle) -> UIFont.TextStyle {
-            switch style {
-            case .largeTitle: return .largeTitle
-            case .title: return .title1
-            case .title2: return .title2
-            case .title3: return .title3
-            case .headline: return .headline
-            case .callout: return .callout
-            case .subheadline: return .subheadline
-            case .footnote: return .footnote
-            case .caption: return .caption1
-            case .caption2: return .caption2
-            default: return .body
-            }
-        }
-
-        private static func axisWeight(for weight: Font.Weight) -> CGFloat {
-            switch weight {
-            case .ultraLight, .thin: return 200
-            case .light: return 300
-            case .medium: return 500
-            case .semibold: return 600
-            case .bold: return 700
-            case .heavy, .black: return 800
-            default: return 400
-            }
-        }
-    }
-}
-
-private extension UIFont {
-    func withTabularFigures() -> UIFont {
-        let settings: [[UIFontDescriptor.FeatureKey: Int]] = [[
-            .type: kNumberSpacingType,
-            .selector: kMonospacedNumbersSelector
-        ]]
-        let descriptor = fontDescriptor.addingAttributes([.featureSettings: settings])
-        return UIFont(descriptor: descriptor, size: pointSize)
     }
 }
 
