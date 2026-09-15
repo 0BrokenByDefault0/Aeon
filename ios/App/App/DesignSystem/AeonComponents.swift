@@ -35,13 +35,18 @@ struct AeonGlass<Content: View>: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.aeonArtworkTint) private var artworkTint
+    let radius: CGFloat
     let content: Content
 
-    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    init(radius: CGFloat = AeonTheme.Radius.large, @ViewBuilder content: () -> Content) {
+        self.radius = radius
+        self.content = content()
+    }
 
     var body: some View {
         let opaque = reduceTransparency || AeonTestOverrides.reduceTransparency
         let increasedContrast = contrast == .increased || AeonTestOverrides.increasedContrast
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         content
             .background {
                 ZStack {
@@ -49,17 +54,26 @@ struct AeonGlass<Content: View>: View {
                         AeonTheme.ColorToken.chamberOpaque
                     } else {
                         AeonBlur(style: .systemUltraThinMaterialDark)
-                        AeonTheme.ColorToken.chamber.opacity(increasedContrast ? 0.78 : 0.58)
-                        artworkTint?.opacity(0.10)
+                        AeonTheme.ColorToken.chamber.opacity(increasedContrast ? 0.72 : 0.34)
+                        artworkTint?.opacity(0.06)
                     }
+                }
+                .clipShape(shape)
+            }
+            .overlay {
+                // The edge does the work a border used to: it catches light on
+                // one side, disappears through the middle, and returns faintly.
+                shape.strokeBorder(
                     LinearGradient(
-                        colors: [.white.opacity(0.07), .clear, .white.opacity(0.025)],
+                        gradient: increasedContrast
+                            ? Gradient(colors: [.white.opacity(0.46), .white.opacity(0.22)])
+                            : AeonTheme.ColorToken.edgeHighlight,
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
-                    )
-                }
+                    ),
+                    lineWidth: 1
+                )
             }
-            .overlay(Rectangle().stroke(increasedContrast ? AeonTheme.ColorToken.strongRule : AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
             .shadow(color: .black.opacity(0.42), radius: AeonTheme.Shadow.glassRadius, y: AeonTheme.Shadow.glassY)
     }
 }
@@ -75,10 +89,10 @@ struct AeonBreadcrumb: View {
     var body: some View {
         HStack(spacing: AeonTheme.Space.medium) {
             Text(text.uppercased())
-            Rectangle().frame(height: AeonTheme.Stroke.hairline).opacity(0.42)
+            Rectangle().frame(height: AeonTheme.Stroke.hairline).opacity(0.28)
         }
-        .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
-        .tracking(1.8)
+        .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
+        .tracking(AeonTheme.FontToken.labelTracking)
         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         .frame(minHeight: AeonTheme.Space.minimumTarget)
     }
@@ -93,8 +107,9 @@ struct AeonButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
-            .tracking(1.2)
+            .font(AeonTheme.FontToken.metric(.caption, weight: .bold))
+            .tracking(AeonTheme.FontToken.labelTracking)
+            .textCase(.uppercase)
             .foregroundStyle(foreground)
             .lineLimit(nil)
             .multilineTextAlignment(.center)
@@ -105,8 +120,14 @@ struct AeonButtonStyle: ButtonStyle {
                 maxWidth: .infinity,
                 minHeight: AeonTheme.Space.minimumTarget
             )
-            .background(background.opacity(configuration.isPressed ? 0.72 : 1))
-            .overlay(Rectangle().stroke(border, lineWidth: tier == .bare ? 0 : AeonTheme.Stroke.hairline))
+            .background(background.opacity(configuration.isPressed ? 0.72 : 1), in: Capsule())
+            .overlay {
+                if tier != .bare {
+                    Capsule().strokeBorder(border, lineWidth: 1)
+                }
+            }
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(AeonTheme.Motion.control, value: configuration.isPressed)
             .opacity(isEnabled ? 1 : 0.42)
     }
 
@@ -114,8 +135,12 @@ struct AeonButtonStyle: ButtonStyle {
         if destructive { return AeonTheme.ColorToken.danger }
         return tier == .filled ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.bone
     }
-    private var background: Color { tier == .filled ? AeonTheme.ColorToken.bone : .clear }
-    private var border: Color { destructive ? AeonTheme.ColorToken.danger : AeonTheme.ColorToken.rule }
+    private var background: Color {
+        tier == .filled ? AeonTheme.ColorToken.bone : Color.white.opacity(0.03)
+    }
+    private var border: Color {
+        destructive ? AeonTheme.ColorToken.danger : AeonTheme.ColorToken.strongRule
+    }
 }
 
 struct AeonToggleStyle: ToggleStyle {
@@ -147,15 +172,19 @@ struct AeonToggleStyle: ToggleStyle {
 
     private func toggleIndicator(isOn: Bool) -> some View {
         ZStack(alignment: isOn ? .trailing : .leading) {
-            Rectangle()
-                .fill(isOn ? AeonTheme.ColorToken.bone : .clear)
-                .overlay(Rectangle().stroke(AeonTheme.ColorToken.strongRule, lineWidth: AeonTheme.Stroke.hairline))
-                .frame(width: 48, height: 28)
-            Rectangle()
+            Capsule()
+                .fill(isOn ? AeonTheme.ColorToken.bone : Color.white.opacity(0.04))
+                .overlay(Capsule().strokeBorder(
+                    isOn ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.strongRule,
+                    lineWidth: 1
+                ))
+                .frame(width: 46, height: 27)
+            Circle()
                 .fill(isOn ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
-                .frame(width: 20, height: 20)
+                .frame(width: 19, height: 19)
                 .padding(4)
         }
+        .animation(AeonTheme.Motion.chrome, value: isOn)
     }
 }
 
@@ -165,14 +194,19 @@ struct AeonSegment<Value: Hashable>: View {
     let label: (Value) -> String
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: AeonTheme.Space.small) {
             ForEach(values, id: \.self) { value in
                 Button(label(value).uppercased()) { selection = value }
                     .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
+                    .tracking(AeonTheme.FontToken.labelTracking)
                     .foregroundStyle(selection == value ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
                     .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget)
-                    .background(selection == value ? AeonTheme.ColorToken.bone : .clear)
-                    .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                    .background(selection == value ? AeonTheme.ColorToken.bone : .clear, in: Capsule())
+                    .overlay(Capsule().strokeBorder(
+                        selection == value ? .clear : AeonTheme.ColorToken.rule,
+                        lineWidth: 1
+                    ))
+                    .animation(AeonTheme.Motion.chrome, value: selection)
                     .accessibilityAddTraits(selection == value ? .isSelected : [])
             }
         }
@@ -193,18 +227,21 @@ struct AeonRow<Trailing: View>: View {
     var body: some View {
         HStack(spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(AeonTheme.FontToken.ui(.body, weight: .medium)).foregroundStyle(AeonTheme.ColorToken.bone)
+                Text(title).font(AeonTheme.FontToken.ui(.body, weight: .semibold)).foregroundStyle(AeonTheme.ColorToken.bone)
                 if let detail, !detail.isEmpty {
-                    Text(detail).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    Text(detail)
+                        .font(AeonTheme.FontToken.ui(.subheadline))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                        .lineSpacing(2)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: AeonTheme.Space.small)
             trailing
         }
-        .padding(.vertical, AeonTheme.Space.small)
-        .frame(minHeight: 62)
-        .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
+        .padding(.vertical, AeonTheme.Space.medium)
+        .frame(minHeight: 56)
+        .overlay(alignment: .bottom) { AeonDivider() }
     }
 }
 
@@ -218,8 +255,8 @@ struct AeonLabel: View {
     let text: String
     var body: some View {
         Text(text.uppercased())
-            .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
-            .tracking(1.5)
+            .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
+            .tracking(AeonTheme.FontToken.labelTracking)
             .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
     }
 }
@@ -233,6 +270,10 @@ struct AeonArtwork: View {
         self.size = size
     }
 
+    private var radius: CGFloat {
+        min(AeonTheme.Radius.large, max(AeonTheme.Radius.small, size * 0.075))
+    }
+
     var body: some View {
         ZStack {
             AeonTheme.ColorToken.chamber
@@ -244,10 +285,19 @@ struct AeonArtwork: View {
             }
         }
         .frame(width: size, height: size)
-        .clipped()
-        .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
-        .background(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline).offset(x: AeonTheme.Stroke.artworkOffset, y: AeonTheme.Stroke.artworkOffset))
-        .shadow(color: .black.opacity(0.52), radius: AeonTheme.Shadow.artworkRadius, y: AeonTheme.Shadow.artworkY)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        gradient: AeonTheme.ColorToken.edgeHighlight,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.55), radius: AeonTheme.Shadow.artworkRadius, y: AeonTheme.Shadow.artworkY)
     }
 }
 
@@ -257,11 +307,11 @@ struct AeonSheet<Content: View>: View {
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
         VStack(spacing: 0) {
-            Capsule().fill(AeonTheme.ColorToken.boneSecondary).frame(width: 34, height: 3).padding(.vertical, 12)
+            Capsule().fill(AeonTheme.ColorToken.silver).frame(width: 34, height: 3).padding(.vertical, 12)
             content
         }
         .frame(maxWidth: AeonTheme.Space.textContentMaximum)
-        .background { AeonGlass { Color.clear } }
+        .background { AeonGlass(radius: AeonTheme.Radius.sheet) { Color.clear } }
         .presentationDragIndicator(.hidden)
     }
 }
@@ -276,7 +326,13 @@ struct AeonEmptyState: View {
         VStack(spacing: AeonTheme.Space.large) {
             AeonRouteMark()
             AeonDisplayText(title, size: 30).multilineTextAlignment(.center)
-            if let detail { Text(detail).font(AeonTheme.FontToken.ui(.body)).foregroundStyle(AeonTheme.ColorToken.boneSecondary).multilineTextAlignment(.center) }
+            if let detail {
+                Text(detail)
+                    .font(AeonTheme.FontToken.ui(.callout))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 280)
+            }
             if let actionTitle, let action { Button(actionTitle, action: action).buttonStyle(AeonButtonStyle(tier: .filled)) }
         }
         .foregroundStyle(AeonTheme.ColorToken.bone)
@@ -329,11 +385,25 @@ struct AeonProgressBar: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                Rectangle().fill(AeonTheme.ColorToken.rule)
-                Rectangle().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * min(1, max(0, value)))
+                Capsule().fill(AeonTheme.ColorToken.rule)
+                Capsule().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * min(1, max(0, value)))
             }
         }
         .frame(height: 2)
         .accessibilityValue("\(Int(min(1, max(0, value)) * 100)) percent")
+    }
+}
+
+
+/// Rows are separated by a line that fades out rather than boxing them in.
+struct AeonDivider: View {
+    var body: some View {
+        LinearGradient(
+            colors: [.white.opacity(0.14), .white.opacity(0.05), .white.opacity(0)],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(height: 1)
+        .accessibilityHidden(true)
     }
 }

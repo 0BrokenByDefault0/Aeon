@@ -127,18 +127,30 @@ struct AeonChrome<PlayerBar: View>: View {
     private func compactChrome(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer()
-            if playerLoaded {
-                Color.black.opacity(artworkTint == nil ? 0.32 : 0.58).frame(height: 10)
-                playerBar.frame(minHeight: AeonTheme.Space.playerBar)
-            }
-            AeonGlass {
+            VStack(spacing: 0) {
+                if playerLoaded {
+                    playerBar.frame(minHeight: AeonTheme.Space.playerBar)
+                }
                 HStack(spacing: 0) {
                     ForEach(AeonDestination.allCases) { item in
                         navigationButton(item, compact: true)
                     }
                 }
+                .frame(minHeight: AeonTheme.Space.compactDock)
                 .padding(.bottom, bottomInset)
-                .frame(minHeight: AeonTheme.Space.compactDock + bottomInset)
+            }
+            .background(alignment: .bottom) {
+                // The only thing beneath the glyphs is a scrim, so the sky
+                // keeps running to the bottom edge of the screen.
+                LinearGradient(
+                    colors: [.black.opacity(0), .black.opacity(0.88), .black.opacity(0.94)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: AeonTheme.Space.compactDock
+                    + (playerLoaded ? AeonTheme.Space.playerBar : 0)
+                    + bottomInset + 70)
+                .allowsHitTesting(false)
             }
         }
     }
@@ -156,8 +168,7 @@ struct AeonChrome<PlayerBar: View>: View {
     private var sidebar: some View {
         AeonGlass {
             VStack(alignment: .leading, spacing: 0) {
-                AeonDisplayText("AEON", size: 28, maximumLines: 1)
-                    .tracking(2)
+                AeonDisplayText("Aeon", size: 28, maximumLines: 1)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .padding(.horizontal, AeonTheme.Space.edge)
                     .padding(.top, 72)
@@ -181,15 +192,14 @@ struct AeonChrome<PlayerBar: View>: View {
         } label: {
             Group {
                 if compact {
-                    if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 24, weight: .regular))
-                    } else {
-                        VStack(spacing: 4) {
-                            Image(systemName: item.symbol)
-                            Text(item.title).font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
-                        }
-                    }
+                    Image(systemName: item.symbol)
+                        .font(.system(
+                            size: dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText ? 24 : 18,
+                            weight: .regular
+                        ))
+                        .symbolRenderingMode(.monochrome)
+                        .scaleEffect(destination == item ? 1 : 0.94)
+                        .animation(AeonTheme.Motion.chrome, value: destination)
                 } else {
                     if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
                         Image(systemName: item.symbol)
@@ -204,13 +214,17 @@ struct AeonChrome<PlayerBar: View>: View {
                     }
                 }
             }
-            .foregroundStyle(destination == item ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.boneSecondary)
+            .foregroundStyle(destination == item
+                ? AeonTheme.ColorToken.bone
+                : Color.white.opacity(compact ? 0.20 : 0.62))
             .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
-            .background(destination == item ? AeonTheme.ColorToken.silver.opacity(0.18) : .clear)
-            .overlay(alignment: compact ? .top : .leading) {
-                Rectangle()
-                    .fill(destination == item ? AeonTheme.ColorToken.bone : .clear)
-                    .frame(width: compact ? nil : 2, height: compact ? 2 : nil)
+            .background(!compact && destination == item ? AeonTheme.ColorToken.silver.opacity(0.14) : .clear)
+            .overlay(alignment: .leading) {
+                if !compact {
+                    Capsule()
+                        .fill(destination == item ? AeonTheme.ColorToken.bone : .clear)
+                        .frame(width: 2)
+                }
             }
         }
         .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))

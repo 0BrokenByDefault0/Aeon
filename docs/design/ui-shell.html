@@ -1,6 +1,6 @@
 <title>Aeon Instrument Shell</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;500;700&family=Manrope:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,400..700&display=swap">
 <style>
   /* ------------------------------------------------------------------
      Aeon — UI shell, second pass.
@@ -25,8 +25,10 @@
     --pane: rgba(255, 255, 255, 0.022);
     --pane-deep: rgba(4, 5, 8, 0.58);
 
-    --display: "Sora", "SF Pro Display", system-ui, sans-serif;
-    --ui: "Manrope", "SF Pro Text", system-ui, sans-serif;
+    /* One face. Expanded for the names of things, normal for everything you
+       operate — the settings list and the title above it share a skeleton. */
+    --display: "Archivo", "SF Pro Display", system-ui, sans-serif;
+    --ui: "Archivo", "SF Pro Text", system-ui, sans-serif;
 
     --s1: 8px; --s2: 16px; --s3: 24px; --s4: 40px; --s5: 64px; --s6: 96px;
     --r-lg: 22px; --r-md: 16px; --r-sm: 11px;
@@ -44,6 +46,7 @@
     font-family: var(--ui);
     font-size: 15px;
     font-weight: 400;
+    font-variation-settings: "wdth" 100, "wght" 400;
     -webkit-font-smoothing: antialiased;
     display: flex;
     flex-direction: column;
@@ -85,7 +88,7 @@
     inset: 0;
     pointer-events: none;
     background: rgba(0, 0, 0, 0);
-    transition: background 420ms ease;
+    transition: background 460ms cubic-bezier(0.22, 0.61, 0.16, 1);
   }
 
   .device[data-panel] .veil { background: rgba(0, 0, 0, 0.55); }
@@ -94,20 +97,23 @@
 
   .title {
     font-family: var(--display);
-    font-weight: 700;
-    letter-spacing: -0.035em;
-    line-height: 1;
+    font-weight: 600;
+    font-stretch: 118%;
+    font-variation-settings: "wdth" 118, "wght" 600;
+    letter-spacing: -0.022em;
+    line-height: 1.02;
     margin: 0;
     color: var(--w100);
   }
 
-  .t54 { font-size: 46px; }
-  .t30 { font-size: 30px; }
-  .t20 { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
+  .t54 { font-size: 44px; }
+  .t30 { font-size: 28px; }
+  .t20 { font-size: 19px; letter-spacing: -0.015em; }
 
   .cap {
     font-size: 10px;
     font-weight: 600;
+    font-variation-settings: "wdth" 100, "wght" 600;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--w45);
@@ -147,8 +153,24 @@
 
   /* --- panels ------------------------------------------------------- */
 
-  .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
-  .screen.on { display: flex; }
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+    transition: opacity 260ms ease, transform 380ms cubic-bezier(0.22, 0.61, 0.16, 1);
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .screen.on {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+    visibility: visible;
+  }
 
   .panel {
     background: var(--pane-deep);
@@ -166,8 +188,8 @@
   .scroll::-webkit-scrollbar { display: none; }
 
   .head { padding: 0 26px; padding-top: calc(30px + env(safe-area-inset-top, 0px)); }
-  .head .title { margin-top: 18px; }
-  .head .sub { margin-top: 14px; }
+  .head .title { margin-top: 16px; }
+  .head .sub { margin-top: 12px; }
 
   /* --- sky chrome: as close to nothing as it gets -------------------- */
 
@@ -230,6 +252,7 @@
   }
 
   .starcard[data-show="true"] { opacity: 1; transform: none; pointer-events: auto; }
+  .starcard { transition: opacity 260ms ease, transform 420ms cubic-bezier(0.22, 0.61, 0.16, 1); }
   .starcard .lines { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 
   /* --- library ------------------------------------------------------ */
@@ -252,11 +275,16 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: var(--s4) var(--s3);
-    margin-top: var(--s4);
+    gap: 30px var(--s3);
+    margin-top: var(--s3);
   }
 
-  .album { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; display: block; }
+  /* Buttons centre their content when stretched; pin them so every row of
+     artwork shares one top edge. */
+  .album {
+    background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+    display: block; align-self: start;
+  }
 
   .art {
     position: relative;
@@ -295,7 +323,7 @@
     width: 100%;
     background: none;
     border: 0;
-    padding: 26px 0;
+    padding: 20px 0;
     text-align: left;
     cursor: pointer;
     display: flex;
@@ -305,20 +333,35 @@
 
   /* --- settings ------------------------------------------------------ */
 
-  .group { margin-top: var(--s5); }
-  .group > .cap { display: block; margin-bottom: var(--s2); }
+  .group { margin-top: var(--s4); }
+  .group > .cap { display: block; margin-bottom: var(--s1); }
 
   .opt {
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
     gap: var(--s3);
-    padding: 22px 0;
+    padding: 16px 0;
   }
 
-  .opt h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.005em; }
-  .opt .body { margin-top: 7px; font-size: 13px; }
-  .opt .wide { grid-column: 1 / -1; }
+  .opt h3 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.008em; }
+  .opt .body { margin-top: 5px; font-size: 12.5px; line-height: 1.45; }
+  .opt--stack { display: block; }
+
+  /* One row of chips that scrolls, never a wrapped block that pushes the
+     whole list down the screen. */
+  .chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-top: 14px;
+    padding-bottom: 2px;
+  }
+
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex: none; }
 
   .switch {
     width: 46px; height: 27px; padding: 0; cursor: pointer; position: relative;
@@ -332,9 +375,8 @@
   .switch[aria-pressed="true"] { background: var(--w100); border-color: var(--w100); }
   .switch[aria-pressed="true"] .knob { transform: translateX(19px); background: #000; }
 
-  .chips { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
   .chip {
-    border-radius: 999px; padding: 10px 16px; cursor: pointer;
+    border-radius: 999px; padding: 9px 14px; cursor: pointer;
     font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
     color: var(--w45); border: 1px solid var(--w08); background: none;
     transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
@@ -601,10 +643,9 @@
     <div class="scroll">
       <div class="group">
         <span class="cap">Playback</span>
-        <div class="opt">
+        <div class="opt opt--stack">
           <div><h3>Sleep timer</h3><p class="body">Fades out, then stops.</p></div>
-          <span></span>
-          <div class="wide chips" data-chips>
+          <div class="chips" data-chips>
             <button class="chip" type="button" aria-pressed="true">Off</button>
             <button class="chip" type="button" aria-pressed="false">15 min</button>
             <button class="chip" type="button" aria-pressed="false">30 min</button>
@@ -643,20 +684,18 @@
           <button class="switch" type="button" aria-pressed="true" aria-label="Readout"><span class="knob"></span></button>
         </div>
         <hr class="divider">
-        <div class="opt">
+        <div class="opt opt--stack">
           <div><h3>Depth</h3><p class="body">How far the field falls away behind the stars.</p></div>
-          <span></span>
-          <div class="wide chips" data-chips>
+          <div class="chips" data-chips>
             <button class="chip" type="button" aria-pressed="false">Flat</button>
             <button class="chip" type="button" aria-pressed="true">Deep</button>
             <button class="chip" type="button" aria-pressed="false">Infinite</button>
           </div>
         </div>
         <hr class="divider">
-        <div class="opt">
+        <div class="opt opt--stack">
           <div><h3>Motion</h3><p class="body">Drift, flight, and planet formation.</p></div>
-          <span></span>
-          <div class="wide chips" data-chips>
+          <div class="chips" data-chips>
             <button class="chip" type="button" aria-pressed="true">Full</button>
             <button class="chip" type="button" aria-pressed="false">Reduced</button>
             <button class="chip" type="button" aria-pressed="false">Still</button>
@@ -853,12 +892,12 @@
     "    vec3 c = floor(p);",
     "    vec3 f = p - c;",
     "    float h = hash13(c + fi * 19.3);",
-    "    if(h > 0.745){",
+    "    if(h > 0.868){",
     "      vec3 o = vec3(hash13(c + 3.1), hash13(c + 7.7), hash13(c + 11.5));",
     "      float d = length(f - o);",
-    "      float b = smoothstep(0.17, 0.0, d) * (h - 0.745) / 0.255;",
+    "      float b = smoothstep(0.15, 0.0, d) * (h - 0.868) / 0.132;",
     "      float tw = 0.7 + 0.3 * sin(uTime * 1.1 + h * 60.0);",
-    "      acc += b * tw * (0.86 - fi * 0.19);",
+    "      acc += b * tw * (0.80 - fi * 0.20);",
     "    }",
     "  }",
     "  return acc;",
@@ -868,16 +907,17 @@
     "  vec3 q = rd * 1.9 + vec3(uDrift * 0.03, 0.0, 0.0);",
     "  float n = fbm(q);",
     "  float m = fbm(rd * 0.9 + 11.0);",
-    "  float mask = smoothstep(0.44, 1.05, n * 0.78 + m * 0.58);",
+    "  float mask = smoothstep(0.50, 1.08, n * 0.78 + m * 0.58);",
     "  vec3 violet = vec3(0.26, 0.18, 0.52);",
     "  vec3 teal = vec3(0.05, 0.22, 0.32);",
     "  vec3 col = mix(teal, violet, smoothstep(0.25, 0.80, m));",
     "  float lane = smoothstep(0.55, 0.05, abs(rd.y + 0.12));",
-    "  return col * mask * (0.34 + 0.26 * lane);",
+    "  return col * mask * (0.24 + 0.20 * lane);",
     "}",
 
     /* a planet: banded body, soft terminator, rim light, a ring with shadow */
-    "vec4 planet(vec3 rd, vec3 pc, float pr, float seed, vec3 tilt, out float tHit){",
+    "vec4 planet(vec3 rd, vec3 pc, float pr, float seed, vec3 tilt, vec3 deep, vec3 warm,",
+    "            float bandFreq, float ringOn, out float tHit){",
     "  tHit = -1.0;",
     "  vec3 col = vec3(0.0);",
     "  float a = 0.0;",
@@ -891,10 +931,8 @@
     "      tHit = t;",
     "      vec3 pos = rd * t;",
     "      vec3 n = normalize(pos - pc);",
-    "      float band = fbm(vec3(n.x * 1.6, n.y * 7.0 + seed, n.z * 1.6) + seed);",
+    "      float band = fbm(vec3(n.x * 1.6, n.y * bandFreq + seed, n.z * 1.6) + seed);",
     "      float swirl = fbm(n * 3.4 + seed * 2.0);",
-    "      vec3 deep = vec3(0.13, 0.15, 0.26);",
-    "      vec3 warm = vec3(0.74, 0.66, 0.82);",
     "      vec3 base = mix(deep, warm, smoothstep(0.32, 0.78, band * 0.7 + swirl * 0.4));",
     "      float lam = max(dot(n, L), 0.0);",
     "      float term = smoothstep(0.0, 0.35, lam);",
@@ -905,7 +943,7 @@
     "  }",
     "  vec3 pn = normalize(tilt);",
     "  float dn = dot(rd, pn);",
-    "  if(abs(dn) > 0.0005){",
+    "  if(ringOn > 0.5 && abs(dn) > 0.0005){",
     "    float tr = dot(pc, pn) / dn;",
     "    if(tr > 0.0 && (tHit < 0.0 || tr < tHit)){",
     "      vec3 q = rd * tr - pc;",
@@ -952,18 +990,26 @@
     "  float aspect = uRes.x / uRes.y;",
     "  vec3 rd = normalize(uCam * vec3(ndc.x * aspect * uTanHalf, ndc.y * uTanHalf, -1.0));",
 
-    "  vec3 col = vec3(0.004, 0.005, 0.009);",
+    "  vec3 col = vec3(0.0009, 0.0011, 0.0018);",
     "  col += nebula(rd);",
-    "  col += vec3(0.88, 0.93, 1.0) * dust(rd) * 0.80;",
+    "  col += vec3(0.88, 0.93, 1.0) * dust(rd) * 0.34;",
 
+    /* three bodies, no two alike: a banded giant with rings, a cold ice world,
+       and a small scorched rock further out */
     "  float tA;",
-    "  vec4 pa = planet(rd, vec3(-1.75, 1.05, -6.4), 1.18, 3.7, vec3(0.32, 1.0, 0.16), tA);",
+    "  vec4 pa = planet(rd, vec3(-1.75, 1.05, -6.4), 1.18, 3.7, vec3(0.32, 1.0, 0.16),",
+    "                   vec3(0.13, 0.15, 0.26), vec3(0.76, 0.67, 0.84), 7.0, 1.0, tA);",
     "  float tB;",
-    "  vec4 pb = planet(rd, vec3(5.4, -1.6, -11.0), 0.70, 9.1, vec3(-0.20, 1.0, 0.35), tB);",
+    "  vec4 pb = planet(rd, vec3(5.4, -1.6, -11.0), 0.74, 9.1, vec3(-0.20, 1.0, 0.35),",
+    "                   vec3(0.16, 0.24, 0.34), vec3(0.82, 0.90, 1.00), 3.1, 0.0, tB);",
+    "  float tC;",
+    "  vec4 pc3 = planet(rd, vec3(-5.2, -2.6, -9.6), 0.46, 21.3, vec3(0.1, 1.0, -0.2),",
+    "                    vec3(0.17, 0.10, 0.08), vec3(0.80, 0.50, 0.34), 1.6, 0.0, tC);",
 
     "  float occluded = 0.0;",
     "  if(pa.a > 0.85) occluded = 1.0;",
     "  if(pb.a > 0.85) occluded = 1.0;",
+    "  if(pc3.a > 0.85) occluded = 1.0;",
 
     "  if(occluded < 0.5){",
     "    for(int i = 0; i < 12; i++){",
@@ -982,12 +1028,13 @@
     "    }",
     "  }",
 
+    "  col = mix(col, pc3.rgb, pc3.a);",
     "  col = mix(col, pb.rgb, pb.a);",
     "  col = mix(col, pa.rgb, pa.a);",
 
     "  col = col / (col + vec3(0.88)) * 1.38;",
     "  float vig = smoothstep(1.35, 0.25, length(ndc * vec2(0.92, 1.0)));",
-    "  col *= 0.60 + 0.40 * vig;",
+    "  col *= 0.52 + 0.48 * vig;",
     "  float grain = (hash13(vec3(fc, floor(uTime * 24.0))) - 0.5) * 0.016;",
     "  gl_FragColor = vec4(col + grain, 1.0);",
     "}"
@@ -1082,9 +1129,47 @@
   var t0 = performance.now();
   var playing = true;
 
+  /* One curve for every camera move, scaled by how far it has to travel —
+     flight, not a transition. */
+  var flight = null;
+
+  function shortestTurn(from, to) {
+    var d = (to - from) % (Math.PI * 2);
+    if (d > Math.PI) d -= Math.PI * 2;
+    if (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+
+  function flyTo(dir, fov) {
+    var pitch = Math.asin(Math.max(-1, Math.min(1, dir[1])));
+    var yaw = Math.atan2(-dir[0], -dir[2]);
+    var travel = Math.abs(shortestTurn(cam.yaw, yaw)) + Math.abs(pitch - cam.pitch);
+    if (still) { cam.yaw = yaw; cam.pitch = pitch; cam.fov = fov; return; }
+    cam.vy = 0;
+    cam.vp = 0;
+    flight = {
+      yaw0: cam.yaw, pitch0: cam.pitch, fov0: cam.fov,
+      dyaw: shortestTurn(cam.yaw, yaw), pitch1: pitch, fov1: fov,
+      start: performance.now(),
+      duration: 520 + Math.min(620, travel * 420)
+    };
+  }
+
+  function advanceFlight(now) {
+    if (!flight) return false;
+    var k = Math.min(1, (now - flight.start) / flight.duration);
+    var e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    cam.yaw = flight.yaw0 + flight.dyaw * e;
+    cam.pitch = flight.pitch0 + (flight.pitch1 - flight.pitch0) * e;
+    cam.fov = flight.fov0 + (flight.fov1 - flight.fov0) * e;
+    if (k >= 1) flight = null;
+    return true;
+  }
+
   function frame(now) {
     var t = (now - t0) / 1000;
-    if (!still) {
+    var flying = advanceFlight(now);
+    if (!still && !flying) {
       cam.yaw += cam.vy;
       cam.pitch += cam.vp;
       cam.vy *= 0.93;
@@ -1129,6 +1214,7 @@
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* fine */ }
     drag = { x: e.clientX, y: e.clientY, id: e.pointerId };
     moved = 0;
+    flight = null;
     cam.vy = 0;
     cam.vp = 0;
   });
@@ -1146,9 +1232,20 @@
     cam.vp = -dy * k * 0.5;
   });
 
+  var lastTap = 0;
+
   canvas.addEventListener("pointerup", function (e) {
     if (!drag || e.pointerId !== drag.id) return;
-    if (moved < 10) pick(e.clientX, e.clientY);
+    if (moved < 10) {
+      var now = performance.now();
+      var hit = pick(e.clientX, e.clientY);
+      if (!hit && now - lastTap < 320) {
+        /* double-tap on empty void pulls the camera back a tier */
+        flight = null;
+        cam.fov = Math.min(1.25, cam.fov * 1.55);
+      }
+      lastTap = now;
+    }
     drag = null;
   });
 
@@ -1156,6 +1253,7 @@
 
   canvas.addEventListener("wheel", function (e) {
     e.preventDefault();
+    flight = null;
     cam.fov = Math.max(0.30, Math.min(1.25, cam.fov * Math.exp(e.deltaY * 0.0012)));
   }, { passive: false });
 
@@ -1197,8 +1295,11 @@
     if (best) {
       document.getElementById("starcard-name").textContent = best.name;
       document.getElementById("starcard-cap").textContent = best.meta;
+      /* centre what was tapped and close in a little — the sky answers a tap */
+      flyTo(best.dir, Math.max(0.42, Math.min(cam.fov, 0.66)));
     }
     card.dataset.show = best ? "true" : "false";
+    return best;
   }
 
   card.addEventListener("click", function () {

@@ -34,11 +34,14 @@ struct PlayerPresentation {
     }
 }
 
+/// The player line. Not a bar — there is no surface behind it, only the
+/// scrim the chrome lays over the sky, so the field runs to the bottom edge.
 struct PlayerBar: View {
     @ObservedObject var playback: PlaybackController
     let catalog: CatalogRepository
     let artworkStore: ArtworkStore
     let open: () -> Void
+    @Environment(\.aeonArtworkTint) private var artworkTint
 
     var body: some View {
         if let presentation = PlayerPresentation.resolve(
@@ -46,19 +49,20 @@ struct PlayerBar: View {
             catalog: catalog,
             artworkStore: artworkStore
         ), let snapshot = playback.snapshot {
-            AeonGlass {
+            VStack(spacing: 0) {
+                seekLine(snapshot: snapshot, duration: presentation.duration)
                 HStack(spacing: AeonTheme.Space.small) {
                     Button(action: open) {
                         HStack(spacing: AeonTheme.Space.medium) {
-                            AeonArtwork(image: presentation.artwork, size: 48)
+                            AeonArtwork(image: presentation.artwork, size: 36)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(presentation.track.title)
-                                    .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
+                                    .font(AeonTheme.FontToken.ui(.subheadline, weight: .semibold))
                                     .foregroundStyle(AeonTheme.ColorToken.bone)
                                     .lineLimit(2)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Text(presentation.artist)
-                                    .font(AeonTheme.FontToken.ui(.caption))
+                                    .font(AeonTheme.FontToken.ui(.footnote))
                                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                                     .lineLimit(1)
                             }
@@ -83,22 +87,26 @@ struct PlayerBar: View {
                         action: playback.next
                     )
                 }
-                .padding(.horizontal, AeonTheme.Space.medium)
                 .frame(minHeight: AeonTheme.Space.playerBar)
-                .overlay(alignment: .bottomLeading) {
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(AeonTheme.ColorToken.bone)
-                            .frame(
-                                width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
-                                height: 2
-                            )
-                    }
-                    .frame(height: 2)
-                    .accessibilityHidden(true)
-                }
+            }
+            .padding(.horizontal, AeonTheme.Space.edge)
+        }
+    }
+
+    /// One hairline across the whole width, filled to the playhead in the
+    /// artwork's own colour. It is the only accent the chrome carries.
+    private func seekLine(snapshot: PlaybackSnapshot, duration: TimeInterval) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Color.white.opacity(0.08))
+                Rectangle()
+                    .fill(artworkTint ?? AeonTheme.ColorToken.restingTint)
+                    .frame(width: geometry.size.width * progress(snapshot: snapshot, duration: duration))
             }
         }
+        .frame(height: 1)
+        .padding(.bottom, AeonTheme.Space.medium)
+        .accessibilityHidden(true)
     }
 
     private func transportButton(
@@ -109,7 +117,7 @@ struct PlayerBar: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
         }
         .buttonStyle(.plain)
