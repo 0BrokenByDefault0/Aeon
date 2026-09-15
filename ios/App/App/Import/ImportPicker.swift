@@ -57,7 +57,7 @@ struct ImportDocumentPicker: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let controller = UIDocumentPickerViewController(
             forOpeningContentTypes: kind.contentTypes,
-            asCopy: false
+            asCopy: kind != .catalogArchive
         )
         controller.allowsMultipleSelection = kind.allowsMultipleSelection
         controller.shouldShowFileExtensions = true
@@ -254,6 +254,6 @@ enum AeonRecoveryBuildIdentity {
     static var label: String {
         let info = Bundle.main.infoDictionary ?? [:]
         let commit = info["AeonBuildCommit"] as? String ?? "local"
-        return "Recovery 1 · \(commit.prefix(8))"
+        return "Recovery 2 · \(commit.prefix(8))"
     }
 }

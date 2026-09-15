@@ -6,7 +6,6 @@ struct AeonRootView: View {
     /// One picker at a time. Several `fileImporter` modifiers stacked on a single view
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
-    @State private var pendingImport: PendingImportSelection?
 
     var body: some View {
         ZStack {
@@ -27,9 +26,11 @@ struct AeonRootView: View {
                 .allowsHitTesting(false)
         }
         .preferredColorScheme(.dark)
-        .sheet(item: $picker, onDismiss: finishPickerDismissal) { kind in
+        .sheet(item: $picker) { kind in
             ImportDocumentPicker(kind: kind) { outcome in
-                pendingImport = PendingImportSelection(kind: kind, outcome: outcome)
+                // File/folder picks are app-owned copies in RC2. Start the import in
+                // the delegate callback instead of waiting for sheet onDismiss.
+                handle(outcome, kind: kind)
                 picker = nil
             }
             .ignoresSafeArea()
@@ -44,14 +45,6 @@ struct AeonRootView: View {
             Button("OK", role: .cancel) { container.dismissLibraryImportError() }
         } message: {
             Text(container.libraryImportError ?? "")
-        }
-    }
-
-    private func finishPickerDismissal() {
-        guard let selection = pendingImport else { return }
-        pendingImport = nil
-        withExtendedLifetime(selection) {
-            handle(selection.outcome, kind: selection.kind)
         }
     }
 
