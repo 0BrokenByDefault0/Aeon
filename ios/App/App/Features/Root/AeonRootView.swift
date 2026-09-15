@@ -28,8 +28,10 @@ struct AeonRootView: View {
         .preferredColorScheme(.dark)
         .sheet(item: $picker) { kind in
             ImportDocumentPicker(kind: kind) { outcome in
-                picker = nil
+                // File/folder picks are app-owned copies in RC2. Start the import in
+                // the delegate callback instead of waiting for sheet onDismiss.
                 handle(outcome, kind: kind)
+                picker = nil
             }
             .ignoresSafeArea()
         }
@@ -233,7 +235,7 @@ struct AeonRootView: View {
 }
 
 private struct AeonReadyShell: View {
-    let container: AppContainer
+    @ObservedObject var container: AppContainer
     let services: AppServices
     let roots: AppStorageRoots
     let importProgress: LibraryImportProgress?
@@ -299,52 +301,12 @@ private struct AeonReadyShell: View {
     }
 
     var body: some View {
-        AeonArtworkTintHost(
-            playback: playback,
-            catalog: services.catalogRepository,
-            artworkStore: services.artworkStore
-        ) {
-            AeonScreen(playerVisible: playback.snapshot?.trackID != nil) { readableInsets in
-                GeometryReader { geometry in
-                    ZStack(alignment: .topTrailing) {
-                        SkyScreen(
-                            controller: services.skySceneController,
-                            importProgress: importProgress,
-                            importError: importError,
-                            readableInsets: readableInsets,
-                            showHUD: settingsController.preferences.hud,
-                            highContrast: settingsController.preferences.highSkyContrast,
-                            reduceMotionOverride: settingsController.preferences.reduceMotion,
-                            importFiles: importFiles,
-                            importFolder: importFolder
-                        )
-                        if destination != .sky {
-                            destinationPanel(destination, geometry: geometry, insets: readableInsets)
-                                .zIndex(AeonTheme.Layer.content)
-                                .transition(.opacity)
-                        }
-                        if nowPlayingVisible {
-                            nowPlayingPanel(geometry: geometry, insets: readableInsets)
-                                .zIndex(AeonTheme.Layer.sheet)
-                                .transition(.opacity)
-                        }
-                        AeonChrome(
-                            destination: $destination,
-                            portraitSidebarVisible: $portraitSidebarVisible,
-                            playerLoaded: playback.snapshot?.trackID != nil
-                        ) {
-                            PlayerBar(
-                                playback: playback,
-                                catalog: services.catalogRepository,
-                                artworkStore: services.artworkStore,
-                                open: {
-                                    nowPlayingSection = nil
-                                    nowPlayingVisible = true
-                                }
-                            )
-                        }
-                    }
-                }
+        AeonArtworkTintHost(playback: playback, catalog: services.catalogRepository,
+                            artworkStore: services.artworkStore) {
+            if horizontalSizeClass == .compact {
+                compactShell
+            } else {
+                regularShell
             }
         }
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
@@ -355,6 +317,146 @@ private struct AeonReadyShell: View {
         }
         .onChange(of: settingsController.preferences.reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion(reduceMotion || $0 || AeonTestOverrides.reduceMotion)
+        }
+        .onChange(of: container.libraryImportResult) { result in
+            guard result != nil else { return }
+            libraryController.reload(reset: true)
+            destination = .library
+            nowPlayingVisible = false
+        }
+    }
+
+    private var compactShell: some View {
+        ZStack {
+            SkyScreen(
+                controller: services.skySceneController,
+                importProgress: importProgress,
+                importError: importError,
+                readableInsets: AeonReadableInsets(),
+                showHUD: settingsController.preferences.hud,
+                highContrast: settingsController.preferences.highSkyContrast,
+                reduceMotionOverride: settingsController.preferences.reduceMotion,
+                importFiles: importFiles,
+                importFolder: importFolder
+            )
+            .allowsHitTesting(destination == .sky && !nowPlayingVisible)
+            .accessibilityHidden(destination != .sky || nowPlayingVisible)
+
+            if destination != .sky {
+                compactDestination
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(AeonTheme.ColorToken.void)
+                    .allowsHitTesting(!nowPlayingVisible)
+                    .accessibilityHidden(nowPlayingVisible)
+            }
+            if nowPlayingVisible {
+                NowPlayingView(
+                    playback: playback,
+                    spectrum: services.spectrumAnalyzer,
+                    catalog: services.catalogRepository,
+                    artworkStore: services.artworkStore,
+                    initialSection: nowPlayingSection,
+                    reduceMotionOverride: settingsController.preferences.reduceMotion,
+                    close: { nowPlayingVisible = false },
+                    locate: { albumID, reduced in
+                        services.skySceneController.locate(id: albumID, reduceMotion: reduced)
+                        destination = .sky
+                        nowPlayingVisible = false
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(AeonTheme.ColorToken.void)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !nowPlayingVisible {
+                VStack(spacing: 0) {
+                    if playback.snapshot?.trackID != nil {
+                        PlayerBar(playback: playback, catalog: services.catalogRepository,
+                                  artworkStore: services.artworkStore, open: {
+                            nowPlayingSection = nil
+                            nowPlayingVisible = true
+                        })
+                        .frame(minHeight: AeonTheme.Space.playerBar)
+                    }
+                    AeonCompactNavigation(destination: $destination)
+                }
+                .background(AeonTheme.ColorToken.chamber.ignoresSafeArea(edges: .bottom))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactDestination: some View {
+        switch destination {
+        case .library:
+            LibraryScreen(
+                controller: libraryController,
+                importProgress: importProgress,
+                importError: importError,
+                importFiles: importFiles,
+                importFolder: importFolder,
+                findInSky: { id, reduced in
+                    libraryController.findInSky(id: id, reduceMotion: reduced)
+                    destination = .sky
+                },
+                importResult: container.libraryImportResult,
+                cancelImport: container.cancelLibraryImport
+            )
+        case .playlists:
+            PlaylistsScreen(controller: playlistsController)
+        case .settings:
+            SettingsScreen(controller: settingsController) { section in
+                nowPlayingSection = section
+                nowPlayingVisible = true
+            }
+        case .sky:
+            EmptyView()
+        }
+    }
+
+    private var regularShell: some View {
+        AeonScreen(playerVisible: playback.snapshot?.trackID != nil) { readableInsets in
+            GeometryReader { geometry in
+                ZStack(alignment: .topTrailing) {
+                    SkyScreen(
+                        controller: services.skySceneController,
+                        importProgress: importProgress,
+                        importError: importError,
+                        readableInsets: readableInsets,
+                        showHUD: settingsController.preferences.hud,
+                        highContrast: settingsController.preferences.highSkyContrast,
+                        reduceMotionOverride: settingsController.preferences.reduceMotion,
+                        importFiles: importFiles,
+                        importFolder: importFolder
+                    )
+                    if destination != .sky {
+                        destinationPanel(destination, geometry: geometry, insets: readableInsets)
+                            .zIndex(AeonTheme.Layer.content)
+                            .transition(.opacity)
+                    }
+                    if nowPlayingVisible {
+                        nowPlayingPanel(geometry: geometry, insets: readableInsets)
+                            .zIndex(AeonTheme.Layer.sheet)
+                            .transition(.opacity)
+                    }
+                    AeonChrome(
+                        destination: $destination,
+                        portraitSidebarVisible: $portraitSidebarVisible,
+                        playerLoaded: playback.snapshot?.trackID != nil
+                    ) {
+                        PlayerBar(
+                            playback: playback,
+                            catalog: services.catalogRepository,
+                            artworkStore: services.artworkStore,
+                            open: {
+                                nowPlayingSection = nil
+                                nowPlayingVisible = true
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 

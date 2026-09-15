@@ -267,3 +267,38 @@ extension AeonChrome where PlayerBar == EmptyView {
         ) { EmptyView() }
     }
 }
+
+
+/// The system owns the home-indicator inset; only this 52-point row consumes content.
+struct AeonCompactNavigation: View {
+    @Binding var destination: AeonDestination
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(AeonDestination.allCases) { item in
+                Button { destination = item } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: item == .playlists ? "music.note.list" : item.symbol)
+                            .font(.system(size: 19, weight: destination == item ? .semibold : .regular))
+                            .frame(height: 22)
+                        if !dynamicTypeSize.isAccessibilitySize && !AeonTestOverrides.accessibilityText {
+                            Text(item.rawValue.capitalized)
+                                .font(AeonTheme.FontToken.ui(.caption2, weight: destination == item ? .semibold : .regular))
+                        }
+                    }
+                    .foregroundStyle(destination == item ? AeonTheme.ColorToken.textPrimary : AeonTheme.ColorToken.boneTertiary)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.rawValue.capitalized)
+                .accessibilityAddTraits(destination == item ? .isSelected : [])
+                .accessibilityIdentifier("aeon.navigation.\(item.rawValue)")
+            }
+        }
+        .frame(height: 52)
+        .overlay(alignment: .top) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: 0.5) }
+        .accessibilityIdentifier("aeon.navigation.compact")
+    }
+}

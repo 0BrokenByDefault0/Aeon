@@ -491,7 +491,9 @@ final class AppContainer: ObservableObject {
         )
         libraryImportResult = nil
         libraryImportError = nil
-        libraryImportTask = Task { [weak self] in
+        let accessLease = ImportAccessLease(urls: urls)
+        libraryImportTask = Task { [weak self, accessLease] in
+            defer { withExtendedLifetime(accessLease) {} }
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
                     try await importer.importURLs(urls, mode: effectiveMode, cancellation: cancellation) { progress in

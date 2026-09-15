@@ -11,7 +11,7 @@ struct SkyScreen: View {
     let importFiles: () -> Void
     let importFolder: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var importSheetPresented = false
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var constellationBreathing = false
 
     var body: some View {
@@ -34,7 +34,7 @@ struct SkyScreen: View {
                     reduceMotionOverride: reduceMotionOverride
                 )
                 .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-                .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
+                .padding(.top, horizontalSizeClass == .compact ? AeonTheme.Space.small : max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
                 .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
 
                 if controller.catalogue.stars.isEmpty {
@@ -67,51 +67,38 @@ struct SkyScreen: View {
             }
             .background(AeonTheme.ColorToken.void)
         }
-        .sheet(isPresented: $importSheetPresented) {
-            AeonImportSheet(selectFiles: importFiles, selectFolder: importFolder)
-        }
         .onAppear { updateConstellationBreathing() }
         .onChange(of: reduceMotion) { _ in updateConstellationBreathing() }
         .onChange(of: reduceMotionOverride) { _ in updateConstellationBreathing() }
     }
 
     private var emptyState: some View {
-        VStack(spacing: AeonTheme.Space.large) {
-            AeonRouteMark(width: 154, height: 96)
-                .scaleEffect(effectiveReduceMotion ? 1 : (constellationBreathing ? 1.035 : 0.99))
-                .opacity(effectiveReduceMotion ? 0.88 : (constellationBreathing ? 0.96 : 0.72))
-
-            VStack(spacing: AeonTheme.Space.small) {
-                AeonDisplayText("A place for your records.", size: 38, maximumLines: 2)
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Your music, mapped.")
+                    .font(AeonTheme.FontToken.ui(.title, weight: .semibold))
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text("Bring albums in and Aeon will chart them without changing the files you chose.")
-                    .font(AeonTheme.FontToken.ui(.body))
+                Text("Add an album to start your sky.")
+                    .font(AeonTheme.FontToken.ui(.callout))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 360)
             }
-
-            Button("IMPORT MUSIC") { importSheetPresented = true }
-                .buttonStyle(AeonButtonStyle(tier: .filled))
-                .frame(maxWidth: 260)
-                .accessibilityIdentifier("aeon.library.import")
-
+            AeonImportActions(selectFiles: importFiles, selectFolder: importFolder,
+                              disabled: importProgress != nil)
+            if let progress = importProgress {
+                ProgressView().tint(AeonTheme.ColorToken.textPrimary)
+                Text(progress.totalFiles == 0 ? "Scanning your selection…" : "Reading \(progress.completedFiles) of \(progress.totalFiles) files")
+                    .font(AeonTheme.FontToken.ui(.caption))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            }
             if let importError, !importError.isEmpty {
-                HStack(alignment: .top, spacing: AeonTheme.Space.small) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .accessibilityHidden(true)
-                    Text(importError)
-                        .font(AeonTheme.FontToken.ui(.caption))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-                .accessibilityIdentifier("aeon.sky.import.error")
+                Text(importError)
+                    .font(AeonTheme.FontToken.ui(.callout))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("aeon.sky.import.error")
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: 420, alignment: .leading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("aeon.sky.empty")
     }

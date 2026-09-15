@@ -7,9 +7,10 @@ struct LibraryScreen: View {
     let importFiles: () -> Void
     let importFolder: () -> Void
     let findInSky: (String, Bool) -> Void
+    var importResult: LibraryImportResult? = nil
+    var cancelImport: () -> Void = {}
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var importSheetPresented = false
 
     var body: some View {
         Group {
@@ -44,9 +45,6 @@ struct LibraryScreen: View {
                 )
             }
         }
-        .sheet(isPresented: $importSheetPresented) {
-            AeonImportSheet(selectFiles: importFiles, selectFolder: importFolder)
-        }
         .overlay(alignment: .top) {
             if let message = controller.message {
                 AeonToast(message: message)
@@ -70,7 +68,7 @@ struct LibraryScreen: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                     header
-                    if let importProgress { importStatus(importProgress) }
+                    AeonImportStatus(progress: importProgress, result: importResult, cancel: cancelImport)
                     if let importError, !importError.isEmpty {
                         inlineStatus(importError, symbol: "exclamationmark.triangle")
                     }
@@ -91,24 +89,20 @@ struct LibraryScreen: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
-            AeonBreadcrumb(text: "Collection")
-            HStack(alignment: .bottom, spacing: AeonTheme.Space.regular) {
-                VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                    AeonDisplayText("Library", size: 42, maximumLines: 1)
-                        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-                    Text("\(controller.totalCount) ALBUM\(controller.totalCount == 1 ? "" : "S")")
-                        .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
-                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                        .accessibilityIdentifier("aeon.library.count")
-                }
-                Spacer(minLength: 0)
-                if hasLibraryContent {
-                    Button("IMPORT") { importSheetPresented = true }
-                        .buttonStyle(AeonButtonStyle(tier: .hairline))
-                        .frame(maxWidth: 132)
-                        .accessibilityIdentifier("aeon.library.import")
-                }
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Library")
+                    .font(AeonTheme.FontToken.ui(.title, weight: .semibold))
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                Spacer()
+                Text("\(controller.totalCount) \(controller.totalCount == 1 ? "album" : "albums")")
+                    .font(AeonTheme.FontToken.ui(.subheadline))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .accessibilityIdentifier("aeon.library.count")
+            }
+            if hasLibraryContent {
+                AeonImportActions(selectFiles: importFiles, selectFolder: importFolder,
+                                  disabled: importProgress != nil)
             }
         }
     }
@@ -209,24 +203,25 @@ struct LibraryScreen: View {
     }
 
     private var emptyLibrary: some View {
-        VStack(spacing: AeonTheme.Space.large) {
-            AeonRouteMark(width: 108, height: 70)
-            VStack(spacing: AeonTheme.Space.small) {
-                AeonDisplayText("Your sky is quiet", size: 36, maximumLines: 2)
+        VStack(alignment: .leading, spacing: 20) {
+            Image(systemName: "square.stack")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Add your first album")
+                    .font(AeonTheme.FontToken.ui(.title3, weight: .semibold))
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-                    .multilineTextAlignment(.center)
-                Text("Import music to begin charting the collection.")
-                    .font(AeonTheme.FontToken.ui(.body))
+                Text("Choose audio files or a folder. Your originals stay where they are.")
+                    .font(AeonTheme.FontToken.ui(.callout))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Button("IMPORT MUSIC") { importSheetPresented = true }
-                .buttonStyle(AeonButtonStyle(tier: .filled))
-                .frame(maxWidth: 260)
-                .accessibilityIdentifier("aeon.library.import")
+            AeonImportActions(selectFiles: importFiles, selectFolder: importFolder,
+                              disabled: importProgress != nil)
         }
-        .frame(maxWidth: .infinity, minHeight: 300)
-        .padding(.vertical, AeonTheme.Space.hero)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 24)
         .accessibilityIdentifier("aeon.library.empty")
     }
 
