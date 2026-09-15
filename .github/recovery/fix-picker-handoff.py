@@ -3,7 +3,10 @@ from pathlib import Path
 import subprocess
 
 PIN = '5a2a90eb78ad5e42757270ee4a9f86d56c1864fb'
-assert subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip() == PIN
+for path in ['ios/App/App/Import/ImportPicker.swift', 'ios/App/App/Features/Root/AeonRootView.swift']:
+    expected = subprocess.check_output(['git','rev-parse',f'{PIN}:{path}'], text=True).strip()
+    actual = subprocess.check_output(['git','hash-object',path], text=True).strip()
+    assert actual == expected, f'RC1 source changed unexpectedly: {path}'
 
 picker = Path('ios/App/App/Import/ImportPicker.swift')
 p = picker.read_text()
@@ -44,11 +47,9 @@ assert r.count(start) == 1
 r = r.replace(start, '')
 root.write_text(r)
 
-# RC2 must be visibly distinguishable from RC1.
-settings = Path('ios/App/App/Import/ImportPicker.swift')
-s = settings.read_text()
+s = picker.read_text()
 assert s.count('return "Recovery 1 · \\(commit.prefix(8))"') == 1
-settings.write_text(s.replace('return "Recovery 1 · \\(commit.prefix(8))"', 'return "Recovery 2 · \\(commit.prefix(8))"'))
+picker.write_text(s.replace('return "Recovery 1 · \\(commit.prefix(8))"', 'return "Recovery 2 · \\(commit.prefix(8))"'))
 
 subprocess.run(['git','diff','--check'], check=True)
 for path in [picker, root]:
