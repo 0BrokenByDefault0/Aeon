@@ -10,6 +10,18 @@ name: Unsigned IPA (device build)
 # It supplements the release gate and never replaces it: an IPA from here has
 # not been through the UI matrix.
 on:
+  # Dispatch only registers from the repository's default branch, so this also
+  # runs on pushes to main, where the device build is wanted.
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'ios/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - 'capacitor.config.json'
+      - '.github/workflows/ios-ipa-fast.yml'
   workflow_dispatch:
 
 permissions:
