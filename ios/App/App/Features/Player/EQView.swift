@@ -20,37 +20,72 @@ struct EQView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    AeonLabel(text: "Equalizer")
-                    Text("Ten bands, ±12 dB")
-                        .font(AeonTheme.FontToken.ui(.caption))
-                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                }
-                Spacer()
-                Toggle(
-                    "BYPASS",
-                    isOn: Binding(
-                        get: { !(playback.snapshot?.eqEnabled ?? false) },
-                        set: { bypassed in playback.setEQ(enabled: !bypassed, bands: currentBands) }
-                    )
+            header
+            presets
+            bandEditor
+        }
+        .padding(.top, AeonTheme.Space.large)
+        .overlay(alignment: .top) {
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: AeonTheme.Space.medium) {
+            VStack(alignment: .leading, spacing: 4) {
+                AeonLabel(text: "Equalizer")
+                Text("Ten bands · ±12 dB")
+                    .font(AeonTheme.FontToken.ui(.caption))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            }
+            Spacer()
+            Toggle(
+                "Equalizer enabled",
+                isOn: Binding(
+                    get: { playback.snapshot?.eqEnabled ?? false },
+                    set: { enabled in playback.setEQ(enabled: enabled, bands: currentBands) }
                 )
-                .labelsHidden()
-                .toggleStyle(AeonToggleStyle())
-                .accessibilityLabel("Equalizer bypass")
-                .accessibilityIdentifier("aeon.player.eq.bypass")
-            }
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .tint(AeonTheme.ColorToken.bone)
+            .accessibilityLabel("Equalizer enabled")
+            .accessibilityIdentifier("aeon.player.eq.bypass")
+        }
+    }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), spacing: AeonTheme.Space.small)], spacing: AeonTheme.Space.small) {
-                ForEach(Self.presets) { preset in
-                    let selected = selectedPreset == preset.name
-                    Button(preset.name) { select(preset) }
-                        .buttonStyle(AeonButtonStyle(tier: selected ? .filled : .hairline))
-                        .accessibilityAddTraits(selected ? .isSelected : [])
-                        .accessibilityIdentifier("aeon.player.eq.preset.\(preset.name.lowercased().replacingOccurrences(of: " ", with: "-"))")
+    private var presets: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+            AeonLabel(text: "Presets")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: AeonTheme.Space.small) {
+                    ForEach(Self.presets) { preset in
+                        let selected = selectedPreset == preset.name
+                        Button(preset.name) { select(preset) }
+                            .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(selected ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
+                            .padding(.horizontal, AeonTheme.Space.medium)
+                            .frame(minHeight: AeonTheme.Space.minimumTarget)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(selected ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.surfaceSelected.opacity(0.62))
+                            )
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .stroke(selected ? .clear : AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                            )
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                            .accessibilityIdentifier("aeon.player.eq.preset.\(preset.name.lowercased().replacingOccurrences(of: " ", with: "-"))")
+                    }
                 }
             }
+        }
+    }
 
+    private var bandEditor: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+            AeonLabel(text: "Bands")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: AeonTheme.Space.small) {
                     ForEach(Self.frequencies.indices, id: \.self) { index in
@@ -61,6 +96,7 @@ struct EQView: View {
                         )
                     }
                 }
+                .padding(.vertical, AeonTheme.Space.small)
             }
         }
     }
@@ -97,21 +133,21 @@ private struct EQBandControl: View {
     let onChange: (Double) -> Void
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 6) {
             Text(db(gain))
-                .font(AeonTheme.FontToken.metric(.caption2))
-                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                .foregroundStyle(AeonTheme.ColorToken.bone)
                 .monospacedDigit()
             GeometryReader { geometry in
                 let fraction = CGFloat((12 - min(12, max(-12, gain))) / 24)
                 ZStack(alignment: .top) {
-                    Rectangle()
+                    Capsule()
                         .fill(AeonTheme.ColorToken.rule)
                         .frame(width: 2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Rectangle()
+                    Capsule()
                         .fill(AeonTheme.ColorToken.bone)
-                        .frame(width: 22, height: 6)
+                        .frame(width: 24, height: 6)
                         .offset(y: fraction * max(0, geometry.size.height - 6))
                 }
                 .contentShape(Rectangle())
@@ -125,6 +161,7 @@ private struct EQBandControl: View {
                 .font(AeonTheme.FontToken.metric(.caption2))
                 .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         }
+        .padding(.horizontal, 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Int(frequency)) hertz gain")
         .accessibilityValue("\(db(gain)) decibels")

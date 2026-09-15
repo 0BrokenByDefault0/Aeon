@@ -99,6 +99,10 @@ final class AeonScreenMatrixTests: XCTestCase {
         var app = launch(["-AeonSkyFixture", "empty"])
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 12))
         capture(app, name: "screen-empty")
+        let importMusic = app.buttons["aeon.library.import"]
+        XCTAssertTrue(importMusic.isHittable)
+        importMusic.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["aeon.library.import.files"].isHittable)
         XCTAssertTrue(app.buttons["aeon.library.import.folder"].isHittable)
         capture(app, name: "screen-import")
@@ -173,7 +177,11 @@ final class AeonScreenMatrixTests: XCTestCase {
         app.buttons["aeon.navigation.playlists"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.playlists.screen"].waitForExistence(timeout: 8))
         capture(app, name: "screen-playlists-empty")
+        let create = app.buttons["aeon.playlists.create"]
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+        create.tap()
         let name = app.textFields["aeon.playlists.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.tap()
         name.typeText("Screen Matrix Route\n")
         let route = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Screen Matrix Route")).firstMatch
@@ -217,16 +225,13 @@ final class AeonScreenMatrixTests: XCTestCase {
         let window = app.windows.firstMatch.frame
         let scrollView = app.scrollViews.firstMatch
         for _ in 0..<30 where !element.exists || !element.isHittable {
-            if min(window.width, window.height) >= 700, scrollView.exists {
+            if scrollView.exists {
                 scrollView.swipeUp()
             } else {
                 app.swipeUp()
             }
         }
         if !element.isHittable {
-            // A bare assert here says only that something is unreachable, which is not
-            // enough to tell an unscrollable list from one whose last row sits under the
-            // chrome. Record the geometry that distinguishes them.
             let attachment = XCTAttachment(screenshot: app.screenshot())
             attachment.name = "unreachable-\(element.identifier)"
             attachment.lifetime = .keepAlways

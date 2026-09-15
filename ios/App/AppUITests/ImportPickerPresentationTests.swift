@@ -2,43 +2,52 @@ import XCTest
 
 /// The original defect was invisible to every unit test: three `fileImporter` modifiers
 /// on one view left IMPORT FILES inert, so the button was live, the state flag flipped,
-/// and nothing appeared. Only driving the real UI catches that, so these tests assert
-/// that a system document picker actually comes up and can be dismissed again.
+/// and nothing appeared. The redesigned shell adds one intentional import entry point,
+/// then still asserts that the chosen source presents the real system picker.
 final class ImportPickerPresentationTests: XCTestCase {
     func testImportFilesPresentsTheSystemDocumentPicker() {
         let app = launch()
+        openImportSheet(in: app)
         let button = app.buttons["aeon.library.import.files"]
-        XCTAssertTrue(button.waitForExistence(timeout: 12))
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
 
-        XCTAssertTrue(documentPickerIsPresented(over: app), "IMPORT FILES opened no picker")
+        XCTAssertTrue(documentPickerIsPresented(over: app), "Files import opened no picker")
         dismissDocumentPicker(over: app)
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 8))
     }
 
     func testImportFolderPresentsTheSystemDocumentPicker() {
         let app = launch()
+        openImportSheet(in: app)
         let button = app.buttons["aeon.library.import.folder"]
-        XCTAssertTrue(button.waitForExistence(timeout: 12))
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
 
-        XCTAssertTrue(documentPickerIsPresented(over: app), "IMPORT FOLDER opened no picker")
+        XCTAssertTrue(documentPickerIsPresented(over: app), "Folder import opened no picker")
         dismissDocumentPicker(over: app)
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 8))
     }
 
     func testCancellingAPickerLeavesNoImportErrorBehind() {
         let app = launch()
+        openImportSheet(in: app)
         let button = app.buttons["aeon.library.import.files"]
-        XCTAssertTrue(button.waitForExistence(timeout: 12))
+        XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
         XCTAssertTrue(documentPickerIsPresented(over: app))
         dismissDocumentPicker(over: app)
 
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 8))
-        // Cancelling is not a failure, so nothing should be reported.
         XCTAssertFalse(app.descendants(matching: .any)["aeon.sky.import.error"].exists)
         XCTAssertFalse(app.alerts.element.exists)
+    }
+
+    private func openImportSheet(in app: XCUIApplication) {
+        let primary = app.buttons["aeon.library.import"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 12))
+        primary.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
     }
 
     /// The picker is a remote view controller, so it may surface either inside Aeon's own
@@ -67,8 +76,6 @@ final class ImportPickerPresentationTests: XCTestCase {
             cancel.tap()
             return
         }
-        // Some presentations offer no Cancel affordance; a downward swipe dismisses the
-        // sheet instead.
         app.swipeDown()
     }
 

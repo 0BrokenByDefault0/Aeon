@@ -15,7 +15,6 @@ struct NowPlayingView: View {
     let close: () -> Void
     let locate: (String, Bool) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.aeonArtworkTint) private var artworkTint
     @State private var queuePresented = false
     @State private var seekPreview: Double?
 
@@ -24,30 +23,27 @@ struct NowPlayingView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     if let presentation = PlayerPresentation.resolve(
-                    snapshot: playback.snapshot,
-                    catalog: catalog,
-                    artworkStore: artworkStore
-                ), let snapshot = playback.snapshot {
-                    VStack(spacing: AeonTheme.Space.section) {
-                        heading(queuePosition: snapshot.queueIndex.map { (index: $0, count: snapshot.queue.count) })
-                        artworkStage(presentation)
-                        metadata(presentation: presentation, snapshot: snapshot)
-                        seek(presentation: presentation, snapshot: snapshot)
-                        transport(snapshot: snapshot)
-                        queueControls(snapshot: snapshot)
-                        volume(snapshot: snapshot)
-                        secondary(presentation: presentation, snapshot: snapshot)
-                        EQView(playback: playback).id(NowPlayingSection.equalizer)
-                        spectrumSection.id(NowPlayingSection.spectrum)
+                        snapshot: playback.snapshot,
+                        catalog: catalog,
+                        artworkStore: artworkStore
+                    ), let snapshot = playback.snapshot {
+                        VStack(spacing: AeonTheme.Space.section) {
+                            heading(queuePosition: snapshot.queueIndex.map { (index: $0, count: snapshot.queue.count) })
+                            artworkStage(presentation)
+                            metadata(presentation: presentation, snapshot: snapshot)
+                            seek(presentation: presentation, snapshot: snapshot)
+                            transport(snapshot: snapshot)
+                            queueControls(snapshot: snapshot)
+                            volume(snapshot: snapshot)
+                            secondary(presentation: presentation, snapshot: snapshot)
+                            EQView(playback: playback).id(NowPlayingSection.equalizer)
+                            spectrumSection.id(NowPlayingSection.spectrum)
                         }
                         .padding(.horizontal, AeonTheme.Space.edge)
                         .padding(.bottom, AeonTheme.Space.section)
                         .frame(maxWidth: 620)
                         .frame(maxWidth: .infinity)
                     } else {
-                        // The player covers Aeon's own chrome, so an empty player needs
-                        // its own way back. Without one the only exit is the host app's
-                        // system back indicator, which Aeon must not depend on.
                         VStack(spacing: AeonTheme.Space.section) {
                             heading(queuePosition: nil)
                             AeonEmptyState(
@@ -71,7 +67,7 @@ struct NowPlayingView: View {
                 }
             }
         }
-        .background(AeonTheme.ColorToken.void.opacity(0.72).ignoresSafeArea())
+        .background(AeonTheme.ColorToken.void.ignoresSafeArea())
         .sheet(isPresented: $queuePresented) {
             QueueView(playback: playback, catalog: catalog, close: { queuePresented = false })
         }
@@ -91,10 +87,15 @@ struct NowPlayingView: View {
             Spacer(minLength: 0)
             Button(action: close) {
                 Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .semibold))
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                    .background(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                            .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.72))
+                    )
             }
             .buttonStyle(.plain)
-            .foregroundStyle(AeonTheme.ColorToken.bone)
+            .foregroundStyle(AeonTheme.ColorToken.textPrimary)
             .accessibilityLabel("Close Now Playing")
             .accessibilityIdentifier("aeon.player.close")
         }
@@ -102,35 +103,36 @@ struct NowPlayingView: View {
 
     private func artworkStage(_ presentation: PlayerPresentation) -> some View {
         GeometryReader { geometry in
-            let size = min(340, max(180, min(geometry.size.width - 50, geometry.size.height)))
+            let size = min(360, max(190, geometry.size.width - 56))
             ZStack {
-                RadialGradient(
-                    colors: [(artworkTint ?? AeonTheme.ColorToken.silver).opacity(0.34), .clear],
-                    center: .center,
-                    startRadius: 5,
-                    endRadius: size * 0.72
-                )
-                .frame(width: size * 1.38, height: size * 1.38)
-                AeonGlass {
-                    AeonArtwork(image: presentation.artwork, size: size)
-                        .padding(AeonTheme.Space.medium)
-                }
+                Rectangle()
+                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.34))
+                    .frame(width: size + 24, height: size + 24)
+                    .overlay(
+                        Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                    )
+                AeonArtwork(image: presentation.artwork, size: size)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 350)
+        .frame(height: 386)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Artwork for \(presentation.album.title)")
     }
 
     private func metadata(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
-        VStack(spacing: 6) {
-            AeonDisplayText(presentation.track.title, size: 38, maximumLines: 2)
+        VStack(spacing: AeonTheme.Space.small) {
+            AeonDisplayText(presentation.track.title, size: 40, maximumLines: 2)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(AeonTheme.ColorToken.bone)
+                .foregroundStyle(AeonTheme.ColorToken.textPrimary)
             Text(presentation.artist)
                 .font(AeonTheme.FontToken.ui(.title3, weight: .medium))
+                .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
+                .multilineTextAlignment(.center)
+            Text(presentation.album.title)
+                .font(AeonTheme.FontToken.ui(.callout))
                 .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                .multilineTextAlignment(.center)
             AeonLabel(text: snapshot.intent == .playing ? "Playing" : "In the player")
             if let failure = playback.failure, failure.recoverable {
                 Button { playback.dismissFailure() } label: {
@@ -148,7 +150,7 @@ struct NowPlayingView: View {
 
     private func seek(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
         let value = seekPreview ?? snapshot.position
-        return VStack(spacing: 4) {
+        return VStack(spacing: AeonTheme.Space.xSmall) {
             AeonHorizontalRangeControl(
                 value: value,
                 range: 0...max(1, presentation.duration),
@@ -171,13 +173,13 @@ struct NowPlayingView: View {
     }
 
     private func transport(snapshot: PlaybackSnapshot) -> some View {
-        HStack(spacing: 32) {
+        HStack(spacing: 34) {
             transportButton("backward.end.fill", label: "Previous track", identifier: "aeon.player.previous", action: playback.previous)
             Button(action: playback.toggle) {
                 Image(systemName: snapshot.intent == .playing ? "pause.fill" : "play.fill")
-                    .font(.system(size: 23, weight: .semibold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(AeonTheme.ColorToken.void)
-                    .frame(width: 62, height: 62)
+                    .frame(width: 64, height: 64)
                     .background(Circle().fill(AeonTheme.ColorToken.bone))
             }
             .buttonStyle(.plain)
@@ -219,10 +221,33 @@ struct NowPlayingView: View {
     }
 
     private func secondary(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
-            Button("LOCATE") { locate(presentation.album.id, effectiveReduceMotion) }
-                .buttonStyle(AeonButtonStyle(tier: .hairline))
-                .accessibilityIdentifier("aeon.player.locate")
+        VStack(alignment: .leading, spacing: AeonTheme.Space.regular) {
+            Button { locate(presentation.album.id, effectiveReduceMotion) } label: {
+                HStack(spacing: AeonTheme.Space.medium) {
+                    Image(systemName: "scope")
+                        .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
+                        Text("Locate in the Sky")
+                            .font(AeonTheme.FontToken.ui(.body, weight: .medium))
+                            .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                        Text("Return to this album’s place in your collection.")
+                            .font(AeonTheme.FontToken.ui(.caption))
+                            .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+                }
+                .padding(.vertical, AeonTheme.Space.small)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("aeon.player.locate")
+
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+
             if let source = sourceDescription(snapshot.sourceFormat), !source.isEmpty {
                 detailLine(label: "SOURCE", value: source)
             }
@@ -264,10 +289,13 @@ struct NowPlayingView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 21, weight: .medium))
-                .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                .frame(width: 48, height: 48)
+                .background(
+                    Circle().fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
+                )
         }
         .buttonStyle(.plain)
-        .foregroundStyle(AeonTheme.ColorToken.bone)
+        .foregroundStyle(AeonTheme.ColorToken.textPrimary)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
     }
@@ -322,9 +350,9 @@ private struct AeonHorizontalRangeControl: View {
         GeometryReader { geometry in
             let fraction = CGFloat((clampedValue - range.lowerBound) / max(0.000_001, range.upperBound - range.lowerBound))
             ZStack(alignment: .leading) {
-                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: 2)
-                Rectangle().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * fraction, height: 2)
-                Rectangle()
+                Capsule().fill(AeonTheme.ColorToken.rule).frame(height: 2)
+                Capsule().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * fraction, height: 2)
+                Capsule()
                     .fill(AeonTheme.ColorToken.bone)
                     .frame(width: 6, height: 22)
                     .offset(x: max(0, min(geometry.size.width - 6, geometry.size.width * fraction - 3)))

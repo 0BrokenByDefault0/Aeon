@@ -33,7 +33,8 @@ try{
 
  await page.evaluate(()=>{for(const p of sky.worlds())sky.burst(p)});
  assert(await page.evaluate(()=>sky.motes()>0&&sky.motes()<=192));
- await page.waitForTimeout(2800);assert.equal(await page.evaluate(()=>sky.motes()),0);
+ await page.waitForFunction(()=>sky.motes()===0,null,{timeout:7000});
+ assert.equal(await page.evaluate(()=>sky.motes()),0);
  console.log('PASS planet effects are bounded and expire');
  assert.deepEqual(errors,[]);console.log('PASS no page errors');
  await page.close();

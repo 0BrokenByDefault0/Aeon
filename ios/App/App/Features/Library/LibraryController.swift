@@ -209,8 +209,16 @@ final class LibraryController: ObservableObject {
                 updated.artworkKey = newArtworkKey
             }
             updated.updatedAt = Date()
+
+            let needsSkyRechart = original.artist != updated.artist
+                || original.genre != updated.genre
+                || original.artworkKey != updated.artworkKey
             do {
-                _ = try skyRepository.rechart(updatedAlbum: updated)
+                if needsSkyRechart {
+                    _ = try skyRepository.rechart(updatedAlbum: updated)
+                } else {
+                    try repository.updateAlbum(updated)
+                }
             } catch {
                 if let newArtworkKey { try? artworkStore.remove(key: newArtworkKey) }
                 throw error

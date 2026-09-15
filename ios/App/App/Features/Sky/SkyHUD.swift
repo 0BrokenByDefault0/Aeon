@@ -12,60 +12,10 @@ struct SkyHUD: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Text(controller.camera.tier.rawValue.uppercased())
-                    .accessibilityLabel("Sky altitude, \(controller.camera.tier.rawValue)")
-                    .accessibilityIdentifier("aeon.sky.altitude")
-                Rectangle().fill(.white.opacity(0.28)).frame(width: 28, height: 1)
-                Menu("CAPTURE") {
-                    Button("Current framing") { controller.makeCapture(wide: false, viewport: viewportSize) }
-                    Button("Wider framing") { controller.makeCapture(wide: true, viewport: viewportSize) }
-                }
-                .accessibilityIdentifier("aeon.sky.capture")
-                if controller.playingStarID != nil {
-                    Button("LOCATE") {
-                        controller.locatePlaying(
-                            reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
-                        )
-                    }
-                        .accessibilityIdentifier("aeon.sky.locate-playing")
-                }
-                if let captureURL = controller.captureURL {
-                    ShareLink(item: captureURL) { Text("SHARE PLATE") }
-                        .accessibilityIdentifier("aeon.sky.share-capture")
-                }
-                Spacer()
-            }
-            .font(.system(size: 11, weight: .medium, design: .monospaced))
-            .tracking(1.7)
-            .foregroundStyle(.white.opacity(0.84))
-            .frame(minHeight: 44)
-
+            topControls
             Spacer()
-
             if showCensus || importProgress != nil {
-                HStack(alignment: .bottom, spacing: 12) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(controller.censusText)
-                    Text(controller.planetProgressText)
-                    if let nowPlayingText = controller.nowPlayingText { Text(nowPlayingText) }
-                    if let progress = importProgress {
-                        ProgressView(value: fraction(progress))
-                            .tint(.white)
-                            .frame(width: 180)
-                        Text(importLabel(progress))
-                    }
-                }
-                .font(.system(size: 11, weight: .regular, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.78))
-                .padding(12)
-                .background(Color.black.opacity(0.62))
-                .overlay(Rectangle().stroke(.white.opacity(0.18), lineWidth: 0.5))
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.updatesFrequently)
-                .accessibilityIdentifier("aeon.sky.hud")
-                Spacer()
-                }
+                censusStrip
             }
         }
         .onAppear { announcedTier = controller.camera.tier }
@@ -74,6 +24,75 @@ struct SkyHUD: View {
             announcedTier = tier
             UIAccessibility.post(notification: .announcement, argument: "Sky altitude, \(tier.rawValue)")
         }
+    }
+
+    private var topControls: some View {
+        HStack(spacing: AeonTheme.Space.medium) {
+            Text(controller.camera.tier.rawValue.uppercased())
+                .accessibilityLabel("Sky altitude, \(controller.camera.tier.rawValue)")
+                .accessibilityIdentifier("aeon.sky.altitude")
+            Rectangle()
+                .fill(AeonTheme.ColorToken.ivorySecondary.opacity(0.48))
+                .frame(width: 28, height: AeonTheme.Stroke.hairline)
+            Menu("CAPTURE") {
+                Button("Current framing") { controller.makeCapture(wide: false, viewport: viewportSize) }
+                Button("Wider framing") { controller.makeCapture(wide: true, viewport: viewportSize) }
+            }
+            .accessibilityIdentifier("aeon.sky.capture")
+            if controller.playingStarID != nil {
+                Button("LOCATE") {
+                    controller.locatePlaying(
+                        reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
+                    )
+                }
+                .accessibilityIdentifier("aeon.sky.locate-playing")
+            }
+            if let captureURL = controller.captureURL {
+                ShareLink(item: captureURL) { Text("SHARE") }
+                    .accessibilityIdentifier("aeon.sky.share-capture")
+            }
+            Spacer()
+        }
+        .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+        .tracking(1.6)
+        .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
+        .frame(minHeight: AeonTheme.Space.minimumTarget)
+    }
+
+    private var censusStrip: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+            HStack(alignment: .firstTextBaseline, spacing: AeonTheme.Space.medium) {
+                Text(controller.censusText)
+                Text(controller.planetProgressText)
+                if let nowPlayingText = controller.nowPlayingText {
+                    Text(nowPlayingText)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            if let progress = importProgress {
+                AeonProgressBar(value: fraction(progress))
+                    .frame(maxWidth: 220)
+                Text(importLabel(progress).uppercased())
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
+            }
+        }
+        .font(AeonTheme.FontToken.metric(.caption2))
+        .tracking(0.6)
+        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+        .padding(.horizontal, AeonTheme.Space.medium)
+        .padding(.vertical, AeonTheme.Space.small)
+        .background(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                .fill(AeonTheme.ColorToken.void.opacity(0.62))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.updatesFrequently)
+        .accessibilityIdentifier("aeon.sky.hud")
     }
 
     private func fraction(_ progress: LibraryImportProgress) -> Double {

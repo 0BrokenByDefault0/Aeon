@@ -14,66 +14,31 @@ struct PlaylistsScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: AeonTheme.Space.medium) {
-                VStack(alignment: .leading, spacing: 2) {
-                    AeonBreadcrumb(text: "Aeon / Routes")
-                    AeonDisplayText("Playlists", size: 42, maximumLines: 1)
-                        .foregroundStyle(AeonTheme.ColorToken.bone)
-                        .accessibilityIdentifier("aeon.playlists.screen")
-                }
-                Spacer()
-                if !controller.playlists.isEmpty {
-                    Button { creationPresented = true } label: {
-                        Image(systemName: "plus")
-                            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                    }
-                    .buttonStyle(AeonButtonStyle(tier: .hairline))
-                    .accessibilityLabel("Create Playlist")
-                    .accessibilityIdentifier("aeon.playlists.create")
-                }
-            }
-            .padding(.bottom, AeonTheme.Space.medium)
+            header
+                .padding(.bottom, AeonTheme.Space.large)
 
             if controller.playlists.isEmpty {
-                Spacer()
-                AeonEmptyState(
-                    title: "No routes charted yet.",
-                    detail: "Name a playlist, then add tracks from any album.",
-                    actionTitle: nil,
-                    action: nil
-                )
-                createForm
-                    .frame(maxWidth: 420)
-                Spacer()
+                Spacer(minLength: AeonTheme.Space.section)
+                VStack(spacing: AeonTheme.Space.large) {
+                    AeonEmptyState(
+                        title: "No routes charted yet.",
+                        detail: "Build a route through the records you return to.",
+                        actionTitle: nil,
+                        action: nil
+                    )
+                    Button("CREATE PLAYLIST") { creationPresented = true }
+                        .buttonStyle(AeonButtonStyle(tier: .filled))
+                        .frame(maxWidth: 320)
+                        .accessibilityIdentifier("aeon.playlists.create")
+                }
+                .frame(maxWidth: 440)
+                .frame(maxWidth: .infinity)
+                Spacer(minLength: AeonTheme.Space.section)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(controller.playlists) { overview in
-                            Button {
-                                controller.select(id: overview.id)
-                                detailPresented = controller.selectedPlaylist != nil
-                            } label: {
-                                HStack(spacing: AeonTheme.Space.large) {
-                                    AeonRouteMark().frame(width: 48, height: 34)
-                                    VStack(alignment: .leading, spacing: 5) {
-                                        AeonDisplayText(overview.playlist.name, size: 23, maximumLines: 2)
-                                            .foregroundStyle(AeonTheme.ColorToken.bone)
-                                        Text("\(overview.itemCount) TRACK\(overview.itemCount == 1 ? "" : "S")")
-                                            .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
-                                            .tracking(1.2)
-                                            .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right").foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-                                }
-                                .padding(.vertical, AeonTheme.Space.medium)
-                                .contentShape(Rectangle())
-                                .overlay(alignment: .bottom) {
-                                    Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("aeon.playlists.row.\(overview.id)")
+                            playlistRow(overview)
                         }
                     }
                 }
@@ -81,12 +46,19 @@ struct PlaylistsScreen: View {
             }
         }
         .padding(.horizontal, AeonTheme.Space.edge)
-        .padding(.vertical, AeonTheme.Space.medium)
-        .padding(.bottom, contentBottomInset)
+        .padding(.top, AeonTheme.Space.medium)
+        .padding(.bottom, contentBottomInset + AeonTheme.Space.edge)
         .sheet(isPresented: $creationPresented) {
             AeonSheet {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
-                    AeonDisplayText("Chart a route", size: 30, maximumLines: 1)
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        AeonLabel(text: "New route")
+                        AeonDisplayText("Chart a playlist", size: 32, maximumLines: 2)
+                            .foregroundStyle(AeonTheme.ColorToken.bone)
+                        Text("Give this route a name. Tracks can be added from albums afterward.")
+                            .font(AeonTheme.FontToken.ui(.callout))
+                            .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    }
                     createForm
                     Button("CANCEL") { creationPresented = false }
                         .buttonStyle(AeonButtonStyle(tier: .bare))
@@ -94,7 +66,7 @@ struct PlaylistsScreen: View {
                 .padding(AeonTheme.Space.edge)
                 .foregroundStyle(AeonTheme.ColorToken.bone)
             }
-            .presentationDetents([.height(280)])
+            .presentationDetents([.height(310)])
         }
         .sheet(isPresented: $detailPresented, onDismiss: controller.dismissSelection) {
             PlaylistDetailView(controller: controller, close: { detailPresented = false })
@@ -111,14 +83,82 @@ struct PlaylistsScreen: View {
         }
     }
 
+    private var header: some View {
+        HStack(alignment: .bottom, spacing: AeonTheme.Space.medium) {
+            VStack(alignment: .leading, spacing: 4) {
+                AeonBreadcrumb(text: "Routes")
+                AeonDisplayText("Playlists", size: 42, maximumLines: 1)
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                    .accessibilityIdentifier("aeon.playlists.screen")
+                if !controller.playlists.isEmpty {
+                    Text("\(controller.playlists.count) ROUTE\(controller.playlists.count == 1 ? "" : "S")")
+                        .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
+                        .tracking(1.2)
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                }
+            }
+            Spacer()
+            if !controller.playlists.isEmpty {
+                Button { creationPresented = true } label: {
+                    Label("NEW", systemImage: "plus")
+                }
+                .buttonStyle(AeonButtonStyle(tier: .hairline))
+                .accessibilityLabel("Create Playlist")
+                .accessibilityIdentifier("aeon.playlists.create")
+            }
+        }
+    }
+
+    private func playlistRow(_ overview: PlaylistOverview) -> some View {
+        Button {
+            controller.select(id: overview.id)
+            detailPresented = controller.selectedPlaylist != nil
+        } label: {
+            HStack(spacing: AeonTheme.Space.large) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.56))
+                    AeonRouteMark().frame(width: 48, height: 34)
+                }
+                .frame(width: 68, height: 58)
+                VStack(alignment: .leading, spacing: 5) {
+                    AeonDisplayText(overview.playlist.name, size: 24, maximumLines: 2)
+                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                    Text("\(overview.itemCount) TRACK\(overview.itemCount == 1 ? "" : "S")")
+                        .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                        .tracking(1.2)
+                        .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            }
+            .padding(.vertical, AeonTheme.Space.medium)
+            .contentShape(Rectangle())
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("aeon.playlists.row.\(overview.id)")
+    }
+
     private var createForm: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
             TextField("Playlist name", text: $name)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
-                .padding(.horizontal, AeonTheme.Space.medium)
+                .padding(.horizontal, AeonTheme.Space.regular)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
-                .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                .background(
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                )
                 .accessibilityIdentifier("aeon.playlists.name")
                 .onSubmit(create)
             Button("CREATE", action: create)
@@ -144,63 +184,28 @@ private struct PlaylistDetailView: View {
     var body: some View {
         AeonSheet {
             VStack(spacing: 0) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        AeonBreadcrumb(text: "Playlist")
-                        AeonDisplayText(controller.selectedPlaylist?.name ?? "Route", size: 34, maximumLines: 2)
-                            .foregroundStyle(AeonTheme.ColorToken.bone)
-                        AeonLabel(text: "\(controller.selectedItems.count) tracks")
-                    }
-                    Spacer()
-                    Button(action: close) {
-                        Image(systemName: "xmark").frame(width: 44, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Close Playlist")
-                    .accessibilityIdentifier("aeon.playlists.detail.close")
-                }
-                .padding(.horizontal, AeonTheme.Space.edge)
-                HStack(spacing: AeonTheme.Space.medium) {
-                    Button("PLAY") { controller.play() }
-                        .buttonStyle(AeonButtonStyle(tier: .filled))
-                        .disabled(controller.selectedItems.isEmpty)
-                        .accessibilityIdentifier("aeon.playlists.detail.play")
-                    Spacer()
-                    Button("DELETE") { deleteConfirmation = true }
-                        .buttonStyle(AeonButtonStyle(tier: .bare, destructive: true))
-                        .accessibilityIdentifier("aeon.playlists.detail.delete")
-                }
-                .padding(AeonTheme.Space.edge)
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        if controller.selectedItems.isEmpty {
-                            AeonEmptyState(title: "Empty route.", detail: nil, actionTitle: nil, action: nil)
-                        }
-                        ForEach(Array(controller.selectedItems.enumerated()), id: \.element.id) { index, route in
-                            AeonRow(
-                                title: route.item.trackTitle,
-                                detail: route.unavailable
-                                    ? "FILE UNAVAILABLE · \(route.item.artist) · \(route.item.albumTitle)"
-                                    : "\(route.item.artist) · \(route.item.albumTitle)"
-                            ) {
-                                HStack(spacing: 0) {
-                                    Button { controller.play(startingAt: index) } label: {
-                                        Image(systemName: "play.fill").frame(width: 44, height: 44)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .disabled(route.unavailable)
-                                    .accessibilityLabel("Play \(route.item.trackTitle)")
-                                    Button { controller.remove(position: index) } label: {
-                                        Image(systemName: "xmark").frame(width: 44, height: 44)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .accessibilityLabel("Remove from playlist")
-                                }
-                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                header
+                    .padding(.horizontal, AeonTheme.Space.edge)
+                    .padding(.bottom, AeonTheme.Space.large)
+
+                if controller.selectedItems.isEmpty {
+                    AeonEmptyState(
+                        title: "Empty route.",
+                        detail: "Add tracks from an album to begin shaping this playlist.",
+                        actionTitle: nil,
+                        action: nil
+                    )
+                    .frame(maxWidth: 440)
+                    .frame(maxWidth: .infinity)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(controller.selectedItems.enumerated()), id: \.element.id) { index, route in
+                                trackRow(route, index: index)
                             }
                         }
+                        .padding(.horizontal, AeonTheme.Space.edge)
                     }
-                    .padding(.horizontal, AeonTheme.Space.edge)
                 }
             }
             .foregroundStyle(AeonTheme.ColorToken.bone)
@@ -213,6 +218,55 @@ private struct PlaylistDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Tracks stay in the library.")
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    AeonBreadcrumb(text: "Playlist")
+                    AeonDisplayText(controller.selectedPlaylist?.name ?? "Route", size: 34, maximumLines: 2)
+                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                    AeonLabel(text: "\(controller.selectedItems.count) tracks")
+                }
+                Spacer()
+                Button(action: close) {
+                    Image(systemName: "xmark").frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close Playlist")
+                .accessibilityIdentifier("aeon.playlists.detail.close")
+            }
+            HStack(spacing: AeonTheme.Space.medium) {
+                Button("PLAY") { controller.play() }
+                    .buttonStyle(AeonButtonStyle(tier: .filled))
+                    .disabled(controller.selectedItems.isEmpty)
+                    .accessibilityIdentifier("aeon.playlists.detail.play")
+                Button("DELETE") { deleteConfirmation = true }
+                    .buttonStyle(AeonButtonStyle(tier: .bare, destructive: true))
+                    .accessibilityIdentifier("aeon.playlists.detail.delete")
+            }
+        }
+    }
+
+    private func trackRow(_ route: PlaylistRouteItem, index: Int) -> some View {
+        AeonRow(
+            title: route.item.trackTitle,
+            detail: route.unavailable
+                ? "FILE UNAVAILABLE · \(route.item.artist) · \(route.item.albumTitle)"
+                : "\(route.item.artist) · \(route.item.albumTitle)"
+        ) {
+            Menu {
+                Button("PLAY FROM HERE") { controller.play(startingAt: index) }
+                    .disabled(route.unavailable)
+                Button("REMOVE", role: .destructive) { controller.remove(position: index) }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 44, height: 44)
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            }
+            .accessibilityLabel("Actions for \(route.item.trackTitle)")
         }
     }
 }

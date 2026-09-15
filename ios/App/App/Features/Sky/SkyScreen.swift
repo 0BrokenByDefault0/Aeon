@@ -10,6 +10,9 @@ struct SkyScreen: View {
     let reduceMotionOverride: Bool
     let importFiles: () -> Void
     let importFolder: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var importSheetPresented = false
+    @State private var constellationBreathing = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -30,68 +33,102 @@ struct SkyScreen: View {
                     showCensus: showHUD,
                     reduceMotionOverride: reduceMotionOverride
                 )
-                    .padding(.horizontal, 18)
-                    .padding(.top, max(8, geometry.safeAreaInsets.top))
-                    .padding(.bottom, max(8, readableInsets.bottom))
-                if controller.catalogue.stars.isEmpty { emptyState }
+                .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
+                .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
+                .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
+
+                if controller.catalogue.stars.isEmpty {
+                    emptyState
+                        .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
+                        .padding(.bottom, max(20, readableInsets.bottom * 0.35))
+                }
+
                 if let ceremony = controller.ceremony {
-                    VStack(spacing: 5) {
-                        Text("CELESTIAL EVENT")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .tracking(1.8)
-                        Text(ceremony)
-                            .font(.system(size: 24, weight: .regular, design: .serif))
+                    VStack(spacing: AeonTheme.Space.xSmall) {
+                        AeonLabel(text: "Celestial event")
+                        AeonDisplayText(ceremony, size: 28, maximumLines: 2)
                     }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
-                    .background(Color.black.opacity(0.78))
-                    .overlay(Rectangle().stroke(.white.opacity(0.22), lineWidth: 0.5))
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    .padding(.horizontal, AeonTheme.Space.large)
+                    .padding(.vertical, AeonTheme.Space.regular)
+                    .background(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                            .fill(AeonTheme.ColorToken.chamber.opacity(0.92))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                            .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                    )
                     .transition(.opacity)
                     .allowsHitTesting(false)
                     .accessibilityAddTraits(.updatesFrequently)
                 }
                 selectionLabel
             }
-            .background(Color.black)
+            .background(AeonTheme.ColorToken.void)
         }
+        .sheet(isPresented: $importSheetPresented) {
+            AeonImportSheet(selectFiles: importFiles, selectFolder: importFolder)
+        }
+        .onAppear { updateConstellationBreathing() }
+        .onChange(of: reduceMotion) { _ in updateConstellationBreathing() }
+        .onChange(of: reduceMotionOverride) { _ in updateConstellationBreathing() }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 15) {
-            Text("A place for your records.")
-                .font(.system(size: 30, weight: .regular, design: .serif))
-            Text("Bring albums in and Aeon will chart them without changing the files you chose.")
-                .font(.system(size: 14))
-                .foregroundStyle(.white.opacity(0.68))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-            HStack(spacing: 10) {
-                Button("IMPORT FILES", action: importFiles)
-                    .buttonStyle(.borderedProminent)
-                    .tint(.white)
-                    .foregroundStyle(.black)
-                    .accessibilityIdentifier("aeon.library.import.files")
-                Button("IMPORT FOLDER", action: importFolder)
-                    .buttonStyle(.bordered)
-                    .tint(.white)
-                    .accessibilityIdentifier("aeon.library.import.folder")
-            }
-            if let importError, !importError.isEmpty {
-                Text(importError)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white)
+        VStack(spacing: AeonTheme.Space.large) {
+            AeonRouteMark(width: 154, height: 96)
+                .scaleEffect(effectiveReduceMotion ? 1 : (constellationBreathing ? 1.035 : 0.99))
+                .opacity(effectiveReduceMotion ? 0.88 : (constellationBreathing ? 0.96 : 0.72))
+
+            VStack(spacing: AeonTheme.Space.small) {
+                AeonDisplayText("A place for your records.", size: 38, maximumLines: 2)
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text("Bring albums in and Aeon will chart them without changing the files you chose.")
+                    .font(AeonTheme.FontToken.ui(.body))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 360)
-                    .accessibilityIdentifier("aeon.sky.import.error")
+            }
+
+            Button("IMPORT MUSIC") { importSheetPresented = true }
+                .buttonStyle(AeonButtonStyle(tier: .filled))
+                .frame(maxWidth: 260)
+                .accessibilityIdentifier("aeon.library.import")
+
+            if let importError, !importError.isEmpty {
+                HStack(alignment: .top, spacing: AeonTheme.Space.small) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .accessibilityHidden(true)
+                    Text(importError)
+                        .font(AeonTheme.FontToken.ui(.caption))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+                .accessibilityIdentifier("aeon.sky.import.error")
             }
         }
-        .padding(28)
-        .foregroundStyle(.white)
-        .background(Color.black.opacity(0.76))
-        .overlay(Rectangle().stroke(.white.opacity(0.2), lineWidth: 0.5))
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("aeon.sky.empty")
+    }
+
+    private var effectiveReduceMotion: Bool {
+        reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
+    }
+
+    private func updateConstellationBreathing() {
+        if effectiveReduceMotion {
+            constellationBreathing = false
+            return
+        }
+        constellationBreathing = false
+        withAnimation(.easeInOut(duration: AeonTheme.Duration.constellationBreath).repeatForever(autoreverses: true)) {
+            constellationBreathing = true
+        }
     }
 
     @ViewBuilder
@@ -99,30 +136,33 @@ struct SkyScreen: View {
         if let planet = controller.selectedPlanet {
             VStack {
                 Spacer()
-                Text("WORLD \(planet.index) · \(planet.members.count) ALBUMS")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .tracking(1.5)
-                    .foregroundStyle(.white)
-                    .padding(12)
-                    .background(Color.black.opacity(0.74))
-                    .overlay(Rectangle().stroke(.white.opacity(0.24), lineWidth: 0.5))
+                selectionPill("WORLD \(planet.index) · \(planet.members.count) ALBUMS")
                     .accessibilityIdentifier("aeon.sky.planet-selection")
             }
             .padding(.bottom, 24)
         } else if let star = controller.selectedStar {
             VStack {
                 Spacer()
-                Text("\(star.artistName.uppercased()) · ALBUM \(star.sequence)")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .tracking(1.4)
-                    .foregroundStyle(.white)
-                    .padding(12)
-                    .background(Color.black.opacity(0.74))
-                    .overlay(Rectangle().stroke(.white.opacity(0.24), lineWidth: 0.5))
+                selectionPill("\(star.artistName.uppercased()) · ALBUM \(star.sequence)")
                     .accessibilityIdentifier("aeon.sky.star-selection")
             }
             .padding(.bottom, 24)
         }
+    }
+
+    private func selectionPill(_ text: String) -> some View {
+        Text(text)
+            .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
+            .tracking(1.4)
+            .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+            .padding(.horizontal, AeonTheme.Space.regular)
+            .frame(minHeight: AeonTheme.Space.minimumTarget)
+            .background(
+                Capsule().fill(AeonTheme.ColorToken.chamber.opacity(0.88))
+            )
+            .overlay(
+                Capsule().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+            )
     }
 }
 
@@ -137,7 +177,7 @@ private struct SkyLabelOverlay: View {
                 Text(label.text)
                     .font(.system(size: label.isRegion ? 12 : 10, weight: .medium, design: .monospaced))
                     .tracking(label.isRegion ? 1.6 : 0.8)
-                    .foregroundStyle(.white.opacity(highContrast ? 1 : (label.isRegion ? 0.9 : 0.82)))
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary.opacity(highContrast ? 1 : (label.isRegion ? 0.9 : 0.82)))
                     .shadow(color: .black, radius: 3)
                     .position(label.position)
             }

@@ -46,59 +46,79 @@ struct PlayerBar: View {
             catalog: catalog,
             artworkStore: artworkStore
         ), let snapshot = playback.snapshot {
-            AeonGlass {
-                HStack(spacing: AeonTheme.Space.small) {
-                    Button(action: open) {
-                        HStack(spacing: AeonTheme.Space.medium) {
-                            AeonArtwork(image: presentation.artwork, size: 48)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(presentation.track.title)
-                                    .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
-                                    .foregroundStyle(AeonTheme.ColorToken.bone)
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text(presentation.artist)
-                                    .font(AeonTheme.FontToken.ui(.caption))
-                                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                                    .lineLimit(1)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: AeonTheme.Space.small) {
+                Button(action: open) {
+                    HStack(spacing: AeonTheme.Space.medium) {
+                        miniArtwork(presentation.artwork)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(presentation.track.title)
+                                .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
+                                .foregroundStyle(AeonTheme.ColorToken.bone)
+                                .lineLimit(1)
+                            Text(presentation.artist)
+                                .font(AeonTheme.FontToken.ui(.caption))
+                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                                .lineLimit(1)
                         }
-                        .contentShape(Rectangle())
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Open Now Playing for \(presentation.track.title)")
-                    .accessibilityIdentifier("aeon.player.open")
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open Now Playing for \(presentation.track.title)")
+                .accessibilityIdentifier("aeon.player.open")
 
-                    transportButton(
-                        snapshot.intent == .playing ? "pause.fill" : "play.fill",
-                        label: snapshot.intent == .playing ? "Pause" : "Play",
-                        identifier: "aeon.player.toggle",
-                        action: playback.toggle
-                    )
-                    transportButton(
-                        "forward.end.fill",
-                        label: "Next track",
-                        identifier: "aeon.player.next",
-                        action: playback.next
-                    )
+                transportButton(
+                    snapshot.intent == .playing ? "pause.fill" : "play.fill",
+                    label: snapshot.intent == .playing ? "Pause" : "Play",
+                    identifier: "aeon.player.toggle",
+                    action: playback.toggle
+                )
+                transportButton(
+                    "forward.end.fill",
+                    label: "Next track",
+                    identifier: "aeon.player.next",
+                    action: playback.next
+                )
+            }
+            .padding(.horizontal, AeonTheme.Space.medium)
+            .frame(minHeight: AeonTheme.Space.playerBar)
+            .background(AeonTheme.ColorToken.chamber.opacity(0.58))
+            .overlay(alignment: .top) {
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+            }
+            .overlay(alignment: .bottomLeading) {
+                GeometryReader { geometry in
+                    Rectangle()
+                        .fill(AeonTheme.ColorToken.ivorySecondary)
+                        .frame(
+                            width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
+                            height: 2
+                        )
                 }
-                .padding(.horizontal, AeonTheme.Space.medium)
-                .frame(minHeight: AeonTheme.Space.playerBar)
-                .overlay(alignment: .bottomLeading) {
-                    GeometryReader { geometry in
-                        Rectangle()
-                            .fill(AeonTheme.ColorToken.bone)
-                            .frame(
-                                width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
-                                height: 2
-                            )
-                    }
-                    .frame(height: 2)
-                    .accessibilityHidden(true)
-                }
+                .frame(height: 2)
+                .accessibilityHidden(true)
             }
         }
+    }
+
+    private func miniArtwork(_ image: Image?) -> some View {
+        ZStack {
+            AeonTheme.ColorToken.surfaceSelected
+            if let image {
+                image.resizable().scaledToFill()
+            } else {
+                Image(systemName: "circle.grid.cross")
+                    .font(.system(size: 14, weight: .light))
+                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            }
+        }
+        .frame(width: 44, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+        )
     }
 
     private func transportButton(
@@ -109,7 +129,7 @@ struct PlayerBar: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
         }
         .buttonStyle(.plain)

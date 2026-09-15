@@ -15,6 +15,7 @@ struct AlbumEditorView: View {
     @State private var lookupRunning = false
     @State private var pendingMovementCount = 0
     @State private var confirmingMove = false
+    @State private var saveError: String?
 
     init(controller: LibraryController, album: CatalogAlbum) {
         self.controller = controller
@@ -32,20 +33,15 @@ struct AlbumEditorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
-                HStack {
-                    Button("CANCEL") { dismiss() }
-                        .buttonStyle(AeonButtonStyle(tier: .bare))
-                    Spacer()
-                    AeonBreadcrumb(text: "Edit album")
-                }
-                AeonDisplayText("Edit metadata", size: 36, maximumLines: 2)
-                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                header
                 artworkEditor
-                field("TITLE", text: $title, identifier: "aeon.album.editor.title")
-                field("ARTIST", text: $artist, identifier: "aeon.album.editor.artist")
-                field("YEAR", text: $year, identifier: "aeon.album.editor.year", keyboard: .numberPad)
-                VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                    field("GENRE", text: $genre, identifier: "aeon.album.editor.genre")
+                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                    field("TITLE", text: $title, identifier: "aeon.album.editor.title")
+                    field("ARTIST", text: $artist, identifier: "aeon.album.editor.artist")
+                    HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
+                        field("YEAR", text: $year, identifier: "aeon.album.editor.year", keyboard: .numberPad)
+                        field("GENRE", text: $genre, identifier: "aeon.album.editor.genre")
+                    }
                     Button(lookupRunning ? "LOOKING UP" : "LOOK UP GENRE") {
                         lookupRunning = true
                         Task {
@@ -53,20 +49,24 @@ struct AlbumEditorView: View {
                             lookupRunning = false
                         }
                     }
-                    .buttonStyle(AeonButtonStyle(tier: .hairline))
+                    .buttonStyle(AeonButtonStyle(tier: .bare))
                     .disabled(lookupRunning || artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityIdentifier("aeon.album.editor.lookup-genre")
                 }
-                Button("SAVE") { requestSave() }
-                    .buttonStyle(AeonButtonStyle(tier: .filled))
-                    .disabled(!valid)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .accessibilityIdentifier("aeon.album.editor.save")
+                .padding(.top, AeonTheme.Space.large)
+                .overlay(alignment: .top) {
+                    Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+                }
             }
             .padding(AeonTheme.Space.edge)
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            saveBar
+        }
         .onChange(of: photoItem) { item in
             guard let item else { return }
             Task {
@@ -85,13 +85,57 @@ struct AlbumEditorView: View {
         .accessibilityIdentifier("aeon.album.editor")
     }
 
-    private var artworkEditor: some View {
-        VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
-            HStack {
-                AeonArtwork(image: artworkImage.map { Image(uiImage: $0) }, size: 152)
-                Spacer()
+    private var saveBar: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+            if let saveError {
+                Text(saveError)
+                    .font(AeonTheme.FontToken.ui(.callout))
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                    .accessibilityIdentifier("aeon.album.editor.save-error")
             }
-            HStack(spacing: AeonTheme.Space.small) {
+            Button("SAVE CHANGES") { requestSave() }
+                .buttonStyle(AeonButtonStyle(tier: .filled))
+                .frame(minHeight: AeonTheme.Space.minimumTarget)
+                .disabled(!valid)
+                .accessibilityIdentifier("aeon.album.editor.save")
+        }
+        .padding(.horizontal, AeonTheme.Space.edge)
+        .padding(.vertical, AeonTheme.Space.small)
+        .background(AeonTheme.ColorToken.void.opacity(0.96))
+        .overlay(alignment: .top) {
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
+            VStack(alignment: .leading, spacing: 4) {
+                AeonBreadcrumb(text: "Album / Edit")
+                AeonDisplayText("Edit metadata", size: 36, maximumLines: 2)
+                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                Text("Changes update Aeon’s catalogue without altering the source file tags.")
+                    .font(AeonTheme.FontToken.ui(.callout))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            }
+            Spacer()
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            }
+            .buttonStyle(.plain)
+            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            .contentShape(Rectangle())
+            .foregroundStyle(AeonTheme.ColorToken.bone)
+            .accessibilityLabel("Cancel editing")
+            .accessibilityIdentifier("aeon.album.editor.cancel")
+        }
+    }
+
+    private var artworkEditor: some View {
+        VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+            AeonLabel(text: "Artwork")
+            AeonArtwork(image: artworkImage.map { Image(uiImage: $0) }, size: 176)
+            HStack(spacing: AeonTheme.Space.medium) {
                 Button(lookupRunning ? "SEARCHING" : "FIND ART") {
                     lookupRunning = true
                     Task {
@@ -107,12 +151,12 @@ struct AlbumEditorView: View {
                 .disabled(lookupRunning)
                 .accessibilityIdentifier("aeon.album.editor.find-art")
                 PhotosPicker(selection: $photoItem, matching: .images) {
-                    Text("PICK ART")
+                    Label("CHOOSE PHOTO", systemImage: "photo")
                         .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
-                        .tracking(1.2)
+                        .tracking(1.0)
                         .frame(minHeight: AeonTheme.Space.minimumTarget)
                 }
-                .buttonStyle(AeonButtonStyle(tier: .hairline))
+                .buttonStyle(AeonButtonStyle(tier: .bare))
                 .accessibilityIdentifier("aeon.album.editor.pick-art")
             }
         }
@@ -136,12 +180,20 @@ struct AlbumEditorView: View {
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .foregroundStyle(AeonTheme.ColorToken.bone)
-                .padding(.horizontal, AeonTheme.Space.medium)
-                .frame(minHeight: AeonTheme.Space.minimumTarget)
-                .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                .padding(.horizontal, AeonTheme.Space.regular)
+                .frame(minHeight: 48)
+                .background(
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                        .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                )
                 .accessibilityLabel(label.capitalized)
                 .accessibilityIdentifier(identifier)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var draft: CatalogAlbum {
@@ -154,6 +206,7 @@ struct AlbumEditorView: View {
     }
 
     private func requestSave() {
+        saveError = nil
         let count = controller.movementCount(for: draft)
         if count > 0 {
             pendingMovementCount = count
@@ -164,6 +217,10 @@ struct AlbumEditorView: View {
     }
 
     private func commit() {
-        if controller.saveAlbum(draft, artworkData: artworkData) { dismiss() }
+        if controller.saveAlbum(draft, artworkData: artworkData) {
+            dismiss()
+        } else {
+            saveError = "The album could not be saved. Your edits are still here. Try again or cancel to leave them unsaved."
+        }
     }
 }

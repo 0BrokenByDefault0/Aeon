@@ -104,12 +104,21 @@ struct AeonChrome<PlayerBar: View>: View {
                     }
                     Button {} label: {
                         Image(systemName: portraitSidebarVisible ? "xmark" : "line.3.horizontal")
+                            .font(.system(size: 17, weight: .medium))
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(AeonTheme.ColorToken.bone)
-                    .background(AeonTheme.ColorToken.chamberOpaque)
-                    .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                    .contentShape(Rectangle())
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    .background(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                            .fill(AeonTheme.ColorToken.chamberOpaque)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                            .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                    )
                     .padding(.leading, max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading))
                     .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
                     .highPriorityGesture(TapGesture().onEnded { portraitSidebarVisible.toggle() })
@@ -128,7 +137,9 @@ struct AeonChrome<PlayerBar: View>: View {
         VStack(spacing: 0) {
             Spacer()
             if playerLoaded {
-                Color.black.opacity(artworkTint == nil ? 0.32 : 0.58).frame(height: 10)
+                Rectangle()
+                    .fill(AeonTheme.ColorToken.rule)
+                    .frame(height: AeonTheme.Stroke.hairline)
                 playerBar.frame(minHeight: AeonTheme.Space.playerBar)
             }
             AeonGlass {
@@ -137,6 +148,7 @@ struct AeonChrome<PlayerBar: View>: View {
                         navigationButton(item, compact: true)
                     }
                 }
+                .padding(.horizontal, AeonTheme.Space.xSmall)
                 .padding(.bottom, bottomInset)
                 .frame(minHeight: AeonTheme.Space.compactDock + bottomInset)
             }
@@ -146,7 +158,9 @@ struct AeonChrome<PlayerBar: View>: View {
     private func portraitPlayerBar(width: CGFloat, height: CGFloat, leadingInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             Spacer()
-            Color.black.opacity(artworkTint == nil ? 0.32 : 0.58).frame(height: 8)
+            Rectangle()
+                .fill(AeonTheme.ColorToken.rule)
+                .frame(height: AeonTheme.Stroke.hairline)
             playerBar.frame(minHeight: AeonTheme.Space.playerBar)
         }
         .frame(width: width, height: height)
@@ -158,14 +172,18 @@ struct AeonChrome<PlayerBar: View>: View {
             VStack(alignment: .leading, spacing: 0) {
                 AeonDisplayText("AEON", size: 28, maximumLines: 1)
                     .tracking(2)
-                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .padding(.horizontal, AeonTheme.Space.edge)
                     .padding(.top, 72)
                     .padding(.bottom, AeonTheme.Space.section)
-                ForEach(AeonDestination.allCases) { item in navigationButton(item, compact: false) }
+                ForEach(AeonDestination.allCases) { item in
+                    navigationButton(item, compact: false)
+                }
                 Spacer()
                 if playerLoaded {
-                    Color.black.opacity(artworkTint == nil ? 0.32 : 0.58).frame(height: 8)
+                    Rectangle()
+                        .fill(AeonTheme.ColorToken.rule)
+                        .frame(height: AeonTheme.Stroke.hairline)
                     playerBar.frame(minHeight: AeonTheme.Space.playerBar)
                 }
             }
@@ -175,7 +193,8 @@ struct AeonChrome<PlayerBar: View>: View {
     }
 
     private func navigationButton(_ item: AeonDestination, compact: Bool) -> some View {
-        Button {
+        let selected = destination == item
+        return Button {
             destination = item
             portraitSidebarVisible = false
         } label: {
@@ -183,41 +202,58 @@ struct AeonChrome<PlayerBar: View>: View {
                 if compact {
                     if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
                         Image(systemName: item.symbol)
-                            .font(.system(size: 24, weight: .regular))
+                            .font(.system(size: 23, weight: selected ? .medium : .regular))
+                            .frame(width: 26, height: 26)
                     } else {
-                        VStack(spacing: 4) {
+                        VStack(spacing: AeonTheme.Space.xSmall) {
                             Image(systemName: item.symbol)
-                            Text(item.title).font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                                .font(.system(size: 18, weight: selected ? .semibold : .regular))
+                                .frame(width: 24, height: 24)
+                            Text(item.title)
+                                .font(AeonTheme.FontToken.metric(.caption2, weight: selected ? .semibold : .medium))
                         }
                     }
                 } else {
                     if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
                         Image(systemName: item.symbol)
-                            .font(.system(size: 24, weight: .regular))
+                            .font(.system(size: 23, weight: selected ? .medium : .regular))
+                            .frame(width: 26, height: 26)
                     } else {
                         HStack(spacing: AeonTheme.Space.medium) {
-                            Image(systemName: item.symbol).frame(width: 24)
-                            Text(item.title).font(AeonTheme.FontToken.metric(.caption, weight: .medium))
+                            Image(systemName: item.symbol)
+                                .font(.system(size: 17, weight: selected ? .semibold : .regular))
+                                .frame(width: 24, height: 24)
+                            Text(item.title)
+                                .font(AeonTheme.FontToken.metric(.caption, weight: selected ? .semibold : .medium))
                             Spacer()
                         }
                         .padding(.horizontal, AeonTheme.Space.edge)
                     }
                 }
             }
-            .foregroundStyle(destination == item ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.boneSecondary)
+            .foregroundStyle(selected ? AeonTheme.ColorToken.textPrimary : AeonTheme.ColorToken.boneSecondary)
             .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
-            .background(destination == item ? AeonTheme.ColorToken.silver.opacity(0.18) : .clear)
+            .background {
+                if selected {
+                    RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(compact ? 0.54 : 0.44))
+                        .padding(.horizontal, compact ? 6 : 8)
+                        .padding(.vertical, compact ? 5 : 3)
+                }
+            }
             .overlay(alignment: compact ? .top : .leading) {
                 Rectangle()
-                    .fill(destination == item ? AeonTheme.ColorToken.bone : .clear)
+                    .fill(selected ? AeonTheme.ColorToken.bone : .clear)
                     .frame(width: compact ? nil : 2, height: compact ? 2 : nil)
+                    .padding(.horizontal, compact ? 16 : 0)
+                    .padding(.vertical, compact ? 0 : 11)
             }
         }
         .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
         .contentShape(Rectangle())
         .buttonStyle(.plain)
         .accessibilityLabel(item.title.capitalized)
-        .accessibilityAddTraits(destination == item ? .isSelected : [])
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("aeon.navigation.\(item.rawValue)")
     }
 }

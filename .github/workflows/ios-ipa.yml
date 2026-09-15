@@ -36,9 +36,9 @@ jobs:
     # written. (This was not what stopped the 2026-08-28 builds: every job
     # on the account, Linux included, was being refused a runner.)
     runs-on: macos-latest
-    # The runner executes every test shard rather than stopping at the first
-    # failure, across both simulator families, which does not fit in 60.
-    timeout-minutes: 90
+    # The runner executes every test shard across both simulator families.
+    # A healthy full matrix currently needs more than 90 minutes on hosted macOS.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
 

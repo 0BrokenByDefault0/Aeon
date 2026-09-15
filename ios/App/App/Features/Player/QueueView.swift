@@ -13,16 +13,12 @@ struct QueueView: View {
     var body: some View {
         AeonSheet {
             ScrollView {
-                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                     header
                     actions
                     if naming { namingForm }
                     if let message = playback.queueMessage {
-                        Text(message)
-                            .font(AeonTheme.FontToken.ui(.caption))
-                            .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                            .accessibilityAddTraits(.updatesFrequently)
-                            .accessibilityIdentifier("aeon.player.queue.status")
+                        status(message)
                     }
                     queueRows
                 }
@@ -36,14 +32,15 @@ struct QueueView: View {
     }
 
     private var header: some View {
-        HStack(spacing: AeonTheme.Space.medium) {
+        HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
-                AeonBreadcrumb(text: "Queue")
+                AeonBreadcrumb(text: "Player / Queue")
                 AeonDisplayText("Up next", size: 36, maximumLines: 1)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                 if let snapshot = playback.snapshot, let index = snapshot.queueIndex {
                     Text("\(index + 1) OF \(snapshot.queue.count)")
-                        .font(AeonTheme.FontToken.metric(.caption))
+                        .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
+                        .tracking(1.1)
                         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                 }
             }
@@ -60,7 +57,7 @@ struct QueueView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: AeonTheme.Space.small) {
+        HStack(spacing: AeonTheme.Space.medium) {
             Button("SAVE AS PLAYLIST") { naming.toggle() }
                 .buttonStyle(AeonButtonStyle(tier: .hairline))
                 .disabled(playback.snapshot?.queue.isEmpty != false)
@@ -79,9 +76,16 @@ struct QueueView: View {
                 TextField("Name this queue", text: $playlistName)
                     .textInputAutocapitalization(.words)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
-                    .padding(.horizontal, AeonTheme.Space.medium)
-                    .frame(minHeight: AeonTheme.Space.minimumTarget)
-                    .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+                    .padding(.horizontal, AeonTheme.Space.regular)
+                    .frame(minHeight: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                            .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                            .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
+                    )
                     .accessibilityIdentifier("aeon.player.queue.name")
                 Button("SAVE") {
                     if playback.saveQueueAsPlaylist(name: playlistName) {
@@ -93,6 +97,22 @@ struct QueueView: View {
                 .accessibilityIdentifier("aeon.player.queue.commit-save")
             }
         }
+        .padding(AeonTheme.Space.medium)
+        .background(
+            RoundedRectangle(cornerRadius: AeonTheme.Radius.surface, style: .continuous)
+                .fill(AeonTheme.ColorToken.chamber.opacity(0.74))
+        )
+    }
+
+    private func status(_ message: String) -> some View {
+        HStack(spacing: AeonTheme.Space.small) {
+            Image(systemName: "checkmark.circle")
+            Text(message)
+                .font(AeonTheme.FontToken.ui(.caption))
+        }
+        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+        .accessibilityAddTraits(.updatesFrequently)
+        .accessibilityIdentifier("aeon.player.queue.status")
     }
 
     @ViewBuilder
@@ -113,8 +133,13 @@ struct QueueView: View {
                 }
             }
         } else {
-            AeonEmptyState(title: "Nothing queued", detail: nil, actionTitle: nil, action: nil)
-                .frame(maxWidth: .infinity)
+            AeonEmptyState(
+                title: "Nothing queued",
+                detail: "Play an album or route and the upcoming sequence will appear here.",
+                actionTitle: nil,
+                action: nil
+            )
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -139,6 +164,7 @@ struct QueueView: View {
             return value
         }.joined(separator: " · ")
         let isDropTarget = offset.map { dropOffset == $0 } ?? false
+
         return HStack(spacing: AeonTheme.Space.medium) {
             Text(current ? "NOW" : String(format: "%02d", position))
                 .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
@@ -147,7 +173,7 @@ struct QueueView: View {
                 .accessibilityIdentifier(current ? "aeon.player.queue.current" : "aeon.player.queue.position.\(position)")
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(AeonTheme.FontToken.ui(.body, weight: .medium))
+                    .font(AeonTheme.FontToken.ui(.body, weight: current ? .semibold : .medium))
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                 if !detail.isEmpty {
                     Text(detail)
@@ -158,7 +184,7 @@ struct QueueView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             if let offset {
                 Image(systemName: "line.3.horizontal")
-                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
                     .onDrag {
@@ -171,15 +197,20 @@ struct QueueView: View {
             }
         }
         .padding(.vertical, AeonTheme.Space.small)
+        .padding(.horizontal, isDropTarget ? AeonTheme.Space.small : 0)
         .frame(minHeight: 62)
-        .background(isDropTarget ? AeonTheme.ColorToken.silver.opacity(0.12) : .clear)
-        .overlay {
-            Rectangle().stroke(
-                isDropTarget ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.rule,
-                lineWidth: isDropTarget ? 1 : AeonTheme.Stroke.hairline
-            )
+        .background {
+            if isDropTarget {
+                RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
+                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.78))
+            }
         }
-        .opacity(draggedOffset == offset ? 0.6 : 1)
+        .overlay(alignment: .bottom) {
+            if !isDropTarget {
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+            }
+        }
+        .opacity(draggedOffset == offset ? 0.55 : 1)
         .onDrop(
             of: [UTType.text],
             delegate: QueueDropDelegate(
