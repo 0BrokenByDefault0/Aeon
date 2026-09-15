@@ -1,0 +1,92 @@
+name: Recovery 2 device preview
+run-name: Recovery 2 - picker callback import
+
+on:
+  push:
+    branches: ['repair/native-recovery-1']
+    paths: ['.github/workflows/native-recovery-2.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm }
+      - name: Apply and commit RC2 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/recovery/fix-picker-handoff.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ios/App/App/Import/ImportPicker.swift ios/App/App/Features/Root/AeonRootView.swift
+          git commit -m 'fix: start copied music imports directly from picker callback'
+          git push origin HEAD:repair/native-recovery-1
+          SHA="$(git rev-parse HEAD)"
+          echo "AEON_SOURCE_SHA=$SHA" >> "$GITHUB_ENV"
+          echo "AEON_SOURCE_SHORT=${SHA:0:8}" >> "$GITHUB_ENV"
+      - name: Verify regressions and sync iOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test
+          npm run check
+          npx cap sync ios
+          (cd ios/App && pod install)
+      - name: Compile unsigned iPhone app
+        working-directory: ios/App
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath build-rc2 CURRENT_PROJECT_VERSION="$((600 + GITHUB_RUN_NUMBER))" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO | xcpretty
+      - name: Stamp, verify, and package RC2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, plistlib, shutil, subprocess
+          app=pathlib.Path('ios/App/build-rc2/Build/Products/Release-iphoneos/App.app')
+          info=plistlib.loads((app/'Info.plist').read_bytes())
+          exe=app/info['CFBundleExecutable']
+          subprocess.run(['xcrun','lipo',str(exe),'-verify_arch','arm64'],check=True)
+          info.update(CFBundleDisplayName='AEON RC2', CFBundleVersion=str(600+int(os.environ['GITHUB_RUN_NUMBER'])), AeonBuildCommit=os.environ['AEON_SOURCE_SHA'], AeonBuildRun=os.environ['GITHUB_RUN_NUMBER'], AeonBuildTrack='Recovery 2')
+          (app/'Info.plist').write_bytes(plistlib.dumps(info,fmt=plistlib.FMT_BINARY))
+          identity={'iteration':'Recovery 2','commit':os.environ['AEON_SOURCE_SHA'],'workflow_run':os.environ['GITHUB_RUN_ID'],'display_name':'AEON RC2','purpose':'picker callback import; copied file/folder selection'}
+          (app/'AEON_BUILD_IDENTITY.json').write_text(json.dumps(identity,indent=2)+'\n')
+          stage=pathlib.Path(os.environ['RUNNER_TEMP'])/'rc2'; package=pathlib.Path(os.environ['RUNNER_TEMP'])/'rc2pkg'
+          stage.mkdir(); (package/'Payload').mkdir(parents=True)
+          shutil.copytree(app,package/'Payload'/'App.app',symlinks=True)
+          out=stage/f"Aeon-5.0-RC2-{os.environ['AEON_SOURCE_SHORT']}-unsigned.ipa"
+          subprocess.run(['zip','-qry',str(out),'Payload'],cwd=package,check=True)
+          (stage/'BUILD-IDENTITY.json').write_text(json.dumps(identity,indent=2)+'\n')
+          PY
+      - name: Upload RC2 immediately
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-5.0-RC2-${{ env.AEON_SOURCE_SHORT }}-unsigned-ipa
+          path: ${{ runner.temp }}/rc2/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Picker presentation smoke
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-RC2.xcresult
+        shell: bash
+        run: npm run test:ios -- --family=iphone -only-testing:AppUITests/ImportPickerPresentationTests
+      - name: Upload RC2 smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-RC2-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/Aeon-RC2*.xcresult/
+          if-no-files-found: warn
+          retention-days: 7
