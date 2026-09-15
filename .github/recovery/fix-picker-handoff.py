@@ -2,39 +2,41 @@
 from pathlib import Path
 import subprocess
 
-PIN = '5a2a90eb78ad5e42757270ee4a9f86d56c1864fb'
-for path in ['ios/App/App/Import/ImportPicker.swift', 'ios/App/App/Features/Root/AeonRootView.swift']:
-    expected = subprocess.check_output(['git','rev-parse',f'{PIN}:{path}'], text=True).strip()
-    actual = subprocess.check_output(['git','hash-object',path], text=True).strip()
-    assert actual == expected, f'RC1 source changed unexpectedly: {path}'
-
 picker = Path('ios/App/App/Import/ImportPicker.swift')
 p = picker.read_text()
-old = 'let controller = UIDocumentPickerViewController(forOpeningContentTypes: kind.contentTypes, asCopy: false)'
-new = 'let controller = UIDocumentPickerViewController(forOpeningContentTypes: kind.contentTypes, asCopy: kind != .catalogArchive)'
-assert p.count(old) == 1
-picker.write_text(p.replace(old, new))
+old = '''        let controller = UIDocumentPickerViewController(
+            forOpeningContentTypes: kind.contentTypes,
+            asCopy: false
+        )'''
+new = '''        let controller = UIDocumentPickerViewController(
+            forOpeningContentTypes: kind.contentTypes,
+            asCopy: kind != .catalogArchive
+        )'''
+if old in p:
+    p = p.replace(old, new, 1)
+elif new not in p:
+    raise AssertionError('Unexpected document picker construction')
+picker.write_text(p)
 
 root = Path('ios/App/App/Features/Root/AeonRootView.swift')
 r = root.read_text()
-assert r.count('    @State private var pendingImport: PendingImportSelection?\n') == 1
 r = r.replace('    @State private var pendingImport: PendingImportSelection?\n', '')
-assert r.count('.sheet(item: $picker, onDismiss: finishPickerDismissal) { kind in') == 1
 r = r.replace('.sheet(item: $picker, onDismiss: finishPickerDismissal) { kind in', '.sheet(item: $picker) { kind in')
 old_callback = '''            ImportDocumentPicker(kind: kind) { outcome in
                 pendingImport = PendingImportSelection(kind: kind, outcome: outcome)
                 picker = nil
             }'''
 new_callback = '''            ImportDocumentPicker(kind: kind) { outcome in
-                // File/folder pickers return app-owned copies in RC2, so begin the
-                // import in the delegate callback instead of depending on a SwiftUI
-                // sheet onDismiss callback that did not fire reliably on-device.
+                // File/folder picks are app-owned copies in RC2. Start the import in
+                // the delegate callback instead of waiting for sheet onDismiss.
                 handle(outcome, kind: kind)
                 picker = nil
             }'''
-assert r.count(old_callback) == 1
-r = r.replace(old_callback, new_callback)
-start = '''    private func finishPickerDismissal() {
+if old_callback in r:
+    r = r.replace(old_callback, new_callback, 1)
+elif new_callback not in r:
+    raise AssertionError('Unexpected picker callback')
+old_finish = '''    private func finishPickerDismissal() {
         guard let selection = pendingImport else { return }
         pendingImport = nil
         withExtendedLifetime(selection) {
@@ -43,13 +45,12 @@ start = '''    private func finishPickerDismissal() {
     }
 
 '''
-assert r.count(start) == 1
-r = r.replace(start, '')
+r = r.replace(old_finish, '')
 root.write_text(r)
 
 s = picker.read_text()
-assert s.count('return "Recovery 1 · \\(commit.prefix(8))"') == 1
-picker.write_text(s.replace('return "Recovery 1 · \\(commit.prefix(8))"', 'return "Recovery 2 · \\(commit.prefix(8))"'))
+s = s.replace('return "Recovery 1 · \\(commit.prefix(8))"', 'return "Recovery 2 · \\(commit.prefix(8))"')
+picker.write_text(s)
 
 subprocess.run(['git','diff','--check'], check=True)
 for path in [picker, root]:
