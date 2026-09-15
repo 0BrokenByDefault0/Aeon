@@ -106,3 +106,20 @@ tier. Reduce Motion replaces flight with a cut and stops the drift.
 - Charting flight: stars lifting out of Uncharted and joining their figures.
 - Spectrum coupling beyond the nebula breath already wired into the field pass —
   mids on the playing star's glow radius, highs on diffraction spikes.
+
+## Building it
+
+`main` carries the skin on top of the 5.0 refinement line. The design system
+resolves both: every token the refined screens use is still defined, re-pointed
+at the new palette, so those screens move with the skin without being edited.
+
+An unsigned IPA comes from `.github/workflows/ios-ipa.yml`, which runs on every
+push and on demand. Apple only produces iOS binaries on macOS, so the build
+happens on a hosted Mac; the artifact `Aeon-5.0-unsigned-ipa` is what sideloading
+tools (AltStore, SideStore, Sideloadly) expect — they sign it with your own Apple
+ID on your own machine. It cannot be installed by double-clicking, and it is not
+a TestFlight build.
+
+The workflow gates the build on the web oracles in `test/`, which still describe
+the legacy Capacitor shell in `app/`. That shell keeps its own visual language
+for now; the skin above is the native app's.
