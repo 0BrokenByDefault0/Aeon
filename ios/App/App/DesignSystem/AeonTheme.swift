@@ -143,6 +143,10 @@ enum AeonTheme {
         )
 
         /// Names of things: screen titles, album and playlist names, planets.
+        ///
+        /// Expanded width has no named instance, so this one is built from the
+        /// variation axes. `AeonDisplayText` scales the point size it passes in
+        /// with `@ScaledMetric`, so the role still answers Dynamic Type.
         static func display(size: CGFloat, weight: CGFloat = 600) -> Font {
             Font(uiDisplay(size: size, weight: weight) as CTFont)
         }
@@ -152,13 +156,29 @@ enum AeonTheme {
         }
 
         /// Rows, body copy, buttons, settings.
+        ///
+        /// These go through `Font.custom(_:size:relativeTo:)` rather than a
+        /// `UIFont`: a Font built from a UIFont is a fixed size to SwiftUI and
+        /// stops following Dynamic Type, which is how a caption stayed 12pt at
+        /// accessibility size 5. The named instances only exist at normal
+        /// width, which is exactly what this role wants.
         static func ui(_ style: Font.TextStyle = .body, weight: Font.Weight = .regular) -> Font {
-            Font(variable(
-                size: pointSize(for: style),
-                weight: axisWeight(for: weight),
-                width: uiWidth,
-                relativeTo: uiStyle(for: style)
-            ) as CTFont)
+            .custom(instanceName(for: weight), size: pointSize(for: style), relativeTo: style)
+        }
+
+        /// PostScript names of the bundled face's named instances.
+        static func instanceName(for weight: Font.Weight) -> String {
+            switch weight {
+            case .ultraLight: return "ArchivoRoman-Thin"
+            case .thin: return "ArchivoRoman-ExtraLight"
+            case .light: return "ArchivoRoman-Light"
+            case .medium: return "ArchivoRoman-Medium"
+            case .semibold: return "ArchivoRoman-SemiBold"
+            case .bold: return "ArchivoRoman-Bold"
+            case .heavy: return "ArchivoRoman-ExtraBold"
+            case .black: return "ArchivoRoman-Black"
+            default: return "ArchivoRoman-Regular"
+            }
         }
 
         /// The UI face as a `UIFont`, for the places UIKit needs one.
@@ -168,12 +188,7 @@ enum AeonTheme {
 
         /// Counts, durations, coordinates — the same face, figures aligned.
         static func metric(_ style: Font.TextStyle = .caption, weight: Font.Weight = .medium) -> Font {
-            Font(variable(
-                size: pointSize(for: style),
-                weight: axisWeight(for: weight),
-                width: uiWidth,
-                relativeTo: uiStyle(for: style)
-            ).withTabularFigures() as CTFont)
+            ui(style, weight: weight).monospacedDigit()
         }
 
         /// Uppercase micro labels are the only tracked-out type in the app.

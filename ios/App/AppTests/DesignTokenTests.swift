@@ -29,6 +29,16 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
+    func testEveryWeightTheInterfaceUsesResolvesToABundledInstance() {
+        // The UI role addresses the face by the PostScript name of a named
+        // instance so SwiftUI keeps scaling it with Dynamic Type. If an
+        // instance name drifts, the app silently falls back to the system font.
+        for weight in [Font.Weight.regular, .medium, .semibold, .bold] {
+            let name = AeonTheme.FontToken.instanceName(for: weight)
+            XCTAssertNotNil(UIFont(name: name, size: 15), name)
+        }
+    }
+
     func testInstrumentGeometryIsRoundedAndSpacingRunsOneScale() {
         XCTAssertGreaterThan(AeonTheme.Radius.small, 0)
         XCTAssertLessThan(AeonTheme.Radius.small, AeonTheme.Radius.medium)
