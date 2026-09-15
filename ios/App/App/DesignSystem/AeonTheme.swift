@@ -192,7 +192,9 @@ enum AeonTheme {
             let base = UIFont(descriptor: descriptor, size: size)
             // If the bundled face is missing, fall back to the system family at
             // the nearest width rather than silently dropping to body text.
-            guard base.familyName == family else {
+            // A variable face can report its family as "Archivo" or as a named
+            // instance such as "Archivo SemiBold"; both are the bundled face.
+            guard base.familyName.hasPrefix(family) else {
                 return UIFontMetrics(forTextStyle: style).scaledFont(for: systemFallback(
                     size: size,
                     weight: weight,

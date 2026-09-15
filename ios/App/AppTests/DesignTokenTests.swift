@@ -18,8 +18,8 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertNotNil(Bundle.main.url(forResource: "OFL-Archivo", withExtension: "txt"))
         let display = AeonTheme.FontToken.uiDisplay(size: 34)
         let ui = AeonTheme.FontToken.uiText(size: 34)
-        XCTAssertEqual(display.familyName, AeonTheme.FontToken.family)
-        XCTAssertEqual(ui.familyName, AeonTheme.FontToken.family)
+        XCTAssertTrue(display.familyName.hasPrefix(AeonTheme.FontToken.family), display.familyName)
+        XCTAssertTrue(ui.familyName.hasPrefix(AeonTheme.FontToken.family), ui.familyName)
         // Display type is the same face set wider; if the variation axis stops
         // being applied the two collapse into one and the hierarchy is lost.
         let name = "Aeon" as NSString
