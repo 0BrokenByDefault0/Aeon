@@ -77,6 +77,16 @@ jobs:
         run: |
           APP="build/Build/Products/Release-iphoneos/App.app"
           test -d "$APP" || { echo "App.app was not produced"; ls -R build/Build/Products || true; exit 1; }
+          echo "--- bundle root ---"
+          ls -la "$APP"
+          # Every face the app declares has to be in the bundle. Shipping an IPA
+          # whose UIAppFonts names a file that is not there means the app falls
+          # back to the system font on device and nothing says so.
+          MISSING=0
+          for FONT in $(/usr/libexec/PlistBuddy -c "Print :UIAppFonts" "$APP/Info.plist" | sed -n 's/^ *\([^ ].*\)$/\1/p' | grep -v '^Array' | grep -v '^[{}]$'); do
+            if [ ! -f "$APP/$FONT" ]; then echo "MISSING FROM BUNDLE: $FONT"; MISSING=1; fi
+          done
+          [ "$MISSING" -eq 0 ] || { echo "Declared fonts are missing from the bundle."; exit 1; }
           PACKAGE_OUTPUT="$PWD/Aeon-5.0-unsigned.ipa"
           PACKAGE_ROOT="$(mktemp -d)"
           mkdir -p "$PACKAGE_ROOT/Payload"
