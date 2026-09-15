@@ -29,6 +29,13 @@ on:
         type: string
         default: ''
 
+# Each run holds a macOS runner for well over an hour. Without this, a few
+# pushes in a row leave several of them grinding through superseded commits and
+# starving whatever ran last.
+concurrency:
+  group: aeon-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ipa:
     # macos-latest rather than a pinned image, so the build is not broken

@@ -9,6 +9,11 @@ name: Unsigned IPA (device build)
 #
 # It supplements the release gate and never replaces it: an IPA from here has
 # not been through the UI matrix.
+#
+# The release gate can do something similar on demand through its skip_tests
+# and test_filter dispatch inputs. This job exists because workflow_dispatch
+# only registers from the repository's default branch, which is not main; once
+# main is the default, prefer dispatching the gate and retire this file.
 on:
   # Dispatch only registers from the repository's default branch, so this also
   # runs on pushes to main, where the device build is wanted.
