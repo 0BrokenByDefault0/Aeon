@@ -1,0 +1,208 @@
+name: Recovery device preview
+run-name: Recovery 1 - direct import and compact iPhone layout
+
+on:
+  push:
+    branches: ['repair/native-recovery-1']
+    paths:
+      - '.github/recovery/apply.py'
+      - '.github/workflows/native-recovery-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aeon-recovery-1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.repository == '0BrokenByDefault0/Aeon' && github.ref == 'refs/heads/repair/native-recovery-1'
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Prepare pinned recovery changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/recovery/apply.py | tee "$RUNNER_TEMP/recovery-prepare.log"
+          git diff --check
+          python3 - <<'PY'
+          import json, subprocess
+          manifest = json.load(open('.github/recovery/applied.json'))
+          for path in manifest['sha256']:
+              if path.endswith('.swift'):
+                  subprocess.run(['xcrun', 'swiftc', '-frontend', '-parse', path], check=True)
+          PY
+
+      - name: Install dependencies and verify JavaScript regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test | tee "$RUNNER_TEMP/recovery-unit.log"
+          npm run check | tee "$RUNNER_TEMP/recovery-syntax.log"
+
+      - name: Commit exact source to the isolated recovery branch
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = 'repair/native-recovery-1'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 - <<'PY'
+          import json, subprocess
+          paths = list(json.load(open('.github/recovery/applied.json'))['sha256'])
+          subprocess.run(['git', 'add', '--', *paths, '.github/recovery/applied.json'], check=True)
+          PY
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: recover direct music import and compact iPhone layout'
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "AEON_SOURCE_SHA=$SOURCE_SHA" >> "$GITHUB_ENV"
+          echo "AEON_SOURCE_SHORT=${SOURCE_SHA:0:8}" >> "$GITHUB_ENV"
+          git diff fd0b5a91aae781373c0043300429cf3e73aab5e2 HEAD -- ios > "$RUNNER_TEMP/recovery-source.patch"
+          python3 - <<'PY'
+          import json, os, zipfile
+          paths = list(json.load(open('.github/recovery/applied.json'))['sha256'])
+          with zipfile.ZipFile(os.path.join(os.environ['RUNNER_TEMP'], 'recovery-changed-source.zip'), 'w', zipfile.ZIP_DEFLATED) as archive:
+              for path in paths:
+                  archive.write(path)
+          PY
+          printf '## Recovery 1 source\n\nSource commit: `%s`.\n\nThis is a device preview, not release qualification.\n' "$SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync native dependencies and preserved migration assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx cap sync ios
+          cmp app/legacy-migration.html ios/App/App/public/legacy-migration.html
+          cmp app/legacy-migration.js ios/App/App/public/legacy-migration.js
+          (cd ios/App && pod install)
+
+      - name: Compile unsigned iPhone Release app
+        working-directory: ios/App
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build-recovery \
+            CURRENT_PROJECT_VERSION="$((500 + GITHUB_RUN_NUMBER))" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            | tee "$RUNNER_TEMP/recovery-build.log" | xcpretty
+
+      - name: Stamp and package the actual source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, plistlib, shutil, subprocess
+          app = pathlib.Path('ios/App/build-recovery/Build/Products/Release-iphoneos/App.app')
+          assert app.is_dir(), 'No compiled app was produced'
+          plist = app / 'Info.plist'
+          info = plistlib.loads(plist.read_bytes())
+          executable = app / info['CFBundleExecutable']
+          subprocess.run(['xcrun', 'lipo', '-verify_arch', 'arm64', str(executable)], check=True)
+          assert 'UIMainStoryboardFile' not in info, 'Unexpected legacy storyboard entry point'
+          info.update(CFBundleDisplayName='AEON RC1',
+                      CFBundleVersion=str(500 + int(os.environ['GITHUB_RUN_NUMBER'])),
+                      AeonBuildCommit=os.environ['AEON_SOURCE_SHA'],
+                      AeonBuildRun=os.environ['GITHUB_RUN_NUMBER'],
+                      AeonBuildTrack='Recovery 1')
+          plist.write_bytes(plistlib.dumps(info, fmt=plistlib.FMT_BINARY))
+          identity = dict(iteration='Recovery 1', commit=os.environ['AEON_SOURCE_SHA'],
+                          workflow_run=os.environ['GITHUB_RUN_ID'],
+                          branch=os.environ['GITHUB_REF_NAME'],
+                          display_name=info['CFBundleDisplayName'],
+                          bundle_identifier=info['CFBundleIdentifier'],
+                          qualification='Device preview; inspect the separate native smoke result.')
+          (app / 'AEON_BUILD_IDENTITY.json').write_text(json.dumps(identity, indent=2) + '\n')
+          stage = pathlib.Path(os.environ['RUNNER_TEMP']) / 'recovery-ipa'
+          stage.mkdir(exist_ok=True)
+          package = pathlib.Path(os.environ['RUNNER_TEMP']) / 'recovery-package'
+          (package / 'Payload').mkdir(parents=True, exist_ok=True)
+          shutil.copytree(app, package / 'Payload' / 'App.app', symlinks=True)
+          output = stage / f"Aeon-5.0-Recovery-1-{os.environ['AEON_SOURCE_SHORT']}-unsigned.ipa"
+          subprocess.run(['zip', '-qry', str(output), 'Payload'], cwd=package, check=True)
+          (stage / 'BUILD-IDENTITY.json').write_text(json.dumps(identity, indent=2) + '\n')
+          print(json.dumps(identity, indent=2))
+          print(f'IPA bytes: {output.stat().st_size}')
+          PY
+
+      - name: Upload device preview before long-running native validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-5.0-Recovery-1-${{ env.AEON_SOURCE_SHORT }}-unsigned-ipa
+          path: ${{ runner.temp }}/recovery-ipa/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Focused native importer and navigation tests
+        id: smoke
+        continue-on-error: true
+        timeout-minutes: 18
+        env:
+          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-Recovery-1.xcresult
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run test:ios -- --family=iphone \
+            -only-testing:AppTests/ImportPickerTests \
+            -only-testing:AppTests/LibraryImporterTests \
+            -only-testing:AppTests/AppContainerTests \
+            -only-testing:AppUITests/ImportPickerPresentationTests \
+            -only-testing:AppUITests/PlayerNavigationTests \
+            | tee "$RUNNER_TEMP/recovery-native.log"
+
+      - name: Extract native result and real simulator screenshots
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          BUNDLE="$RUNNER_TEMP/Aeon-Recovery-1.xcresult"
+          if [ -d "$BUNDLE" ]; then
+            xcrun xcresulttool get test-results summary --path "$BUNDLE" | tee "$RUNNER_TEMP/recovery-native-summary.json"
+            xcrun xcresulttool get test-results tests --path "$BUNDLE" > "$RUNNER_TEMP/recovery-native-tree.json"
+            xcrun xcresulttool export attachments --path "$BUNDLE" --output-path "$RUNNER_TEMP/recovery-screenshots"
+          fi
+
+      - name: Upload source, logs, screenshots, and native evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-Recovery-1-evidence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/recovery-*.log
+            ${{ runner.temp }}/recovery-source.patch
+            ${{ runner.temp }}/recovery-changed-source.zip
+            ${{ runner.temp }}/recovery-native-*.json
+            ${{ runner.temp }}/recovery-screenshots/
+            ${{ runner.temp }}/Aeon-Recovery-1.xcresult/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Preserve native failures as failures
+        if: ${{ always() && steps.smoke.outcome == 'failure' }}
+        run: |
+          echo '::error::Focused native validation failed. A compiled preview is not a claim that device import or playback works.'
+          exit 1
