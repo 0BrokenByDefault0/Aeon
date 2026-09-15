@@ -307,6 +307,9 @@ struct AeonEmptyState: View {
 }
 
 struct AeonRouteMark: View {
+    var width: CGFloat = 68
+    var height: CGFloat = 48
+
     var body: some View {
         Canvas { context, size in
             let points = [
@@ -327,7 +330,7 @@ struct AeonRouteMark: View {
                 )
             }
         }
-        .frame(width: 68, height: 48)
+        .frame(width: width, height: height)
         .accessibilityHidden(true)
     }
 }
