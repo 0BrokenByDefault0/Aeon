@@ -78,13 +78,25 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
 
     func applicationDidEnterBackground() { stopPositionRefresh() }
 
-    func load(track: CatalogTrack, queue: [QueueItem]? = nil, index: Int? = nil) {
+    /// Loads `track`, and with `autoplay` starts it the moment the load lands.
+    ///
+    /// `play()` cannot simply follow `load(...)`. A load is asynchronous — the
+    /// file is inspected off the transport queue before the track becomes the
+    /// current one — so a `play()` issued in the same breath arrives first,
+    /// finds no track loaded, and fails. Tapping a song then put it in the
+    /// player bar and left it sitting there, which is exactly what it looked
+    /// like on device.
+    func load(track: CatalogTrack, queue: [QueueItem]? = nil, index: Int? = nil, autoplay: Bool = false) {
         coordinator.load(
             trackID: track.id,
             mediaRef: track.mediaReference,
             queue: queue,
             index: index
-        ) { [weak self] result in self?.accept(result) }
+        ) { [weak self] result in
+            self?.accept(result)
+            guard autoplay, case .success = result else { return }
+            self?.play()
+        }
     }
 
     func play() { coordinator.play { [weak self] result in self?.accept(result) } }
@@ -132,6 +144,37 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
         upcoming.insert(contentsOf: moved, at: insertion)
         let revised = Array(snapshot.queue.prefix(currentIndex + 1)) + upcoming
         commitQueue(revised, currentIndex: currentIndex, message: "Upcoming queue reordered.")
+    }
+
+    /// Puts `items` straight after the playing track.
+    ///
+    /// Returns false when there is no queue to insert into — with nothing
+    /// loaded there is no "next", and the caller starts the tracks instead.
+    @discardableResult
+    func insertNext(_ items: [QueueItem]) -> Bool {
+        guard !items.isEmpty, let snapshot, let currentIndex = snapshot.queueIndex,
+              snapshot.queue.indices.contains(currentIndex) else { return false }
+        var revised = snapshot.queue
+        revised.insert(contentsOf: items, at: currentIndex + 1)
+        commitQueue(
+            revised,
+            currentIndex: currentIndex,
+            message: items.count == 1 ? "Playing next." : "\(items.count) tracks playing next."
+        )
+        return true
+    }
+
+    /// Adds `items` to the end of the queue, leaving the current track alone.
+    @discardableResult
+    func appendToQueue(_ items: [QueueItem]) -> Bool {
+        guard !items.isEmpty, let snapshot, let currentIndex = snapshot.queueIndex,
+              snapshot.queue.indices.contains(currentIndex) else { return false }
+        commitQueue(
+            snapshot.queue + items,
+            currentIndex: currentIndex,
+            message: items.count == 1 ? "Added to the queue." : "\(items.count) tracks added to the queue."
+        )
+        return true
     }
 
     func clearUpcoming() {

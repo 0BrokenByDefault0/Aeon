@@ -54,8 +54,26 @@ struct AlbumDetailView: View {
             AeonBreadcrumb(text: "Album")
             Spacer(minLength: 0)
             Menu {
-                Button("EDIT") { editing = true }
-                Button("DELETE ALBUM", role: .destructive) { confirmingDelete = true }
+                Button {
+                    controller.playNext(trackIDs: controller.selectedTracks.map(\.id))
+                } label: {
+                    Label("Play next", systemImage: "text.insert")
+                }
+                Button {
+                    controller.addToQueue(trackIDs: controller.selectedTracks.map(\.id))
+                } label: {
+                    Label("Add to queue", systemImage: "text.append")
+                }
+                Button {
+                    editing = true
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    confirmingDelete = true
+                } label: {
+                    Label("Delete album", systemImage: "trash")
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
@@ -189,9 +207,7 @@ struct AlbumDetailView: View {
                         .font(AeonTheme.FontToken.metric(.caption2))
                         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     Menu {
-                        Button("PLAY FROM HERE") {
-                            controller.playAlbum(id: album.id, startingTrackID: track.id)
-                        }
+                        trackActions(for: track)
                     } label: {
                         Image(systemName: "ellipsis")
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
@@ -207,6 +223,43 @@ struct AlbumDetailView: View {
                 }
                 .accessibilityIdentifier("aeon.album.track.\(track.id)")
             }
+        }
+    }
+
+    /// What a track's overflow menu offers.
+    ///
+    /// Tapping the row plays the track, so the menu is for the things a player
+    /// cannot do with one tap: queueing and filing. These are system menus, so
+    /// they take the system's sentence case rather than Aeon's uppercase
+    /// labels, which are for chrome the app draws itself.
+    @ViewBuilder
+    private func trackActions(for track: CatalogTrack) -> some View {
+        Button {
+            controller.playAlbum(id: album.id, startingTrackID: track.id)
+        } label: {
+            Label("Play", systemImage: "play.fill")
+        }
+        Button {
+            controller.playNext(trackIDs: [track.id])
+        } label: {
+            Label("Play next", systemImage: "text.insert")
+        }
+        Button {
+            controller.addToQueue(trackIDs: [track.id])
+        } label: {
+            Label("Add to queue", systemImage: "text.append")
+        }
+        Menu {
+            let playlists = (try? controller.repository.playlists()) ?? []
+            if playlists.isEmpty {
+                Button("No playlists yet") {}.disabled(true)
+            } else {
+                ForEach(playlists) { playlist in
+                    Button(playlist.name) { controller.addTracks([track.id], to: playlist.id) }
+                }
+            }
+        } label: {
+            Label("Add to playlist", systemImage: "text.badge.plus")
         }
     }
 

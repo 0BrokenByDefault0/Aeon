@@ -21,7 +21,8 @@ struct AeonScreen<Content: View>: View {
                 bottom: geometry.safeAreaInsets.bottom
                     + (compact ? AeonTheme.Space.compactDock : 0)
                     + (compact && playerVisible ? AeonTheme.Space.playerBar : 0),
-                trailing: geometry.safeAreaInsets.trailing
+                trailing: geometry.safeAreaInsets.trailing,
+                safeBottom: geometry.safeAreaInsets.bottom
             )
             ZStack {
                 AeonTheme.ColorToken.void.ignoresSafeArea()

@@ -83,8 +83,7 @@ final class PlaylistsController: ObservableObject {
         }
         let index = min(max(0, position), tracks.count - 1)
         let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
-        playback.load(track: tracks[index], queue: queue, index: index)
-        playback.play()
+        playback.load(track: tracks[index], queue: queue, index: index, autoplay: true)
         message = "Route loaded into the queue."
     }
 

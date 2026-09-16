@@ -254,8 +254,13 @@ struct AeonDisplayText: View {
 struct AeonReadableInsets: Equatable {
     var top: CGFloat = 0
     var leading: CGFloat = 0
+    /// Everything between the content and the bottom of the screen: the system
+    /// inset plus whatever chrome is standing in front of it.
     var bottom: CGFloat = 0
     var trailing: CGFloat = 0
+    /// The system inset alone, for a surface that covers the chrome itself and
+    /// only has to clear the home indicator.
+    var safeBottom: CGFloat = 0
 }
 
 private struct AeonReadableInsetsKey: EnvironmentKey {

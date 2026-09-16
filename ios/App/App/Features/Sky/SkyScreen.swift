@@ -40,7 +40,9 @@ struct SkyScreen: View {
                 if controller.catalogue.stars.isEmpty {
                     emptyState
                         .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-                        .padding(.bottom, max(20, readableInsets.bottom * 0.35))
+                        // Clear the chrome completely: a fraction of it left the
+                        // import button sitting under the glyph row.
+                        .padding(.bottom, max(20, readableInsets.bottom))
                 }
 
                 if let ceremony = controller.ceremony {
@@ -139,15 +141,22 @@ struct SkyScreen: View {
                 selectionPill("WORLD \(planet.index) · \(planet.members.count) ALBUMS")
                     .accessibilityIdentifier("aeon.sky.planet-selection")
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, selectionClearance)
         } else if let star = controller.selectedStar {
             VStack {
                 Spacer()
                 selectionPill("\(star.artistName.uppercased()) · ALBUM \(star.sequence)")
                     .accessibilityIdentifier("aeon.sky.star-selection")
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, selectionClearance)
         }
+    }
+
+    /// What a selection sits above. Anchored to the bottom of the screen, the
+    /// pill was landing behind the player bar and the glyph row, which clipped
+    /// the name of whatever had just been selected.
+    private var selectionClearance: CGFloat {
+        max(24, readableInsets.bottom + AeonTheme.Space.small)
     }
 
     private func selectionPill(_ text: String) -> some View {
@@ -175,8 +184,11 @@ private struct SkyLabelOverlay: View {
         ZStack {
             ForEach(labels.prefix(80)) { label in
                 Text(label.text)
-                    .font(.system(size: label.isRegion ? 12 : 10, weight: .medium, design: .monospaced))
-                    .tracking(label.isRegion ? 1.6 : 0.8)
+                    // Two faces in the app, and a sky label is not a third: this
+                    // is the interface face, tracked out the way every other
+                    // label in Aeon is.
+                    .font(AeonTheme.FontToken.metric(label.isRegion ? .caption : .caption2, weight: .medium))
+                    .tracking(label.isRegion ? AeonTheme.FontToken.labelTracking : 0.8)
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary.opacity(highContrast ? 1 : (label.isRegion ? 0.9 : 0.82)))
                     .shadow(color: .black, radius: 3)
                     .position(label.position)

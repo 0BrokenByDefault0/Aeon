@@ -28,9 +28,18 @@ struct SkyHUD: View {
 
     private var topControls: some View {
         HStack(spacing: AeonTheme.Space.medium) {
-            Text(controller.camera.tier.rawValue.uppercased())
-                .accessibilityLabel("Sky altitude, \(controller.camera.tier.rawValue)")
-                .accessibilityIdentifier("aeon.sky.altitude")
+            // The altitude word changes as the sky is moved, and everything
+            // after it used to slide as the word got longer or shorter. The
+            // hidden names hold the slot at the width of the longest one, so
+            // the controls beside it stay put.
+            ZStack(alignment: .leading) {
+                ForEach(SkyZoomTier.allCases, id: \.self) { tier in
+                    Text(tier.rawValue.uppercased()).hidden()
+                }
+                Text(controller.camera.tier.rawValue.uppercased())
+            }
+            .accessibilityLabel("Sky altitude, \(controller.camera.tier.rawValue)")
+            .accessibilityIdentifier("aeon.sky.altitude")
             Rectangle()
                 .fill(AeonTheme.ColorToken.ivorySecondary.opacity(0.48))
                 .frame(width: 28, height: AeonTheme.Stroke.hairline)

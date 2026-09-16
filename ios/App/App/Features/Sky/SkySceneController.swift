@@ -97,6 +97,44 @@ final class SkySceneController: ObservableObject {
         if persist, Self.fixtureName() == nil { try? repository.save(camera: camera) }
     }
 
+    /// Carries the camera to `target` over `duration`, a step at a time.
+    ///
+    /// Camera motion is never handed to `withAnimation`. The Metal view reads
+    /// the camera value directly every frame, so it would arrive at the end of
+    /// the move immediately while SwiftUI animated the labels over it — the
+    /// names then drifted across a sky that had already stopped, which is what
+    /// a flick looked like on device. Everything that moves the camera moves it
+    /// through here or through `locate`, so the sky and the type over it stay
+    /// locked together.
+    func glide(to target: SkyCameraState, duration: TimeInterval, persist: Bool = true) {
+        cameraTask?.cancel()
+        cameraCrossfade = false
+        let origin = camera
+        let destination = target.sanitized
+        guard duration > 0 else {
+            setCamera(destination, persist: persist)
+            return
+        }
+        cameraTask = Task { [weak self] in
+            let steps = max(1, Int(duration * 60))
+            for step in 1...steps {
+                guard !Task.isCancelled, let self else { return }
+                let linear = Double(step) / Double(steps)
+                // Decelerating: fastest at the start, settling into the end.
+                let eased = 1 - pow(1 - linear, 3)
+                self.camera = SkyCameraState(
+                    centerX: origin.centerX + (destination.centerX - origin.centerX) * eased,
+                    centerY: origin.centerY + (destination.centerY - origin.centerY) * eased,
+                    scale: origin.scale + (destination.scale - origin.scale) * eased,
+                    selectedID: destination.selectedID
+                )
+                try? await Task.sleep(nanoseconds: 16_666_667)
+            }
+            guard !Task.isCancelled, let self else { return }
+            if persist, Self.fixtureName() == nil { try? self.repository.save(camera: self.camera) }
+        }
+    }
+
     func select(_ target: SkyHitTarget?) {
         var updated = camera
         updated.selectedID = target?.id
@@ -169,9 +207,16 @@ final class SkySceneController: ObservableObject {
         guard let updated = try? repository.catalogue() else { return }
         let newConstellations = updated.constellations.count - catalogue.constellations.count
         let newPlanets = updated.planets.count - catalogue.planets.count
+        let known = Set(catalogue.stars.map(\.albumID))
+        let arrivals = updated.stars.filter { !known.contains($0.albumID) }
         catalogue = updated
         if newPlanets > 0 { announce("A new world wakes") }
         else if newConstellations > 0 { announce("A constellation forms") }
+        // Bringing a record in and being shown the same empty sky is the import
+        // looking like it failed. Go to what just arrived.
+        if let arrival = arrivals.max(by: { $0.sequence < $1.sequence }) {
+            locate(id: arrival.albumID, reduceMotion: UIAccessibility.isReduceMotionEnabled)
+        }
     }
 
     func makeCapture(wide: Bool, viewport: CGSize) {

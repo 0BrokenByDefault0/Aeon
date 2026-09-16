@@ -82,10 +82,13 @@ struct SkyMetalView: UIViewRepresentable {
             case .began, .changed:
                 controller.setCamera(camera)
             case .ended:
+                // Momentum is stepped by the controller, not animated by
+                // SwiftUI: the sky and the labels drawn over it have to move as
+                // one thing.
                 let velocity = gesture.velocity(in: view)
-                let coast = camera.panned(screenTranslation: CGSize(width: velocity.x * 0.11, height: velocity.y * 0.11))
+                let coast = camera.panned(screenTranslation: CGSize(width: velocity.x * 0.09, height: velocity.y * 0.09))
                 if reduceMotion { controller.setCamera(camera, persist: true) }
-                else { withAnimation(.easeOut(duration: 0.42)) { controller.setCamera(coast, persist: true) } }
+                else { controller.glide(to: coast, duration: 0.52) }
             case .cancelled, .failed:
                 controller.setCamera(camera, persist: true)
             default: break
@@ -134,7 +137,7 @@ struct SkyMetalView: UIViewRepresentable {
             guard !occupied else { return }
             let camera = controller.camera.zoomedOutOneTier(anchor: point, viewport: viewport)
             if reduceMotion { controller.setCamera(camera, persist: true) }
-            else { withAnimation(.easeOut(duration: 0.36)) { controller.setCamera(camera, persist: true) } }
+            else { controller.glide(to: camera, duration: 0.38) }
         }
 
         @objc private func hold(_ gesture: UILongPressGestureRecognizer) {}

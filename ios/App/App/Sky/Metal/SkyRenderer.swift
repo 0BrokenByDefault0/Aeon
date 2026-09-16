@@ -207,29 +207,34 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                 nearPlaying = false
             }
             let dimmed: Float = selectedPlanet == nil || isMember ? 1 : 0.2
-            // Brightness encodes listening: a record played through burns, one
-            // imported and never opened sits just above the threshold.
+            // Brightness encodes listening: a record played through burns
+            // brighter than one that has only been imported. The floor is high
+            // on purpose — an album is the whole point of the sky, and the
+            // first record someone brings in has a magnitude of almost nothing.
+            // Set from the listening alone it arrived dimmer than the dust.
             let listened = Float(star.magnitude) / 255
-            let brightness = (0.30 + listened * 0.70) * dimmed
+            let brightness = (0.68 + listened * 0.32) * dimmed
             let color = star.isUncharted
-                ? SIMD4<Float>(0.74, 0.79, 0.88, brightness * 0.62)
+                ? SIMD4<Float>(0.82, 0.87, 0.96, brightness * 0.86)
                 : SIMD4<Float>(1, 1, 1, brightness)
             return GPUInstance(
                 position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)),
                 color0: color,
                 color1: color,
                 color2: color,
-                size: 5 + listened * 7 + (isPlaying ? 3 : 0),
+                size: 7 + listened * 7 + (isPlaying ? 3 : 0),
                 flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0),
                 turbulence: 0
             )
         }
         starCount = starInstances.count
         starBuffer = makeBuffer(starInstances)
+        // The halo around a star is optics, not paint: tight, nearly white, and
+        // faint. Wide and blue it read as a flat coloured smear over the black.
         let glows = starInstances.map {
             var value = $0
-            value.size *= 4.2
-            value.color0 *= SIMD4<Float>(0.52, 0.60, 0.78, 0.11)
+            value.size *= 2.8
+            value.color0 *= SIMD4<Float>(0.78, 0.85, 0.98, 0.085)
             value.flags |= 1
             return value
         }

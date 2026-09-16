@@ -137,10 +137,14 @@ final class LibraryImporterTests: XCTestCase {
 
         XCTAssertEqual(result.importedAlbums, 1)
         XCTAssertEqual(Set(try repository.albumPage().map(\.title)), Set(["First", "Second"]))
-        XCTAssertEqual(
-            probe.probedNames, [second.lastPathComponent],
+        // The importer also probes the partial copy it makes while storing a
+        // track, so the claim is about the source files: the album committed
+        // before the pause is never read again.
+        XCTAssertFalse(
+            probe.probedNames.contains(first.lastPathComponent),
             "The resumed import went back over an album it had already committed"
         )
+        XCTAssertTrue(probe.probedNames.contains(second.lastPathComponent))
     }
 
     func testDuplicateAlbumRuleSkipsSecondImportAndProbeWorkStaysBounded() async throws {

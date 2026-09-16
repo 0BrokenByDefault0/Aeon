@@ -169,10 +169,33 @@ final class LibraryController: ObservableObject {
             }
             let index = startingTrackID.flatMap { requested in tracks.firstIndex { $0.id == requested } } ?? 0
             let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
-            playback.load(track: tracks[index], queue: queue, index: index)
-            playback.play()
+            playback.load(track: tracks[index], queue: queue, index: index, autoplay: true)
         } catch {
             message = "Playback could not start because the album is unavailable."
+        }
+    }
+
+    /// Queues `trackIDs` after the playing track, or starts them when nothing
+    /// is playing — the same thing every other player does with Play Next.
+    func playNext(trackIDs: [String]) {
+        enqueue(trackIDs: trackIDs) { [playback] items in playback.insertNext(items) }
+    }
+
+    func addToQueue(trackIDs: [String]) {
+        enqueue(trackIDs: trackIDs) { [playback] items in playback.appendToQueue(items) }
+    }
+
+    private func enqueue(trackIDs: [String], using add: ([QueueItem]) -> Bool) {
+        let tracks = trackIDs.compactMap { id -> CatalogTrack? in (try? repository.track(id: id)) ?? nil }
+        guard !tracks.isEmpty else {
+            message = "Those tracks are no longer in your library."
+            return
+        }
+        let items = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
+        guard add(items) else {
+            // Nothing is loaded, so there is no "next" to queue behind.
+            playback.load(track: tracks[0], queue: items, index: 0, autoplay: true)
+            return
         }
     }
 
@@ -187,6 +210,17 @@ final class LibraryController: ObservableObject {
             let additions = try repository.tracks(albumID: album.id).map(\.id)
             try repository.replacePlaylistItems(playlistID: playlistID, trackIDs: existing + additions)
             message = "Added to playlist."
+        } catch {
+            message = "The playlist could not be updated."
+        }
+    }
+
+    func addTracks(_ trackIDs: [String], to playlistID: String) {
+        guard !trackIDs.isEmpty else { return }
+        do {
+            let existing = try repository.playlistItems(playlistID: playlistID).map(\.trackID)
+            try repository.replacePlaylistItems(playlistID: playlistID, trackIDs: existing + trackIDs)
+            message = trackIDs.count == 1 ? "Added to playlist." : "\(trackIDs.count) tracks added to playlist."
         } catch {
             message = "The playlist could not be updated."
         }

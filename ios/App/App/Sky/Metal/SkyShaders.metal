@@ -229,7 +229,11 @@ fragment float4 skyStarFragment(SkyVertexOut in [[stage_in]]) {
 
 fragment float4 skyGlowFragment(SkyVertexOut in [[stage_in]]) {
     float radius = length(in.uv - 0.5) * 2.0;
-    float alpha = pow(max(0.0, 1.0 - radius), 3.0) * in.color0.a * (1.0 + in.spectrumLow * 0.16);
+    // A steeper falloff keeps the halo close to the star. The gentle curve drew
+    // a wide disc of almost-constant alpha, which banded on an OLED panel and
+    // read as a flat wash rather than light.
+    float falloff = pow(max(0.0, 1.0 - radius), 4.5);
+    float alpha = falloff * in.color0.a * (1.0 + in.spectrumLow * 0.16);
     return float4(in.color0.rgb * alpha, alpha);
 }
 

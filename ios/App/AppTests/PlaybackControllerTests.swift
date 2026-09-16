@@ -41,6 +41,74 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertNil(controller.failure)
     }
 
+    func testAutoplayWaitsForTheLoadToLandBeforeItStarts() {
+        // A load is asynchronous. Calling play() straight after it reached the
+        // transport queue first, found nothing loaded, and failed — which put a
+        // track in the player bar and left it sitting there.
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: "track")
+        coordinator.holdsLoad = true
+        let controller = PlaybackController(coordinator: coordinator)
+
+        controller.load(track: track(id: "track"), queue: [], index: 0, autoplay: true)
+        XCTAssertEqual(coordinator.playCount, 0, "Playback started before the track was loaded")
+
+        coordinator.releaseLoad()
+        XCTAssertEqual(coordinator.playCount, 1)
+    }
+
+    func testAFailedLoadNeverStartsPlayback() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = nil
+        let controller = PlaybackController(coordinator: coordinator)
+
+        controller.load(track: track(id: "missing"), autoplay: true)
+
+        XCTAssertEqual(coordinator.playCount, 0)
+    }
+
+    func testLoadWithoutAutoplayLeavesTheTrackWaiting() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: "track")
+        let controller = PlaybackController(coordinator: coordinator)
+
+        controller.load(track: track(id: "track"))
+
+        XCTAssertEqual(coordinator.playCount, 0)
+    }
+
+    func testPlayNextLandsBehindTheCurrentTrackAndTheRestGoesToTheEnd() {
+        let items = (0 ..< 3).map { QueueItem(trackID: "t\($0)", albumID: "a", mediaRef: .documents(relativePath: "t\($0).wav")) }
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: "t0", queue: items, index: 1)
+        let controller = PlaybackController(coordinator: coordinator)
+        controller.accept(snapshot: snapshot(version: 2, trackID: "t1", queue: items, index: 1))
+
+        let added = QueueItem(trackID: "new", albumID: "a", mediaRef: .documents(relativePath: "new.wav"))
+        XCTAssertTrue(controller.insertNext([added]))
+        XCTAssertEqual(coordinator.queuedOrders.last?.map(\.trackID), ["t0", "t1", "new", "t2"])
+
+        XCTAssertTrue(controller.appendToQueue([added]))
+        XCTAssertEqual(coordinator.queuedOrders.last?.last?.trackID, "new")
+    }
+
+    func testQueueingWithNothingLoadedReportsThatItCouldNotBeDone() {
+        let controller = PlaybackController(coordinator: ControllerCoordinator())
+        let added = QueueItem(trackID: "new", albumID: "a", mediaRef: .documents(relativePath: "new.wav"))
+
+        XCTAssertFalse(controller.insertNext([added]), "There is no next without a current track")
+        XCTAssertFalse(controller.appendToQueue([added]))
+    }
+
+    private func track(id: String) -> CatalogTrack {
+        CatalogTrack(
+            id: id, albumID: "album", sequence: 1, discNumber: 1, trackNumber: 1,
+            title: id, artist: "", duration: 60, byteCount: 32,
+            mediaReference: .documents(relativePath: "\(id).wav"),
+            importedAt: Date(timeIntervalSince1970: 1)
+        )
+    }
+
     func testForegroundRequestsAuthoritativeSnapshot() {
         let coordinator = ControllerCoordinator()
         coordinator.state = snapshot(version: 8, trackID: "foreground")
@@ -96,13 +164,19 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertEqual(coordinator.seekPositions, [19.25])
     }
 
-    private func snapshot(version: UInt64, trackID: String?, intent: PlaybackIntent = .paused) -> PlaybackSnapshot {
+    private func snapshot(
+        version: UInt64,
+        trackID: String?,
+        intent: PlaybackIntent = .paused,
+        queue: [QueueItem] = [],
+        index: Int? = nil
+    ) -> PlaybackSnapshot {
         PlaybackSnapshot(
             version: version,
             trackID: trackID,
             queueRevision: 0,
-            queue: [],
-            queueIndex: nil,
+            queue: queue,
+            queueIndex: index,
             position: 0,
             intent: intent,
             replayGainMode: .off,
@@ -126,6 +200,17 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     private(set) var playCount = 0
     private(set) var nextCount = 0
     private(set) var seekPositions: [TimeInterval] = []
+    private(set) var queuedOrders: [[QueueItem]] = []
+    /// Holds the load's completion the way a real one does while the file is
+    /// inspected, so a test can see what happens in between.
+    var holdsLoad = false
+    private var heldLoad: (() -> Void)?
+
+    func releaseLoad() {
+        let held = heldLoad
+        heldLoad = nil
+        held?()
+    }
 
     func initialize(completion: @escaping PlaybackCommandCompletion) {
         initializeCount += 1
@@ -133,7 +218,9 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     }
 
     func load(trackID: String, mediaRef: MediaReference, queue: [QueueItem]?, index: Int?, completion: @escaping PlaybackCommandCompletion) {
-        completion(state.map(Result.success) ?? .failure(failure))
+        let result = state.map(Result.success) ?? .failure(failure)
+        guard holdsLoad else { completion(result); return }
+        heldLoad = { completion(result) }
     }
     func play(completion: @escaping PlaybackCommandCompletion) { playCount += 1; complete(completion) }
     func pause(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
@@ -142,6 +229,7 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     func next(completion: @escaping PlaybackCommandCompletion) { nextCount += 1; complete(completion) }
     func previous(completion: @escaping PlaybackCommandCompletion) { complete(completion) }
     func setQueue(items: [QueueItem], index: Int, revision: UInt64, completion: @escaping PlaybackCommandCompletion) {
+        queuedOrders.append(items)
         complete(completion)
     }
     func setVolume(_ value: Float, completion: @escaping PlaybackCommandCompletion) { complete(completion) }

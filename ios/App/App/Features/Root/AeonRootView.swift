@@ -389,7 +389,9 @@ private struct AeonReadyShell: View {
         )
         .padding(.leading, regularContentLeadingPadding(regular: regular))
         .padding(.top, insets.top)
-        .padding(.bottom, regular ? insets.bottom : 0)
+        // Now Playing is drawn above the chrome, so it clears the home
+        // indicator rather than the glyphs.
+        .padding(.bottom, regular ? insets.bottom : insets.safeBottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(width: width)
         .ignoresSafeArea(edges: .vertical)
@@ -420,27 +422,32 @@ private struct AeonReadyShell: View {
                 )
                 .padding(.leading, regularContentLeadingPadding(regular: regular))
                 .padding(.top, insets.top)
-                .padding(.bottom, regular ? insets.bottom : 0)
+                .padding(.bottom, insets.bottom)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else if destination == .playlists {
-            let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
-                ? AeonTheme.Space.playerBar : 0)
+            // The pane itself now ends above the chrome, so its content only
+            // adds room for a player bar the pane is still sitting behind.
+            let bottomInset = regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
+                ? AeonTheme.Space.playerBar : 0
             AeonGlass {
                 PlaylistsScreen(controller: playlistsController, contentBottomInset: bottomInset)
                     .padding(.leading, regularContentLeadingPadding(regular: regular))
                     .padding(.top, insets.top)
+                    .padding(.bottom, insets.bottom)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else if destination == .settings {
-            let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
-                ? AeonTheme.Space.playerBar : 0)
+            // The pane itself now ends above the chrome, so its content only
+            // adds room for a player bar the pane is still sitting behind.
+            let bottomInset = regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
+                ? AeonTheme.Space.playerBar : 0
             AeonGlass {
                 SettingsScreen(controller: settingsController, contentBottomInset: bottomInset) { section in
                     nowPlayingSection = section
@@ -448,6 +455,7 @@ private struct AeonReadyShell: View {
                 }
                 .padding(.leading, regularContentLeadingPadding(regular: regular))
                 .padding(.top, insets.top)
+                .padding(.bottom, insets.bottom)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
