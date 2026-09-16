@@ -65,7 +65,7 @@ struct SkyScreen: View {
                     .allowsHitTesting(false)
                     .accessibilityAddTraits(.updatesFrequently)
                 }
-                selectionLabel
+                selectionMarker(viewport: geometry.size)
             }
             .background(AeonTheme.ColorToken.void)
         }
@@ -133,45 +133,79 @@ struct SkyScreen: View {
         }
     }
 
+    /// What a selection looks like: drawn at the thing selected, not in a bar at
+    /// the bottom of the screen.
+    ///
+    /// A tap names the record and says how to open it; a second tap on the same
+    /// star opens it. Naming and opening on one tap would mean never being able
+    /// to read the sky without leaving it.
     @ViewBuilder
-    private var selectionLabel: some View {
+    private func selectionMarker(viewport: CGSize) -> some View {
         if let planet = controller.selectedPlanet {
-            VStack {
-                Spacer()
-                selectionPill("WORLD \(planet.index) · \(planet.members.count) ALBUMS")
-                    .accessibilityIdentifier("aeon.sky.planet-selection")
-            }
-            .padding(.bottom, selectionClearance)
+            marker(
+                at: planet.coordinate,
+                viewport: viewport,
+                title: "WORLD \(planet.index)",
+                detail: "\(planet.members.count) ALBUMS",
+                ringSize: 56
+            )
+            .accessibilityIdentifier("aeon.sky.planet-selection")
         } else if let star = controller.selectedStar {
-            VStack {
-                Spacer()
-                selectionPill("\(star.artistName.uppercased()) · ALBUM \(star.sequence)")
-                    .accessibilityIdentifier("aeon.sky.star-selection")
-            }
-            .padding(.bottom, selectionClearance)
+            marker(
+                at: star.coordinate,
+                viewport: viewport,
+                title: controller.albumName(for: star).uppercased(),
+                detail: star.artistName.uppercased(),
+                footnote: "TAP AGAIN FOR ALBUM",
+                ringSize: 34
+            )
+            .accessibilityIdentifier("aeon.sky.star-selection")
         }
     }
 
-    /// What a selection sits above. Anchored to the bottom of the screen, the
-    /// pill was landing behind the player bar and the glyph row, which clipped
-    /// the name of whatever had just been selected.
-    private var selectionClearance: CGFloat {
-        max(24, readableInsets.bottom + AeonTheme.Space.small)
-    }
+    private func marker(
+        at coordinate: SkyPoint,
+        viewport: CGSize,
+        title: String,
+        detail: String,
+        footnote: String? = nil,
+        ringSize: CGFloat
+    ) -> some View {
+        let point = controller.camera.screenPoint(for: coordinate, viewport: SkyViewport(size: viewport))
+        return VStack(spacing: AeonTheme.Space.xSmall) {
+            HStack(spacing: AeonTheme.Space.small) {
+                Text("\u{2039}")
+                Text(title).foregroundStyle(AeonTheme.ColorToken.bone)
+                Text("\u{2014}")
+                Text(detail).foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                Text("\u{203A}")
+            }
+            .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
+            .tracking(AeonTheme.FontToken.labelTracking)
+            .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
 
-    private func selectionPill(_ text: String) -> some View {
-        Text(text)
-            .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
-            .tracking(1.4)
-            .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-            .padding(.horizontal, AeonTheme.Space.regular)
-            .frame(minHeight: AeonTheme.Space.minimumTarget)
-            .background(
-                Capsule().fill(AeonTheme.ColorToken.chamber.opacity(0.88))
-            )
-            .overlay(
-                Capsule().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-            )
+            if let footnote {
+                Text(footnote)
+                    .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                    .tracking(AeonTheme.FontToken.labelTracking)
+                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            }
+
+            Circle()
+                .stroke(AeonTheme.ColorToken.strongRule, lineWidth: AeonTheme.Stroke.focus)
+                .frame(width: ringSize, height: ringSize)
+                .padding(.top, AeonTheme.Space.xSmall)
+        }
+        .shadow(color: .black.opacity(0.9), radius: 6)
+        .frame(width: viewport.width - AeonTheme.Space.edge * 2)
+        // The ring sits on the star; the name sits above it. The text block is
+        // kept near the middle of the screen so a name never runs off the edge.
+        .position(x: viewport.width / 2, y: point.y - ringSize / 2 - 4)
+        .allowsHitTesting(false)
+        // One element, so the selection still reads as a single thing.
+        .accessibilityElement(children: .combine)
     }
 }
 

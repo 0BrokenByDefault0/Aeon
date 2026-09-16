@@ -17,20 +17,19 @@ enum ImportPickerKind: String, Identifiable {
 
     /// Whether iOS should hand back a copy rather than in-place access.
     ///
-    /// Always, now. Opening someone else's file in place needs a security-scoped
-    /// grant from the file provider, and when that grant fails the picker reports
-    /// the selection as a *cancel* — which is exactly what the device log showed:
-    /// import_picker_cancelled_explicit on a tap of Open. Switching files and
-    /// archives to a copy made them work on the same device where the in-place
-    /// folder picker went on doing nothing, which is as direct a comparison as
-    /// this gets.
+    /// Files and archives are copied. Opening someone else's file in place needs
+    /// a security-scoped grant from the file provider, and when that grant fails
+    /// the picker reports the selection as a *cancel* — which is exactly what
+    /// the device log showed: import_picker_cancelled_explicit on a tap of Open.
+    /// Copying made them work on the same device, which is as direct a
+    /// comparison as this gets.
     ///
-    /// A folder was held back because its bookmark is what lets a later rescan
-    /// find the source again. That is a convenience — every track is copied into
-    /// Aeon's own Documents at import — and it is not worth the whole feature.
-    /// `PickedSelection` tells a copy from a location the user still owns, so
-    /// the bookmark is still kept whenever the system does hand one back.
-    var copiesSelection: Bool { true }
+    /// A folder cannot be copied. `UIDocumentPickerViewController` raises rather
+    /// than duplicating a directory, and asking it to took the app down the
+    /// moment IMPORT FOLDER was tapped. So a folder is opened in place, and when
+    /// the grant does not arrive Aeon says so and offers the files inside it
+    /// instead, which is the path that works.
+    var copiesSelection: Bool { self != .folder }
 
     var contentTypes: [UTType] {
         switch self {
@@ -83,7 +82,12 @@ enum PickedSelection {
 
 enum ImportPickerOutcome {
     case picked([URL])
-    case cancelled
+    /// `explicit` means iOS reported the cancel through
+    /// `documentPickerWasCancelled` rather than the picker being swiped away.
+    /// A refused in-place grant arrives that way too, so for a folder — the one
+    /// journey that still has to ask for one — it is the only signal there is
+    /// that Open did nothing.
+    case cancelled(explicit: Bool)
     case failed(String)
 }
 
@@ -244,7 +248,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
             cancelSource = "explicit"
-            finish(.cancelled)
+            finish(.cancelled(explicit: true))
         }
 
         /// Swiping the picker away is a cancel too, but so is choosing a file
@@ -264,7 +268,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         func scheduleCancelAfterDismissal(after delay: TimeInterval = 4.0) {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 self?.cancelSource = "dismissal"
-                self?.finish(.cancelled)
+                self?.finish(.cancelled(explicit: false))
             }
         }
 

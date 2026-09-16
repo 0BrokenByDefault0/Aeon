@@ -30,16 +30,16 @@ final class ImportPickerTests: XCTestCase {
         XCTAssertFalse(AeonImportContentTypes.audio.contains(.data))
     }
 
-    func testNothingIsOpenedInPlace() {
+    func testOnlyAFolderIsOpenedInPlace() {
         // Opening someone else's file in place needs a security-scoped grant from
-        // the file provider. When that grant fails the picker reports the
-        // selection as a cancel and the import silently never starts, which is
-        // what happened on device: files started working the moment they were
-        // copied instead, while the folder — the one journey still asking for a
-        // grant — went on doing nothing at all.
-        for kind in [ImportPickerKind.audioFiles, .folder, .catalogArchive] {
-            XCTAssertTrue(kind.copiesSelection, "\(kind.rawValue) still asks for in-place access")
-        }
+        // the file provider, and when that grant fails the picker reports the
+        // selection as a cancel: files started working on device the moment they
+        // were copied instead. A folder cannot take that route — the picker
+        // raises rather than duplicating a directory, which took the app down —
+        // so it is the one journey that still has to ask.
+        XCTAssertTrue(ImportPickerKind.audioFiles.copiesSelection)
+        XCTAssertTrue(ImportPickerKind.catalogArchive.copiesSelection)
+        XCTAssertFalse(ImportPickerKind.folder.copiesSelection)
     }
 
     func testACopyTheSystemMadeIsToldApartFromTheUsersOwnFiles() throws {

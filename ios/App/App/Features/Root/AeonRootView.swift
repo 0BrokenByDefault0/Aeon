@@ -6,6 +6,11 @@ struct AeonRootView: View {
     /// One picker at a time. Several `fileImporter` modifiers stacked on a single view
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
+    /// Raised when a folder pick came back as a cancel. iOS reports a refused
+    /// in-place grant the same way it reports the Cancel button, and a folder is
+    /// the only journey that still has to ask for one, so this is the only
+    /// moment Aeon can say what probably just happened.
+    @State private var folderAccessRefused = false
 
     var body: some View {
         ZStack {
@@ -49,12 +54,22 @@ struct AeonRootView: View {
         } message: {
             Text(container.libraryImportError ?? "")
         }
+        .alert("Import Folder", isPresented: $folderAccessRefused) {
+            Button("Choose Songs") { picker = .audioFiles }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text("If you tapped Open and nothing happened, iOS did not give Aeon permission to read that folder. Choosing the songs inside it works, and Aeon copies them into your library either way.")
+        }
     }
 
     private func handle(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
         container.recordImportEvent("import_outcome_\(kind.rawValue)")
         switch outcome {
-        case .cancelled:
+        case .cancelled(let explicit):
+            // Swiping the picker away is an ordinary cancel. Being told the
+            // selection was cancelled, on the journey that asks for a grant, is
+            // what a tap of Open that did nothing looks like from here.
+            if explicit, kind == .folder { folderAccessRefused = true }
             return
         case .failed(let message):
             container.reportLibraryImportProblem(message)
@@ -247,6 +262,9 @@ private struct AeonReadyShell: View {
     let importFiles: () -> Void
     let importFolder: () -> Void
     @ObservedObject private var playback: PlaybackController
+    /// Observed here, not only inside SkyScreen: the root has to see a second
+    /// tap on a star to open the record it stands for.
+    @ObservedObject private var sky: SkySceneController
     @StateObject private var libraryController: LibraryController
     @StateObject private var playlistsController: PlaylistsController
     @StateObject private var settingsController: SettingsController
@@ -275,6 +293,7 @@ private struct AeonReadyShell: View {
         self.importFiles = importFiles
         self.importFolder = importFolder
         _playback = ObservedObject(wrappedValue: services.playbackController)
+        _sky = ObservedObject(wrappedValue: services.skySceneController)
         _libraryController = StateObject(wrappedValue: LibraryController(
             repository: services.catalogRepository,
             artworkStore: services.artworkStore,
@@ -355,6 +374,13 @@ private struct AeonReadyShell: View {
         }
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
         .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
+        // A second tap on a star in the sky opens the record it stands for.
+        .onChange(of: sky.albumToOpen) { albumID in
+            guard let albumID else { return }
+            sky.albumToOpen = nil
+            libraryController.selectAlbum(id: albumID)
+            destination = .library
+        }
         .onAppear { services.spectrumAnalyzer.setReduceMotion(effectiveReduceMotion) }
         .onChange(of: reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion)

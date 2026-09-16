@@ -10,9 +10,21 @@ enum AeonDestination: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var title: String { rawValue.uppercased() }
+
+    /// What the glyph row calls it. Short enough that four of them fit across a
+    /// phone without crowding; the panels keep their own longer titles.
+    var navigationLabel: String {
+        switch self {
+        case .sky: return "SKY"
+        case .library: return "LIBRARY"
+        case .playlists: return "LISTS"
+        case .settings: return "SET"
+        }
+    }
+
     var symbol: String {
         switch self {
-        case .sky: return "sparkles"
+        case .sky: return "sparkle"
         case .library: return "square.grid.2x2"
         case .playlists: return "point.3.connected.trianglepath.dotted"
         case .settings: return "slider.horizontal.3"
@@ -137,6 +149,12 @@ struct AeonChrome<PlayerBar: View>: View {
         VStack(spacing: 0) {
             Spacer()
             VStack(spacing: 0) {
+                // One hairline holds the whole of the chrome against the sky, so
+                // the player and the glyphs read as a single edge rather than as
+                // two things stacked at the bottom of the screen.
+                Rectangle()
+                    .fill(AeonTheme.ColorToken.rule)
+                    .frame(height: AeonTheme.Stroke.hairline)
                 if playerLoaded {
                     playerBar.frame(minHeight: AeonTheme.Space.playerBar)
                 }
@@ -146,7 +164,8 @@ struct AeonChrome<PlayerBar: View>: View {
                     }
                 }
                 .frame(minHeight: AeonTheme.Space.compactDock)
-                .padding(.bottom, bottomInset)
+                // The home indicator is not somewhere a glyph can live.
+                .padding(.bottom, max(AeonTheme.Space.small, bottomInset))
             }
             .background(alignment: .bottom) {
                 // The only thing under the glyphs is a scrim, so the sky keeps
@@ -208,14 +227,24 @@ struct AeonChrome<PlayerBar: View>: View {
         } label: {
             Group {
                 if compact {
-                    Image(systemName: item.symbol)
-                        .font(.system(
-                            size: dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText ? 23 : 18,
-                            weight: selected ? .medium : .regular
-                        ))
-                        .frame(width: 26, height: 26)
-                        .scaleEffect(selected ? 1 : 0.94)
-                        .animation(AeonTheme.Motion.chrome, value: destination)
+                    VStack(spacing: 5) {
+                        Image(systemName: item.symbol)
+                            .font(.system(
+                                size: dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText ? 23 : 18,
+                                weight: selected ? .medium : .regular
+                            ))
+                            .frame(width: 26, height: 26)
+                        // A row of unlabelled glyphs is a guessing game. The
+                        // labels are small enough that the row still costs the
+                        // sky almost nothing.
+                        Text(item.navigationLabel)
+                            .font(AeonTheme.FontToken.metric(.caption2, weight: selected ? .semibold : .medium))
+                            .tracking(1.1)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .scaleEffect(selected ? 1 : 0.97)
+                    .animation(AeonTheme.Motion.chrome, value: destination)
                 } else {
                     if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
                         Image(systemName: item.symbol)
@@ -237,7 +266,7 @@ struct AeonChrome<PlayerBar: View>: View {
             .foregroundStyle(
                 selected
                     ? AeonTheme.ColorToken.textPrimary
-                    : Color.white.opacity(compact ? 0.20 : 0.62)
+                    : Color.white.opacity(compact ? 0.30 : 0.62)
             )
             .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
             .background {
@@ -254,6 +283,13 @@ struct AeonChrome<PlayerBar: View>: View {
                         .fill(selected ? AeonTheme.ColorToken.bone : .clear)
                         .frame(width: 2)
                         .padding(.vertical, 11)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if compact {
+                    Capsule()
+                        .fill(selected ? AeonTheme.ColorToken.bone : .clear)
+                        .frame(width: 22, height: 2)
                 }
             }
         }

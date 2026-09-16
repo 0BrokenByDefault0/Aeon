@@ -889,22 +889,28 @@
     "  return s;",
     "}",
 
-    /* dust: three depth layers of very small points — never album stars */
-    "float dust(vec3 rd){",
-    "  float acc = 0.0;",
+    /* the backdrop: depth layers of small, sharp points — never album stars.
+       Dense, so it reads as a sky; faint, so the black stays black; warm and
+       cool, so it is not one flat texture. */
+    "vec3 dust(vec3 rd){",
+    "  vec3 acc = vec3(0.0);",
     "  for(int i = 0; i < 4; i++){",
     "    float fi = float(i);",
-    "    float sc = 78.0 * pow(1.9, fi);",
+    "    float sc = 70.0 * pow(1.9, fi);",
     "    vec3 p = rd * sc;",
     "    vec3 c = floor(p);",
     "    vec3 f = p - c;",
     "    float h = hash13(c + fi * 19.3);",
-    "    if(h > 0.868){",
+    "    if(h > 0.822){",
     "      vec3 o = vec3(hash13(c + 3.1), hash13(c + 7.7), hash13(c + 11.5));",
     "      float d = length(f - o);",
-    "      float b = smoothstep(0.15, 0.0, d) * (h - 0.868) / 0.132;",
+    "      float mag = pow((h - 0.822) / 0.178, 0.55);",
+    "      float b = smoothstep(0.15, 0.0, d) * mag;",
     "      float tw = 0.7 + 0.3 * sin(uTime * 1.1 + h * 60.0);",
-    "      acc += b * tw * (0.80 - fi * 0.20);",
+    "      float temp = hash13(c + 63.1);",
+    "      vec3 tint = temp > 0.82 ? vec3(1.00, 0.84, 0.66)",
+    "        : (temp < 0.20 ? vec3(0.84, 0.90, 1.00) : vec3(0.97, 0.98, 1.00));",
+    "      acc += tint * (b * tw * (0.80 - fi * 0.20));",
     "    }",
     "  }",
     "  return acc;",
@@ -999,7 +1005,7 @@
 
     "  vec3 col = vec3(0.0009, 0.0011, 0.0018);",
     "  col += nebula(rd);",
-    "  col += vec3(0.88, 0.93, 1.0) * dust(rd) * 0.34;",
+    "  col += dust(rd) * 0.34;",
 
     /* three bodies, no two alike: a banded giant with rings, a cold ice world,
        and a small scorched rock further out */

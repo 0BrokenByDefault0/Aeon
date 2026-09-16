@@ -110,12 +110,17 @@ vertex SkyFieldOut skyFieldVertex(uint vertexID [[vertex_id]]) {
 /// camera, so panning the sky reads as distance rather than as a moving
 /// wallpaper. Cells are sized in pixels, which keeps the field equally deep at
 /// every zoom.
-static inline float dustField(float2 pixel, constant SkyUniforms &uniforms) {
-    const float cellSize[3] = { 52.0, 34.0, 25.0 };
+/// The backdrop: three parallaxed depth layers of small, sharp points.
+///
+/// Dense but faint. The count is what makes it read as a sky rather than as a
+/// few specks on a black screen, and the brightness is what keeps the black
+/// black — every point here is a fraction of what an album star carries.
+static inline float3 dustField(float2 pixel, constant SkyUniforms &uniforms) {
+    const float cellSize[3] = { 46.0, 30.0, 22.0 };
     const float parallax[3] = { 0.06, 0.15, 0.30 };
-    const float threshold[3] = { 0.955, 0.966, 0.974 };
+    const float threshold[3] = { 0.930, 0.945, 0.957 };
     const float weight[3] = { 0.85, 0.62, 0.45 };
-    float total = 0.0;
+    float3 total = float3(0.0);
     for (int i = 0; i < 3; i++) {
         float2 p = (pixel + uniforms.center * uniforms.scale * parallax[i]) / cellSize[i];
         float2 cell = floor(p);
@@ -123,9 +128,18 @@ static inline float dustField(float2 pixel, constant SkyUniforms &uniforms) {
         if (h <= threshold[i]) continue;
         float2 offset = float2(hash21(cell + 11.3), hash21(cell + 27.7));
         float d = length(fract(p) - offset);
-        float point = smoothstep(0.16, 0.0, d) * (h - threshold[i]) / (1.0 - threshold[i]);
+        // Flatten the distribution a little so the field is not almost entirely
+        // made of points too faint to see.
+        float magnitude = pow((h - threshold[i]) / (1.0 - threshold[i]), 0.55);
+        float point = smoothstep(0.15, 0.0, d) * magnitude;
         float twinkle = 0.78 + 0.22 * sin(uniforms.time * 0.9 + h * 61.0);
-        total += point * twinkle * weight[i];
+        // A field of one colour is a texture. A few warm points among the cool
+        // ones is what makes it a sky.
+        float temperature = hash21(cell + 63.1);
+        float3 tint = temperature > 0.82
+            ? float3(1.00, 0.84, 0.66)
+            : (temperature < 0.20 ? float3(0.84, 0.90, 1.00) : float3(0.97, 0.98, 1.00));
+        total += tint * (point * twinkle * weight[i]);
     }
     return total;
 }
@@ -149,7 +163,7 @@ fragment float4 skyFieldFragment(
     float breath = 0.30 + 0.22 * uniforms.spectrum.x;
     float3 color = cloud * mask * breath;
 
-    color += float3(0.86, 0.91, 1.0) * dustField(pixel, uniforms) * 0.16;
+    color += dustField(pixel, uniforms) * 0.20;
 
     float vignette = smoothstep(1.45, 0.20, length(ndc * float2(0.92, 1.0)));
     color *= 0.62 + 0.38 * vignette;

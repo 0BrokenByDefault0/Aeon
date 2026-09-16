@@ -14,6 +14,9 @@ final class SkySceneController: ObservableObject {
     @Published private(set) var captureURL: URL?
     @Published private(set) var cameraCrossfade = false
     @Published private(set) var spectrumLevels = SpectrumLevels.zero
+    /// Set when a star that was already selected is tapped again. The root view
+    /// takes it, opens that album and clears it.
+    @Published var albumToOpen: String?
 
     private let repository: SkyRepository
     private let catalog: CatalogRepository
@@ -139,6 +142,26 @@ final class SkySceneController: ObservableObject {
         var updated = camera
         updated.selectedID = target?.id
         setCamera(updated, persist: true)
+    }
+
+    /// A tap on a star names it; a second tap on the same star opens the record.
+    ///
+    /// Selecting and opening on the same tap would make the sky impossible to
+    /// read without leaving it, and nothing would ever say which star is which.
+    func tap(_ target: SkyHitTarget?) {
+        if case .star(let albumID) = target, camera.selectedID == albumID {
+            albumToOpen = albumID
+            return
+        }
+        select(target)
+    }
+
+    /// The name of the record a star stands for, for the marker drawn at it.
+    func albumName(for star: SkyStar) -> String {
+        guard let album = try? catalog.album(id: star.albumID), !album.title.isEmpty else {
+            return "Album \(star.sequence)"
+        }
+        return album.title
     }
 
     func locate(id: String, reduceMotion: Bool) {

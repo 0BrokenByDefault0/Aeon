@@ -120,7 +120,7 @@ struct SkyMetalView: UIViewRepresentable {
             if case .constellation(let id) = target {
                 controller.locate(id: id, reduceMotion: reduceMotion)
             } else {
-                controller.select(target)
+                controller.tap(target)
             }
         }
 

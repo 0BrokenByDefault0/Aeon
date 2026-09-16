@@ -67,9 +67,10 @@ final class ImportPickerCoordinatorTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
         wait(for: [settled], timeout: 1)
 
-        guard case .cancelled = outcomes.first else {
+        guard case .cancelled(let explicit) = outcomes.first else {
             return XCTFail("swiping the picker away should still cancel")
         }
+        XCTAssertFalse(explicit, "a dismissal is not iOS reporting the selection as cancelled")
         XCTAssertEqual(outcomes.count, 1)
     }
 
@@ -83,8 +84,10 @@ final class ImportPickerCoordinatorTests: XCTestCase {
             UIDocumentPickerViewController(forOpeningContentTypes: [.audio])
         )
 
-        guard case .cancelled = outcomes.first else {
+        guard case .cancelled(let explicit) = outcomes.first else {
             return XCTFail("tapping Cancel should report immediately")
         }
+        // The folder journey uses this to tell a refused grant from a swipe.
+        XCTAssertTrue(explicit)
     }
 }
