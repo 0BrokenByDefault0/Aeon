@@ -87,17 +87,18 @@ jobs:
             if [ ! -f "$APP/$FONT" ]; then echo "MISSING FROM BUNDLE: $FONT"; MISSING=1; fi
           done
           [ "$MISSING" -eq 0 ] || { echo "Declared fonts are missing from the bundle."; exit 1; }
-          PACKAGE_OUTPUT="$PWD/Aeon-5.0-unsigned.ipa"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          PACKAGE_OUTPUT="$PWD/Aeon-5.0-$SHORT_SHA-unsigned.ipa"
           PACKAGE_ROOT="$(mktemp -d)"
           mkdir -p "$PACKAGE_ROOT/Payload"
           cp -R "$APP" "$PACKAGE_ROOT/Payload/"
           (cd "$PACKAGE_ROOT" && zip -qry "$PACKAGE_OUTPUT" Payload)
-          ls -lh Aeon-5.0-unsigned.ipa
+          ls -lh Aeon-5.0-*-unsigned.ipa
 
       - uses: actions/upload-artifact@v4
         with:
           name: Aeon-5.0-unsigned-ipa
-          path: ios/App/Aeon-5.0-unsigned.ipa
+          path: ios/App/Aeon-5.0-*-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
 

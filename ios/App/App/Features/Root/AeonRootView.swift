@@ -30,9 +30,11 @@ struct AeonRootView: View {
         // sheet: a document picker installed as a child controller shows up but
         // never reports what was chosen.
         .background(
-            ImportPickerPresenter(kind: $picker) { outcome, kind in
-                handle(outcome, kind: kind)
-            }
+            ImportPickerPresenter(
+                kind: $picker,
+                completion: { outcome, kind in handle(outcome, kind: kind) },
+                log: container.recordImportEvent
+            )
             .frame(width: 0, height: 0)
             .accessibilityHidden(true)
         )
@@ -50,6 +52,7 @@ struct AeonRootView: View {
     }
 
     private func handle(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
+        container.recordImportEvent("import_outcome_\(kind.rawValue)")
         switch outcome {
         case .cancelled:
             return

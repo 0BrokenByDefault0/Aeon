@@ -440,6 +440,12 @@ final class AppContainer: ObservableObject {
         libraryImportError = nil
     }
 
+    /// Records where an import got to, so a failure on device can be read out of
+    /// Settings -> Activity log instead of guessed at from a description.
+    func recordImportEvent(_ code: String) {
+        try? services?.diagnosticsLog.record(eventCode: code)
+    }
+
     func importLibrary(urls: [URL], mode: LibraryImportGroupingMode) {
         guard libraryImportTask == nil else {
             libraryImportError = "An import is already running. Wait for it to finish, or pause it, then choose the source again."

@@ -5,8 +5,8 @@ import UIKit
 ///
 /// Two rules decide everything here. The ground is true black, so the sky can
 /// own the screen on an OLED panel and the instrument reads as glass laid over
-/// it; and there is exactly one typeface, Archivo, set at two widths — expanded
-/// for the names of things, normal for everything you operate.
+/// it; and the type is cut rather than drawn — Clash Display for the names of
+/// things, Switzer for everything you operate.
 enum AeonTheme {
     enum ColorToken {
         /// The ground. Literal black: on OLED the panel switches off here.
@@ -217,7 +217,7 @@ struct AeonDisplayText: View {
             .font(AeonTheme.FontToken.display(
                 size: min(scaledSize, baseSize * AeonTheme.FontToken.maximumDisplayScale)
             ))
-            .tracking(baseSize * -0.022)
+            .tracking(baseSize * -0.032)
             .lineLimit(maximumLines)
             .fixedSize(horizontal: false, vertical: true)
     }
