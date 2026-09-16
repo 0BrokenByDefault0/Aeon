@@ -15,6 +15,18 @@ enum ImportPickerKind: String, Identifiable {
 
     var allowsMultipleSelection: Bool { self == .audioFiles }
 
+    /// Whether iOS should hand back a copy rather than in-place access.
+    ///
+    /// Opening someone else's file in place needs a security-scoped grant from
+    /// the file provider, and when that grant fails the picker reports the
+    /// selection as a *cancel* — which is exactly what the device log showed:
+    /// import_picker_cancelled_explicit on a tap of Open. Aeon copies audio into
+    /// its own library regardless, so for files there is nothing to gain by
+    /// asking for in-place access and a whole class of failure to avoid.
+    ///
+    /// A folder is different: the bookmark is the point, so it stays in place.
+    var copiesSelection: Bool { self != .folder }
+
     var contentTypes: [UTType] {
         switch self {
         case .audioFiles: return AeonImportContentTypes.audio
@@ -107,7 +119,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
             }
             presenting = kind
             cancelSource = "unknown"
-            log("import_picker_requested_\(kind.rawValue)")
+            log("import_picker_requested_\(kind.rawValue)_\(kind.copiesSelection ? "copy" : "inplace")")
             attemptPresentation(kind, attempt: attempt)
         }
 
@@ -126,7 +138,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
             }
             let controller = UIDocumentPickerViewController(
                 forOpeningContentTypes: kind.contentTypes,
-                asCopy: false
+                asCopy: kind.copiesSelection
             )
             controller.allowsMultipleSelection = kind.allowsMultipleSelection
             controller.shouldShowFileExtensions = true
