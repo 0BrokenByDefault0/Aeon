@@ -90,6 +90,9 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         var clearSelection: (() -> Void)?
         var log: (String) -> Void = { _ in }
         private var presenting: ImportPickerKind?
+        /// Which path reported the cancel: the user tapping Cancel, or the
+        /// picker being dismissed. The device log has to say which.
+        private var cancelSource = "unknown"
         /// Held strongly: the picker's `delegate` is weak, and an orphaned
         /// coordinator is another way Open ends up doing nothing.
         private var picker: UIDocumentPickerViewController?
@@ -103,6 +106,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
                 picker = nil
             }
             presenting = kind
+            cancelSource = "unknown"
             log("import_picker_requested_\(kind.rawValue)")
             attemptPresentation(kind, attempt: attempt)
         }
@@ -158,7 +162,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
             picker = nil
             switch outcome {
             case .picked(let urls): log("import_picker_picked_\(urls.count)")
-            case .cancelled: log("import_picker_cancelled")
+            case .cancelled: log("import_picker_cancelled_\(cancelSource)")
             case .failed: log("import_picker_failed")
             }
             clearSelection?()
@@ -182,6 +186,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         }
 
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            cancelSource = "explicit"
             finish(.cancelled)
         }
 
@@ -201,6 +206,7 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         /// selection into a cancel that reported nothing at all.
         func scheduleCancelAfterDismissal(after delay: TimeInterval = 4.0) {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.cancelSource = "dismissal"
                 self?.finish(.cancelled)
             }
         }
