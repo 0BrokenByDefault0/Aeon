@@ -76,7 +76,7 @@ struct AlbumDetailView: View {
             AeonArtwork(image: image, size: embedded ? 230 : 300)
                 .frame(maxWidth: .infinity)
             VStack(spacing: 6) {
-                AeonDisplayText(album.title, size: 40, maximumLines: 3)
+                AeonDisplayText(album.title, size: AeonTheme.FontToken.Display.panel, maximumLines: 3)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .accessibilityIdentifier("aeon.album.title")

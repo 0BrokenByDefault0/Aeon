@@ -28,7 +28,7 @@ struct SettingsScreen: View {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                         AeonBreadcrumb(text: "Aeon / Preferences")
-                        AeonDisplayText("Settings", size: 42, maximumLines: 1)
+                        AeonDisplayText("Settings", size: AeonTheme.FontToken.Display.screen, maximumLines: 1)
                             .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                             .accessibilityIdentifier("aeon.settings.screen")
                     }
@@ -143,7 +143,7 @@ struct SettingsScreen: View {
         .sheet(isPresented: $erasePresented) {
             AeonSheet {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
-                    AeonDisplayText("Erase Everything?", size: 30, maximumLines: 2)
+                    AeonDisplayText("Erase Everything?", size: AeonTheme.FontToken.Display.name, maximumLines: 2)
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     Text("This removes Aeon’s catalogue, artwork, playlists, listening history, and copied audio from this device. Files Aeon adopted in place are not deleted.")
                         .font(AeonTheme.FontToken.ui(.body))

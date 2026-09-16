@@ -179,7 +179,7 @@ struct AeonChrome<PlayerBar: View>: View {
     private var sidebar: some View {
         AeonGlass {
             VStack(alignment: .leading, spacing: 0) {
-                AeonDisplayText("Aeon", size: 28, maximumLines: 1)
+                AeonDisplayText("Aeon", size: AeonTheme.FontToken.Display.mark, maximumLines: 1)
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .padding(.horizontal, AeonTheme.Space.edge)
                     .padding(.top, 72)

@@ -52,8 +52,17 @@ Metal: `shadePlanet`. Swift: `SkyRenderer.planetInstance` passes the seed.
 
 **Clash Display Semibold** says the names of things — screen titles, album and
 playlist names, planets. It is cut rather than drawn: flat terminals, tight
-apertures, very little roundness, which is what keeps a 44pt title dramatic on
-black instead of soft.
+apertures, very little roundness, which is what keeps a title dramatic on black
+instead of soft.
+
+It is set large and tight: `56 / 46 / 42 / 34 / 26 / 28` for the screen you are
+on, a statement that owns the screen, a panel header, a name inside a screen, a
+name inside a row, and the wordmark — `AeonTheme.FontToken.Display`, and nothing
+between those six. Tracking is `-0.038em` at every size, which is where most of
+the drama comes from; Clash is drawn on a wide sidebearing and looks soft until
+it is pulled in. A display line scales with Dynamic Type and then shrinks rather
+than truncating, so a screen title keeps its last letters at accessibility
+sizes.
 
 **Switzer** is everything you operate: rows, body copy, buttons, settings.
 Regular / Medium / Semibold / Bold. Labels are Switzer Semibold, uppercase,

@@ -111,7 +111,7 @@ struct AlbumEditorView: View {
         HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
                 AeonBreadcrumb(text: "Album / Edit")
-                AeonDisplayText("Edit metadata", size: 36, maximumLines: 2)
+                AeonDisplayText("Edit metadata", size: AeonTheme.FontToken.Display.panel, maximumLines: 2)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                 Text("Changes update Aeon’s catalogue without altering the source file tags.")
                     .font(AeonTheme.FontToken.ui(.callout))

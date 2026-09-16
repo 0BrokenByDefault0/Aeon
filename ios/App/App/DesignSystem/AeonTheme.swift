@@ -123,7 +123,7 @@ enum AeonTheme {
     ///
     /// **Clash Display Semibold** says the names of things. It is cut rather
     /// than drawn: flat terminals, tight apertures, little roundness, which is
-    /// what keeps a title dramatic instead of soft at 44pt on black.
+    /// what keeps a title dramatic instead of soft at 56pt on black.
     ///
     /// **Switzer** is everything you operate — rows, body copy, buttons,
     /// settings, counts. Same discipline at text sizes, where the display face
@@ -141,6 +141,30 @@ enum AeonTheme {
 
         /// Uppercase micro labels are the only tracked-out type in the app.
         static let labelTracking: CGFloat = 1.6
+
+        /// How tightly the display face is set, as a fraction of its own size.
+        /// Clash is drawn on a wide sidebearing; pulling it in is most of what
+        /// separates a dramatic title from a soft one.
+        static let displayTracking: CGFloat = -0.038
+
+        /// Six sizes for the display face, and nothing between them. A name is
+        /// one of six things — the screen you are on, a statement that owns the
+        /// screen, the header of a panel, a name inside a screen, a name inside
+        /// a row, or the wordmark — and each has exactly one size.
+        enum Display {
+            /// The screen you are on: LIBRARY, PLAYLISTS, SETTINGS.
+            static let screen: CGFloat = 56
+            /// A statement that owns an otherwise empty screen.
+            static let hero: CGFloat = 46
+            /// The header of a panel, sheet or detail view.
+            static let panel: CGFloat = 42
+            /// A name set inside a screen that already has a title.
+            static let name: CGFloat = 34
+            /// A name carried by a row in a list.
+            static let row: CGFloat = 26
+            /// The wordmark, which is chrome and stays out of the way.
+            static let mark: CGFloat = 28
+        }
 
         /// Names of things: screen titles, album and playlist names, planets.
         /// `AeonDisplayText` scales the point size it passes in, so this one is
@@ -217,8 +241,12 @@ struct AeonDisplayText: View {
             .font(AeonTheme.FontToken.display(
                 size: min(scaledSize, baseSize * AeonTheme.FontToken.maximumDisplayScale)
             ))
-            .tracking(baseSize * -0.032)
+            .tracking(baseSize * AeonTheme.FontToken.displayTracking)
             .lineLimit(maximumLines)
+            // A title this large has to give way rather than truncate: at the
+            // largest accessibility sizes a one-line screen name would
+            // otherwise lose its last letters to an ellipsis.
+            .minimumScaleFactor(0.72)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

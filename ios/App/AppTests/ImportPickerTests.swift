@@ -30,15 +30,53 @@ final class ImportPickerTests: XCTestCase {
         XCTAssertFalse(AeonImportContentTypes.audio.contains(.data))
     }
 
-    func testOnlyAFolderIsOpenedInPlace() {
-        // Opening a file in place needs a security-scoped grant from the file
-        // provider. When that grant fails the picker reports the selection as a
-        // cancel and the import silently never starts, which is what happened on
-        // device. Aeon copies audio into its own library anyway, so only the
-        // folder — whose bookmark is the entire point — is opened in place.
-        XCTAssertTrue(ImportPickerKind.audioFiles.copiesSelection)
-        XCTAssertTrue(ImportPickerKind.catalogArchive.copiesSelection)
-        XCTAssertFalse(ImportPickerKind.folder.copiesSelection)
+    func testNothingIsOpenedInPlace() {
+        // Opening someone else's file in place needs a security-scoped grant from
+        // the file provider. When that grant fails the picker reports the
+        // selection as a cancel and the import silently never starts, which is
+        // what happened on device: files started working the moment they were
+        // copied instead, while the folder — the one journey still asking for a
+        // grant — went on doing nothing at all.
+        for kind in [ImportPickerKind.audioFiles, .folder, .catalogArchive] {
+            XCTAssertTrue(kind.copiesSelection, "\(kind.rawValue) still asks for in-place access")
+        }
+    }
+
+    func testACopyTheSystemMadeIsToldApartFromTheUsersOwnFiles() throws {
+        let temporary = FileManager.default.temporaryDirectory
+        let documents = try XCTUnwrap(
+            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        )
+        XCTAssertTrue(PickedSelection.isSystemCopy(
+            temporary.appendingPathComponent("A1B2/Nocturnes", isDirectory: true)
+        ))
+        XCTAssertTrue(PickedSelection.isSystemCopy(
+            documents.appendingPathComponent("Inbox/track.flac")
+        ))
+        // The library Aeon keeps is under Documents but not in the Inbox, and
+        // deleting any of it would be catastrophic.
+        XCTAssertFalse(PickedSelection.isSystemCopy(
+            documents.appendingPathComponent("Media/album/track.flac")
+        ))
+        XCTAssertFalse(PickedSelection.isSystemCopy(documents))
+        XCTAssertFalse(PickedSelection.isSystemCopy(URL(fileURLWithPath: "/private/var/mobile/Music")))
+    }
+
+    func testDiscardingCopiesLeavesWhatTheUserOwnsAlone() throws {
+        let manager = FileManager.default
+        let copy = manager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let owned = manager.temporaryDirectory
+            .deletingLastPathComponent()
+            .appendingPathComponent("AeonOwned-\(UUID().uuidString)", isDirectory: true)
+        try manager.createDirectory(at: copy, withIntermediateDirectories: true)
+        try manager.createDirectory(at: owned, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: owned) }
+
+        PickedSelection.discardCopies(in: [copy, owned])
+
+        XCTAssertFalse(manager.fileExists(atPath: copy.path))
+        XCTAssertTrue(manager.fileExists(atPath: owned.path))
     }
 
     func testEachPickerKindAsksForTheContentItActuallyImports() {

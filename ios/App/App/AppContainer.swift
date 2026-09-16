@@ -476,8 +476,12 @@ final class AppContainer: ObservableObject {
         // A folder grant dies with the picked URL, so persist its bookmark while the
         // grant is still live. Failing to persist is not fatal — this import can still
         // run — but a later one would have to ask for the folder again.
+        //
+        // A folder the picker copied into Aeon's own container is skipped: that copy
+        // is deleted as soon as this import is done, so a bookmark to it would resolve
+        // to nothing on the next launch.
         if mode == .folder {
-            for url in urls {
+            for url in urls where !PickedSelection.isSystemCopy(url) {
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
                 do {
@@ -530,6 +534,10 @@ final class AppContainer: ObservableObject {
             } catch {
                 self?.libraryImportError = "Import stopped before the next album could be committed. Select the same source to resume."
             }
+            // Whatever the outcome: the tracks that made it are in Aeon's own
+            // Documents now, and the picker's copy of the source is dead weight
+            // against the user's storage until it is removed.
+            PickedSelection.discardCopies(in: urls)
             self?.libraryImportProgress = nil
             self?.libraryImportCancellation = nil
             self?.libraryImportTask = nil

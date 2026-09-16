@@ -122,7 +122,7 @@ struct NowPlayingView: View {
 
     private func metadata(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
         VStack(spacing: AeonTheme.Space.small) {
-            AeonDisplayText(presentation.track.title, size: 40, maximumLines: 2)
+            AeonDisplayText(presentation.track.title, size: AeonTheme.FontToken.Display.panel, maximumLines: 2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(AeonTheme.ColorToken.textPrimary)
             Text(presentation.artist)

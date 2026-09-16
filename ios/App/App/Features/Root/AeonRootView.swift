@@ -457,7 +457,7 @@ private struct AeonReadyShell: View {
             AeonGlass {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     AeonBreadcrumb(text: destination.title)
-                    AeonDisplayText(destination.title.capitalized, size: 42, maximumLines: 2)
+                    AeonDisplayText(destination.title.capitalized, size: AeonTheme.FontToken.Display.screen, maximumLines: 2)
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     Text("The native \(destination.rawValue) surface is connected to this persistent sky.")
                         .font(AeonTheme.FontToken.ui(.body))

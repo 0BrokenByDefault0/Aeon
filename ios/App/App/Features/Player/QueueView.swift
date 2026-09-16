@@ -35,7 +35,7 @@ struct QueueView: View {
         HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
                 AeonBreadcrumb(text: "Player / Queue")
-                AeonDisplayText("Up next", size: 36, maximumLines: 1)
+                AeonDisplayText("Up next", size: AeonTheme.FontToken.Display.panel, maximumLines: 1)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                 if let snapshot = playback.snapshot, let index = snapshot.queueIndex {
                     Text("\(index + 1) OF \(snapshot.queue.count)")

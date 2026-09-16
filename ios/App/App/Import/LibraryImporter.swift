@@ -121,7 +121,7 @@ final class LibraryImporter: @unchecked Sendable {
         ))
         let files = try collectAudioFiles(selectedURLs, cancellation: cancellation)
         guard !files.isEmpty else { throw LibraryImportError.noSupportedAudio }
-        let signature = selectionSignature(files: files, mode: mode)
+        let signature = selectionSignature(files: files, roots: selectedURLs, mode: mode)
         let cursorKey = "library.import.cursor.\(signature)"
 
         var result = LibraryImportResult()
@@ -467,15 +467,37 @@ final class LibraryImporter: @unchecked Sendable {
 
     private func selectionSignature(
         files: [(url: URL, batchLabel: String)],
+        roots: [URL],
         mode: LibraryImportGroupingMode
     ) -> String {
         var content = mode.rawValue + "\n"
         for entry in files {
             let values = try? entry.url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
-            content += entry.url.standardizedFileURL.path
+            content += signaturePath(for: entry.url, roots: roots)
             content += "\u{0}\(values?.fileSize ?? -1)\u{0}\(values?.contentModificationDate?.timeIntervalSince1970 ?? -1)\n"
         }
         return SHA256.hash(data: Data(content.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// What a file is called within the selection, rather than where it happens
+    /// to sit on disk.
+    ///
+    /// The signature is what lets a paused import resume: pick the same source
+    /// again and Aeon picks up at the album it stopped on. The document picker
+    /// hands back a copy in a freshly named temporary directory every time, so
+    /// an absolute path would make every re-pick a different selection and
+    /// restart the whole import. The selection's own name and the path beneath
+    /// it are stable across copies.
+    private func signaturePath(for url: URL, roots: [URL]) -> String {
+        let path = url.standardizedFileURL.path
+        for root in roots {
+            let rootPath = root.standardizedFileURL.path
+            if path == rootPath { return root.lastPathComponent }
+            let prefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+            guard path.hasPrefix(prefix) else { continue }
+            return root.lastPathComponent + "/" + String(path.dropFirst(prefix.count))
+        }
+        return url.lastPathComponent
     }
 
     private func clean(_ value: String?) -> String? {

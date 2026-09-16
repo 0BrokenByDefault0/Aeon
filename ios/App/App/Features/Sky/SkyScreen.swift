@@ -46,7 +46,7 @@ struct SkyScreen: View {
                 if let ceremony = controller.ceremony {
                     VStack(spacing: AeonTheme.Space.xSmall) {
                         AeonLabel(text: "Celestial event")
-                        AeonDisplayText(ceremony, size: 28, maximumLines: 2)
+                        AeonDisplayText(ceremony, size: AeonTheme.FontToken.Display.name, maximumLines: 2)
                     }
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .padding(.horizontal, AeonTheme.Space.large)
@@ -82,7 +82,7 @@ struct SkyScreen: View {
                 .opacity(effectiveReduceMotion ? 0.88 : (constellationBreathing ? 0.96 : 0.72))
 
             VStack(spacing: AeonTheme.Space.small) {
-                AeonDisplayText("A place for your records.", size: 38, maximumLines: 2)
+                AeonDisplayText("A place for your records.", size: AeonTheme.FontToken.Display.hero, maximumLines: 2)
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .multilineTextAlignment(.center)
                 Text("Bring albums in and Aeon will chart them without changing the files you chose.")

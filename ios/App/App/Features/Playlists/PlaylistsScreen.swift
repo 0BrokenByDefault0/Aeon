@@ -53,7 +53,7 @@ struct PlaylistsScreen: View {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
                         AeonLabel(text: "New route")
-                        AeonDisplayText("Chart a playlist", size: 32, maximumLines: 2)
+                        AeonDisplayText("Chart a playlist", size: AeonTheme.FontToken.Display.name, maximumLines: 2)
                             .foregroundStyle(AeonTheme.ColorToken.bone)
                         Text("Give this route a name. Tracks can be added from albums afterward.")
                             .font(AeonTheme.FontToken.ui(.callout))
@@ -87,7 +87,7 @@ struct PlaylistsScreen: View {
         HStack(alignment: .bottom, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
                 AeonBreadcrumb(text: "Routes")
-                AeonDisplayText("Playlists", size: 42, maximumLines: 1)
+                AeonDisplayText("Playlists", size: AeonTheme.FontToken.Display.screen, maximumLines: 1)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .accessibilityIdentifier("aeon.playlists.screen")
                 if !controller.playlists.isEmpty {
@@ -122,7 +122,7 @@ struct PlaylistsScreen: View {
                 }
                 .frame(width: 68, height: 58)
                 VStack(alignment: .leading, spacing: 5) {
-                    AeonDisplayText(overview.playlist.name, size: 24, maximumLines: 2)
+                    AeonDisplayText(overview.playlist.name, size: AeonTheme.FontToken.Display.row, maximumLines: 2)
                         .foregroundStyle(AeonTheme.ColorToken.bone)
                     Text("\(overview.itemCount) TRACK\(overview.itemCount == 1 ? "" : "S")")
                         .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
@@ -226,7 +226,7 @@ private struct PlaylistDetailView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     AeonBreadcrumb(text: "Playlist")
-                    AeonDisplayText(controller.selectedPlaylist?.name ?? "Route", size: 34, maximumLines: 2)
+                    AeonDisplayText(controller.selectedPlaylist?.name ?? "Route", size: AeonTheme.FontToken.Display.panel, maximumLines: 2)
                         .foregroundStyle(AeonTheme.ColorToken.bone)
                     AeonLabel(text: "\(controller.selectedItems.count) tracks")
                 }

@@ -99,6 +99,50 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(Set(try repository.albumPage().map(\.title)), Set(["First", "Second"]))
     }
 
+    func testAPausedFolderImportResumesWhenTheSameFolderIsPickedAgainAsAFreshCopy() async throws {
+        // The document picker hands back a copy in a new temporary directory
+        // every time it is used, so the folder a resumed import is given is
+        // never at the path the paused one had. If the selection's identity
+        // were its absolute path, pausing a large library and picking the same
+        // folder again would silently start the whole import over.
+        let source = root.appendingPathComponent("Source", isDirectory: true)
+        let first = source.appendingPathComponent("First/01 First.wav")
+        let second = source.appendingPathComponent("Second/01 Second.wav")
+        try writeAudio(first); try writeAudio(second)
+        let values = [
+            first.lastPathComponent: AudioTags(title: "One", artist: "A", albumArtist: nil, album: "First", year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil),
+            second.lastPathComponent: AudioTags(title: "Two", artist: "B", albumArtist: nil, album: "Second", year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil)
+        ]
+        let token = LibraryImportCancellation()
+        let paused = makeImporter(reader: StubTagReader(values: values), probe: StubProbe())
+        do {
+            _ = try await paused.importURLs([source], mode: .folder, cancellation: token) { progress in
+                if progress.phase == .committing, progress.completedGroups == 1 { token.cancel() }
+            }
+            XCTFail("Cancellation must stop before the second group")
+        } catch LibraryImportError.cancelled {}
+        XCTAssertEqual(try repository.albumPage().count, 1)
+
+        // The same folder, at the path a second trip through the picker would
+        // have produced.
+        let freshCopy = root.appendingPathComponent("tmp-8F21/Source", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: freshCopy.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try FileManager.default.copyItem(at: source, to: freshCopy)
+
+        let probe = StubProbe()
+        let resumed = makeImporter(reader: StubTagReader(values: values), probe: probe)
+        let result = try await resumed.importURLs([freshCopy], mode: .folder)
+
+        XCTAssertEqual(result.importedAlbums, 1)
+        XCTAssertEqual(Set(try repository.albumPage().map(\.title)), Set(["First", "Second"]))
+        XCTAssertEqual(
+            probe.probedNames, [second.lastPathComponent],
+            "The resumed import went back over an album it had already committed"
+        )
+    }
+
     func testDuplicateAlbumRuleSkipsSecondImportAndProbeWorkStaysBounded() async throws {
         let files = (0 ..< 64).map { index -> URL in
             let url = root.appendingPathComponent("Scale/\(index + 1).wav")
@@ -207,10 +251,12 @@ private final class StubProbe: MediaProbing {
     let failures: Set<String>
     private let lock = NSLock()
     private(set) var peakConcurrentCalls = 0
+    private(set) var probedNames: [String] = []
     private var activeCalls = 0
     init(failures: Set<String> = []) { self.failures = failures }
     func probe(url: URL) -> MediaCapability {
-        lock.lock(); activeCalls += 1; peakConcurrentCalls = max(peakConcurrentCalls, activeCalls); lock.unlock()
+        lock.lock(); activeCalls += 1; peakConcurrentCalls = max(peakConcurrentCalls, activeCalls)
+        probedNames.append(url.lastPathComponent); lock.unlock()
         defer { lock.lock(); activeCalls -= 1; lock.unlock() }
         if failures.contains(url.lastPathComponent) { return .decodeFailed(reason: "fixture") }
         return .playable(ProbedMedia(

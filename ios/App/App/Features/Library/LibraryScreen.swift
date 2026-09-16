@@ -95,7 +95,7 @@ struct LibraryScreen: View {
             AeonBreadcrumb(text: "Collection")
             HStack(alignment: .bottom, spacing: AeonTheme.Space.regular) {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                    AeonDisplayText("Library", size: 42, maximumLines: 1)
+                    AeonDisplayText("Library", size: AeonTheme.FontToken.Display.screen, maximumLines: 1)
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     Text("\(controller.totalCount) ALBUM\(controller.totalCount == 1 ? "" : "S")")
                         .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
@@ -212,7 +212,7 @@ struct LibraryScreen: View {
         VStack(spacing: AeonTheme.Space.large) {
             AeonRouteMark(width: 108, height: 70)
             VStack(spacing: AeonTheme.Space.small) {
-                AeonDisplayText("Your sky is quiet", size: 36, maximumLines: 2)
+                AeonDisplayText("Your sky is quiet", size: AeonTheme.FontToken.Display.hero, maximumLines: 2)
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .multilineTextAlignment(.center)
                 Text("Import music to begin charting the collection.")

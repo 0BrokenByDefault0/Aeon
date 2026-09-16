@@ -17,15 +17,20 @@ enum ImportPickerKind: String, Identifiable {
 
     /// Whether iOS should hand back a copy rather than in-place access.
     ///
-    /// Opening someone else's file in place needs a security-scoped grant from
-    /// the file provider, and when that grant fails the picker reports the
-    /// selection as a *cancel* — which is exactly what the device log showed:
-    /// import_picker_cancelled_explicit on a tap of Open. Aeon copies audio into
-    /// its own library regardless, so for files there is nothing to gain by
-    /// asking for in-place access and a whole class of failure to avoid.
+    /// Always, now. Opening someone else's file in place needs a security-scoped
+    /// grant from the file provider, and when that grant fails the picker reports
+    /// the selection as a *cancel* — which is exactly what the device log showed:
+    /// import_picker_cancelled_explicit on a tap of Open. Switching files and
+    /// archives to a copy made them work on the same device where the in-place
+    /// folder picker went on doing nothing, which is as direct a comparison as
+    /// this gets.
     ///
-    /// A folder is different: the bookmark is the point, so it stays in place.
-    var copiesSelection: Bool { self != .folder }
+    /// A folder was held back because its bookmark is what lets a later rescan
+    /// find the source again. That is a convenience — every track is copied into
+    /// Aeon's own Documents at import — and it is not worth the whole feature.
+    /// `PickedSelection` tells a copy from a location the user still owns, so
+    /// the bookmark is still kept whenever the system does hand one back.
+    var copiesSelection: Bool { true }
 
     var contentTypes: [UTType] {
         switch self {
@@ -33,6 +38,46 @@ enum ImportPickerKind: String, Identifiable {
         case .folder: return [.folder]
         case .catalogArchive: return [.data]
         }
+    }
+}
+
+/// Where a picked URL actually lives.
+///
+/// When the picker copies a selection, the copy lands inside Aeon's own
+/// container — under `tmp/` or `Documents/Inbox/`. That copy is Aeon's to delete
+/// once the audio in it has been taken into the library, and it must never be
+/// bookmarked for a later rescan: the bookmark would point at something Aeon is
+/// about to remove. A URL anywhere else is a location the user still owns, and
+/// Aeon only ever reads from it.
+enum PickedSelection {
+    static func isSystemCopy(
+        _ url: URL,
+        temporaryDirectory: URL = FileManager.default.temporaryDirectory,
+        documentsDirectory: URL? = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask).first
+    ) -> Bool {
+        var roots = [temporaryDirectory]
+        if let documentsDirectory {
+            roots.append(documentsDirectory.appendingPathComponent("Inbox", isDirectory: true))
+        }
+        let path = canonicalPath(url)
+        return roots.contains { root in
+            let rootPath = canonicalPath(root)
+            return path == rootPath || path.hasPrefix(rootPath + "/")
+        }
+    }
+
+    /// Removes copies the system made for this import. Anything the user owns is
+    /// left alone, so passing the whole selection is safe.
+    static func discardCopies(in urls: [URL], using fileManager: FileManager = .default) {
+        for url in urls where isSystemCopy(url) {
+            try? fileManager.removeItem(at: url)
+        }
+    }
+
+    private static func canonicalPath(_ url: URL) -> String {
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        return path.hasSuffix("/") ? String(path.dropLast()) : path
     }
 }
 

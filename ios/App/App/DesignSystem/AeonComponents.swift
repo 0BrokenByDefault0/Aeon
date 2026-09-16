@@ -294,7 +294,7 @@ struct AeonEmptyState: View {
     var body: some View {
         VStack(spacing: AeonTheme.Space.large) {
             AeonRouteMark()
-            AeonDisplayText(title, size: 30).multilineTextAlignment(.center)
+            AeonDisplayText(title, size: AeonTheme.FontToken.Display.name).multilineTextAlignment(.center)
             if let detail {
                 Text(detail)
                     .font(AeonTheme.FontToken.ui(.callout))
@@ -348,7 +348,7 @@ struct AeonImportSheet: View {
             VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
                     AeonLabel(text: "Bring music into Aeon")
-                    AeonDisplayText("Choose a source", size: 32, maximumLines: 2)
+                    AeonDisplayText("Choose a source", size: AeonTheme.FontToken.Display.name, maximumLines: 2)
                         .foregroundStyle(AeonTheme.ColorToken.bone)
                     Text("Aeon reads the music you choose without pretending it can browse every location on your device.")
                         .font(AeonTheme.FontToken.ui(.body))
