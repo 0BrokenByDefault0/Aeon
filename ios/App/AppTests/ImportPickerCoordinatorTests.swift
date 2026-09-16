@@ -7,6 +7,31 @@ import XCTest
 /// the selection away and made Open look like it did nothing on device.
 @MainActor
 final class ImportPickerCoordinatorTests: XCTestCase {
+    func testTheCancelWindowOutlastsAPickInFlight() {
+        // 0.6s was not enough on device: UIKit delivered the URLs after the
+        // dismissal finished and the pick was reported as a cancel.
+        let coordinator = ImportPickerPresenter.Coordinator()
+        var outcomes: [ImportPickerOutcome] = []
+        coordinator.completion = { outcome, _ in outcomes.append(outcome) }
+        coordinator.beginTracking(.audioFiles)
+
+        coordinator.scheduleCancelAfterDismissal()
+        let late = expectation(description: "URLs arrive well after the dismissal")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            coordinator.documentPicker(
+                UIDocumentPickerViewController(forOpeningContentTypes: [.audio]),
+                didPickDocumentsAt: [URL(fileURLWithPath: "/tmp/late.wav")]
+            )
+            late.fulfill()
+        }
+        wait(for: [late], timeout: 3)
+
+        guard case .picked = outcomes.first else {
+            return XCTFail("a pick 1.2s after the dismissal must still be a pick")
+        }
+        XCTAssertEqual(outcomes.count, 1)
+    }
+
     func testAPickThatArrivesAfterTheDismissalIsStillAPick() {
         let coordinator = ImportPickerPresenter.Coordinator()
         var outcomes: [ImportPickerOutcome] = []

@@ -441,9 +441,21 @@ final class AppContainer: ObservableObject {
     }
 
     /// Records where an import got to, so a failure on device can be read out of
-    /// Settings -> Activity log instead of guessed at from a description.
+    /// Settings -> Diagnostics instead of guessed at from a description.
     func recordImportEvent(_ code: String) {
         try? services?.diagnosticsLog.record(eventCode: code)
+    }
+
+    /// The commit this binary was built from, stamped in by CI. Recorded once at
+    /// startup so an exported log always says which build produced it — reading
+    /// a log without knowing that has already cost a debugging round.
+    static var buildCommit: String {
+        (Bundle.main.object(forInfoDictionaryKey: "AeonBuildCommit") as? String)
+            .map { $0.isEmpty ? "local" : $0 } ?? "local"
+    }
+
+    func recordBuildIdentity() {
+        try? services?.diagnosticsLog.record(eventCode: "build_\(Self.buildCommit)")
     }
 
     func importLibrary(urls: [URL], mode: LibraryImportGroupingMode) {
@@ -632,6 +644,7 @@ final class AppContainer: ObservableObject {
                 roots = resolvedRoots
                 let resolvedServices = try servicesFactory(resolvedRoots)
                 services = resolvedServices
+                recordBuildIdentity()
                 completePendingEraseIfNeeded(roots: resolvedRoots)
             }
             if inspectLegacyLibrary { beginLegacyInspection() }

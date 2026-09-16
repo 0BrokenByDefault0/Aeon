@@ -95,7 +95,13 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         private var picker: UIDocumentPickerViewController?
 
         func present(_ kind: ImportPickerKind, attempt: Int = 0) {
-            guard presenting == nil else { return }
+            if presenting != nil {
+                // A pending cancel from an earlier dismissal must not swallow a
+                // fresh tap: if nothing is on screen, that state is stale.
+                guard picker?.viewIfLoaded?.window == nil else { return }
+                presenting = nil
+                picker = nil
+            }
             presenting = kind
             log("import_picker_requested_\(kind.rawValue)")
             attemptPresentation(kind, attempt: attempt)
@@ -121,6 +127,8 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
             controller.allowsMultipleSelection = kind.allowsMultipleSelection
             controller.shouldShowFileExtensions = true
             controller.delegate = self
+            // Deliberately NOT the presentationController delegate's only
+            // source of truth: see scheduleCancelAfterDismissal.
             controller.presentationController?.delegate = self
             picker = controller
             anchor.present(controller, animated: true) { [weak self] in
@@ -187,7 +195,11 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         }
 
         /// Visible for tests: a pick arriving while this is pending must win.
-        func scheduleCancelAfterDismissal(after delay: TimeInterval = 0.6) {
+        ///
+        /// The window is generous on purpose. UIKit can deliver the URLs a beat
+        /// after the dismissal animation ends, and a short window turned a real
+        /// selection into a cancel that reported nothing at all.
+        func scheduleCancelAfterDismissal(after delay: TimeInterval = 4.0) {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 self?.finish(.cancelled)
             }

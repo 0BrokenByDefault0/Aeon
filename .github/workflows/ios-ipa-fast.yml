@@ -57,6 +57,14 @@ jobs:
         working-directory: ios/App
         run: pod install --repo-update
 
+      # Stamped into the binary so an exported diagnostics log always names the
+      # build it came from.
+      - name: Stamp the build commit
+        run: |
+          /usr/libexec/PlistBuddy -c "Delete :AeonBuildCommit" ios/App/App/Info.plist 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :AeonBuildCommit string $(git rev-parse --short HEAD)" ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :AeonBuildCommit" ios/App/App/Info.plist
+
       - name: Build unsigned
         working-directory: ios/App
         run: |
