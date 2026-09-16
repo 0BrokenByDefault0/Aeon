@@ -158,6 +158,8 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            // Runs after presentationControllerDidDismiss has been scheduled;
+            // finishing here first is what makes the deferred cancel a no-op.
             guard !urls.isEmpty else {
                 finish(.failed("That location returned nothing Aeon can open. Choose a folder or files stored on this iPhone or in iCloud Drive."))
                 return
@@ -175,10 +177,25 @@ struct ImportPickerPresenter: UIViewControllerRepresentable {
             finish(.cancelled)
         }
 
-        /// Swiping the picker away is a cancel too; without this the selection
-        /// sticks and the next tap on IMPORT does nothing.
+        /// Swiping the picker away is a cancel too, but so is choosing a file
+        /// from the app's point of view: picking dismisses the picker, and this
+        /// callback arrives BEFORE `didPickDocumentsAt`. Calling it a cancel
+        /// here threw the real selection away — Open looked like it did nothing.
+        /// So wait a beat, and only call it a cancel if no URLs followed.
         func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-            finish(.cancelled)
+            scheduleCancelAfterDismissal()
+        }
+
+        /// Visible for tests: a pick arriving while this is pending must win.
+        func scheduleCancelAfterDismissal(after delay: TimeInterval = 0.6) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.finish(.cancelled)
+            }
+        }
+
+        /// Visible for tests: normally set when the picker is presented.
+        func beginTracking(_ kind: ImportPickerKind) {
+            presenting = kind
         }
     }
 }

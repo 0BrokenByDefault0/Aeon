@@ -67,6 +67,7 @@
 		A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000016 /* AudioTagReaderTests.swift */; };
 		A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000017 /* LibraryImporterTests.swift */; };
 		AE9000000000000000000003 /* ImportPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000013 /* ImportPickerTests.swift */; };
+		BEEF00000000000000000000 /* ImportPickerCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEF00000000000000000001 /* ImportPickerCoordinatorTests.swift */; };
 		AE9000000000000000000004 /* ImportedFolderStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9000000000000000000014 /* ImportedFolderStoreTests.swift */; };
 		A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D000000000000000000018 /* MetadataEnricherTests.swift */; };
 		A5E000000000000000000001 /* PlaybackController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E000000000000000000011 /* PlaybackController.swift */; };
@@ -221,6 +222,7 @@
 		A5D000000000000000000016 /* AudioTagReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReaderTests.swift; sourceTree = "<group>"; };
 		A5D000000000000000000017 /* LibraryImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryImporterTests.swift; sourceTree = "<group>"; };
 		AE9000000000000000000013 /* ImportPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportPickerTests.swift; sourceTree = "<group>"; };
+		BEEF00000000000000000001 /* ImportPickerCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ImportPickerCoordinatorTests.swift"; sourceTree = "<group>"; };
 		AE9000000000000000000014 /* ImportedFolderStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedFolderStoreTests.swift; sourceTree = "<group>"; };
 		A5D000000000000000000018 /* MetadataEnricherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataEnricherTests.swift; sourceTree = "<group>"; };
 		A5E000000000000000000011 /* PlaybackController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackController.swift; sourceTree = "<group>"; };
@@ -419,6 +421,7 @@
 				A5D000000000000000000016 /* AudioTagReaderTests.swift */,
 				A5D000000000000000000017 /* LibraryImporterTests.swift */,
 				AE9000000000000000000013 /* ImportPickerTests.swift */,
+				BEEF00000000000000000001 /* ImportPickerCoordinatorTests.swift */,
 				AE9000000000000000000014 /* ImportedFolderStoreTests.swift */,
 				A5D000000000000000000018 /* MetadataEnricherTests.swift */,
 				A5E000000000000000000015 /* PlaybackControllerTests.swift */,
@@ -956,6 +959,7 @@
 				A5D000000000000000000006 /* AudioTagReaderTests.swift in Sources */,
 				A5D000000000000000000007 /* LibraryImporterTests.swift in Sources */,
 				AE9000000000000000000003 /* ImportPickerTests.swift in Sources */,
+				BEEF00000000000000000000 /* ImportPickerCoordinatorTests.swift in Sources */,
 				AE9000000000000000000004 /* ImportedFolderStoreTests.swift in Sources */,
 				A5D000000000000000000008 /* MetadataEnricherTests.swift in Sources */,
 				A5E000000000000000000005 /* PlaybackControllerTests.swift in Sources */,
