@@ -144,7 +144,7 @@ ios/                  Capacitor iOS shell, ready for Xcode
 tests/                unit tests over the deterministic core (npm test)
 test/                 browser regression suite (npm run test:browser)
 scripts/              syntax check and dependency patches
-.github/workflows/    verify.yml (CI) and ios-ipa.yml (unsigned IPA)
+.github/workflows/    quick verification, fast IPA, and deep release validation
 capacitor.config.json
 package.json
 ```
@@ -152,9 +152,12 @@ package.json
 ## The unsigned .ipa
 
 Apple only permits iOS binaries to be produced on macOS, so the build runs
-on a hosted Mac in CI. Every push builds `ISOLATION-unsigned.ipa` and
-attaches it to the run: **GitHub → Actions → "Build unsigned IPA" → the
-newest run → Artifacts**.
+on a hosted Mac in CI. Relevant pushes build `Aeon-5.0-unsigned.ipa` and
+attach it to the run: **GitHub → Actions → "Build fast unsigned IPA" →
+the newest run → Artifacts**. The artifact includes a validation manifest;
+it is an iteration build, not release approval. Full simulator regression and
+physical-device acceptance are kept in the separate release path described in
+[`docs/development-workflow.md`](docs/development-workflow.md).
 
 It is deliberately unsigned, which is what sideloading tools expect —
 [AltStore](https://altstore.io), SideStore or
@@ -169,6 +172,7 @@ faster and gives a properly signed build.
 npm test                 # unit tests over the deterministic core
 npm run test:browser     # drives the real app in a browser
 npm run check            # syntax check
+npm run test:targeted -- --area=playback # cheap area-specific checks
 python3 test/fixtures.py # regenerate the audio fixtures
 ```
 
