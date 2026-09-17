@@ -46,9 +46,7 @@ struct EQView: View {
                     set: { enabled in playback.setEQ(enabled: enabled, bands: currentBands) }
                 )
             )
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .tint(AeonTheme.ColorToken.bone)
+            .toggleStyle(AeonToggleStyle(showsLabel: false))
             .accessibilityLabel("Equalizer enabled")
             .accessibilityIdentifier("aeon.player.eq.bypass")
         }
@@ -57,29 +55,27 @@ struct EQView: View {
     private var presets: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
             AeonLabel(text: "Presets")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AeonTheme.Space.small) {
-                    ForEach(Self.presets) { preset in
-                        let selected = selectedPreset == preset.name
-                        Button(preset.name) { select(preset) }
-                            .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
-                            .tracking(0.8)
-                            .foregroundStyle(selected ? AeonTheme.ColorToken.void : AeonTheme.ColorToken.boneSecondary)
-                            .padding(.horizontal, AeonTheme.Space.medium)
-                            .frame(minHeight: AeonTheme.Space.minimumTarget)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(selected ? AeonTheme.ColorToken.bone : AeonTheme.ColorToken.surfaceSelected.opacity(0.62))
-                            )
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .stroke(selected ? .clear : AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-                            )
-                            .accessibilityAddTraits(selected ? .isSelected : [])
-                            .accessibilityIdentifier("aeon.player.eq.preset.\(preset.name.lowercased().replacingOccurrences(of: " ", with: "-"))")
+            AeonSegment(
+                values: Self.presets.map(\.name),
+                selection: Binding(
+                    get: { selectedPreset ?? "" },
+                    set: { name in
+                        guard let preset = Self.presets.first(where: { $0.name == name }) else { return }
+                        select(preset)
                     }
-                }
-            }
+                ),
+                label: { name in
+                    switch name {
+                    case "BASS RITUAL": return "BASS"
+                    case "VOCAL CULT": return "VOICE"
+                    case "AIRWAVE": return "AIR"
+                    default: return name
+                    }
+                },
+                identifier: { "aeon.player.eq.preset.\($0.lowercased().replacingOccurrences(of: " ", with: "-"))" },
+                spokenLabel: { $0 }
+            )
+            .accessibilityIdentifier("aeon.player.eq.presets")
         }
     }
 
@@ -141,11 +137,11 @@ private struct EQBandControl: View {
             GeometryReader { geometry in
                 let fraction = CGFloat((12 - min(12, max(-12, gain))) / 24)
                 ZStack(alignment: .top) {
-                    Capsule()
+                    Rectangle()
                         .fill(AeonTheme.ColorToken.rule)
                         .frame(width: 2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    Capsule()
+                    Rectangle()
                         .fill(AeonTheme.ColorToken.bone)
                         .frame(width: 24, height: 6)
                         .offset(y: fraction * max(0, geometry.size.height - 6))

@@ -105,12 +105,9 @@ struct NowPlayingView: View {
         GeometryReader { geometry in
             let size = min(360, max(190, geometry.size.width - 56))
             ZStack {
-                Rectangle()
-                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.34))
+                Circle()
+                    .stroke(AeonOrbit.ink.opacity(0.12), style: AeonOrbit.line)
                     .frame(width: size + 24, height: size + 24)
-                    .overlay(
-                        Rectangle().stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-                    )
                 AeonArtwork(image: presentation.artwork, size: size)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -124,9 +121,9 @@ struct NowPlayingView: View {
         VStack(spacing: AeonTheme.Space.small) {
             AeonDisplayText(presentation.track.title, size: 40, maximumLines: 2)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                .foregroundStyle(AeonOrbit.title)
             Text(presentation.artist)
-                .font(AeonTheme.FontToken.ui(.title3, weight: .medium))
+                .font(AeonTheme.FontToken.ui(.callout, weight: .medium))
                 .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
                 .multilineTextAlignment(.center)
             Text(presentation.album.title)
@@ -350,9 +347,9 @@ private struct AeonHorizontalRangeControl: View {
         GeometryReader { geometry in
             let fraction = CGFloat((clampedValue - range.lowerBound) / max(0.000_001, range.upperBound - range.lowerBound))
             ZStack(alignment: .leading) {
-                Capsule().fill(AeonTheme.ColorToken.rule).frame(height: 2)
-                Capsule().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * fraction, height: 2)
-                Capsule()
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: 2)
+                Rectangle().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * fraction, height: 2)
+                Rectangle()
                     .fill(AeonTheme.ColorToken.bone)
                     .frame(width: 6, height: 22)
                     .offset(x: max(0, min(geometry.size.width - 6, geometry.size.width * fraction - 3)))

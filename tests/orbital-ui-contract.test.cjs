@@ -111,3 +111,29 @@ test('UI evidence follows IPA delivery and does not prevent broader native check
   assert.match(workflow, /Commit: %s/);
   assert.doesNotMatch(workflow, /continue-on-error/);
 });
+
+
+test('switch row activation wraps the label, spacer, and traveling knob in one button', () => {
+  const style = components.split('struct AeonToggleStyle: ToggleStyle')[1].split('struct AeonSegment<Value')[0];
+  assert.match(style, /Button \{ configuration\.isOn\.toggle\(\) \} label: \{\s*HStack/);
+  assert.match(style, /if showsLabel \{\s*configuration\.label\s*Spacer/);
+  assert.match(style, /\.contentShape\(Rectangle\(\)\)/);
+  assert.match(native, /toggle\.tap\(\)[\s\S]*?value != %@/);
+  assert.match(native, /assertState\(toggle, predicate: "value ==/);
+});
+
+test('player controls reuse the orbital system without changing preset gains or actions', () => {
+  const eq = source('Features/Player/EQView');
+  const player = source('Features/Player/NowPlayingView');
+  assert.doesNotMatch(eq, /\bCapsule\(|toggleStyle\(\.switch\)/);
+  assert.doesNotMatch(player, /\bCapsule\(/);
+  assert.match(eq, /AeonToggleStyle\(showsLabel: false\)/);
+  assert.match(eq, /values: Self\.presets\.map\(\\\.name\)/);
+  assert.match(eq, /Preset\(name: "BASS RITUAL", gains: \[9, 8, 6, 3, 0, -1, 0, 0, 1, 2\]\)/);
+  assert.match(eq, /playback\.setEQ\(enabled: true, bands: bands\)/);
+  const stage = player.split('private func artworkStage')[1].split('private func metadata')[0];
+  assert.doesNotMatch(stage, /Rectangle\(/);
+  assert.match(stage, /Circle\(\)/);
+  assert.match(player, /playback\.seek\(to: \$0\)/);
+  assert.match(native, /orbital-eq-presets-closeup/);
+});

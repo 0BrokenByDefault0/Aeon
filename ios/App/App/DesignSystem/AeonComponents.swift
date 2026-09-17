@@ -261,13 +261,16 @@ struct AeonButtonStyle: ButtonStyle {
 }
 
 struct AeonToggleStyle: ToggleStyle {
+    var showsLabel = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: AeonTheme.Space.regular) {
-            configuration.label
-            Spacer(minLength: AeonTheme.Space.small)
-            Button { configuration.isOn.toggle() } label: {
+        Button { configuration.isOn.toggle() } label: {
+            HStack(spacing: AeonTheme.Space.regular) {
+                if showsLabel {
+                    configuration.label
+                    Spacer(minLength: AeonTheme.Space.small)
+                }
                 ZStack {
                     AeonSegmentedCapsule(chamberCount: 2, layout: .equal,
                                          part: .chamber(configuration.isOn ? 1 : 0))
@@ -286,13 +289,14 @@ struct AeonToggleStyle: ToggleStyle {
                 }
                 .frame(width: 88, height: 38)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .animation(reduceMotion ? nil : .easeInOut(duration: AeonTheme.Duration.chrome), value: configuration.isOn)
+            // The visible label, empty space, and control share one activation target.
+            // XCTest and assistive technologies address the full represented switch row.
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .animation(reduceMotion ? nil : .easeInOut(duration: AeonTheme.Duration.chrome), value: configuration.isOn)
         .opacity(isEnabled ? 1 : 0.42)
-        // Retain native switch semantics and activation, rather than announcing a decorative button.
         .accessibilityRepresentation {
             Toggle(isOn: configuration.$isOn) { configuration.label }.toggleStyle(.switch)
         }

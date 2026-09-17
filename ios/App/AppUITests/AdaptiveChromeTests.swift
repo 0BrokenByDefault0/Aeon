@@ -170,12 +170,14 @@ extension AdaptiveChromeTests {
         reviewCapture(app, name: "orbital-library-empty")
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.playlists"].tap()
+        assertState(app.descendants(matching: .any)["aeon.library.screen"], predicate: "exists == false")
         let create = app.buttons["aeon.playlists.create"]
         assertHittable(create, in: app)
         reviewCapture(app, name: "orbital-playlists-empty")
         reviewCapture(create, name: "orbital-primary-playlist-closeup")
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.settings"].tap()
+        assertState(app.descendants(matching: .any)["aeon.playlists.screen"], predicate: "exists == false")
         XCTAssertTrue(app.descendants(matching: .any)["aeon.settings.screen"].waitForExistence(timeout: 5))
         for value in ["off", "minutes15", "minutes30", "minutes60", "endOfAlbum"] {
             let option = app.buttons["aeon.settings.sleep.\(value)"]
@@ -200,6 +202,7 @@ extension AdaptiveChromeTests {
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
         reviewCapture(toggle, name: "orbital-toggle-after-closeup")
         toggle.tap()
+        assertState(toggle, predicate: "value == '\(original ?? "1")'")
     }
 
     @objc func testOrbitalUIReviewSkyWithOneAlbum() {
@@ -213,11 +216,25 @@ extension AdaptiveChromeTests {
         reviewCapture(app, name: "orbital-library-one-album")
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.sky"].tap()
+        assertState(app.descendants(matching: .any)["aeon.library.screen"], predicate: "exists == false")
         XCTAssertFalse(app.descendants(matching: .any)["aeon.sky.empty"].exists)
         reviewCapture(app, name: "orbital-sky-one-album")
         app.buttons["aeon.player.open"].tap()
         XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 5))
         reviewCapture(app, name: "orbital-now-playing-disc")
+        let eq = app.switches["aeon.player.eq.bypass"]
+        reviewScroll(app, until: eq)
+        let originalEQ = eq.value as? String
+        XCTAssertNotNil(originalEQ)
+        eq.tap()
+        let changedEQ = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", originalEQ ?? "0"), object: eq)
+        XCTAssertEqual(XCTWaiter.wait(for: [changedEQ], timeout: 5), .completed)
+        let bass = app.buttons["aeon.player.eq.preset.bass-ritual"]
+        reviewScroll(app, until: bass)
+        bass.tap()
+        assertState(bass, predicate: "selected == true")
+        let presets = app.descendants(matching: .any).matching(identifier: "aeon.player.eq.presets").firstMatch
+        reviewCapture(presets, name: "orbital-eq-presets-closeup")
     }
 
     @objc func testOrbitalDockBoundsAfterAX5EmptyStateNavigation() {
@@ -254,6 +271,9 @@ extension AdaptiveChromeTests {
         assertHittable(element, in: app)
     }
     private func reviewCapture(_ element: XCUIElement, name: String) {
+        // Accessibility state can settle before a removal transition has finished drawing.
+        // Allow the bounded chrome fade to complete before collecting visual evidence.
+        Thread.sleep(forTimeInterval: 0.4)
         let attachment = XCTAttachment(screenshot: element.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
