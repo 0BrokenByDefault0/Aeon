@@ -92,7 +92,7 @@ function uniqueCommands(commands){
 }
 
 function plan(args){
-  const explicit=values('area',args);
+  const explicit=values('area',args).flatMap(value=>value.split(',')).map(value=>value.trim()).filter(Boolean);
   for(const area of explicit)if(!areaNames.includes(area))throw new Error(`Unknown area: ${area}`);
   const files=[...values('file',args)];
   const bases=values('changed-from',args);

@@ -21,6 +21,11 @@ test('routes production paths to the responsible areas',()=>{
   assert(result.commands.some(command=>command.includes('tests/aeon-core.test.cjs')));
 });
 
+test('accepts comma-separated areas from manual workflow input',()=>{
+  const result=plan('--area=import,library');
+  assert.deepEqual(result.areas,['import','library']);
+});
+
 test('deduplicates native selectors across areas and defaults to one iPhone',()=>{
   const result=plan('--area=library','--area=playlists','--tier=native');
   assert.equal(result.family,'iphone');

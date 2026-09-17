@@ -1,10 +1,5 @@
-name: Build unsigned IPA
+name: Build fast unsigned IPA
 
-# Apple only allows iOS binaries to be produced on macOS, so the build runs
-# on a hosted Mac. The result is an UNSIGNED .ipa: it cannot be installed
-# by double-clicking, but it is exactly what sideloading tools (AltStore,
-# SideStore, Sideloadly) expect — they sign it with your own Apple ID on
-# your own machine, which is the only way an unsigned build can ever run.
 on:
   push:
     branches: ['**']
@@ -20,105 +15,183 @@ on:
       - '.github/workflows/ios-ipa.yml'
   workflow_dispatch:
     inputs:
-      skip_tests:
-        description: 'Build the .ipa without the test suite. Manual runs only, for getting a build onto a device when an unrelated test is red.'
+      areas:
+        description: 'Comma-separated areas: import, playback, library, sky, chrome, playlists, settings'
+        type: string
+        default: 'import,playback,library,sky,chrome,playlists,settings'
+      skip_native:
+        description: 'Emergency iteration build: skip focused simulator validation and label the IPA accordingly'
         type: boolean
         default: false
-      test_filter:
-        description: 'Run only these tests, e.g. "--family=iphone -only-testing:AppUITests/LibraryFlowTests". Manual runs only; a full run takes over an hour, which is a slow way to debug one shard.'
-        type: string
-        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aeon-fast-ipa-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ipa:
-    # macos-latest rather than a pinned image, so the build is not broken
-    # by the retirement of whichever version was current when it was
-    # written. (This was not what stopped the 2026-08-28 builds: every job
-    # on the account, Linux included, was being refused a runner.)
     runs-on: macos-latest
-    # The runner executes every test shard across both simulator families.
-    # A healthy full matrix currently needs more than 90 minutes on hosted macOS.
-    timeout-minutes: 120
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install JavaScript dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Verify playback and library regressions
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
-        run: |
-          npm test
-          npm run check
-          npx playwright install chromium
-          npm run test:browser
-          npm run test:interface:ci
-          npm run test:arrival
-          npm run test:sky-chrome
-          npm run test:native-audio
-          npm run test:legacy-migration
-
-      - name: Sync migration assets into the iOS shell
-        run: |
-          npx cap sync ios
-          cmp app/legacy-migration.html ios/App/App/public/legacy-migration.html
-          cmp app/legacy-migration.js ios/App/App/public/legacy-migration.js
-
-      - name: Install pods
-        working-directory: ios/App
-        run: pod install --repo-update
-
-      - name: Verify native tests
-        # Push builds are always gated on the suite. Only an explicit manual run
-        # can ask for a build without it.
-        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.skip_tests) }}
+      - name: Plan changed-area validation
+        id: plan
+        shell: bash
         env:
-          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/Aeon-5.0.xcresult
-        run: npm run test:ios -- ${{ inputs.test_filter }}
+          EVENT_NAME: ${{ github.event_name }}
+          REQUESTED_AREAS: ${{ inputs.areas }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            route=(--area="$REQUESTED_AREAS")
+            echo "route_kind=areas" >> "$GITHUB_OUTPUT"
+            echo "route_value=$REQUESTED_AREAS" >> "$GITHUB_OUTPUT"
+          else
+            base="$BEFORE_SHA"
+            if [[ -z "$base" || "$base" =~ ^0+$ ]] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              base="HEAD^"
+            fi
+            route=(--changed-from="$base")
+            echo "route_kind=base" >> "$GITHUB_OUTPUT"
+            echo "route_value=$base" >> "$GITHUB_OUTPUT"
+          fi
+          node scripts/test-targeted.mjs "${route[@]}" --tier=native --json > "$RUNNER_TEMP/targeted-plan.json"
+          node -e '
+            const p=require(process.argv[1]);
+            require("node:fs").appendFileSync(process.env.GITHUB_OUTPUT,`areas=${p.areas.join(",")||"configuration-only"}\nnative_required=${p.commands.length>0}\n`);
+          ' "$RUNNER_TEMP/targeted-plan.json"
+          node scripts/test-targeted.mjs "${route[@]}" --tier=native --list
 
-      - name: Upload native test evidence
-        if: always()
+      - name: Run cheap targeted checks
+        shell: bash
+        env:
+          ROUTE_KIND: ${{ steps.plan.outputs.route_kind }}
+          ROUTE_VALUE: ${{ steps.plan.outputs.route_value }}
+        run: |
+          set -euo pipefail
+          if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
+          node scripts/test-targeted.mjs "${route[@]}" --tier=cheap
+
+      - name: Sync native project
+        run: npx cap sync ios
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ios/App/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/App/Podfile.lock') }}
+          restore-keys: ${{ runner.os }}-pods-
+
+      - name: Install locked pods
+        working-directory: ios/App
+        run: pod install
+
+      - name: Run focused native validation
+        id: native
+        if: ${{ steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
+        shell: bash
+        env:
+          ROUTE_KIND: ${{ steps.plan.outputs.route_kind }}
+          ROUTE_VALUE: ${{ steps.plan.outputs.route_value }}
+          AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
+          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/aeon-fast/result.xcresult
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aeon-fast"
+          if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
+          set +e
+          node scripts/test-targeted.mjs "${route[@]}" --tier=native --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
+          result=$?
+          set -e
+          {
+            grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)|shards (failed|passed)' "$RUNNER_TEMP/aeon-fast/native.log" | tail -n 160 || true
+            printf '\nFinal log lines:\n'
+            tail -n 50 "$RUNNER_TEMP/aeon-fast/native.log"
+          } | tee "$RUNNER_TEMP/aeon-fast/native-summary.txt"
+          exit "$result"
+
+      - name: Build unsigned app
+        shell: bash
+        working-directory: ios/App
+        env:
+          DERIVED_DATA: ${{ runner.temp }}/AeonDerivedData
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aeon-fast"
+          log="$RUNNER_TEMP/aeon-fast/xcodebuild.log"
+          set +e
+          xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos \
+            -derivedDataPath "$DERIVED_DATA" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO > "$log" 2>&1
+          result=$?
+          set -e
+          if [[ "$result" -ne 0 ]]; then grep -E 'error:|warning:|BUILD (FAILED|SUCCEEDED)' "$log" | tail -n 160 || true; tail -n 50 "$log"; exit "$result"; fi
+          grep -E 'warning:|BUILD SUCCEEDED' "$log" | tail -n 80 || true
+
+      - name: Package and label unsigned IPA
+        shell: bash
+        working-directory: ios/App
+        env:
+          AREAS: ${{ steps.plan.outputs.areas }}
+          NATIVE_REQUIRED: ${{ steps.plan.outputs.native_required }}
+          NATIVE_SKIPPED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_native }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aeon-fast"
+          app="$RUNNER_TEMP/AeonDerivedData/Build/Products/Release-iphoneos/App.app"
+          test -d "$app"
+          if [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
+          elif [[ "$NATIVE_REQUIRED" == "true" ]]; then native_result="PASSED on one iPhone simulator"
+          else native_result="NOT REQUIRED for configuration-only change"; fi
+          manifest="$RUNNER_TEMP/aeon-fast/Aeon-validation.txt"
+          {
+            printf 'Aeon fast iteration IPA\n'
+            printf 'Commit: %s\nAreas: %s\n' "$GITHUB_SHA" "$AREAS"
+            printf 'Cheap targeted checks: PASSED\nFocused native validation: %s\n' "$native_result"
+            printf 'Deep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\n'
+            printf 'Release status: ITERATION ONLY\n'
+          } | tee "$manifest"
+          cp "$manifest" "$app/Aeon-validation.txt"
+          package_root="$(mktemp -d)"
+          mkdir -p "$package_root/Payload"
+          cp -R "$app" "$package_root/Payload/"
+          (cd "$package_root" && zip -qry "$GITHUB_WORKSPACE/ios/App/Aeon-5.0-unsigned.ipa" Payload)
+          test -s Aeon-5.0-unsigned.ipa
+          cat "$manifest" >> "$GITHUB_STEP_SUMMARY"
+          shasum -a 256 Aeon-5.0-unsigned.ipa | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload fast IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Aeon-5.0-xcresult
-          path: ${{ runner.temp }}/Aeon-5.0-*.xcresult
-          if-no-files-found: ignore
-          retention-days: 30
-
-      - name: Build unsigned
-        working-directory: ios/App
-        run: |
-          xcodebuild \
-            -workspace App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=NO \
-            | xcpretty || exit ${PIPESTATUS[0]}
-
-      - name: Package as .ipa
-        working-directory: ios/App
-        run: |
-          APP="build/Build/Products/Release-iphoneos/App.app"
-          test -d "$APP" || { echo "App.app was not produced"; ls -R build/Build/Products || true; exit 1; }
-          PACKAGE_OUTPUT="$PWD/Aeon-5.0-unsigned.ipa"
-          PACKAGE_ROOT="$(mktemp -d)"
-          mkdir -p "$PACKAGE_ROOT/Payload"
-          cp -R "$APP" "$PACKAGE_ROOT/Payload/"
-          (cd "$PACKAGE_ROOT" && zip -qry "$PACKAGE_OUTPUT" Payload)
-          ls -lh Aeon-5.0-unsigned.ipa
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Aeon-5.0-unsigned-ipa
-          path: ios/App/Aeon-5.0-unsigned.ipa
+          name: Aeon-5.0-fast-${{ github.run_id }}
+          path: |
+            ios/App/Aeon-5.0-unsigned.ipa
+            ${{ runner.temp }}/aeon-fast/Aeon-validation.txt
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
+
+      - name: Upload focused failure evidence
+        if: failure() && steps.native.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-fast-native-failure-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/aeon-fast/native-summary.txt
+            ${{ runner.temp }}/aeon-fast/*.xcresult
+          if-no-files-found: warn
+          retention-days: 7

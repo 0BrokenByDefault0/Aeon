@@ -1,0 +1,110 @@
+name: Deep release validation
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aeon-deep-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Run complete Node and browser matrix
+        run: |
+          npm test
+          npm run check
+          npm run test:browser
+          npm run test:interface:ci
+          npm run test:arrival
+          npm run test:sky-chrome
+          npm run test:native-audio
+          npm run test:legacy-migration
+
+  native-regression:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        family: [iphone, ipad]
+    name: Native full matrix / ${{ matrix.family }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx cap sync ios
+      - uses: actions/cache@v4
+        with:
+          path: ios/App/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/App/Podfile.lock') }}
+          restore-keys: ${{ runner.os }}-pods-
+      - name: Install locked pods
+        working-directory: ios/App
+        run: pod install
+      - name: Run all native shards
+        shell: bash
+        env:
+          FAMILY: ${{ matrix.family }}
+          AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
+          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/aeon-release/result.xcresult
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aeon-release"
+          set +e
+          node scripts/test-ios.mjs --family="$FAMILY" > "$RUNNER_TEMP/aeon-release/native.log" 2>&1
+          result=$?
+          set -e
+          {
+            printf 'Commit: %s\nFamily: %s\nExit code: %s\n' "$GITHUB_SHA" "$FAMILY" "$result"
+            grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)|shards (failed|passed)' "$RUNNER_TEMP/aeon-release/native.log" | tail -n 240 || true
+            printf '\nFinal log lines:\n'
+            tail -n 60 "$RUNNER_TEMP/aeon-release/native.log"
+          } | tee "$RUNNER_TEMP/aeon-release/summary.txt"
+          exit "$result"
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-release-${{ matrix.family }}-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/aeon-release/summary.txt
+            ${{ runner.temp }}/aeon-release/*.xcresult
+          if-no-files-found: warn
+          retention-days: 14
+
+  release-summary:
+    if: always()
+    needs: [web-regression, native-regression]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record automated scope
+        env:
+          WEB_RESULT: ${{ needs.web-regression.result }}
+          NATIVE_RESULT: ${{ needs.native-regression.result }}
+        run: |
+          {
+            printf '## Deep release validation\n\n'
+            printf 'Web regression: %s  \nNative iPhone/iPad regression: %s  \n' "$WEB_RESULT" "$NATIVE_RESULT"
+            printf 'Physical-device acceptance: NOT RUN by CI  \n'
+            printf 'Release approval requires the device checklist in docs/development-workflow.md.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "$WEB_RESULT" == "success" && "$NATIVE_RESULT" == "success" ]]
