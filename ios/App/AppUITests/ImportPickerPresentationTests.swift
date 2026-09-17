@@ -48,6 +48,15 @@ final class ImportPickerPresentationTests: XCTestCase {
         XCTAssertTrue(primary.waitForExistence(timeout: 12))
         primary.tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.buttons["aeon.import.sheet"].exists,
+            "The sheet identifier must not replace an import source identifier."
+        )
+        for identifier in ["aeon.library.import.files", "aeon.library.import.folder"] {
+            let sources = app.buttons.matching(identifier: identifier)
+            XCTAssertTrue(sources.firstMatch.waitForExistence(timeout: 5))
+            XCTAssertEqual(sources.count, 1, "Each import source must have a unique identifier.")
+        }
     }
 
     /// The picker is a remote view controller, so it may surface either inside Aeon's own
