@@ -373,6 +373,8 @@ struct AeonImportSheet: View {
             .padding(.bottom, AeonTheme.Space.edge)
         }
         .presentationDetents([.medium])
+        // Give the sheet its own container instead of relabeling the source buttons.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("aeon.import.sheet")
     }
 

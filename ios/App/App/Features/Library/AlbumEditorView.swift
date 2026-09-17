@@ -64,6 +64,8 @@ struct AlbumEditorView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
+        // Scope the screen marker to the scroll view, not the inset Save button.
+        .accessibilityIdentifier("aeon.album.editor")
         .safeAreaInset(edge: .bottom, spacing: 0) {
             saveBar
         }
@@ -82,7 +84,6 @@ struct AlbumEditorView: View {
         } message: {
             Text("This will move \(pendingMovementCount) star(s). The metadata and new coordinates will be committed together.")
         }
-        .accessibilityIdentifier("aeon.album.editor")
     }
 
     private var saveBar: some View {
