@@ -6,6 +6,9 @@ struct AeonRootView: View {
     /// One picker at a time. Several `fileImporter` modifiers stacked on a single view
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
+    @State private var pendingPickerOutcome: (kind: ImportPickerKind, outcome: ImportPickerOutcome)?
+    @State private var sourceAccess: ImportSourceAccess?
+    @State private var completedImport: LibraryImportResult?
 
     var body: some View {
         ZStack {
@@ -26,24 +29,53 @@ struct AeonRootView: View {
                 .allowsHitTesting(false)
         }
         .preferredColorScheme(.dark)
-        .sheet(item: $picker) { kind in
+        .sheet(item: $picker, onDismiss: completePickerDismissal) { kind in
             ImportDocumentPicker(kind: kind) { outcome in
+                if case .picked(let urls) = outcome {
+                    sourceAccess = ImportSourceAccess(urls: urls)
+                }
+                pendingPickerOutcome = (kind, outcome)
                 picker = nil
-                handle(outcome, kind: kind)
             }
             .ignoresSafeArea()
         }
         .alert(
             "Import",
             isPresented: Binding(
-                get: { container.libraryImportError != nil },
-                set: { if !$0 { container.dismissLibraryImportError() } }
+                get: { container.libraryImportError != nil || completedImport != nil },
+                set: { if !$0 { dismissImportNotice() } }
             )
         ) {
-            Button("OK", role: .cancel) { container.dismissLibraryImportError() }
+            Button("OK", role: .cancel) { dismissImportNotice() }
         } message: {
-            Text(container.libraryImportError ?? "")
+            Text(container.libraryImportError ?? completedImport?.userMessage ?? "")
         }
+        .onReceive(container.$libraryImportResult) { completedImport = $0 }
+        .onChange(of: container.libraryImportProgress) { progress in
+            if progress == nil { sourceAccess = nil }
+        }
+    }
+
+    private func dismissImportNotice() {
+        completedImport = nil
+        container.dismissLibraryImportError()
+    }
+
+    private func requestPicker(_ kind: ImportPickerKind) {
+        guard container.libraryImportProgress == nil else {
+            container.reportLibraryImportProblem("An import is already running. Finish or pause it before selecting more files.")
+            return
+        }
+        completedImport = nil
+        picker = kind
+    }
+
+    private func completePickerDismissal() {
+        guard let pending = pendingPickerOutcome else { sourceAccess = nil; return }
+        pendingPickerOutcome = nil
+        // A fast import must not race its result alert against the system picker dismissing.
+        handle(pending.outcome, kind: pending.kind)
+        if container.libraryImportProgress == nil { sourceAccess = nil }
     }
 
     private func handle(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
@@ -132,8 +164,8 @@ struct AeonRootView: View {
                     roots: container.roots!,
                     importProgress: container.libraryImportProgress,
                     importError: container.libraryImportError,
-                    importFiles: { picker = .audioFiles },
-                    importFolder: { picker = .folder }
+                    importFiles: { requestPicker(.audioFiles) },
+                    importFolder: { requestPicker(.folder) }
                 )
             }
         case .recovery(let issue):
@@ -349,6 +381,16 @@ private struct AeonReadyShell: View {
         }
         .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
         .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
+        .onReceive(container.$libraryImportResult) { result in
+            guard let result, result.importedTracks > 0 || !result.skippedDuplicateAlbums.isEmpty else { return }
+            libraryController.dismissAlbum()
+            libraryController.setQuery("")
+            libraryController.setSort(.recent)
+            libraryController.reload(reset: true)
+            nowPlayingVisible = false
+            portraitSidebarVisible = false
+            destination = .library
+        }
         .onAppear { services.spectrumAnalyzer.setReduceMotion(effectiveReduceMotion) }
         .onChange(of: reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion)

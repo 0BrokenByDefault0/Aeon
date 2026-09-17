@@ -1,3 +1,4 @@
+import UIKit
 import UniformTypeIdentifiers
 import XCTest
 @testable import App
@@ -35,5 +36,127 @@ final class ImportPickerTests: XCTestCase {
         XCTAssertTrue(ImportPickerKind.audioFiles.allowsMultipleSelection)
         XCTAssertFalse(ImportPickerKind.folder.allowsMultipleSelection)
         XCTAssertFalse(ImportPickerKind.catalogArchive.allowsMultipleSelection)
+    }
+}
+
+extension ImportPickerTests {
+    @objc func testSourceAccessRetainsOnlyUniqueSuccessfulGrantsUntilReleased() {
+        let local = URL(fileURLWithPath: "/fixture/local.mp3")
+        let external = URL(fileURLWithPath: "/fixture/external.mp3")
+        var started: [URL] = []
+        var ended: [URL] = []
+        var access: ImportSourceAccess? = ImportSourceAccess(
+            urls: [external, local, external],
+            begin: { url in started.append(url); return url == external },
+            end: { ended.append($0) }
+        )
+        XCTAssertNotNil(access)
+        XCTAssertEqual(started, [external, local])
+        XCTAssertTrue(ended.isEmpty)
+        access = nil
+        XCTAssertEqual(ended, [external])
+    }
+
+    @objc func testImportResultReportsZeroTracksAsFailureAndKeepsOriginalFilenames() {
+        var result = LibraryImportResult()
+        let url = URL(fileURLWithPath: "/private/provider/Unavailable.mp3")
+        result.recordFailure(url, stage: "could not save the audio", error: CocoaError(.fileWriteOutOfSpace))
+        XCTAssertTrue(result.userMessage.hasPrefix("No tracks were imported."))
+        XCTAssertTrue(result.userMessage.contains("Unavailable.mp3: could not save the audio"))
+        XCTAssertFalse(result.userMessage.contains("/private/provider"))
+        XCTAssertEqual(result.failedFiles, [url])
+    }
+
+    @objc func testImportResultSeparatesSuccessDuplicatesAndPartialFailure() {
+        var added = LibraryImportResult()
+        added.importedAlbums = 1
+        added.importedTracks = 1
+        XCTAssertTrue(added.userMessage.hasPrefix("Added 1 track in 1 album to Library."))
+        added.recordFailure(URL(fileURLWithPath: "/Bad.mp3"), stage: "could not decode audio")
+        XCTAssertTrue(added.userMessage.contains("1 file could not be imported."))
+        var duplicate = LibraryImportResult()
+        duplicate.skippedDuplicateAlbums = ["Existing"]
+        XCTAssertTrue(duplicate.userMessage.contains("already in your Library"))
+        XCTAssertFalse(duplicate.userMessage.contains("Added"))
+    }
+
+    /// Real compressed bytes, the actual picker delegate, importer, decoder, database,
+    /// media store and audio engine. This is not an OS-provider or physical-iPhone test.
+    @MainActor
+    @objc func testPickerCallbackMP3ReachesPersistentLibraryAndProductionPlayback() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("AeonImportPlayback-\(UUID().uuidString)", isDirectory: true)
+        let roots = try AppStorageRoots.temporary(at: root, fileManager: .default)
+        let services = try AppServices.production(roots: roots, startSpectrum: false, startPlayback: true)
+        defer {
+            services.playbackController.applicationDidEnterBackground()
+            services.catalogDatabase.close()
+            try? FileManager.default.removeItem(at: root)
+        }
+        let fixture = try XCTUnwrap(Bundle(for: ImportPickerTests.self).resourceURL)
+            .appendingPathComponent("audio/tone-48000.mp3")
+        let selected = root.appendingPathComponent("01 Import Check.mp3")
+        let bytes = try Data(contentsOf: fixture)
+        try bytes.write(to: selected)
+        let originalTags = try await AudioTagReader().read(url: selected, includeArtwork: false)
+
+        var returnedURLs: [URL] = []
+        var deliveries = 0
+        let delegate = ImportDocumentPicker.Coordinator { outcome in
+            deliveries += 1
+            if case .picked(let urls) = outcome { returnedURLs = urls }
+        }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.mp3], asCopy: false)
+        delegate.documentPicker(picker, didPickDocumentsAt: [selected])
+        delegate.documentPicker(picker, didPickDocumentsAt: [selected])
+        XCTAssertEqual(deliveries, 1)
+        XCTAssertEqual(returnedURLs, [selected])
+
+        let result = try await services.libraryImporter.importURLs(returnedURLs, mode: .single)
+        XCTAssertEqual(result.importedTracks, 1, result.userMessage)
+        XCTAssertEqual(result.importedAlbums, 1, result.userMessage)
+        XCTAssertTrue(result.failedFiles.isEmpty, result.userMessage)
+        let album = try XCTUnwrap(services.catalogRepository.albumPage().first)
+        let track = try XCTUnwrap(services.catalogRepository.tracks(albumID: album.id).first)
+        if let title = originalTags.title { XCTAssertEqual(track.title, title) }
+        let saved = try services.mediaStore.resolve(track.mediaReference)
+        guard case .documents(let path) = track.mediaReference else { return XCTFail("Imported audio must be persistent, not a temporary provider URL") }
+        XCTAssertTrue(path.hasPrefix("Music/_Imported/"))
+        XCTAssertEqual(try Data(contentsOf: saved), bytes)
+        XCTAssertEqual(try Data(contentsOf: selected), bytes, "User source must not be rewritten")
+        try FileManager.default.removeItem(at: selected)
+        guard case .playable(let media) = services.metadataProbe.probe(url: saved) else { return XCTFail("Saved MP3 must decode after the selected source has disappeared") }
+        XCTAssertGreaterThan(media.frameCount, 0)
+
+        let loaded = try await command { completion in
+            services.playbackCoordinator.load(trackID: track.id, mediaRef: track.mediaReference,
+                queue: [QueueItem(trackID: track.id, albumID: track.albumID, mediaRef: track.mediaReference)],
+                index: 0, completion: completion)
+        }
+        XCTAssertEqual(loaded.trackID, track.id)
+        let started = try await command { services.playbackCoordinator.play(completion: $0) }
+        XCTAssertEqual(started.intent, .playing)
+        var observedPosition: Double = 0
+        for _ in 0..<100 {
+            try await Task.sleep(nanoseconds: 20_000_000)
+            let snapshot = try await command { completion in
+                services.playbackCoordinator.getState { completion(.success($0)) }
+            }
+            observedPosition = max(observedPosition, snapshot.position)
+            if observedPosition > 0.01 { break }
+        }
+        _ = try await command { services.playbackCoordinator.pause(completion: $0) }
+        XCTAssertGreaterThan(observedPosition, 0.01, "The production audio playhead must actually advance")
+        XCTAssertEqual(services.playbackController.snapshot?.trackID, track.id)
+        XCTAssertNil(services.playbackController.failure)
+    }
+
+    @MainActor
+    private func command(_ execute: (@escaping PlaybackCommandCompletion) -> Void) async throws -> PlaybackSnapshot {
+        let completed = XCTestExpectation(description: "Production playback command completes")
+        var result: Result<PlaybackSnapshot, PlaybackFailure>?
+        execute { result = $0; completed.fulfill() }
+        let status = await XCTWaiter.fulfillment(of: [completed], timeout: 10)
+        XCTAssertEqual(status, .completed)
+        return try XCTUnwrap(result).get()
     }
 }

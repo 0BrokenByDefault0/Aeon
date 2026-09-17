@@ -96,3 +96,22 @@ struct ImportDocumentPicker: UIViewControllerRepresentable {
         }
     }
 }
+
+/// Claim the provider grant synchronously in the picker callback and retain it across
+/// sheet dismissal and asynchronous import. Balance only the grants actually acquired.
+final class ImportSourceAccess {
+    private let accessed: [URL]
+    private let end: (URL) -> Void
+
+    init(
+        urls: [URL],
+        begin: (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
+        end: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() }
+    ) {
+        self.end = end
+        var seen = Set<URL>()
+        accessed = urls.filter { seen.insert($0).inserted }.filter(begin)
+    }
+
+    deinit { accessed.forEach(end) }
+}

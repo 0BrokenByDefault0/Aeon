@@ -22,6 +22,39 @@ struct LibraryImportResult: Equatable {
     var importedTracks = 0
     var failedFiles: [URL] = []
     var skippedDuplicateAlbums: [String] = []
+    var failureReasons: [String] = []
+
+    /// A completed pipeline is not necessarily a successful import. Always report the outcome.
+    var userMessage: String {
+        var parts: [String] = []
+        if importedTracks > 0 {
+            parts.append("Added \(importedTracks) track\(importedTracks == 1 ? "" : "s") in \(importedAlbums) album\(importedAlbums == 1 ? "" : "s") to Library.")
+        } else if !failedFiles.isEmpty {
+            parts.append("No tracks were imported.")
+        } else if !skippedDuplicateAlbums.isEmpty {
+            parts.append("This music is already in your Library. No duplicate tracks were added.")
+        } else {
+            parts.append("No new tracks were imported.")
+        }
+        if !failedFiles.isEmpty {
+            parts.append("\(failedFiles.count) file\(failedFiles.count == 1 ? "" : "s") could not be imported.")
+            let details = failureReasons.isEmpty ? failedFiles.map(\.lastPathComponent) : failureReasons
+            parts.append(contentsOf: details.prefix(3))
+        }
+        if importedTracks > 0 && !skippedDuplicateAlbums.isEmpty {
+            parts.append("\(skippedDuplicateAlbums.count) existing album\(skippedDuplicateAlbums.count == 1 ? "" : "s") skipped.")
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
+    mutating func recordFailure(_ url: URL, stage: String, error: Error? = nil) {
+        failedFiles.append(url)
+        // Keep actionable stage/code evidence, not an external provider's full private path.
+        if failureReasons.count < 3 {
+            let code = error.map { " (\(($0 as NSError).domain) \(($0 as NSError).code))" } ?? ""
+            failureReasons.append("\(url.lastPathComponent): \(stage)\(code).")
+        }
+    }
 }
 
 enum LibraryImportError: Error, Equatable {
@@ -124,6 +157,11 @@ final class LibraryImporter: @unchecked Sendable {
         let signature = selectionSignature(files: files, mode: mode)
         let cursorKey = "library.import.cursor.\(signature)"
 
+        // Decode only stable local snapshots. A security-scoped URL is not itself a
+        // downloaded, coordinated file; third-party Files providers can evict or move it.
+        let stagingRoot = fileManager.temporaryDirectory.appendingPathComponent("AeonImport-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: stagingRoot) }
+        var originalURLs: [URL: URL] = [:]
         var result = LibraryImportResult()
         var undownloadedFiles = 0
         var candidates: [ImportCandidate] = []
@@ -132,18 +170,22 @@ final class LibraryImporter: @unchecked Sendable {
             try cancellation.check()
             do {
                 try await materialize(entry.url)
-                let tags = try await tagReader.read(url: entry.url, includeArtwork: false)
+                let localURL = try stageSource(entry.url, index: index, root: stagingRoot, cancellation: cancellation)
+                originalURLs[localURL] = entry.url
+                let tags = try await tagReader.read(url: localURL, includeArtwork: false)
                 candidates.append(ImportCandidate(
-                    url: entry.url,
+                    url: localURL,
                     folder: entry.url.deletingLastPathComponent().lastPathComponent,
                     folderKey: entry.url.deletingLastPathComponent().standardizedFileURL.path,
                     batchLabel: entry.batchLabel,
                     tags: tags,
                     selectionIndex: index
                 ))
+            } catch LibraryImportError.cancelled {
+                throw LibraryImportError.cancelled
             } catch {
                 if (error as? LibraryImportError) == .sourceUnavailable { undownloadedFiles += 1 }
-                result.failedFiles.append(entry.url)
+                result.recordFailure(entry.url, stage: "could not read a local copy", error: error)
             }
             progress(LibraryImportProgress(
                 phase: .readingMetadata,
@@ -157,9 +199,8 @@ final class LibraryImporter: @unchecked Sendable {
         // Every file was found but none could be read. Report why rather than finishing
         // with a successful import of nothing.
         if candidates.isEmpty, !result.failedFiles.isEmpty {
-            throw undownloadedFiles == result.failedFiles.count
-                ? LibraryImportError.sourceUnavailable
-                : LibraryImportError.noSupportedAudio
+            if undownloadedFiles == result.failedFiles.count { throw LibraryImportError.sourceUnavailable }
+            return result
         }
 
         try cancellation.check()
@@ -177,7 +218,7 @@ final class LibraryImporter: @unchecked Sendable {
         for groupIndex in startIndex ..< groups.count {
             try cancellation.check()
             let group = ImportGrouper.sortAlbumItems(groups[groupIndex])
-            let groupResult = try await importGroup(group, result: &result, cancellation: cancellation)
+            let groupResult = try await importGroup(group, originalURLs: originalURLs, result: &result, cancellation: cancellation)
             result.importedAlbums += groupResult.albumCount
             result.importedTracks += groupResult.trackCount
             if let duplicate = groupResult.duplicate { result.skippedDuplicateAlbums.append(duplicate) }
@@ -202,8 +243,37 @@ final class LibraryImporter: @unchecked Sendable {
         return result
     }
 
+    private func stageSource(_ source: URL, index: Int, root: URL, cancellation: LibraryImportCancellation) throws -> URL {
+        // Preserve the established no-copy behavior for music already owned by this app.
+        if mediaStore.adoptedDocumentReference(for: source) != nil { return source }
+        let directory = root.appendingPathComponent(String(index), isDirectory: true)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let destination = directory.appendingPathComponent(source.lastPathComponent, isDirectory: false)
+        return try coordinatedRead(source) { coordinatedURL in
+            try cancellation.check()
+            try fileManager.copyItem(at: coordinatedURL, to: destination)
+            try cancellation.check()
+            return destination
+        }
+    }
+
+    /// Use the URL supplied by the accessor: a provider is allowed to change the path.
+    /// The async decoder runs only after this synchronous coordinated snapshot is complete.
+    private func coordinatedRead<Value>(_ source: URL, accessor: (URL) throws -> Value) throws -> Value {
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var coordinationError: NSError?
+        var result: Result<Value, Error>?
+        coordinator.coordinate(readingItemAt: source, options: [], error: &coordinationError) { coordinatedURL in
+            result = Result { try accessor(coordinatedURL) }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw LibraryImportError.accessDenied }
+        return try result.get()
+    }
+
     private func importGroup(
         _ group: [ImportCandidate],
+        originalURLs: [URL: URL],
         result: inout LibraryImportResult,
         cancellation: LibraryImportCancellation
     ) async throws -> (albumCount: Int, trackCount: Int, duplicate: String?) {
@@ -212,7 +282,7 @@ final class LibraryImporter: @unchecked Sendable {
         for candidate in group {
             try cancellation.check()
             guard case .playable(let media) = metadataProbe.probe(url: candidate.url) else {
-                result.failedFiles.append(candidate.url)
+                result.recordFailure(originalURLs[candidate.url] ?? candidate.url, stage: "could not decode audio")
                 continue
             }
             let size = (try? candidate.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
@@ -274,12 +344,12 @@ final class LibraryImporter: @unchecked Sendable {
                     importedAt: timestamp
                 ))
             } catch {
-                result.failedFiles.append(item.candidate.url)
+                result.recordFailure(originalURLs[item.candidate.url] ?? item.candidate.url, stage: "could not save the audio", error: error)
             }
         }
         guard !tracks.isEmpty else { return (0, 0, nil) }
 
-        let artworkKey = await artwork(for: playable.map(\.candidate), albumID: albumID)
+        let artworkKey = await artwork(for: playable.map(\.candidate), originalURLs: originalURLs, albumID: albumID)
         storedArtworkKey = artworkKey
         let album = CatalogAlbum(
             id: albumID,
@@ -301,7 +371,7 @@ final class LibraryImporter: @unchecked Sendable {
         }
     }
 
-    private func artwork(for group: [ImportCandidate], albumID: String) async -> String? {
+    private func artwork(for group: [ImportCandidate], originalURLs: [URL: URL], albumID: String) async -> String? {
         for candidate in group {
             if let tags = try? await tagReader.read(url: candidate.url, includeArtwork: true),
                let key = artworkProcessor.process(tags.artworkData, key: albumID) {
@@ -309,7 +379,7 @@ final class LibraryImporter: @unchecked Sendable {
             }
         }
         let names = ["cover", "folder", "front", "album", "artwork"]
-        let directories = Array(Set(group.map { $0.url.deletingLastPathComponent().standardizedFileURL }))
+        let directories = Array(Set(group.map { (originalURLs[$0.url] ?? $0.url).deletingLastPathComponent().standardizedFileURL }))
         for directory in directories {
             guard let files = try? fileManager.contentsOfDirectory(
                 at: directory,
@@ -328,7 +398,7 @@ final class LibraryImporter: @unchecked Sendable {
             for candidate in candidates {
                 guard let size = try? candidate.resourceValues(forKeys: [.fileSizeKey]).fileSize,
                       size <= 32 * 1_024 * 1_024,
-                      let data = try? Data(contentsOf: candidate),
+                      let data = try? coordinatedRead(candidate, accessor: { try Data(contentsOf: $0) }),
                       let key = artworkProcessor.process(data, key: albumID) else { continue }
                 return key
             }
