@@ -12,11 +12,13 @@
 
 ## Required loop
 
-Use `search -> minimal implementation -> npm run test:targeted -- --area=<area> -> npm run test:targeted:native -- --area=<area> -> fast unsigned IPA`.
+Use `search -> minimal implementation -> npm run test:targeted -- --area=<area> -> build and upload fast unsigned IPA -> npm run test:targeted:native -- --area=<area>`.
 
 Areas are `import`, `playback`, `library`, `sky`, `chrome`, `playlists`, and `settings`. Multiple `--area` flags are allowed. Native focused checks require macOS/Xcode. Run `npm run test:targeted -- --list` to inspect routing without executing it.
 
-The fast IPA is iteration evidence only: it is gated by relevant cheap checks and one-family focused native tests, not the full regression matrix. Release approval requires the separate `Deep release validation` workflow plus the physical-device checklist in [docs/development-workflow.md](docs/development-workflow.md).
+Always build and upload the fast unsigned IPA before running native tests. Do not wait for simulator tests or the full workflow to finish before delivering the available artifact. Cheap checks and a successful device build remain prerequisites. Native tests run after upload, and their failures must remain visible without withholding or deleting the IPA.
+
+The fast IPA is iteration evidence only: its embedded manifest records native validation as pending, explicitly skipped, or not required at upload time. Report subsequent native results separately; never present a pending or failed build as native-validated. Release approval requires the separate `Deep release validation` workflow plus the physical-device checklist in [docs/development-workflow.md](docs/development-workflow.md).
 
 ## Non-negotiable product constraints
 

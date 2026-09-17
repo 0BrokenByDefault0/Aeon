@@ -12,7 +12,7 @@
 | Playlists | `ios/App/App/Features/Playlists/`, `ios/App/App/Persistence/` | `PlaylistTests`, `LibraryFlowTests`, `SettingsFlowTests` | `PlaylistsScreen`, `PlaylistsController` |
 | Settings | `ios/App/App/Features/Settings/` | `SettingsFlowTests`, `DesignTokenTests` | `SettingsScreen`, `SettingsController` |
 | Web compatibility / migration | `app/`, `test/`, `tests/` | matching Node or Playwright file, then `LegacyMigrationTests` | `LegacyMigrationViewController` |
-| Build and delivery | `scripts/`, `.github/workflows/`, `ios/App/Podfile.lock` | `ios-test-runner.test.cjs`, `targeted-tests.test.cjs` | package scripts and workflow summaries |
+| Build and delivery | `scripts/`, `.github/workflows/`, `ios/App/Podfile.lock` | `ios-test-runner.test.cjs`, `targeted-tests.test.cjs`, `ipa-delivery-workflow.test.cjs` | package scripts and workflow summaries |
 
 The native app root is `AeonApp -> AppContainer -> AeonRootView`. The normal 5.0 UI is SwiftUI. The `app/` web surface remains a compatibility and migration oracle; do not treat it as the native UI implementation.
 
@@ -21,13 +21,14 @@ The native app root is `AeonApp -> AppContainer -> AeonRootView`. The normal 5.0
 1. Search for the exact symbol, error, accessibility identifier, or failing test. Fetch the smallest useful line range.
 2. Make the minimal implementation. Avoid cross-area cleanup.
 3. Run `npm run test:targeted -- --area=<area>`. This runs syntax plus cheap Node or focused browser contracts relevant to that area.
-4. On macOS, run `npm run test:targeted:native -- --area=<area>`. The default is one iPhone simulator and explicit XCTest/XCUITest selectors. Add `--family=ipad` only when the change is layout- or iPad-specific.
-5. Push the coherent commit. `Build fast unsigned IPA` repeats changed-area routing, reuses the native build products, and publishes a validation manifest beside the IPA.
+4. Push the coherent commit. `Build fast unsigned IPA` repeats cheap changed-area checks, builds the device app, and packages and uploads the unsigned IPA with its validation manifest before any native tests execute. Deliver the artifact as soon as it is available; do not wait for the workflow to finish.
+5. After IPA upload, the workflow runs the focused native checks. On macOS, the equivalent is `npm run test:targeted:native -- --area=<area>`, also after IPA delivery. The default is one iPhone simulator and explicit XCTest/XCUITest selectors. Add `--family=ipad` only when the change is layout- or iPad-specific. Native failures keep CI red and produce failure evidence, but do not remove or block the uploaded IPA.
 
 Use multiple areas when a change crosses boundaries:
 
 ```sh
 npm run test:targeted -- --area=import --area=library
+# Push, build, upload, and deliver the fast IPA before the next command.
 npm run test:targeted:native -- --area=import --area=library
 ```
 
@@ -41,7 +42,11 @@ Shared infrastructure or unrecognized production paths deliberately route to eve
 
 ## Validation labels
 
-Every fast IPA contains `Aeon-validation.txt` and the workflow publishes the same text in its summary. It records the commit, selected areas, cheap-check result, focused native result, simulator family, and explicitly states that deep regression and physical-device acceptance were not run. A fast IPA is never release evidence.
+Every fast IPA contains `Aeon-validation.txt` and the workflow publishes the same text in its summary. It records the commit, build-run URL, selected areas, and passed cheap checks. At upload time, focused native validation is `PENDING` on one iPhone simulator, `SKIPPED by manual request`, or `NOT REQUIRED for configuration-only change`; it must never claim native tests passed before they ran. Deep regression and physical-device acceptance remain explicitly `NOT RUN`. A fast IPA is never release evidence.
+
+The workflow publishes the IPA download link before native execution. Afterwards, `Aeon-native-validation.txt` and the separate `Aeon-fast-native-validation-<run-id>` artifact report the native outcome for the same commit without modifying the already-delivered IPA. Failures also retain the focused failure artifact. If the runner is terminated before reporting, use the live run status; a pending manifest is not proof of a pass.
+
+The manual `skip_native` input defaults to `false` and only skips post-upload testing. No emergency option is needed for IPA-first delivery. Artifact alerts must check for an IPA even while its workflow is running or has later failed, verify its commit, and report test status separately.
 
 ## Deep and release path
 

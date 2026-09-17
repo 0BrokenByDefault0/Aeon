@@ -20,7 +20,7 @@ on:
         type: string
         default: 'import,playback,library,sky,chrome,playlists,settings'
       skip_native:
-        description: 'Emergency iteration build: skip focused simulator validation and label the IPA accordingly'
+        description: 'Skip post-upload simulator validation; the fast IPA is always delivered first'
         type: boolean
         default: false
 
@@ -85,6 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
+          node --test tests/ipa-delivery-workflow.test.cjs
           node scripts/test-targeted.mjs "${route[@]}" --tier=cheap
 
       - name: Sync native project
@@ -100,30 +101,6 @@ jobs:
       - name: Install locked pods
         working-directory: ios/App
         run: pod install
-
-      - name: Run focused native validation
-        id: native
-        if: ${{ steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
-        shell: bash
-        env:
-          ROUTE_KIND: ${{ steps.plan.outputs.route_kind }}
-          ROUTE_VALUE: ${{ steps.plan.outputs.route_value }}
-          AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
-          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/aeon-fast/result.xcresult
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aeon-fast"
-          if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
-          set +e
-          node scripts/test-targeted.mjs "${route[@]}" --tier=native --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
-          result=$?
-          set -e
-          {
-            grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)|shards (failed|passed)' "$RUNNER_TEMP/aeon-fast/native.log" | tail -n 160 || true
-            printf '\nFinal log lines:\n'
-            tail -n 50 "$RUNNER_TEMP/aeon-fast/native.log"
-          } | tee "$RUNNER_TEMP/aeon-fast/native-summary.txt"
-          exit "$result"
 
       - name: Build unsigned app
         shell: bash
@@ -156,18 +133,20 @@ jobs:
           app="$RUNNER_TEMP/AeonDerivedData/Build/Products/Release-iphoneos/App.app"
           test -d "$app"
           if [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
-          elif [[ "$NATIVE_REQUIRED" == "true" ]]; then native_result="PASSED on one iPhone simulator"
+          elif [[ "$NATIVE_REQUIRED" == "true" ]]; then native_result="PENDING; runs on one iPhone simulator after IPA upload"
           else native_result="NOT REQUIRED for configuration-only change"; fi
           manifest="$RUNNER_TEMP/aeon-fast/Aeon-validation.txt"
           {
             printf 'Aeon fast iteration IPA\n'
             printf 'Commit: %s\nAreas: %s\n' "$GITHUB_SHA" "$AREAS"
+            printf 'Build run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
             printf 'Cheap targeted checks: PASSED\nFocused native validation: %s\n' "$native_result"
             printf 'Deep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\n'
             printf 'Release status: ITERATION ONLY\n'
           } | tee "$manifest"
           cp "$manifest" "$app/Aeon-validation.txt"
           package_root="$(mktemp -d)"
+          trap 'rm -rf "$package_root"' EXIT
           mkdir -p "$package_root/Payload"
           cp -R "$app" "$package_root/Payload/"
           (cd "$package_root" && zip -qry "$GITHUB_WORKSPACE/ios/App/Aeon-5.0-unsigned.ipa" Payload)
@@ -176,6 +155,7 @@ jobs:
           shasum -a 256 Aeon-5.0-unsigned.ipa | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload fast IPA
+        id: upload_ipa
         uses: actions/upload-artifact@v4
         with:
           name: Aeon-5.0-fast-${{ github.run_id }}
@@ -183,6 +163,76 @@ jobs:
             ios/App/Aeon-5.0-unsigned.ipa
             ${{ runner.temp }}/aeon-fast/Aeon-validation.txt
           if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Publish IPA download link
+        shell: bash
+        env:
+          IPA_URL: ${{ steps.upload_ipa.outputs.artifact-url }}
+        run: |
+          printf '\n## Fast IPA available\n[Download the unsigned iteration IPA](%s)\n\nNative validation is reported separately below; do not wait for it to download the IPA.\n' "$IPA_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run focused native validation
+        id: native
+        if: ${{ steps.upload_ipa.outcome == 'success' && steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
+        shell: bash
+        env:
+          ROUTE_KIND: ${{ steps.plan.outputs.route_kind }}
+          ROUTE_VALUE: ${{ steps.plan.outputs.route_value }}
+          AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
+          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/aeon-fast/result.xcresult
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aeon-fast"
+          if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
+          set +e
+          node scripts/test-targeted.mjs "${route[@]}" --tier=native --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
+          result=$?
+          set -e
+          {
+            grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)|shards (failed|passed)' "$RUNNER_TEMP/aeon-fast/native.log" | tail -n 160 || true
+            printf '\nFinal log lines:\n'
+            tail -n 50 "$RUNNER_TEMP/aeon-fast/native.log"
+          } | tee "$RUNNER_TEMP/aeon-fast/native-summary.txt"
+          exit "$result"
+
+      - name: Report post-upload native validation
+        if: ${{ always() && steps.upload_ipa.outcome == 'success' }}
+        shell: bash
+        env:
+          NATIVE_OUTCOME: ${{ steps.native.outcome }}
+          NATIVE_REQUIRED: ${{ steps.plan.outputs.native_required }}
+          NATIVE_SKIPPED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_native }}
+          IPA_URL: ${{ steps.upload_ipa.outputs.artifact-url }}
+        run: |
+          set -euo pipefail
+          case "$NATIVE_OUTCOME" in
+            success) native_result="PASSED on one iPhone simulator" ;;
+            failure) native_result="FAILED; uploaded IPA remains available for iteration" ;;
+            cancelled) native_result="CANCELLED; uploaded IPA is not native-validated" ;;
+            *)
+              if [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
+              elif [[ "$NATIVE_REQUIRED" != "true" ]]; then native_result="NOT REQUIRED for configuration-only change"
+              else native_result="NOT RUN; uploaded IPA is not native-validated"; fi ;;
+          esac
+          {
+            printf 'Aeon post-upload validation\nCommit: %s\n' "$GITHUB_SHA"
+            printf 'IPA artifact: %s\nFocused native validation: %s\n' "$IPA_URL" "$native_result"
+            printf 'Deep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\nRelease status: ITERATION ONLY\n'
+          } | tee "$RUNNER_TEMP/aeon-fast/Aeon-native-validation.txt"
+          printf '\n## Post-upload native validation\n' >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/aeon-fast/Aeon-native-validation.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload native validation report
+        if: ${{ always() && steps.upload_ipa.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-fast-native-validation-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/aeon-fast/Aeon-native-validation.txt
+            ${{ runner.temp }}/aeon-fast/native-summary.txt
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload focused failure evidence
