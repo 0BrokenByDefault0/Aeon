@@ -109,6 +109,15 @@ test('explicit family takes precedence over environment family', t => {
   assert.deepEqual(destinations(result), [phone]);
 });
 
+test('shared derived data path is forwarded for build reuse', t => {
+  const result = run(t, ['--family=iphone', selection], {
+    AEON_IOS_DERIVED_DATA_PATH: '/tmp/aeon-derived-data'
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const args = result.commands[0];
+  assert.equal(args[args.indexOf('-derivedDataPath') + 1], '/tmp/aeon-derived-data');
+});
+
 test('failed native commands still fail the run and do not skip remaining shards', t => {
   const result = run(t, ['--family=all'], { AEON_TEST_XCODE_EXIT: '65' });
   assert.equal(result.status, 1);

@@ -18,6 +18,8 @@
     "test:sky-chrome": "node test/sky-chrome.mjs",
     "test:native-audio": "node test/native-audio-contract.mjs",
     "test:legacy-migration": "node test/legacy-migration-contract.mjs",
+    "test:targeted": "node scripts/test-targeted.mjs --tier=cheap",
+    "test:targeted:native": "node scripts/test-targeted.mjs --tier=native",
     "test:ios": "node scripts/test-ios.mjs --family=all",
     "test:ios:iphone": "node scripts/test-ios.mjs --family=iphone",
     "test:ios:ipad": "node scripts/test-ios.mjs --family=ipad"

@@ -62,6 +62,7 @@ if(requested){
 
 console.log(`Testing on ${destinations.map(device=>`${device.name} (${device.runtime})`).join(' and ')}`);
 const resultBundle=process.env.AEON_IOS_RESULT_BUNDLE_PATH;
+const derivedData=process.env.AEON_IOS_DERIVED_DATA_PATH;
 const hasExplicitSelection=forwardedArguments.some(value=>
   value.startsWith('-only-testing:')||value.startsWith('-skip-testing:')
 );
@@ -99,6 +100,7 @@ for(const device of destinations){
       '-workspace','ios/App/App.xcworkspace',
       '-scheme','App',
       '-destination',`platform=iOS Simulator,id=${device.udid}`,
+      ...(derivedData?['-derivedDataPath',derivedData]:[]),
       ...(evidence?['-resultBundlePath',evidence]:[]),
       'test',
       ...shard.arguments
