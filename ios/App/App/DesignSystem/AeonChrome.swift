@@ -102,14 +102,16 @@ struct AeonChrome<PlayerBar: View>: View {
                         )
                         .transition(.move(edge: .bottom))
                     }
-                    Button {} label: {
+                    Button {
+                        portraitSidebarVisible.toggle()
+                    } label: {
                         Image(systemName: portraitSidebarVisible ? "xmark" : "line.3.horizontal")
                             .font(.system(size: 17, weight: .medium))
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                    .contentShape(Rectangle())
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .background(
                         RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
@@ -121,7 +123,6 @@ struct AeonChrome<PlayerBar: View>: View {
                     )
                     .padding(.leading, max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading))
                     .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
-                    .highPriorityGesture(TapGesture().onEnded { portraitSidebarVisible.toggle() })
                     .accessibilityLabel(portraitSidebarVisible ? "Close navigation" : "Open navigation")
                     .accessibilityIdentifier("aeon.navigation.menu")
                 } else {
@@ -233,6 +234,8 @@ struct AeonChrome<PlayerBar: View>: View {
             }
             .foregroundStyle(selected ? AeonTheme.ColorToken.textPrimary : AeonTheme.ColorToken.boneSecondary)
             .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
+            // Hit-test the full label, including empty space around accessibility-sized icons.
+            .contentShape(Rectangle())
             .background {
                 if selected {
                     RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
@@ -250,7 +253,6 @@ struct AeonChrome<PlayerBar: View>: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
-        .contentShape(Rectangle())
         .buttonStyle(.plain)
         .accessibilityLabel(item.title.capitalized)
         .accessibilityAddTraits(selected ? .isSelected : [])
