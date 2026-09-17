@@ -3,11 +3,7 @@ import SwiftUI
 import UIKit
 
 enum AeonDestination: String, CaseIterable, Identifiable {
-    case sky
-    case library
-    case playlists
-    case settings
-
+    case sky, library, playlists, settings
     var id: String { rawValue }
     var title: String { rawValue.uppercased() }
     var symbol: String {
@@ -18,6 +14,14 @@ enum AeonDestination: String, CaseIterable, Identifiable {
         case .settings: return "slider.horizontal.3"
         }
     }
+    var glyph: AeonGlyphKind {
+        switch self {
+        case .sky: return .sky
+        case .library: return .library
+        case .playlists: return .playlists
+        case .settings: return .settings
+        }
+    }
 }
 
 struct AeonArtworkTintHost<Content: View>: View {
@@ -26,30 +30,16 @@ struct AeonArtworkTintHost<Content: View>: View {
     let artworkStore: ArtworkStore
     let content: Content
     @State private var tint: Color?
-
-    init(
-        playback: PlaybackController,
-        catalog: CatalogRepository,
-        artworkStore: ArtworkStore,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.playback = playback
-        self.catalog = catalog
-        self.artworkStore = artworkStore
-        self.content = content()
+    init(playback: PlaybackController, catalog: CatalogRepository, artworkStore: ArtworkStore,
+         @ViewBuilder content: () -> Content) {
+        self.playback = playback; self.catalog = catalog; self.artworkStore = artworkStore; self.content = content()
     }
-
     var body: some View {
-        content
-            .environment(\.aeonArtworkTint, tint)
+        content.environment(\.aeonArtworkTint, tint)
             .onReceive(playback.$snapshot.map { $0?.trackID }.removeDuplicates()) { trackID in
-                tint = resolvedTint(trackID: trackID)
+                tint = AeonArtworkTint.resolve(trackID: trackID, catalog: catalog, artworkStore: artworkStore)
+                    .map(Color.init(uiColor:))
             }
-    }
-
-    private func resolvedTint(trackID: String?) -> Color? {
-        AeonArtworkTint.resolve(trackID: trackID, catalog: catalog, artworkStore: artworkStore)
-            .map(Color.init(uiColor:))
     }
 }
 
@@ -60,212 +50,142 @@ struct AeonChrome<PlayerBar: View>: View {
     let playerBar: PlayerBar
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.aeonArtworkTint) private var artworkTint
-
-    init(
-        destination: Binding<AeonDestination>,
-        portraitSidebarVisible: Binding<Bool>,
-        playerLoaded: Bool,
-        @ViewBuilder playerBar: () -> PlayerBar
-    ) {
-        _destination = destination
-        _portraitSidebarVisible = portraitSidebarVisible
-        self.playerLoaded = playerLoaded
-        self.playerBar = playerBar()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    init(destination: Binding<AeonDestination>, portraitSidebarVisible: Binding<Bool>, playerLoaded: Bool,
+         @ViewBuilder playerBar: () -> PlayerBar) {
+        _destination = destination; _portraitSidebarVisible = portraitSidebarVisible
+        self.playerLoaded = playerLoaded; self.playerBar = playerBar()
     }
-
     var body: some View {
         GeometryReader { geometry in
             let regular = horizontalSizeClass == .regular
             let landscape = geometry.size.width > geometry.size.height
             ZStack(alignment: .topLeading) {
                 if regular && landscape {
-                    sidebar
-                        .frame(width: AeonTheme.Space.sidebar)
-                        .frame(maxHeight: .infinity)
-                        .transition(.move(edge: .leading))
+                    sidebar.frame(width: AeonTheme.Space.sidebar).frame(maxHeight: .infinity)
                 } else if regular {
                     if portraitSidebarVisible {
-                        sidebar
-                            .frame(width: AeonTheme.Space.sidebar)
-                            .frame(maxHeight: .infinity)
+                        sidebar.frame(width: AeonTheme.Space.sidebar).frame(maxHeight: .infinity)
                             .transition(.move(edge: .leading))
                     }
                     if playerLoaded && !portraitSidebarVisible {
-                        portraitPlayerBar(
-                            width: min(
-                                AeonTheme.Space.sidePanel,
-                                geometry.size.width - (AeonTheme.Space.edge * 2)
-                            ),
-                            height: max(0, geometry.size.height - geometry.safeAreaInsets.bottom),
-                            leadingInset: max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading)
-                        )
+                        VStack(spacing: 0) {
+                            Spacer(minLength: 0)
+                            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+                            playerBar.frame(minHeight: AeonTheme.Space.playerBar)
+                        }
+                        .frame(width: min(AeonTheme.Space.sidePanel, geometry.size.width - AeonTheme.Space.edge * 2),
+                               height: max(0, geometry.size.height - geometry.safeAreaInsets.bottom))
+                        .padding(.leading, max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading))
                         .transition(.move(edge: .bottom))
                     }
-                    Button {
-                        portraitSidebarVisible.toggle()
-                    } label: {
+                    Button { portraitSidebarVisible.toggle() } label: {
                         Image(systemName: portraitSidebarVisible ? "xmark" : "line.3.horizontal")
                             .font(.system(size: 17, weight: .medium))
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                             .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-                    .background(
-                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                            .fill(AeonTheme.ColorToken.chamberOpaque)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                            .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-                    )
+                    .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)
+                    .background(AeonTheme.ColorToken.void)
+                    .overlay(Rectangle().stroke(AeonOrbit.ink.opacity(0.35), style: AeonOrbit.line))
                     .padding(.leading, max(AeonTheme.Space.edge, geometry.safeAreaInsets.leading))
                     .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
                     .accessibilityLabel(portraitSidebarVisible ? "Close navigation" : "Open navigation")
                     .accessibilityIdentifier("aeon.navigation.menu")
                 } else {
-                    compactChrome(bottomInset: geometry.safeAreaInsets.bottom)
+                    compactChrome
+                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
                 }
             }
-            .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: portraitSidebarVisible)
+            // Bound chrome to the proposed viewport, not the intrinsic height of AX-sized content.
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+            .animation(reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.chrome), value: portraitSidebarVisible)
         }
         .zIndex(AeonTheme.Layer.chrome)
     }
 
-    private func compactChrome(bottomInset: CGFloat) -> some View {
+    private var compactChrome: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Spacer(minLength: 0)
             if playerLoaded {
-                Rectangle()
-                    .fill(AeonTheme.ColorToken.rule)
-                    .frame(height: AeonTheme.Stroke.hairline)
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                 playerBar.frame(minHeight: AeonTheme.Space.playerBar)
+                    .background(AeonTheme.ColorToken.void)
             }
-            AeonGlass {
-                HStack(spacing: 0) {
-                    ForEach(AeonDestination.allCases) { item in
-                        navigationButton(item, compact: true)
-                    }
-                }
-                .padding(.horizontal, AeonTheme.Space.xSmall)
-                .padding(.bottom, bottomInset)
-                .frame(minHeight: AeonTheme.Space.compactDock + bottomInset)
+            HStack(spacing: 0) {
+                ForEach(AeonDestination.allCases) { navigationButton($0, compact: true) }
             }
+            .padding(.horizontal, AeonTheme.Space.xSmall)
+            .frame(height: AeonTheme.Space.compactDock)
+            .background {
+                // Extend only the opaque background through the home-indicator area.
+                // Do not add that inset to the controls again: the parent is already safe-area sized.
+                AeonTheme.ColorToken.void.ignoresSafeArea(.container, edges: .bottom)
+            }
+            .overlay(alignment: .top) {
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+            }
+            .accessibilityElement(children: .contain).accessibilityIdentifier("aeon.navigation.dock")
         }
-    }
-
-    private func portraitPlayerBar(width: CGFloat, height: CGFloat, leadingInset: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            Spacer()
-            Rectangle()
-                .fill(AeonTheme.ColorToken.rule)
-                .frame(height: AeonTheme.Stroke.hairline)
-            playerBar.frame(minHeight: AeonTheme.Space.playerBar)
-        }
-        .frame(width: width, height: height)
-        .padding(.leading, leadingInset)
     }
 
     private var sidebar: some View {
         AeonGlass {
             VStack(alignment: .leading, spacing: 0) {
-                AeonDisplayText("AEON", size: 28, maximumLines: 1)
-                    .tracking(2)
-                    .foregroundStyle(AeonTheme.ColorToken.textPrimary)
-                    .padding(.horizontal, AeonTheme.Space.edge)
-                    .padding(.top, 72)
-                    .padding(.bottom, AeonTheme.Space.section)
-                ForEach(AeonDestination.allCases) { item in
-                    navigationButton(item, compact: false)
-                }
-                Spacer()
+                AeonDisplayText("AEON", size: 28, maximumLines: 1).tracking(2).foregroundStyle(AeonOrbit.title)
+                    .padding(.horizontal, AeonTheme.Space.edge).padding(.top, 72).padding(.bottom, AeonTheme.Space.section)
+                ForEach(AeonDestination.allCases) { navigationButton($0, compact: false) }
+                Spacer(minLength: 0)
                 if playerLoaded {
-                    Rectangle()
-                        .fill(AeonTheme.ColorToken.rule)
-                        .frame(height: AeonTheme.Stroke.hairline)
+                    Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                     playerBar.frame(minHeight: AeonTheme.Space.playerBar)
                 }
             }
         }
-        .ignoresSafeArea(edges: .vertical)
-        .accessibilityElement(children: .contain)
+        .ignoresSafeArea(edges: .vertical).accessibilityElement(children: .contain)
     }
 
     private func navigationButton(_ item: AeonDestination, compact: Bool) -> some View {
         let selected = destination == item
+        let largeText = dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText
         return Button {
-            destination = item
-            portraitSidebarVisible = false
+            destination = item; portraitSidebarVisible = false
         } label: {
             Group {
-                if compact {
-                    if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 23, weight: selected ? .medium : .regular))
-                            .frame(width: 26, height: 26)
-                    } else {
-                        VStack(spacing: AeonTheme.Space.xSmall) {
-                            Image(systemName: item.symbol)
-                                .font(.system(size: 18, weight: selected ? .semibold : .regular))
-                                .frame(width: 24, height: 24)
-                            Text(item.title)
-                                .font(AeonTheme.FontToken.metric(.caption2, weight: selected ? .semibold : .medium))
-                        }
+                if largeText {
+                    AeonGlyph(kind: item.glyph).foregroundStyle(AeonOrbit.secondary)
+                } else if compact {
+                    VStack(spacing: AeonTheme.Space.xSmall) {
+                        AeonGlyph(kind: item.glyph).foregroundStyle(AeonOrbit.secondary)
+                        Text(item.title).font(AeonTheme.FontToken.metric(.caption2, weight: selected ? .semibold : .medium))
+                            .foregroundStyle(selected ? AeonOrbit.ink : AeonOrbit.secondary)
                     }
                 } else {
-                    if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
-                        Image(systemName: item.symbol)
-                            .font(.system(size: 23, weight: selected ? .medium : .regular))
-                            .frame(width: 26, height: 26)
-                    } else {
-                        HStack(spacing: AeonTheme.Space.medium) {
-                            Image(systemName: item.symbol)
-                                .font(.system(size: 17, weight: selected ? .semibold : .regular))
-                                .frame(width: 24, height: 24)
-                            Text(item.title)
-                                .font(AeonTheme.FontToken.metric(.caption, weight: selected ? .semibold : .medium))
-                            Spacer()
-                        }
-                        .padding(.horizontal, AeonTheme.Space.edge)
+                    HStack(spacing: AeonTheme.Space.medium) {
+                        AeonGlyph(kind: item.glyph).foregroundStyle(AeonOrbit.secondary)
+                        Text(item.title).font(AeonTheme.FontToken.metric(.caption, weight: selected ? .semibold : .medium))
+                            .foregroundStyle(selected ? AeonOrbit.ink : AeonOrbit.secondary)
+                        Spacer(minLength: 0)
                     }
+                    .padding(.horizontal, AeonTheme.Space.edge)
                 }
             }
-            .foregroundStyle(selected ? AeonTheme.ColorToken.textPrimary : AeonTheme.ColorToken.boneSecondary)
-            .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
-            // Hit-test the full label, including empty space around accessibility-sized icons.
+            .frame(maxWidth: .infinity, minHeight: compact ? 58 : 52)
             .contentShape(Rectangle())
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(compact ? 0.54 : 0.44))
-                        .padding(.horizontal, compact ? 6 : 8)
-                        .padding(.vertical, compact ? 5 : 3)
-                }
-            }
             .overlay(alignment: compact ? .top : .leading) {
-                Rectangle()
-                    .fill(selected ? AeonTheme.ColorToken.bone : .clear)
-                    .frame(width: compact ? nil : 2, height: compact ? 2 : nil)
-                    .padding(.horizontal, compact ? 16 : 0)
-                    .padding(.vertical, compact ? 0 : 11)
+                Rectangle().fill(selected ? AeonOrbit.ink : .clear)
+                    .frame(width: compact ? nil : AeonOrbit.stroke, height: compact ? AeonOrbit.stroke : nil)
+                    .padding(.horizontal, compact ? 16 : 0).padding(.vertical, compact ? 0 : 11)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: max(AeonTheme.Space.minimumTarget, compact ? 58 : 52))
-        .buttonStyle(.plain)
-        .accessibilityLabel(item.title.capitalized)
-        .accessibilityAddTraits(selected ? .isSelected : [])
+        .buttonStyle(.plain).frame(maxWidth: .infinity, minHeight: compact ? 58 : 52)
+        .accessibilityLabel(item.title.capitalized).accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("aeon.navigation.\(item.rawValue)")
     }
 }
 
 extension AeonChrome where PlayerBar == EmptyView {
     init(destination: Binding<AeonDestination>, portraitSidebarVisible: Binding<Bool>) {
-        self.init(
-            destination: destination,
-            portraitSidebarVisible: portraitSidebarVisible,
-            playerLoaded: false
-        ) { EmptyView() }
+        self.init(destination: destination, portraitSidebarVisible: portraitSidebarVisible, playerLoaded: false) { EmptyView() }
     }
 }

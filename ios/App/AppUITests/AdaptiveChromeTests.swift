@@ -145,3 +145,118 @@ final class AdaptiveChromeTests: XCTestCase {
         }
     }
 }
+
+extension AdaptiveChromeTests {
+    @objc func testOrbitalUIReviewEmptyScreensAndControls() {
+        var app = reviewLaunch(["-AeonSkyFixture", "empty"])
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 12))
+        reviewCapture(app, name: "orbital-sky-empty")
+        let importMusic = app.buttons["aeon.library.import"]
+        assertHittable(importMusic, in: app)
+        reviewCapture(importMusic, name: "orbital-primary-import-closeup")
+        importMusic.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import.files").count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import.folder").count, 1)
+        XCTAssertTrue(app.buttons["aeon.library.import.files"].isHittable)
+        XCTAssertTrue(app.buttons["aeon.library.import.folder"].isHittable)
+        reviewCapture(app, name: "orbital-import-sheet")
+
+        app.terminate()
+        app = reviewLaunch(["-AeonSkyFixture", "empty"])
+        ensureNavigationVisible(in: app)
+        app.buttons["aeon.navigation.library"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.library.empty"].waitForExistence(timeout: 5))
+        reviewCapture(app, name: "orbital-library-empty")
+        ensureNavigationVisible(in: app)
+        app.buttons["aeon.navigation.playlists"].tap()
+        let create = app.buttons["aeon.playlists.create"]
+        assertHittable(create, in: app)
+        reviewCapture(app, name: "orbital-playlists-empty")
+        reviewCapture(create, name: "orbital-primary-playlist-closeup")
+        ensureNavigationVisible(in: app)
+        app.buttons["aeon.navigation.settings"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.settings.screen"].waitForExistence(timeout: 5))
+        for value in ["off", "minutes15", "minutes30", "minutes60", "endOfAlbum"] {
+            let option = app.buttons["aeon.settings.sleep.\(value)"]
+            XCTAssertEqual(app.buttons.matching(identifier: option.identifier).count, 1)
+            assertHittable(option, in: app)
+            XCTAssertTrue(app.windows.firstMatch.frame.contains(option.frame))
+        }
+        reviewCapture(app, name: "orbital-settings")
+        app.buttons["aeon.settings.sleep.minutes15"].tap()
+        assertState(app.buttons["aeon.settings.sleep.minutes15"], predicate: "selected == true")
+        let timer = app.descendants(matching: .any).matching(identifier: "aeon.settings.sleep.control").firstMatch
+        XCTAssertTrue(timer.waitForExistence(timeout: 5))
+        reviewCapture(timer, name: "orbital-sleep-timer-closeup")
+        let toggle = app.switches["aeon.settings.import-grouping"]
+        reviewScroll(app, until: toggle)
+        XCTAssertTrue(toggle.isHittable)
+        let original = toggle.value as? String
+        XCTAssertNotNil(original)
+        reviewCapture(toggle, name: "orbital-toggle-before-closeup")
+        toggle.tap()
+        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", original ?? "1"), object: toggle)
+        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
+        reviewCapture(toggle, name: "orbital-toggle-after-closeup")
+        toggle.tap()
+    }
+
+    @objc func testOrbitalUIReviewSkyWithOneAlbum() {
+        let app = reviewLaunch(["-AeonPlaybackFixture", "loaded"])
+        XCTAssertTrue(app.buttons["aeon.player.open"].waitForExistence(timeout: 12))
+        ensureNavigationVisible(in: app)
+        app.buttons["aeon.navigation.library"].tap()
+        let count = app.staticTexts["aeon.library.count"]
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        XCTAssertEqual(count.label, "1 ALBUM", "This capture must use one actual fixture album, not the 48-album small fixture")
+        reviewCapture(app, name: "orbital-library-one-album")
+        ensureNavigationVisible(in: app)
+        app.buttons["aeon.navigation.sky"].tap()
+        XCTAssertFalse(app.descendants(matching: .any)["aeon.sky.empty"].exists)
+        reviewCapture(app, name: "orbital-sky-one-album")
+        app.buttons["aeon.player.open"].tap()
+        XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 5))
+        reviewCapture(app, name: "orbital-now-playing-disc")
+    }
+
+    @objc func testOrbitalDockBoundsAfterAX5EmptyStateNavigation() {
+        let app = reviewLaunch(["-AeonSkyFixture", "empty", "-AeonAX5Testing"])
+        defer { XCUIDevice.shared.orientation = .portrait }
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+            XCUIDevice.shared.orientation = orientation
+            ensureNavigationVisible(in: app)
+            app.buttons["aeon.navigation.playlists"].tap()
+            ensureNavigationVisible(in: app)
+            app.buttons["aeon.navigation.settings"].tap()
+            reviewScroll(app, until: app.buttons["aeon.settings.erase"])
+            ensureNavigationVisible(in: app)
+            for name in ["sky", "library", "playlists", "settings"] {
+                let button = app.buttons["aeon.navigation.\(name)"]
+                assertHittable(button, in: app)
+                XCTAssertTrue(app.windows.firstMatch.frame.contains(button.frame), "Out-of-window target: \(button.frame)")
+            }
+            reviewCapture(app, name: "orbital-ax5-dock-\(orientation.isLandscape ? "landscape" : "portrait")")
+        }
+    }
+
+    private func reviewLaunch(_ arguments: [String]) -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = arguments + ["-AeonReduceMotionTesting"]
+        app.launch()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.root"].waitForExistence(timeout: 12))
+        XCTAssertEqual(app.webViews.count, 0)
+        return app
+    }
+    private func reviewScroll(_ app: XCUIApplication, until element: XCUIElement) {
+        for _ in 0..<24 where !element.exists || !element.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        assertHittable(element, in: app)
+    }
+    private func reviewCapture(_ element: XCUIElement, name: String) {
+        let attachment = XCTAttachment(screenshot: element.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+}
