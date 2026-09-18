@@ -55,7 +55,6 @@ struct LibraryScreen: View {
     }
     private var header: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
-            AeonBreadcrumb(text: "Library")
             HStack(alignment: .bottom, spacing: AeonTheme.Space.regular) {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                     AeonDisplayText("Library", size: 42, maximumLines: 1).foregroundStyle(AeonOrbit.title)
@@ -64,15 +63,16 @@ struct LibraryScreen: View {
                         .accessibilityIdentifier("aeon.library.count")
                 }
                 Spacer(minLength: 0)
-                // Import remains available here, but Sky owns the empty-library primary action.
-                Button { importSheetPresented = true } label: {
-                    HStack(spacing: 6) {
-                        Text("IMPORT").font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
-                        AeonGlyph(kind: .arrow)
+                if hasLibraryContent {
+                    Button { importSheetPresented = true } label: {
+                        HStack(spacing: 6) {
+                            Text("IMPORT").font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
+                            AeonGlyph(kind: .add)
+                        }
+                        .foregroundStyle(AeonOrbit.ink).frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     }
-                    .foregroundStyle(AeonOrbit.ink).frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
+                    .buttonStyle(.plain).accessibilityLabel("Import music").accessibilityIdentifier("aeon.library.import")
                 }
-                .buttonStyle(.plain).accessibilityLabel("Import music").accessibilityIdentifier("aeon.library.import")
             }
         }
     }
@@ -132,18 +132,12 @@ struct LibraryScreen: View {
         }
     }
     private var emptyLibrary: some View {
-        VStack(spacing: AeonTheme.Space.large) {
-            AeonCollectionMark()
-            VStack(spacing: AeonTheme.Space.regular) {
-                AeonDisplayText("Your collection starts here.", size: 28, maximumLines: 2)
-                    .foregroundStyle(AeonOrbit.title).multilineTextAlignment(.center)
-                Text("The records you bring into Aeon live here.\nYours to browse, play, and return to.")
-                    .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.secondary)
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 280).padding(.vertical, AeonTheme.Space.hero)
-        .accessibilityIdentifier("aeon.library.empty")
+        AeonEmptyState(title: "Your collection starts here.",
+                       detail: "The records you bring into Aeon live here. Yours to browse, play, and return to.",
+                       actionTitle: "IMPORT MUSIC", motif: .collection,
+                       actionIdentifier: "aeon.library.import") { importSheetPresented = true }
+            .frame(minHeight: 320).padding(.vertical, AeonTheme.Space.large)
+            .accessibilityElement(children: .contain).accessibilityIdentifier("aeon.library.empty")
     }
 
     private struct RegionShelf: Identifiable {
@@ -190,12 +184,12 @@ struct LibraryScreen: View {
                     HStack(spacing: AeonTheme.Space.regular) {
                         artwork(album, size: 62)
                         VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                            Text(album.title).font(AeonTheme.FontToken.ui(.callout, weight: .medium)).foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                            Text(album.title).font(AeonTheme.FontToken.ui(.callout, weight: .regular)).foregroundStyle(AeonTheme.ColorToken.textPrimary)
                             Text(detailLine(album)).font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonOrbit.secondary)
                             if let status = controller.status(for: album.id) { AeonLabel(text: status) }
                         }
                         Spacer()
-                        AeonGlyph(kind: .arrow).foregroundStyle(AeonOrbit.secondary)
+                        AeonGlyph(kind: .disclosure).foregroundStyle(AeonOrbit.secondary)
                     }
                     .padding(.vertical, AeonTheme.Space.small).contentShape(Rectangle())
                     .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
@@ -209,7 +203,7 @@ struct LibraryScreen: View {
         Button { controller.selectAlbum(id: album.id) } label: {
             VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
                 GeometryReader { proxy in artwork(album, size: proxy.size.width) }.aspectRatio(1, contentMode: .fit)
-                Text(album.title).font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
+                Text(album.title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary).lineLimit(2)
                 Text(album.artist).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary).lineLimit(1)
                 if let status = controller.status(for: album.id) { AeonLabel(text: status) }
@@ -228,7 +222,7 @@ struct LibraryScreen: View {
                     Text(album.artist).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
                 }
                 Spacer()
-                AeonGlyph(kind: .arrow).foregroundStyle(AeonOrbit.ink)
+                AeonGlyph(kind: .disclosure).foregroundStyle(AeonOrbit.ink)
             }
             .padding(.vertical, AeonTheme.Space.regular).contentShape(Rectangle())
             .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }

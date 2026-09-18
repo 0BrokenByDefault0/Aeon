@@ -71,18 +71,10 @@ struct SkyScreen: View {
 
     private var emptyState: some View {
         VStack(spacing: AeonTheme.Space.large) {
-            AeonGhostDisc().frame(width: 142, height: 142).padding(.bottom, AeonTheme.Space.small)
-            VStack(spacing: AeonTheme.Space.regular) {
-                AeonDisplayText("Your sky is quiet", size: 38, maximumLines: 2)
-                    .foregroundStyle(AeonOrbit.title).multilineTextAlignment(.center)
-                Text("Bring your records. Aeon will chart them without changing the files you chose.")
-                    .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.secondary)
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 320)
-            }
-            Button("IMPORT MUSIC") { importSheetPresented = true }
-                .buttonStyle(AeonButtonStyle(tier: .filled)).frame(maxWidth: 286)
-                .padding(.top, AeonTheme.Space.small).accessibilityIdentifier("aeon.library.import")
+            AeonEmptyState(title: "Your sky is quiet",
+                           detail: "Bring your records. Aeon will chart them without changing the files you chose.",
+                           actionTitle: "IMPORT MUSIC", motif: .sky,
+                           actionIdentifier: "aeon.library.import") { importSheetPresented = true }
             if let importError, !importError.isEmpty {
                 HStack(alignment: .top, spacing: AeonTheme.Space.small) {
                     Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)

@@ -35,3 +35,13 @@ Reuse `AeonSegmentedCapsule`, `AeonButtonStyle`, `AeonSegment`, and `AeonToggleS
 Sky owns the empty-library primary import action and "Your sky is quiet". Library owns collection copy and a secondary import mark. Playlists keeps "No routes charted yet." Use distinct ghost-disc, collection-disc, and varied constellation marks. Pause decorative motion under Reduce Motion and in inactive scenes. Keep circular album imagery and Settings' ruled label/value rows without removing privacy disclosures.
 
 UI review evidence must be real native captures from the reported commit. Verify fixture album counts; the `small` Sky fixture has 48 albums and is not one-album evidence. Preserve failed review artifacts, fix real interaction failures rather than weakening assertions, and publish the IPA before screenshot or other native tests.
+
+## UI polish update — 2026-09-18
+
+This update supersedes conflicting details in the first-pass direction above. Keep the opaque destination surfaces and inactive-Sky gating; do not reintroduce cross-screen text bleed. Library, Playlists and Settings use an H1 without a duplicate destination eyebrow; Library keeps its album count.
+
+Use the shared `AeonEmptyState` recipe with distinct sky, collection and route motifs. Empty Library has its own centered Import action; show the header Import action only when the collection has content. Preserve the existing copy voice, including "Aeon only reads what you hand it."
+
+Equal-option controls use identical inset oval chambers and explicit non-overlapping touch cells, with only the selected chamber filled. Toggle endpoints read OFF and ON, never quantity marks. Keep the primary action's three-chamber orbital geometry and the shared stroke weight. Import cards are unfilled rounded outlines with top-aligned icon/title stacks; fit the source sheet to measured content and allow large-text scrolling without replacing the sheet's identity.
+
+Reserve the swash arrow for primary actions. Chevron means disclosure, plus means add/create, downward tray means choose input, upward tray means export, and circular arrow means repair/retry. Supporting text is regular-weight sans serif. Settings shows the embedded version/build/commit to distinguish signing inputs. UI work must not change the file-copy importer, folder presenter, playback engine, signing identity, or IPA-first workflow.

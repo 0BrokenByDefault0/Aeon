@@ -24,7 +24,6 @@ struct SettingsScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                        AeonBreadcrumb(text: "Settings")
                         AeonDisplayText("Settings", size: 42, maximumLines: 1)
                             .foregroundStyle(AeonOrbit.title)
                             .accessibilityIdentifier("aeon.settings.screen")
@@ -61,7 +60,7 @@ struct SettingsScreen: View {
                             identifier: "aeon.settings.metadata-lookups")
                         settingsNavigationRow(title: "Artwork", value: "REPAIR",
                             detail: "Re-checks covers. Interrupted work resumes where it stopped.",
-                            identifier: "aeon.settings.artwork-repair", action: { controller.repairArtwork() })
+                            identifier: "aeon.settings.artwork-repair", glyph: .refresh, action: { controller.repairArtwork() })
                         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
                             Button { controller.measureStorage() } label: {
                                 labelValue("Storage", value: format(controller.storage.usedBytes))
@@ -149,7 +148,7 @@ struct SettingsScreen: View {
 
     private func labelValue(_ title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: AeonTheme.Space.regular) {
-            Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .medium))
+            Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
                 .foregroundStyle(AeonTheme.ColorToken.textPrimary)
             Spacer(minLength: AeonTheme.Space.small)
             Text(value).font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonOrbit.secondary)
@@ -171,7 +170,7 @@ struct SettingsScreen: View {
     private func orbitalToggle(title: String, detail: String?, isOn: Binding<Bool>, identifier: String) -> some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
             Toggle(isOn: isOn) {
-                Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .medium))
+                Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
                     .foregroundStyle(AeonTheme.ColorToken.textPrimary).fixedSize(horizontal: false, vertical: true)
             }
             .toggleStyle(AeonToggleStyle()).accessibilityIdentifier(identifier)
@@ -184,12 +183,12 @@ struct SettingsScreen: View {
     }
 
     private func settingsNavigationRow(title: String, value: String, detail: String?, identifier: String,
-                                       action: @escaping () -> Void) -> some View {
+                                       glyph: AeonGlyphKind = .disclosure, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                 HStack(spacing: AeonTheme.Space.small) {
                     labelValue(title, value: value)
-                    AeonGlyph(kind: .arrow).foregroundStyle(AeonOrbit.secondary)
+                    AeonGlyph(kind: glyph).foregroundStyle(AeonOrbit.secondary)
                 }
                 if let detail {
                     Text(detail).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
@@ -209,18 +208,18 @@ struct SettingsScreen: View {
         settingsSection("On this device") {
             note("Restore by choosing a full backup zip. Catalogue exports contain tags, playlists, history, queue, and sky records without audio or artwork bytes.")
             settingsNavigationRow(title: "Full backup", value: "ZIP", detail: nil,
-                                  identifier: "aeon.settings.backup-full", action: { controller.exportFullBackup() })
+                                  identifier: "aeon.settings.backup-full", glyph: .export, action: { controller.exportFullBackup() })
             settingsNavigationRow(title: "Catalogue only", value: "JSON", detail: nil,
-                                  identifier: "aeon.settings.backup-catalog", action: { controller.exportCatalogue() })
+                                  identifier: "aeon.settings.backup-catalog", glyph: .export, action: { controller.exportCatalogue() })
             settingsNavigationRow(title: "Restore backup", value: "CHOOSE", detail: nil,
-                                  identifier: "aeon.settings.restore") { restoring = true }
+                                  identifier: "aeon.settings.restore", glyph: .picker) { restoring = true }
             settingsNavigationRow(title: "Activity log", value: "EXPORT", detail: nil,
-                                  identifier: "aeon.settings.activity", action: { controller.exportActivity() })
+                                  identifier: "aeon.settings.activity", glyph: .export, action: { controller.exportActivity() })
             settingsNavigationRow(title: "Diagnostics", value: "EXPORT", detail: nil,
-                                  identifier: "aeon.settings.diagnostics", action: { controller.exportDiagnostics() })
+                                  identifier: "aeon.settings.diagnostics", glyph: .export, action: { controller.exportDiagnostics() })
             VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
                 HStack {
-                    Text("Erase everything").font(AeonTheme.FontToken.ui(.callout, weight: .medium))
+                    Text("Erase everything").font(AeonTheme.FontToken.ui(.callout, weight: .regular))
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: AeonTheme.Space.small)
                     Button { eraseText = ""; erasePresented = true } label: {
@@ -232,7 +231,12 @@ struct SettingsScreen: View {
                 note("Albums, audio, playlists, and the log — the sky goes dark.")
             }
             .padding(.top, AeonTheme.Space.small)
-            Text("AEON / 5.0 · YOUR MUSIC, YOUR DEVICE")
+            Text(AeonBuildIdentity.label)
+                .font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonOrbit.secondary)
+                .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity)
+                .accessibilityIdentifier("aeon.settings.build")
+                .textSelection(.enabled)
+            Text("YOUR MUSIC, YOUR DEVICE")
                 .font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.8)
                 .foregroundStyle(AeonTheme.ColorToken.boneTertiary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).frame(maxWidth: .infinity)
@@ -268,4 +272,16 @@ private struct DocumentExportPicker: UIViewControllerRepresentable {
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) { completion() }
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { completion() }
     }
+}
+
+private enum AeonBuildIdentity {
+    static let label: String = {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "5.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "local"
+        let manifest = Bundle.main.url(forResource: "Aeon-validation", withExtension: "txt")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        let commit = manifest.components(separatedBy: .newlines)
+            .first { $0.hasPrefix("Commit: ") }.map { String($0.dropFirst(8).prefix(7)) }
+        return "AEON \(version) · BUILD \(build)" + (commit.map { " · " + $0 } ?? " · LOCAL")
+    }()
 }

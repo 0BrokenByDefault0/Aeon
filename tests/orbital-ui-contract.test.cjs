@@ -47,7 +47,7 @@ test('toggle keeps native accessibility semantics and a separate moving ellipse'
   assert.match(style, /\.accessibilityRepresentation/);
   assert.match(style, /Toggle\(isOn: configuration\.\$isOn\)/);
   assert.match(style, /part: \.knob,[\s\S]*?knobPosition: configuration\.isOn \? 1 : 0/);
-  assert.match(style, /frame\(width: 88, height: 38\)/);
+  assert.match(style, /frame\(width: 112, height: 44\)/);
   assert.match(style, /minHeight: AeonTheme\.Space\.minimumTarget/);
 });
 
@@ -68,12 +68,15 @@ test('first-pass surfaces retire stock capsules and preserve identifiers', () =>
   assert.doesNotMatch(components, /without pretending/);
 });
 
-test('empty states have distinct motifs, voice, and a single primary import home', () => {
-  assert.match(sky, /AeonGhostDisc\(\)/);
+test('empty states share a recipe with distinct motifs and a reachable action', () => {
+  assert.match(sky, /motif: \.sky/);
+  assert.match(components, /case \.sky: AeonGhostDisc\(\)/);
   assert.match(sky, /Your sky is quiet/);
-  assert.match(library, /AeonCollectionMark\(\)/);
+  assert.match(library, /motif: \.collection/);
+  assert.match(components, /case \.collection: AeonCollectionMark\(\)/);
   assert.match(library, /Your collection starts here\./);
-  assert.doesNotMatch(library, /Button\("IMPORT MUSIC"/);
+  assert.match(library, /actionTitle: "IMPORT MUSIC", motif: \.collection/);
+  assert.match(library, /if hasLibraryContent \{\s*Button \{ importSheetPresented = true \}/);
   assert.match(playlists, /No routes charted yet\./);
   assert.match(components, /struct AeonRouteMark/);
   assert.match(playlists, /ScrollView \{/);

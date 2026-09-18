@@ -169,6 +169,15 @@ extension AdaptiveChromeTests {
         XCTAssertTrue(app.descendants(matching: .any)["aeon.library.empty"].waitForExistence(timeout: 5))
         assertNoInactiveSky(in: app, importButtons: 1)
         reviewCapture(app, name: "orbital-library-empty")
+        let libraryImport = app.buttons["aeon.library.import"]
+        assertHittable(libraryImport, in: app)
+        let emptyLibrary = app.descendants(matching: .any)["aeon.library.empty"]
+        XCTAssertTrue(emptyLibrary.frame.contains(libraryImport.frame), "Empty Library must own a reachable primary action")
+        reviewCapture(libraryImport, name: "polish-library-primary-closeup")
+        libraryImport.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
+        app.buttons["aeon.import.close"].tap()
+        assertState(app.descendants(matching: .any)["aeon.import.sheet"], predicate: "exists == false")
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.playlists"].tap()
         assertState(app.descendants(matching: .any)["aeon.library.screen"], predicate: "exists == false")
@@ -189,6 +198,7 @@ extension AdaptiveChromeTests {
         }
         assertNoInactiveSky(in: app, importButtons: 0)
         reviewCapture(app, name: "orbital-settings")
+        assertEqualSleepTargets(in: app)
         app.buttons["aeon.settings.sleep.minutes15"].tap()
         assertState(app.buttons["aeon.settings.sleep.minutes15"], predicate: "selected == true")
         let timer = app.descendants(matching: .any).matching(identifier: "aeon.settings.sleep.control").firstMatch
@@ -296,5 +306,31 @@ extension AdaptiveChromeTests {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+}
+
+extension AdaptiveChromeTests {
+    private func assertEqualSleepTargets(in app: XCUIApplication) {
+        let options = ["off", "minutes15", "minutes30", "minutes60", "endOfAlbum"].map {
+            app.buttons["aeon.settings.sleep.\($0)"]
+        }
+        let width = options[0].frame.width
+        for (index, option) in options.enumerated() {
+            assertHittable(option, in: app)
+            XCTAssertGreaterThanOrEqual(option.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(option.frame.height, 44)
+            XCTAssertEqual(option.frame.width, width, accuracy: 1)
+            if index > 0 {
+                XCTAssertLessThanOrEqual(options[index - 1].frame.maxX, option.frame.minX + 0.5,
+                                        "Adjacent timer choices must not share touch regions")
+            }
+            for x in [0.15, 0.85] {
+                options[(index + 1) % options.count].tap()
+                option.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.5)).tap()
+                assertState(option, predicate: "selected == true")
+                XCTAssertEqual(options.filter { $0.isSelected }.count, 1)
+            }
+        }
+        options[0].tap()
     }
 }

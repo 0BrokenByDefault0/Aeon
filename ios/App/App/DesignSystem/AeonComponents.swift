@@ -10,6 +10,7 @@ enum AeonOrbit {
     static let ink = AeonTheme.ColorToken.bone
     static let secondary = AeonTheme.ColorToken.boneSecondary
     static let activeFill = AeonTheme.ColorToken.bone.opacity(0.12)
+    static let supportingFont = AeonTheme.FontToken.ui(.subheadline, weight: .regular)
 }
 
 /// A capsule perimeter with complete overlapping ovals, never a stack of pill buttons.
@@ -33,6 +34,26 @@ struct AeonSegmentedCapsule: Shape {
         guard rect.width > 0, rect.height > 0 else { return Path() }
         let count = max(2, chamberCount)
         let outer = Path(roundedRect: rect, cornerRadius: rect.height / 2)
+        if layout == .equal {
+            // Every option has the same oval. Only its fill/ink changes when selected.
+            // Visual chambers stay inside the non-overlapping rectangular touch cells.
+            switch part {
+            case .outline:
+                var path = outer
+                for index in 0..<count {
+                    path.addEllipse(in: equalChamberFrame(at: index, in: bounds))
+                }
+                return path
+            case .chamber(let index):
+                guard (0..<count).contains(index) else { return Path() }
+                return Path(ellipseIn: equalChamberFrame(at: index, in: bounds))
+            case .knob:
+                let first = equalChamberFrame(at: 0, in: bounds)
+                return Path(ellipseIn: first.offsetBy(
+                    dx: min(1, max(0, knobPosition)) * bounds.width / CGFloat(count), dy: 0
+                ))
+            }
+        }
         let cell = rect.width / CGFloat(count)
         let oval: (Int) -> CGRect = { index in
             if self.layout == .action && count == 3 {
@@ -68,6 +89,16 @@ struct AeonSegmentedCapsule: Shape {
             let adjacent = oval(index == 0 ? 1 : count - 2)
             return lens(in: rect, oval: adjacent, right: index == count - 1)
         }
+    }
+
+    /// Shared geometry for equal-option controls and their regression tests.
+    func equalChamberFrame(at index: Int, in bounds: CGRect) -> CGRect {
+        let count = max(2, chamberCount)
+        guard (0..<count).contains(index), bounds.width > 0, bounds.height > 0 else { return .zero }
+        let cellWidth = bounds.width / CGFloat(count)
+        return CGRect(x: bounds.minX + CGFloat(index) * cellWidth, y: bounds.minY,
+                      width: cellWidth, height: bounds.height)
+            .insetBy(dx: min(3, cellWidth / 4), dy: min(4, bounds.height / 4))
     }
 
     private func endChamber(in rect: CGRect, boundary: CGFloat, right: Bool) -> Path {
@@ -107,7 +138,10 @@ struct AeonSegmentedCapsule: Shape {
     }
 }
 
-enum AeonGlyphKind { case sky, library, playlists, settings, star, arrow, files, folder }
+enum AeonGlyphKind {
+    case sky, library, playlists, settings, star, arrow, files, folder
+    case disclosure, picker, export, add, refresh
+}
 
 struct AeonGlyph: View {
     let kind: AeonGlyphKind
@@ -153,6 +187,21 @@ private struct AeonGlyphPath: Shape {
             path.move(to: point(2,18))
             path.addCurve(to: point(21,6), control1: point(11,20), control2: point(15,6))
             line([(13,5),(21,6),(20,14)])
+        case .disclosure:
+            line([(9,5),(16,12),(9,19)])
+        case .picker:
+            line([(12,3),(12,15)]); line([(8,11),(12,15),(16,11)])
+            line([(3,15),(3,21),(21,21),(21,15)])
+        case .export:
+            line([(12,16),(12,3)]); line([(8,7),(12,3),(16,7)])
+            line([(3,15),(3,21),(21,21),(21,15)])
+        case .add:
+            line([(12,4),(12,20)]); line([(4,12),(20,12)])
+        case .refresh:
+            path.move(to: point(20,9))
+            path.addCurve(to: point(5,6), control1: point(17,-1), control2: point(7,0))
+            path.addCurve(to: point(18,20), control1: point(-3,18), control2: point(9,27))
+            line([(15,9),(20,9),(21,4)])
         case .files:
             line([(5,3),(15,3),(20,8),(20,21),(5,21),(5,3),(15,3),(15,8),(20,8)])
             line([(8,15),(10,12),(12,17),(14,11),(17,15)])
@@ -281,13 +330,15 @@ struct AeonToggleStyle: ToggleStyle {
                                          knobPosition: configuration.isOn ? 1 : 0)
                         .stroke(AeonOrbit.ink, style: AeonOrbit.line)
                     HStack(spacing: 0) {
-                        Text("−").frame(maxWidth: .infinity)
-                        Text("+").frame(maxWidth: .infinity)
+                        Text("OFF").frame(maxWidth: .infinity)
+                            .foregroundStyle(configuration.isOn ? AeonOrbit.secondary : AeonOrbit.ink)
+                        Text("ON").frame(maxWidth: .infinity)
+                            .foregroundStyle(configuration.isOn ? AeonOrbit.ink : AeonOrbit.secondary)
                     }
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(AeonOrbit.ink.opacity(0.85))
                 }
-                .frame(width: 88, height: 38)
+                .frame(width: 112, height: 44)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
             }
             // The visible label, empty space, and control share one activation target.
@@ -316,33 +367,37 @@ struct AeonSegment<Value: Hashable>: View {
         self.identifier = identifier; self.spokenLabel = spokenLabel
     }
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(values, id: \.self) { value in
-                Button { selection = value } label: {
-                    Text(label(value).uppercased())
-                        .font(.system(size: min(metricSize, 17), weight: .semibold, design: .monospaced))
-                        .lineLimit(1).minimumScaleFactor(0.8)
-                        .foregroundStyle(selection == value ? AeonOrbit.ink : AeonOrbit.secondary)
-                        .frame(maxWidth: .infinity, minHeight: 48)
-                        .contentShape(Rectangle())
+        GeometryReader { geometry in
+            let cellWidth = geometry.size.width / CGFloat(max(1, values.count))
+            HStack(spacing: 0) {
+                ForEach(values, id: \.self) { value in
+                    Button { selection = value } label: {
+                        Text(label(value).uppercased())
+                            .font(.system(size: min(metricSize, 17), weight: .medium, design: .monospaced))
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                            .foregroundStyle(selection == value ? AeonOrbit.ink : AeonOrbit.secondary)
+                            .frame(width: cellWidth, height: 48)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(spokenLabel?(value) ?? label(value))
+                    .accessibilityAddTraits(selection == value ? .isSelected : [])
+                    .accessibilityIdentifier(identifier(value))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(spokenLabel?(value) ?? label(value))
-                .accessibilityAddTraits(selection == value ? .isSelected : [])
-                .accessibilityIdentifier(identifier(value))
+            }
+            .background {
+                if let index = values.firstIndex(of: selection) {
+                    AeonSegmentedCapsule(chamberCount: values.count, layout: .equal, part: .chamber(index))
+                        .fill(AeonOrbit.activeFill)
+                }
+            }
+            .overlay {
+                AeonSegmentedCapsule(chamberCount: values.count, layout: .equal)
+                    .stroke(AeonOrbit.ink.opacity(0.72), style: AeonOrbit.line)
+                    .allowsHitTesting(false)
             }
         }
-        .background {
-            if let index = values.firstIndex(of: selection) {
-                AeonSegmentedCapsule(chamberCount: values.count, layout: .equal, part: .chamber(index))
-                    .fill(AeonOrbit.activeFill)
-            }
-        }
-        .overlay {
-            AeonSegmentedCapsule(chamberCount: values.count, layout: .equal)
-                .stroke(AeonOrbit.ink.opacity(0.72), style: AeonOrbit.line)
-                .allowsHitTesting(false)
-        }
+        .frame(height: 48)
         .accessibilityElement(children: .contain)
     }
 }
@@ -435,22 +490,52 @@ struct AeonCollectionMark: View {
     }
 }
 
+enum AeonEmptyMotif { case sky, collection, route }
+
+/// One empty-state recipe: motif, serif headline, quiet copy, and a reachable action.
 struct AeonEmptyState: View {
     let title: String
     let detail: String?
     let actionTitle: String?
+    let motif: AeonEmptyMotif
+    let actionIdentifier: String
     let action: (() -> Void)?
+
+    init(title: String, detail: String?, actionTitle: String?, motif: AeonEmptyMotif = .route,
+         actionIdentifier: String = "", action: (() -> Void)?) {
+        self.title = title; self.detail = detail; self.actionTitle = actionTitle
+        self.motif = motif; self.actionIdentifier = actionIdentifier; self.action = action
+    }
+
     var body: some View {
         VStack(spacing: AeonTheme.Space.large) {
-            AeonRouteMark()
-            AeonDisplayText(title, size: 30).multilineTextAlignment(.center)
-            if let detail {
-                Text(detail).font(AeonTheme.FontToken.ui(.callout))
-                    .foregroundStyle(AeonOrbit.secondary).multilineTextAlignment(.center)
+            Group {
+                switch motif {
+                case .sky: AeonGhostDisc().frame(width: 120, height: 120)
+                case .collection: AeonCollectionMark()
+                case .route: AeonRouteMark(width: 86, height: 62)
+                }
             }
-            if let actionTitle, let action { Button(actionTitle, action: action).buttonStyle(AeonButtonStyle(tier: .filled)) }
+            .frame(height: 120)
+            VStack(spacing: AeonTheme.Space.regular) {
+                AeonDisplayText(title, size: 32).multilineTextAlignment(.center)
+                if let detail {
+                    Text(detail).font(AeonOrbit.supportingFont)
+                        .foregroundStyle(AeonOrbit.secondary).multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 320)
+                }
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(AeonButtonStyle(tier: .filled))
+                    .frame(maxWidth: 300)
+                    .accessibilityIdentifier(actionIdentifier)
+            }
         }
-        .foregroundStyle(AeonOrbit.title).padding(AeonTheme.Space.large)
+        .foregroundStyle(AeonOrbit.title)
+        .frame(maxWidth: 360).frame(maxWidth: .infinity)
+        .padding(.vertical, AeonTheme.Space.large)
     }
 }
 
@@ -485,15 +570,26 @@ struct AeonImportSheet: View {
     let selectFiles: () -> Void
     let selectFolder: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var contentHeight: CGFloat = 340
     var body: some View {
         AeonSheet {
             ScrollView {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.regular) {
-                        AeonBreadcrumb(text: "Import")
-                        AeonDisplayText("Choose a source", size: 32, maximumLines: 2).foregroundStyle(AeonOrbit.title)
+                        HStack(alignment: .top, spacing: AeonTheme.Space.small) {
+                            AeonDisplayText("Choose a source", size: 32, maximumLines: 2)
+                                .foregroundStyle(AeonOrbit.title)
+                            Spacer(minLength: 0)
+                            Button { dismiss() } label: {
+                                Image(systemName: "xmark").frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain).foregroundStyle(AeonOrbit.secondary)
+                            .accessibilityLabel("Close import").accessibilityIdentifier("aeon.import.close")
+                        }
                         Text("Aeon only reads what you hand it.")
-                            .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.secondary)
+                            .font(AeonOrbit.supportingFont).foregroundStyle(AeonOrbit.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     VStack(spacing: AeonTheme.Space.medium) {
@@ -503,11 +599,20 @@ struct AeonImportSheet: View {
                                      identifier: "aeon.library.import.folder", action: selectFolder)
                     }
                 }
-                .padding(.horizontal, AeonTheme.Space.edge).padding(.bottom, AeonTheme.Space.large)
+                .padding(.horizontal, AeonTheme.Space.edge)
+                .padding(.top, AeonTheme.Space.small).padding(.bottom, AeonTheme.Space.large)
+                .background(GeometryReader { geometry in
+                    Color.clear.preference(key: AeonImportContentHeight.self, value: geometry.size.height)
+                })
             }
             .scrollIndicators(.hidden)
         }
-        .presentationDetents([.medium, .large])
+        .onPreferenceChange(AeonImportContentHeight.self) { measured in
+            if measured > 0, abs(contentHeight - measured) > 1 { contentHeight = measured }
+        }
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText
+            ? [.large]
+            : [.height(contentHeight + AeonTheme.Space.medium * 2 + AeonOrbit.stroke), .large])
         .accessibilityElement(children: .contain).accessibilityIdentifier("aeon.import.sheet")
     }
     private func importOption(title: String, detail: String, glyph: AeonGlyphKind,
@@ -516,29 +621,35 @@ struct AeonImportSheet: View {
             dismiss()
             DispatchQueue.main.asyncAfter(deadline: .now() + AeonTheme.Duration.chrome) { action() }
         } label: {
-            HStack(spacing: AeonTheme.Space.regular) {
+            HStack(alignment: .top, spacing: AeonTheme.Space.regular) {
                 AeonGlyph(kind: glyph).foregroundStyle(AeonOrbit.ink.opacity(0.78)).frame(width: 28)
                 VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                    Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .semibold)).foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                    Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .regular)).foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     Text(detail).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: AeonTheme.Space.small)
-                AeonGlyph(kind: .arrow).foregroundStyle(AeonOrbit.ink.opacity(0.6))
+                AeonGlyph(kind: .picker).foregroundStyle(AeonOrbit.ink.opacity(0.6))
             }
             .padding(AeonTheme.Space.regular).frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
             .contentShape(Rectangle())
-            .overlay(Rectangle().stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
+            .overlay(RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                .stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
         }
         .buttonStyle(.plain).accessibilityIdentifier(identifier)
     }
+}
+
+private struct AeonImportContentHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 struct AeonToast: View {
     let message: String
     var body: some View {
         AeonGlass {
-            Text(message).font(AeonTheme.FontToken.ui(.callout, weight: .medium)).foregroundStyle(AeonOrbit.ink)
+            Text(message).font(AeonTheme.FontToken.ui(.callout, weight: .regular)).foregroundStyle(AeonOrbit.ink)
                 .padding(.horizontal, AeonTheme.Space.large).frame(minHeight: AeonTheme.Space.minimumTarget)
         }.accessibilityAddTraits(.updatesFrequently)
     }

@@ -126,3 +126,40 @@ extension DesignTokenTests {
         XCTAssertEqual(Set(AeonQuietSkyMarkers.labels).count, 2)
     }
 }
+
+extension DesignTokenTests {
+    @objc func testEveryEqualChamberHasIdenticalGeometryAndNoOverlap() {
+        for count in [2, 5] {
+            for width: CGFloat in [240, 272, 342, 540] {
+                let bounds = CGRect(x: 13, y: 7, width: width, height: 48)
+                let shape = AeonSegmentedCapsule(chamberCount: count, layout: .equal)
+                let first = shape.equalChamberFrame(at: 0, in: bounds)
+                for index in 0..<count {
+                    let frame = shape.equalChamberFrame(at: index, in: bounds)
+                    XCTAssertEqual(frame.width, first.width, accuracy: 0.001)
+                    XCTAssertEqual(frame.height, first.height, accuracy: 0.001)
+                    XCTAssertTrue(bounds.contains(frame))
+                    let fill = AeonSegmentedCapsule(chamberCount: count, layout: .equal,
+                                                   part: .chamber(index)).path(in: bounds)
+                    XCTAssertEqual(fill.boundingRect.width, first.width, accuracy: 0.001)
+                    XCTAssertEqual(fill.boundingRect.height, first.height, accuracy: 0.001)
+                    XCTAssertTrue(fill.contains(CGPoint(x: frame.midX, y: frame.midY)))
+                    for other in 0..<count where other != index {
+                        let neighbor = shape.equalChamberFrame(at: other, in: bounds)
+                        XCTAssertFalse(frame.intersects(neighbor))
+                        XCTAssertFalse(fill.contains(CGPoint(x: neighbor.midX, y: neighbor.midY)))
+                    }
+                }
+            }
+        }
+    }
+
+    @objc func testPrimaryActionRetainsItsCenterOnlyOrbitalFill() {
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 56)
+        let fill = AeonSegmentedCapsule(part: .chamber(1)).path(in: bounds)
+        XCTAssertTrue(fill.contains(CGPoint(x: 150, y: 28)))
+        XCTAssertFalse(fill.contains(CGPoint(x: 20, y: 28)))
+        XCTAssertFalse(fill.contains(CGPoint(x: 280, y: 28)))
+        XCTAssertEqual(AeonOrbit.stroke, 1.125)
+    }
+}

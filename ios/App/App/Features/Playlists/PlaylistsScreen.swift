@@ -15,14 +15,11 @@ struct PlaylistsScreen: View {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     header
                     if controller.playlists.isEmpty {
-                        VStack(spacing: AeonTheme.Space.large) {
-                            AeonEmptyState(title: "No routes charted yet.",
-                                           detail: "Build a route through the records you return to.", actionTitle: nil, action: nil)
-                            Button("CREATE PLAYLIST") { creationPresented = true }
-                                .buttonStyle(AeonButtonStyle(tier: .filled)).frame(maxWidth: 320)
-                                .accessibilityIdentifier("aeon.playlists.create")
-                        }
-                        .frame(maxWidth: 440).frame(maxWidth: .infinity)
+                        AeonEmptyState(title: "No routes charted yet.",
+                                       detail: "Build a route through the records you return to.",
+                                       actionTitle: "CREATE PLAYLIST", motif: .route,
+                                       actionIdentifier: "aeon.playlists.create") { creationPresented = true }
+                        .frame(maxWidth: .infinity)
                         .frame(minHeight: max(0, geometry.size.height - contentBottomInset - 200))
                     } else {
                         LazyVStack(spacing: 0) { ForEach(controller.playlists) { playlistRow($0) } }
@@ -38,10 +35,9 @@ struct PlaylistsScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                         VStack(alignment: .leading, spacing: AeonTheme.Space.regular) {
-                            AeonBreadcrumb(text: "New playlist")
                             AeonDisplayText("Chart a playlist", size: 32, maximumLines: 2).foregroundStyle(AeonOrbit.title)
                             Text("Give this route a name. Tracks can be added from albums afterward.")
-                                .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.secondary)
+                                .font(AeonOrbit.supportingFont).foregroundStyle(AeonOrbit.secondary)
                         }
                         createForm
                         Button("CANCEL") { creationPresented = false }.buttonStyle(AeonButtonStyle(tier: .bare))
@@ -67,7 +63,6 @@ struct PlaylistsScreen: View {
     private var header: some View {
         HStack(alignment: .bottom, spacing: AeonTheme.Space.medium) {
             VStack(alignment: .leading, spacing: 4) {
-                AeonBreadcrumb(text: "Playlists")
                 AeonDisplayText("Playlists", size: 42, maximumLines: 1).foregroundStyle(AeonOrbit.title)
                     .accessibilityIdentifier("aeon.playlists.screen")
                 if !controller.playlists.isEmpty {
@@ -78,7 +73,7 @@ struct PlaylistsScreen: View {
             Spacer()
             if !controller.playlists.isEmpty {
                 Button { creationPresented = true } label: {
-                    HStack { Text("NEW").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .arrow) }
+                    HStack { Text("NEW").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .add) }
                         .frame(minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)
@@ -91,13 +86,13 @@ struct PlaylistsScreen: View {
             HStack(spacing: AeonTheme.Space.large) {
                 AeonRouteMark(width: 62, height: 48).frame(width: 68, height: 58)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(overview.playlist.name).font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
+                    Text(overview.playlist.name).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary).lineLimit(2)
                     Text("\(overview.itemCount) TRACK\(overview.itemCount == 1 ? "" : "S")")
                         .font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.2).foregroundStyle(AeonOrbit.secondary)
                 }
                 Spacer()
-                AeonGlyph(kind: .arrow).foregroundStyle(AeonOrbit.secondary)
+                AeonGlyph(kind: .disclosure).foregroundStyle(AeonOrbit.secondary)
             }
             .padding(.vertical, AeonTheme.Space.medium).contentShape(Rectangle())
             .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
@@ -153,7 +148,6 @@ private struct PlaylistDetailView: View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    AeonBreadcrumb(text: "Playlist")
                     AeonDisplayText(controller.selectedPlaylist?.name ?? "Route", size: 34, maximumLines: 2).foregroundStyle(AeonOrbit.title)
                     AeonLabel(text: "\(controller.selectedItems.count) tracks")
                 }
