@@ -75,6 +75,28 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertEqual(coordinator.stateRequestCount, 1)
     }
 
+    func testLoadAndPlayWaitsForAsynchronousLoadCompletion() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: nil)
+        coordinator.deferLoadCompletion = true
+        let controller = PlaybackController(coordinator: coordinator)
+        let track = CatalogTrack(
+            id: "track-2", albumID: "album", title: "Second", artist: "Artist",
+            trackNumber: 2, discNumber: 1, duration: 120,
+            mediaReference: .documents(relativePath: "Music/track-2.m4a")
+        )
+
+        controller.loadAndPlay(
+            track: track,
+            queue: [QueueItem(trackID: track.id, albumID: track.albumID, mediaRef: track.mediaReference)],
+            index: 0
+        )
+
+        XCTAssertEqual(coordinator.playCount, 0, "play must not race an unfinished native load")
+        coordinator.completeDeferredLoad(with: snapshot(version: 2, trackID: track.id))
+        XCTAssertEqual(coordinator.playCount, 1)
+    }
+
     func testLockScreenCommandsRouteToThePlaybackController() throws {
         let coordinator = ControllerCoordinator()
         coordinator.state = snapshot(version: 1, trackID: "track")
@@ -126,6 +148,8 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     private(set) var playCount = 0
     private(set) var nextCount = 0
     private(set) var seekPositions: [TimeInterval] = []
+    var deferLoadCompletion = false
+    private var pendingLoadCompletion: PlaybackCommandCompletion?
 
     func initialize(completion: @escaping PlaybackCommandCompletion) {
         initializeCount += 1
@@ -133,7 +157,15 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     }
 
     func load(trackID: String, mediaRef: MediaReference, queue: [QueueItem]?, index: Int?, completion: @escaping PlaybackCommandCompletion) {
-        completion(state.map(Result.success) ?? .failure(failure))
+        if deferLoadCompletion { pendingLoadCompletion = completion }
+        else { completion(state.map(Result.success) ?? .failure(failure)) }
+    }
+
+    func completeDeferredLoad(with snapshot: PlaybackSnapshot) {
+        state = snapshot
+        let completion = pendingLoadCompletion
+        pendingLoadCompletion = nil
+        completion?(.success(snapshot))
     }
     func play(completion: @escaping PlaybackCommandCompletion) { playCount += 1; complete(completion) }
     func pause(completion: @escaping PlaybackCommandCompletion) { complete(completion) }

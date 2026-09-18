@@ -45,7 +45,9 @@ struct SkyMetalView: UIViewRepresentable {
         var renderer: SkyRenderer?
         var reduceMotion = false
         private var panStart = SkyCameraState.home
-        private var pinchStart = SkyCameraState.home
+        private var gestureStart = SkyCameraState.home
+        private var gestureAnchorWorld: CGPoint?
+        private var lastPinchScale: CGFloat = 1
         private let hitTester = SkyHitTester()
 
         init(controller: SkySceneController) { self.controller = controller }
@@ -76,16 +78,19 @@ struct SkyMetalView: UIViewRepresentable {
 
         @objc private func pan(_ gesture: UIPanGestureRecognizer) {
             guard let view = gesture.view else { return }
-            if gesture.state == .began { panStart = controller.camera }
+            if gesture.state == .began {
+                panStart = controller.camera
+                // A direct touch always wins over a pending locate/coast transition.
+                controller.setCamera(controller.camera)
+            }
             let camera = panStart.panned(screenTranslation: gesture.translation(in: view).asSize)
             switch gesture.state {
             case .began, .changed:
                 controller.setCamera(camera)
             case .ended:
-                let velocity = gesture.velocity(in: view)
-                let coast = camera.panned(screenTranslation: CGSize(width: velocity.x * 0.11, height: velocity.y * 0.11))
-                if reduceMotion { controller.setCamera(camera, persist: true) }
-                else { withAnimation(.easeOut(duration: 0.42)) { controller.setCamera(coast, persist: true) } }
+                // Persist the exact finger-up camera. SwiftUI animation cannot interpolate an
+                // ObservableObject camera mutation, and the old velocity jump made the sky skip.
+                controller.setCamera(camera, persist: true)
             case .cancelled, .failed:
                 controller.setCamera(camera, persist: true)
             default: break
@@ -94,14 +99,26 @@ struct SkyMetalView: UIViewRepresentable {
 
         @objc private func pinch(_ gesture: UIPinchGestureRecognizer) {
             guard let view = gesture.view else { return }
-            if gesture.state == .began { pinchStart = controller.camera }
             let viewport = SkyViewport(size: view.bounds.size)
-            let camera = pinchStart.zoomed(
-                by: Double(gesture.scale),
+            if gesture.state == .began {
+                gestureStart = controller.camera
+                lastPinchScale = gesture.scale
+                gestureAnchorWorld = controller.camera.worldPoint(for: gesture.location(in: view), viewport: viewport)
+                controller.setCamera(controller.camera)
+            }
+            // Apply only the incremental scale since the last callback. This composes correctly
+            // with simultaneous pan instead of repeatedly restoring a stale pinch-start camera.
+            let incremental = gesture.scale / max(0.0001, lastPinchScale)
+            lastPinchScale = gesture.scale
+            let camera = controller.camera.zoomed(
+                by: Double(incremental),
                 anchor: gesture.location(in: view),
                 viewport: viewport
             )
-            controller.setCamera(camera, persist: gesture.state == .ended || gesture.state == .cancelled)
+            controller.setCamera(camera, persist: gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed)
+            if gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed {
+                gestureAnchorWorld = nil
+            }
         }
 
         @objc private func tap(_ gesture: UITapGestureRecognizer) {

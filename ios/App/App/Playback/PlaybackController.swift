@@ -87,6 +87,27 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
         ) { [weak self] result in self?.accept(result) }
     }
 
+    /// User-initiated track selection is one ordered transport operation. Native load performs
+    /// asynchronous media inspection, so issuing play() immediately after load() races the load
+    /// and can fail with track_not_loaded before the source is prepared.
+    func loadAndPlay(track: CatalogTrack, queue: [QueueItem]? = nil, index: Int? = nil) {
+        coordinator.load(
+            trackID: track.id,
+            mediaRef: track.mediaReference,
+            queue: queue,
+            index: index
+        ) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .failure:
+                self.accept(result)
+            case .success(let loaded):
+                self.accept(snapshot: loaded)
+                self.coordinator.play { [weak self] playResult in self?.accept(playResult) }
+            }
+        }
+    }
+
     func play() { coordinator.play { [weak self] result in self?.accept(result) } }
     func pause() { coordinator.pause { [weak self] result in self?.accept(result) } }
     func toggle() { coordinator.toggle { [weak self] result in self?.accept(result) } }
