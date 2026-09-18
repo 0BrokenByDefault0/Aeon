@@ -164,28 +164,6 @@ extension ImportPickerTests {
     }
 
     @MainActor
-    @objc func testFolderSessionRetainsPickerAcrossSheetDismissalUntilSelectionArrives() {
-        let session = FolderPickerSession()
-        var received: [URL] = []
-        var events: [String] = []
-        session.begin(event: { events.append($0) }) { outcome in
-            if case .picked(let urls) = outcome { received = urls }
-        }
-        let controller = session.makeController()
-        XCTAssertTrue(session.awaitingOutcome)
-        session.sheetDidDismiss()
-        XCTAssertTrue(session.awaitingOutcome, "Visual dismissal must not end the folder selection session")
-
-        let chosen = URL(fileURLWithPath: "/fixture/Chosen Folder", isDirectory: true)
-        session.documentPicker(controller, didPickDocumentsAt: [chosen])
-
-        XCTAssertEqual(received, [chosen])
-        XCTAssertFalse(session.awaitingOutcome)
-        XCTAssertTrue(events.contains(where: { $0.contains("sheet_dismissed_awaiting_callback") }))
-        XCTAssertTrue(events.contains("received.1"))
-    }
-
-    @MainActor
     private func command(_ execute: (@escaping PlaybackCommandCompletion) -> Void) async throws -> PlaybackSnapshot {
         let completed = XCTestExpectation(description: "Production playback command completes")
         var result: Result<PlaybackSnapshot, PlaybackFailure>?

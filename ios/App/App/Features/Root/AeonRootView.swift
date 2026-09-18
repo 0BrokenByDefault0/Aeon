@@ -7,7 +7,7 @@ struct AeonRootView: View {
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
     @State private var pickerIsVisible = false
-    @StateObject private var folderPickerSession = FolderPickerSession()
+    @State private var folderImporterPresented = false
     @State private var sourceAccess: ImportSourceAccess?
     @State private var completedImport: LibraryImportResult?
 
@@ -31,19 +31,35 @@ struct AeonRootView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(item: $picker, onDismiss: completePickerDismissal) { kind in
-            Group {
-                if kind == .folder {
-                    // The root owns this delegate/session beyond the sheet's visual
-                    // lifetime, so a folder result cannot be lost to dismissal timing.
-                    FolderDocumentPicker(session: folderPickerSession)
-                } else {
-                    ImportDocumentPicker(kind: kind, event: recordPickerEvent) { outcome in
-                        acceptPickerOutcome(outcome, kind: kind)
-                    }
-                }
+            ImportDocumentPicker(kind: kind, event: recordPickerEvent) { outcome in
+                acceptPickerOutcome(outcome, kind: kind)
             }
             .ignoresSafeArea()
             .onAppear { pickerIsVisible = true }
+        }
+        .fileImporter(
+            isPresented: $folderImporterPresented,
+            allowedContentTypes: [.folder],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                recordPickerEvent("folder.swiftui.received.\(urls.count)")
+                acceptPickerOutcome(.picked(urls), kind: .folder)
+            case .failure(let error):
+                let cocoa = error as? CocoaError
+                if cocoa?.code == .userCancelled {
+                    recordPickerEvent("folder.swiftui.cancelled")
+                } else {
+                    recordPickerEvent("folder.swiftui.failed.\((error as NSError).code)")
+                    acceptPickerOutcome(.failed("Aeon could not receive that folder from Files. Try another location or choose the files directly."), kind: .folder)
+                }
+            }
+        }
+        .onChange(of: folderImporterPresented) { visible in
+            guard !visible, picker == nil else { return }
+            pickerIsVisible = false
+            recordPickerEvent("folder.swiftui.dismissed")
         }
         .alert(
             "Import",
@@ -76,11 +92,11 @@ struct AeonRootView: View {
         pickerIsVisible = true
         recordPickerEvent("requested.\(kind.rawValue)")
         if kind == .folder {
-            folderPickerSession.begin(event: recordPickerEvent) { outcome in
-                acceptPickerOutcome(outcome, kind: .folder)
-            }
+            recordPickerEvent("configured.folder.swiftui")
+            folderImporterPresented = true
+        } else {
+            picker = kind
         }
-        picker = kind
     }
 
     private func acceptPickerOutcome(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
@@ -97,9 +113,6 @@ struct AeonRootView: View {
     }
 
     private func completePickerDismissal() {
-        // Files can visually dismiss immediately before delivering a delegate callback.
-        // Keep the root-owned folder session alive until a real pick/cancel outcome.
-        folderPickerSession.sheetDidDismiss()
         pickerIsVisible = false
         recordPickerEvent("dismissed")
     }

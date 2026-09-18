@@ -1,4 +1,3 @@
-// Source contracts only. Native and device tests must exercise Apple's actual folder UI.
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {readFileSync} = require('node:fs');
@@ -7,63 +6,43 @@ const {createHash} = require('node:crypto');
 const read = path => readFileSync(join(__dirname, '..', path), 'utf8');
 const picker = read('ios/App/App/Import/ImportPicker.swift');
 const root = read('ios/App/App/Features/Root/AeonRootView.swift');
-const unit = read('ios/App/AppTests/ImportPickerTests.swift');
 const ui = read('ios/App/AppUITests/ImportPickerPresentationTests.swift');
 const workflow = read('.github/workflows/ios-ipa.yml');
-const session = picker.split('final class FolderPickerSession:')[1]?.split('struct FolderDocumentPicker')[0] || '';
 
-test('folder uses Apples direct directory initializer while audio keeps copy mode', () => {
-  assert.match(picker, /if kind == \.folder \{\s*controller = UIDocumentPickerViewController\(forOpeningContentTypes: \[\.folder\]\)/);
-  assert.match(picker, /asCopy: kind\.copiesSelection/);
+test('folder uses exactly one root SwiftUI fileImporter', () => {
+  assert.equal((root.match(/\.fileImporter\(/g) || []).length, 1);
+  assert.match(root, /allowedContentTypes: \[\.folder\]/);
+  assert.match(root, /allowsMultipleSelection: false/);
+  assert.match(root, /@State private var folderImporterPresented = false/);
+  assert.doesNotMatch(root, /FolderPickerSession|FolderDocumentPicker/);
+});
+
+test('file copy picker remains separate and unchanged in policy', () => {
   assert.match(picker, /var copiesSelection: Bool \{ self == \.audioFiles \}/);
-  assert.match(picker, /case \.folder: return \[\.folder\]/);
+  assert.match(picker, /asCopy: kind\.copiesSelection/);
+  assert.match(root, /ImportDocumentPicker\(kind: kind, event: recordPickerEvent\)/);
+  assert.match(root, /if kind == \.folder \{[\s\S]*?folderImporterPresented = true[\s\S]*?\} else \{\s*picker = kind/);
 });
 
-test('root owns one persistent folder session and leaves copied-file picker unchanged', () => {
-  assert.match(root, /@StateObject private var folderPickerSession = FolderPickerSession\(\)/);
-  assert.match(root, /if kind == \.folder \{[\s\S]*?FolderDocumentPicker\(session: folderPickerSession\)/);
-  assert.match(root, /else \{\s*ImportDocumentPicker\(kind: kind, event: recordPickerEvent\)/);
-  assert.match(root, /folderPickerSession\.begin\(event: recordPickerEvent\)/);
-  assert.match(root, /acceptPickerOutcome\(outcome, kind: \.folder\)/);
+test('folder result acquires access and enters the existing importer handoff', () => {
+  assert.match(root, /folder\.swiftui\.received/);
+  assert.match(root, /acceptPickerOutcome\(\.picked\(urls\), kind: \.folder\)/);
+  assert.match(root, /if case \.picked\(let urls\) = outcome, !kind\.copiesSelection \{\s*sourceAccess = ImportSourceAccess\(urls: urls\)/);
+  assert.match(root, /case \.folder:\s*container\.importLibrary\(urls: urls, mode: \.folder\)/);
 });
 
-test('folder session strongly retains controller beyond visual sheet dismissal', () => {
-  assert.match(session, /private var currentController: UIDocumentPickerViewController\?/);
-  assert.match(session, /currentController = controller/);
-  assert.match(session, /func sheetDidDismiss\(\)[\s\S]*?sheet_dismissed_awaiting_callback/);
-  const dismissed = session.split('func sheetDidDismiss()')[1]?.split('func documentPicker(')[0] || '';
-  assert.doesNotMatch(dismissed, /currentController = nil|finished = true|active = false/);
-  assert.match(root, /folderPickerSession\.sheetDidDismiss\(\)/);
+test('folder dismissal and failure are observable without private paths', () => {
+  assert.match(root, /folder\.swiftui\.dismissed/);
+  assert.match(root, /folder\.swiftui\.cancelled/);
+  assert.match(root, /folder\.swiftui\.failed/);
+  assert.doesNotMatch(root, /folder\.swiftui\.[^"\n]*lastPathComponent|folder\.swiftui\.[^"\n]*\.path/);
 });
 
-test('folder callback entry precedes one-shot and stale-controller guards', () => {
-  const callback = session.split('didPickDocumentsAt urls: [URL])')[1]?.split('didPickDocumentAt url: URL')[0] || '';
-  assert(callback.indexOf('trace("callback.entered.') >= 0);
-  assert(callback.indexOf('trace("callback.entered.') < callback.indexOf('guard active, !finished, controller === currentController'));
-  assert.match(callback, /event\("received\.\\\(urls\.count\\\)"\)/);
-  assert.match(callback, /finish\(\.picked\(urls\)\)/);
-  assert.match(session, /didPickDocumentAt url: URL\)[\s\S]*?documentPicker\(controller, didPickDocumentsAt: \[url\]\)/);
+test('custom retained folder-host experiment is removed', () => {
+  assert.doesNotMatch(picker, /FolderPickerHost|FolderPickerSession|FolderDocumentPicker/);
 });
 
-test('unit regression models dismissal-before-delivery without system injection into production', () => {
-  assert.match(unit, /testFolderSessionRetainsPickerAcrossSheetDismissalUntilSelectionArrives/);
-  assert.match(unit, /session\.sheetDidDismiss\(\)/);
-  assert.match(unit, /XCTAssertTrue\(session\.awaitingOutcome/);
-  assert.match(unit, /session\.documentPicker\(controller, didPickDocumentsAt: \[chosen\]\)/);
-  assert.match(unit, /XCTAssertEqual\(received, \[chosen\]\)/);
-});
-
-test('real folder UI regression uses the host accessibility tree and real confirmation', () => {
-  assert.match(ui, /testFolderOpenImportsNestedAudioThroughSystemPicker/);
-  assert.match(ui, /labels: \["Open", "Done"\], button: true/);
-  assert.match(ui, /open\.tap\(\)/);
-  assert.match(ui, /Added 1 track in 1 album to Library\./);
-  const ext = ui.split('extension ImportPickerPresentationTests {')[1] || '';
-  assert.doesNotMatch(ext, /documentManager\.debugDescription/);
-  assert.doesNotMatch(ext, /didPickDocumentsAt|\.importURLs\(/);
-});
-
-test('all original picker presentation and cancellation tests remain byte-identical', () => {
+test('original picker presentation and cancellation coverage remains byte-identical', () => {
   const original = ui.split('\nextension ImportPickerPresentationTests {')[0];
   const bytes = Buffer.from(original);
   const sha = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
