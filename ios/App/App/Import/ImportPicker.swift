@@ -59,34 +59,34 @@ struct ImportDocumentPicker: UIViewControllerRepresentable {
     var event: (String) -> Void = { _ in }
     let completion: (ImportPickerOutcome) -> Void
 
-    func makeUIViewController(context: Context) -> UIViewController {
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let controller = Self.makeController(for: kind)
-        event("configured.\(kind.rawValue).\(kind.copiesSelection ? "copy" : "open")")
-        if kind == .folder {
-            return FolderPickerHost(picker: controller, event: event, completion: completion)
-        }
         controller.delegate = context.coordinator
+        event("configured.\(kind.rawValue).\(kind.copiesSelection ? "copy" : "open")")
         return controller
     }
 
-    /// The production picker and the configuration regression use this same factory.
+    /// Audio keeps copy mode. Folder uses Apple's documented directory initializer
+    /// without routing through the generic copy/open initializer.
     static func makeController(for kind: ImportPickerKind) -> UIDocumentPickerViewController {
-        let controller = UIDocumentPickerViewController(
-            forOpeningContentTypes: kind.contentTypes,
-            asCopy: kind.copiesSelection
-        )
+        let controller: UIDocumentPickerViewController
+        if kind == .folder {
+            controller = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
+        } else {
+            controller = UIDocumentPickerViewController(
+                forOpeningContentTypes: kind.contentTypes,
+                asCopy: kind.copiesSelection
+            )
+        }
         controller.allowsMultipleSelection = kind.allowsMultipleSelection
         controller.shouldShowFileExtensions = true
         return controller
     }
 
-    func updateUIViewController(_ controller: UIViewController, context: Context) {
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {
         context.coordinator.completion = completion
         context.coordinator.event = event
-        if let host = controller as? FolderPickerHost {
-            host.event = event
-            host.completion = completion
-        }
+        controller.delegate = context.coordinator
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(event: event, completion: completion) }
@@ -121,6 +121,146 @@ struct ImportDocumentPicker: UIViewControllerRepresentable {
     }
 }
 
+/// Folder selection has different lifetime requirements from copied file selection.
+/// The root owns this session across sheet dismissal, and the session strongly retains
+/// the system picker until a real pick/cancel result arrives.
+@MainActor
+final class FolderPickerSession: NSObject, ObservableObject, UIDocumentPickerDelegate {
+    private var event: (String) -> Void = { _ in }
+    private var completion: (ImportPickerOutcome) -> Void = { _ in }
+    private var currentController: UIDocumentPickerViewController?
+    private var sessionID = UUID().uuidString.lowercased()
+    private var active = false
+    private var finished = true
+
+    var awaitingOutcome: Bool { active && !finished }
+
+    func begin(
+        event: @escaping (String) -> Void,
+        completion: @escaping (ImportPickerOutcome) -> Void
+    ) {
+        currentController = nil
+        sessionID = UUID().uuidString.lowercased()
+        self.event = event
+        self.completion = completion
+        active = true
+        finished = false
+        trace("began")
+    }
+
+    func makeController() -> UIDocumentPickerViewController {
+        let controller = ImportDocumentPicker.makeController(for: .folder)
+        controller.delegate = self
+        currentController = controller
+        event("configured.folder.open")
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-AeonFolderPickerAcceptance") {
+            do { controller.directoryURL = try Self.prepareAcceptanceSource() }
+            catch { trace("fixture_failed") }
+        }
+        #endif
+        trace("presented")
+        return controller
+    }
+
+    func refresh(_ controller: UIDocumentPickerViewController) {
+        currentController = controller
+        controller.delegate = self
+    }
+
+    func sheetDidDismiss() {
+        guard awaitingOutcome else { return }
+        // Do not release the picker/delegate here. Files can dismiss its UI immediately
+        // before delegate delivery, as already observed for successful file selection.
+        trace("sheet_dismissed_awaiting_callback")
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        trace("callback.entered.\(urls.count).finished.\(finished)")
+        guard active, !finished, controller === currentController else {
+            trace("callback.ignored")
+            return
+        }
+        event("received.\(urls.count)")
+        guard !urls.isEmpty else {
+            finish(.failed("Files returned no folder. Choose a music folder and confirm the selection."))
+            return
+        }
+        finish(.picked(urls))
+    }
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
+        documentPicker(controller, didPickDocumentsAt: [url])
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        trace("cancel.entered.finished.\(finished)")
+        guard active, !finished, controller === currentController else { return }
+        event("cancelled")
+        finish(.cancelled)
+    }
+
+    private func finish(_ outcome: ImportPickerOutcome) {
+        guard active, !finished else { return }
+        finished = true
+        active = false
+        trace("delivering")
+        let callback = completion
+        callback(outcome)
+        currentController = nil
+        trace("delivered")
+    }
+
+    private func trace(_ marker: String) {
+        event("folder.\(sessionID).\(marker)")
+    }
+
+    #if DEBUG
+    /// Generate only source audio. Apple Files must return the directory and the real
+    /// importer must create the catalogue result.
+    private static func prepareAcceptanceSource() throws -> URL {
+        let documents = try FileManager.default.url(
+            for: .documentDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let root = documents.appendingPathComponent("Aeon Folder Check", isDirectory: true)
+        let nested = root.appendingPathComponent("Nested Record", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        let rate = 44_100
+        let count = rate / 4
+        var data = Data()
+        func append<T: FixedWidthInteger>(_ value: T) {
+            var little = value.littleEndian
+            withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
+        }
+        data.append(contentsOf: "RIFF".utf8); append(UInt32(36 + count * 2))
+        data.append(contentsOf: "WAVEfmt ".utf8); append(UInt32(16))
+        append(UInt16(1)); append(UInt16(1)); append(UInt32(rate)); append(UInt32(rate * 2))
+        append(UInt16(2)); append(UInt16(16))
+        data.append(contentsOf: "data".utf8); append(UInt32(count * 2))
+        for index in 0..<count {
+            append(Int16(sin(Double(index) * 2 * .pi * 220 / Double(rate)) * 500))
+        }
+        try data.write(to: nested.appendingPathComponent("01 Folder Check.wav"), options: .atomic)
+        return root
+    }
+    #endif
+}
+
+struct FolderDocumentPicker: UIViewControllerRepresentable {
+    let session: FolderPickerSession
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        session.makeController()
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {
+        session.refresh(controller)
+    }
+}
+
 /// Claim the provider grant synchronously in the picker callback and retain it across
 /// sheet dismissal and asynchronous import. Balance only the grants actually acquired.
 final class ImportSourceAccess {
@@ -138,161 +278,4 @@ final class ImportSourceAccess {
     }
 
     deinit { accessed.forEach(end) }
-}
-
-/// The SwiftUI sheet owns this host, and this host is the folder picker's delegate.
-/// UIKit dismisses the child picker, not the sheet that owns its callback receiver.
-/// Keep the existing audio-file presentation and copy policy untouched.
-@MainActor
-final class FolderPickerHost: UIViewController, UIDocumentPickerDelegate {
-    private(set) var picker: UIDocumentPickerViewController
-    var event: (String) -> Void
-    var completion: (ImportPickerOutcome) -> Void
-    private let sessionID = UUID().uuidString.lowercased()
-    private var hasPresented = false
-    private var finished = false
-    private let statusLabel = UILabel()
-
-    init(picker: UIDocumentPickerViewController, event: @escaping (String) -> Void,
-         completion: @escaping (ImportPickerOutcome) -> Void) {
-        self.picker = picker
-        self.event = event
-        self.completion = completion
-        super.init(nibName: nil, bundle: nil)
-        picker.delegate = self
-    }
-
-    required init?(coder: NSCoder) { return nil }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .systemBackground
-        statusLabel.text = "Choose a music folder."
-        statusLabel.font = .preferredFont(forTextStyle: .body)
-        statusLabel.adjustsFontForContentSizeCategory = true
-        statusLabel.numberOfLines = 0
-        statusLabel.textAlignment = .center
-        let retry = UIButton(type: .system)
-        retry.setTitle("Choose Folder", for: .normal)
-        retry.addTarget(self, action: #selector(retrySelection), for: .touchUpInside)
-        retry.accessibilityIdentifier = "aeon.import.folder.retry"
-        let cancel = UIButton(type: .system)
-        cancel.setTitle("Cancel", for: .normal)
-        cancel.addTarget(self, action: #selector(cancelSelection), for: .touchUpInside)
-        cancel.accessibilityIdentifier = "aeon.import.folder.cancel"
-        let stack = UIStackView(arrangedSubviews: [statusLabel, retry, cancel])
-        stack.axis = .vertical
-        stack.spacing = 16
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -24),
-            stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
-            retry.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-            cancel.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
-        ])
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        guard !finished else { return }
-        if !hasPresented {
-            presentPicker()
-        } else if presentedViewController == nil {
-            // This is not treated as success or cancellation: delivery can arrive late.
-            // Leave a recoverable UI and keep the delegate alive until a real outcome.
-            trace("returned_without_result")
-            statusLabel.text = "No folder has been received. Choose a folder again or cancel."
-        }
-    }
-
-    private func presentPicker() {
-        guard !finished, !hasPresented, presentedViewController == nil, view.window != nil else { return }
-        hasPresented = true
-        picker.delegate = self
-        picker.modalPresentationStyle = .fullScreen
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-AeonFolderPickerAcceptance") {
-            do { picker.directoryURL = try Self.prepareAcceptanceSource() }
-            catch {
-                trace("fixture_failed")
-                finish(.failed("The folder test source could not be prepared."))
-                return
-            }
-        }
-        #endif
-        trace("presenting")
-        // viewDidAppear is the presentation boundary; no guessed sheet-animation delay.
-        present(picker, animated: false) { [weak self] in self?.trace("presented") }
-    }
-
-    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
-        trace("callback.entered.\(urls.count).finished.\(finished)")
-        guard controller === picker, !finished else { trace("callback.ignored"); return }
-        event("received.\(urls.count)")
-        guard !urls.isEmpty else {
-            finish(.failed("Files returned no folder. Choose a music folder and press Open."))
-            return
-        }
-        // The root acquires scoped access synchronously, then schedules the importer.
-        finish(.picked(urls))
-    }
-
-    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentAt url: URL) {
-        documentPicker(controller, didPickDocumentsAt: [url])
-    }
-
-    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
-        trace("cancel.entered.finished.\(finished)")
-        guard controller === picker, !finished else { return }
-        event("cancelled")
-        finish(.cancelled)
-    }
-
-    @objc private func retrySelection() {
-        guard !finished, presentedViewController == nil else { return }
-        picker = ImportDocumentPicker.makeController(for: .folder)
-        hasPresented = false
-        presentPicker()
-    }
-
-    @objc private func cancelSelection() { finish(.cancelled) }
-
-    private func finish(_ outcome: ImportPickerOutcome) {
-        guard !finished else { return }
-        finished = true
-        trace("delivering")
-        completion(outcome)
-        trace("delivered")
-    }
-
-    private func trace(_ marker: String) { event("folder.\(sessionID).\(marker)") }
-
-    #if DEBUG
-    /// Generate only a source file in the simulator's real Documents folder. The test
-    /// must use Apple Files/Open and the real importer to create its catalogue record.
-    private static func prepareAcceptanceSource() throws -> URL {
-        let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,
-                                                    appropriateFor: nil, create: true)
-        let root = documents.appendingPathComponent("Aeon Folder Check", isDirectory: true)
-        let nested = root.appendingPathComponent("Nested Record", isDirectory: true)
-        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
-        let rate = 44_100
-        let count = rate / 4
-        var data = Data()
-        func append<T: FixedWidthInteger>(_ value: T) {
-            var little = value.littleEndian
-            withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
-        }
-        data.append(contentsOf: "RIFF".utf8); append(UInt32(36 + count * 2))
-        data.append(contentsOf: "WAVEfmt ".utf8); append(UInt32(16))
-        append(UInt16(1)); append(UInt16(1)); append(UInt32(rate)); append(UInt32(rate * 2))
-        append(UInt16(2)); append(UInt16(16))
-        data.append(contentsOf: "data".utf8); append(UInt32(count * 2))
-        for index in 0..<count { append(Int16(sin(Double(index) * 2 * .pi * 220 / Double(rate)) * 500)) }
-        try data.write(to: nested.appendingPathComponent("01 Folder Check.wav"), options: .atomic)
-        return root
-    }
-    #endif
 }

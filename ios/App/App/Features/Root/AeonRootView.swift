@@ -7,6 +7,7 @@ struct AeonRootView: View {
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
     @State private var pickerIsVisible = false
+    @StateObject private var folderPickerSession = FolderPickerSession()
     @State private var sourceAccess: ImportSourceAccess?
     @State private var completedImport: LibraryImportResult?
 
@@ -30,17 +31,15 @@ struct AeonRootView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(item: $picker, onDismiss: completePickerDismissal) { kind in
-            ImportDocumentPicker(kind: kind, event: recordPickerEvent) { outcome in
-                // Copied audio is already local. Keep grants for folder/open-in-place results.
-                if case .picked(let urls) = outcome, !kind.copiesSelection {
-                    sourceAccess = ImportSourceAccess(urls: urls)
-                }
-                picker = nil
-                // Return promptly to UIKit, then process the delivered selection.
-                // Import must not depend on SwiftUI delivering an onDismiss callback.
-                Task { @MainActor in
-                    handle(outcome, kind: kind)
-                    if container.libraryImportProgress == nil { sourceAccess = nil }
+            Group {
+                if kind == .folder {
+                    // The root owns this delegate/session beyond the sheet's visual
+                    // lifetime, so a folder result cannot be lost to dismissal timing.
+                    FolderDocumentPicker(session: folderPickerSession)
+                } else {
+                    ImportDocumentPicker(kind: kind, event: recordPickerEvent) { outcome in
+                        acceptPickerOutcome(outcome, kind: kind)
+                    }
                 }
             }
             .ignoresSafeArea()
@@ -76,11 +75,31 @@ struct AeonRootView: View {
         completedImport = nil
         pickerIsVisible = true
         recordPickerEvent("requested.\(kind.rawValue)")
+        if kind == .folder {
+            folderPickerSession.begin(event: recordPickerEvent) { outcome in
+                acceptPickerOutcome(outcome, kind: .folder)
+            }
+        }
         picker = kind
     }
 
+    private func acceptPickerOutcome(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
+        // Copied audio is already local. Folder/catalogue URLs need their security grant
+        // claimed synchronously while the selection callback is still active.
+        if case .picked(let urls) = outcome, !kind.copiesSelection {
+            sourceAccess = ImportSourceAccess(urls: urls)
+        }
+        picker = nil
+        Task { @MainActor in
+            handle(outcome, kind: kind)
+            if container.libraryImportProgress == nil { sourceAccess = nil }
+        }
+    }
+
     private func completePickerDismissal() {
-        // Only notice presentation waits for dismissal; receipt/import never does.
+        // Files can visually dismiss immediately before delivering a delegate callback.
+        // Keep the root-owned folder session alive until a real pick/cancel outcome.
+        folderPickerSession.sheetDidDismiss()
         pickerIsVisible = false
         recordPickerEvent("dismissed")
     }

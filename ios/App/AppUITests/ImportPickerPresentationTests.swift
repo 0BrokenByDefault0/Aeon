@@ -114,10 +114,10 @@ extension ImportPickerPresentationTests {
         openImportSheet(in: app)
         app.buttons["aeon.library.import.folder"].tap()
 
-        let child = waitForFolderElement(over: app, label: "Nested Record", button: false)
+        let child = waitForFolderElement(over: app, labels: ["Nested Record"], button: false)
         XCTAssertNotNil(child, "The system browser must be inside the actual generated source directory")
-        let open = try XCTUnwrap(waitForFolderElement(over: app, label: "Open", button: true),
-                                 "The system folder picker must expose Open, not a synthetic confirmation")
+        let open = try XCTUnwrap(waitForFolderElement(over: app, labels: ["Open", "Done"], button: true),
+                                 "The system folder picker must expose its real confirmation button")
         XCTAssertTrue(open.isEnabled)
         attachFolderEvidence(app, name: "folder-selected-before-system-open")
         open.tap()
@@ -148,14 +148,15 @@ extension ImportPickerPresentationTests {
         attachFolderEvidence(app, name: "folder-open-catalogue-track")
     }
 
-    private func waitForFolderElement(over app: XCUIApplication, label: String, button: Bool) -> XCUIElement? {
+    private func waitForFolderElement(over app: XCUIApplication, labels: [String], button: Bool) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(20)
-        let predicate = NSPredicate(format: button ? "label == %@" : "label CONTAINS %@", label)
+        let predicate = NSPredicate(format: "label IN %@", labels)
         while Date() < deadline {
-            for process in [app, documentManager] {
-                let query = button ? process.buttons.matching(predicate) : process.descendants(matching: .any).matching(predicate)
-                if let element = query.allElementsBoundByIndex.first(where: { $0.isHittable }) { return element }
-            }
+            // The remote Files UI is surfaced in the host app's accessibility tree on
+            // current simulators. Querying a separate non-running DocumentManager
+            // process aborts XCTest before the actual folder interaction is exercised.
+            let query = button ? app.buttons.matching(predicate) : app.descendants(matching: .any).matching(predicate)
+            if let element = query.allElementsBoundByIndex.first(where: { $0.isHittable }) { return element }
             Thread.sleep(forTimeInterval: 0.25)
         }
         attachFolderEvidence(app, name: button ? "folder-open-button-missing" : "folder-source-missing")
@@ -165,7 +166,7 @@ extension ImportPickerPresentationTests {
     private func attachFolderEvidence(_ app: XCUIApplication, name: String) {
         let picture = XCTAttachment(screenshot: app.screenshot())
         picture.name = name; picture.lifetime = .keepAlways; add(picture)
-        let hierarchy = XCTAttachment(string: app.debugDescription + "\nFILES\n" + documentManager.debugDescription)
+        let hierarchy = XCTAttachment(string: app.debugDescription)
         hierarchy.name = name + "-hierarchy"; hierarchy.lifetime = .keepAlways; add(hierarchy)
     }
 }
