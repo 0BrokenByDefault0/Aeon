@@ -115,7 +115,7 @@ jobs:
           set +e
           xcodebuild -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos \
             -derivedDataPath "$DERIVED_DATA" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO > "$log" 2>&1
+            CODE_SIGNING_ALLOWED=NO ONLY_ACTIVE_ARCH=NO CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" > "$log" 2>&1
           result=$?
           set -e
           if [[ "$result" -ne 0 ]]; then grep -E 'error:|warning:|BUILD (FAILED|SUCCEEDED)' "$log" | tail -n 160 || true; tail -n 50 "$log"; exit "$result"; fi

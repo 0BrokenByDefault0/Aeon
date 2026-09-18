@@ -99,3 +99,73 @@ final class ImportPickerPresentationTests: XCTestCase {
         return app
     }
 }
+
+extension ImportPickerPresentationTests {
+    /// Only a source WAV is generated. No delegate call, catalogue insertion or import
+    /// invocation is injected: Apple Files must deliver the directory after Open.
+    @objc func testFolderOpenImportsNestedAudioThroughSystemPicker() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-AeonSkyFixture", "empty", "-AeonFolderPickerAcceptance", "-AeonReduceMotionTesting"]
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 12))
+        openImportSheet(in: app)
+        app.buttons["aeon.library.import.folder"].tap()
+
+        let child = waitForFolderElement(over: app, label: "Nested Record", button: false)
+        XCTAssertNotNil(child, "The system browser must be inside the actual generated source directory")
+        let open = try XCTUnwrap(waitForFolderElement(over: app, label: "Open", button: true),
+                                 "The system folder picker must expose Open, not a synthetic confirmation")
+        XCTAssertTrue(open.isEnabled)
+        attachFolderEvidence(app, name: "folder-selected-before-system-open")
+        open.tap()
+
+        let notice = app.alerts["Import"]
+        guard notice.waitForExistence(timeout: 30) else {
+            attachFolderEvidence(app, name: "folder-open-missing-result")
+            return XCTFail("Folder Open did not reach the real importer and produce a result")
+        }
+        XCTAssertTrue(notice.staticTexts.matching(NSPredicate(
+            format: "label CONTAINS %@", "Added 1 track in 1 album to Library."
+        )).firstMatch.exists, notice.debugDescription)
+        attachFolderEvidence(app, name: "folder-open-import-result")
+        notice.buttons["OK"].tap()
+        let count = app.staticTexts["aeon.library.count"]
+        XCTAssertTrue(count.waitForExistence(timeout: 8))
+        XCTAssertEqual(count.label, "1 ALBUM")
+        let album = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@", "aeon.library.album."
+        )).firstMatch
+        XCTAssertTrue(album.waitForExistence(timeout: 8))
+        album.tap()
+        let track = app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH %@", "aeon.album.track."
+        )).firstMatch
+        for _ in 0..<8 where !track.exists { app.scrollViews.firstMatch.swipeUp() }
+        XCTAssertTrue(track.waitForExistence(timeout: 5), "Nested audio must become an actual catalogue track")
+        attachFolderEvidence(app, name: "folder-open-catalogue-track")
+    }
+
+    private func waitForFolderElement(over app: XCUIApplication, label: String, button: Bool) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(20)
+        let predicate = NSPredicate(format: button ? "label == %@" : "label CONTAINS %@", label)
+        while Date() < deadline {
+            for process in [app, documentManager] {
+                let query = button ? process.buttons.matching(predicate) : process.descendants(matching: .any).matching(predicate)
+                if let element = query.allElementsBoundByIndex.first(where: { $0.isHittable }) { return element }
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        attachFolderEvidence(app, name: button ? "folder-open-button-missing" : "folder-source-missing")
+        return nil
+    }
+
+    private func attachFolderEvidence(_ app: XCUIApplication, name: String) {
+        let picture = XCTAttachment(screenshot: app.screenshot())
+        picture.name = name; picture.lifetime = .keepAlways; add(picture)
+        let hierarchy = XCTAttachment(string: app.debugDescription + "\nFILES\n" + documentManager.debugDescription)
+        hierarchy.name = name + "-hierarchy"; hierarchy.lifetime = .keepAlways; add(hierarchy)
+    }
+}
