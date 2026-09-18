@@ -169,8 +169,7 @@ final class LibraryController: ObservableObject {
             }
             let index = startingTrackID.flatMap { requested in tracks.firstIndex { $0.id == requested } } ?? 0
             let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
-            playback.load(track: tracks[index], queue: queue, index: index)
-            playback.play()
+            playback.loadAndPlay(track: tracks[index], queue: queue, index: index)
         } catch {
             message = "Playback could not start because the album is unavailable."
         }
