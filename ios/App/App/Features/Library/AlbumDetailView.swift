@@ -162,32 +162,37 @@ struct AlbumDetailView: View {
             AeonLabel(text: "Tracks").padding(.bottom, AeonTheme.Space.small)
             ForEach(Array(controller.selectedTracks.enumerated()), id: \.element.id) { index, track in
                 HStack(spacing: AeonTheme.Space.medium) {
-                    Text(trackNumber(track, fallback: index + 1))
-                        .font(AeonTheme.FontToken.metric(.caption))
-                        .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-                        .frame(width: 28, alignment: .trailing)
                     Button {
+                        // The row itself is the playback affordance: selecting a track starts it.
                         controller.playAlbum(id: album.id, startingTrackID: track.id)
                     } label: {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(track.title)
-                                .font(AeonTheme.FontToken.ui(.body, weight: .medium))
-                                .foregroundStyle(AeonTheme.ColorToken.bone)
-                                .multilineTextAlignment(.leading)
-                            HStack(spacing: AeonTheme.Space.small) {
-                                if !track.artist.isEmpty { Text(track.artist) }
-                                if let unavailable = controller.availabilityText(for: track) { Text(unavailable) }
+                        HStack(spacing: AeonTheme.Space.medium) {
+                            Text(trackNumber(track, fallback: index + 1))
+                                .font(AeonTheme.FontToken.metric(.caption))
+                                .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+                                .frame(width: 28, alignment: .trailing)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(track.title)
+                                    .font(AeonTheme.FontToken.ui(.body, weight: .medium))
+                                    .foregroundStyle(AeonTheme.ColorToken.bone)
+                                    .multilineTextAlignment(.leading)
+                                HStack(spacing: AeonTheme.Space.small) {
+                                    if !track.artist.isEmpty { Text(track.artist) }
+                                    if let unavailable = controller.availabilityText(for: track) { Text(unavailable) }
+                                }
+                                .font(AeonTheme.FontToken.metric(.caption2))
+                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                             }
-                            .font(AeonTheme.FontToken.metric(.caption2))
-                            .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                            Spacer(minLength: 0)
+                            Text(duration(track.duration))
+                                .font(AeonTheme.FontToken.metric(.caption2))
+                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    Text(duration(track.duration))
-                        .font(AeonTheme.FontToken.metric(.caption2))
-                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .accessibilityIdentifier("aeon.album.track.play.\(track.id)")
                     Menu {
                         Button("PLAY FROM HERE") {
                             controller.playAlbum(id: album.id, startingTrackID: track.id)
