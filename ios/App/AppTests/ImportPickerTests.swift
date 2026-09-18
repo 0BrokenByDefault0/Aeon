@@ -31,6 +31,19 @@ final class ImportPickerTests: XCTestCase {
         XCTAssertFalse(AeonImportContentTypes.audio.contains(.data))
     }
 
+    @MainActor
+    func testAudioPickerUsesSystemCopiesAndFolderKeepsItsDirectoryGrant() {
+        let audio = ImportDocumentPicker.makeController(for: .audioFiles)
+        let folder = ImportDocumentPicker.makeController(for: .folder)
+        XCTAssertEqual(audio.documentPickerMode, .import)
+        XCTAssertEqual(folder.documentPickerMode, .open)
+        XCTAssertTrue(audio.allowsMultipleSelection)
+        XCTAssertFalse(folder.allowsMultipleSelection)
+        XCTAssertTrue(ImportPickerKind.audioFiles.copiesSelection)
+        XCTAssertFalse(ImportPickerKind.folder.copiesSelection)
+        XCTAssertFalse(ImportPickerKind.catalogArchive.copiesSelection)
+    }
+
     func testEachPickerKindAsksForTheContentItActuallyImports() {
         XCTAssertEqual(ImportPickerKind.folder.contentTypes, [.folder])
         XCTAssertTrue(ImportPickerKind.audioFiles.allowsMultipleSelection)

@@ -9,8 +9,14 @@ const picker = read('ios/App/App/Import/ImportPicker.swift');
 const root = read('ios/App/App/Features/Root/AeonRootView.swift');
 const native = read('ios/App/AppTests/ImportPickerTests.swift');
 
-test('provider access is acquired before dismissal and released after import progress ends', () => {
-  assert(root.indexOf('sourceAccess = ImportSourceAccess(urls: urls)') < root.indexOf('pendingPickerOutcome = (kind, outcome)'));
+test('open-in-place grants precede dismissal and selection processing does not wait for it', () => {
+  assert.match(root, /if case \.picked\(let urls\) = outcome, !kind\.copiesSelection/);
+  assert(root.indexOf('sourceAccess = ImportSourceAccess(urls: urls)') < root.indexOf('picker = nil'));
+  assert.match(root, /Task \{ @MainActor in\s*handle\(outcome, kind: kind\)/);
+  assert.doesNotMatch(root, /pendingPickerOutcome/);
+  const dismissal = root.split('private func completePickerDismissal()')[1].split('private func recordPickerEvent')[0];
+  assert.doesNotMatch(dismissal, /handle\(|importLibrary\(/);
+  assert.match(root, /!pickerIsVisible && \(container\.libraryImportError != nil \|\| completedImport != nil\)/);
   assert.match(root, /\.sheet\(item: \$picker, onDismiss: completePickerDismissal\)/);
   assert.match(root, /onChange\(of: container\.libraryImportProgress\)[\s\S]*?if progress == nil \{ sourceAccess = nil \}/);
   assert.match(picker, /seen\.insert\(\$0\)\.inserted \}\.filter\(begin\)/);

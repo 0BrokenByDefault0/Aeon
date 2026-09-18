@@ -6,7 +6,7 @@ struct AeonRootView: View {
     /// One picker at a time. Several `fileImporter` modifiers stacked on a single view
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
-    @State private var pendingPickerOutcome: (kind: ImportPickerKind, outcome: ImportPickerOutcome)?
+    @State private var pickerIsVisible = false
     @State private var sourceAccess: ImportSourceAccess?
     @State private var completedImport: LibraryImportResult?
 
@@ -30,19 +30,26 @@ struct AeonRootView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(item: $picker, onDismiss: completePickerDismissal) { kind in
-            ImportDocumentPicker(kind: kind) { outcome in
-                if case .picked(let urls) = outcome {
+            ImportDocumentPicker(kind: kind, event: recordPickerEvent) { outcome in
+                // Copied audio is already local. Keep grants for folder/open-in-place results.
+                if case .picked(let urls) = outcome, !kind.copiesSelection {
                     sourceAccess = ImportSourceAccess(urls: urls)
                 }
-                pendingPickerOutcome = (kind, outcome)
                 picker = nil
+                // Return promptly to UIKit, then process the delivered selection.
+                // Import must not depend on SwiftUI delivering an onDismiss callback.
+                Task { @MainActor in
+                    handle(outcome, kind: kind)
+                    if container.libraryImportProgress == nil { sourceAccess = nil }
+                }
             }
             .ignoresSafeArea()
+            .onAppear { pickerIsVisible = true }
         }
         .alert(
             "Import",
             isPresented: Binding(
-                get: { container.libraryImportError != nil || completedImport != nil },
+                get: { !pickerIsVisible && (container.libraryImportError != nil || completedImport != nil) },
                 set: { if !$0 { dismissImportNotice() } }
             )
         ) {
@@ -67,15 +74,20 @@ struct AeonRootView: View {
             return
         }
         completedImport = nil
+        pickerIsVisible = true
+        recordPickerEvent("requested.\(kind.rawValue)")
         picker = kind
     }
 
     private func completePickerDismissal() {
-        guard let pending = pendingPickerOutcome else { sourceAccess = nil; return }
-        pendingPickerOutcome = nil
-        // A fast import must not race its result alert against the system picker dismissing.
-        handle(pending.outcome, kind: pending.kind)
-        if container.libraryImportProgress == nil { sourceAccess = nil }
+        // Only notice presentation waits for dismissal; receipt/import never does.
+        pickerIsVisible = false
+        recordPickerEvent("dismissed")
+    }
+
+    private func recordPickerEvent(_ event: String) {
+        // Exported by the existing Diagnostics action; never include file names or URLs.
+        try? container.services?.diagnosticsLog.record(eventCode: "library.picker." + event)
     }
 
     private func handle(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
@@ -85,6 +97,7 @@ struct AeonRootView: View {
         case .failed(let message):
             container.reportLibraryImportProblem(message)
         case .picked(let urls):
+            recordPickerEvent("handoff.\(kind.rawValue).\(urls.count)")
             switch kind {
             case .audioFiles:
                 container.importLibrary(urls: urls, mode: .smart)

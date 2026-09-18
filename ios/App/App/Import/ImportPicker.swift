@@ -15,6 +15,10 @@ enum ImportPickerKind: String, Identifiable {
 
     var allowsMultipleSelection: Bool { self == .audioFiles }
 
+    /// Audio is imported, not edited in place. Ask the system to deliver a copy.
+    /// Folder grants and catalogue recovery retain their existing open-in-place mode.
+    var copiesSelection: Bool { self == .audioFiles }
+
     var contentTypes: [UTType] {
         switch self {
         case .audioFiles: return AeonImportContentTypes.audio
@@ -52,36 +56,48 @@ enum AeonImportContentTypes {
 /// report why a pick failed and cannot be stacked, both of which this flow needs.
 struct ImportDocumentPicker: UIViewControllerRepresentable {
     let kind: ImportPickerKind
+    var event: (String) -> Void = { _ in }
     let completion: (ImportPickerOutcome) -> Void
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let controller = Self.makeController(for: kind)
+        controller.delegate = context.coordinator
+        event("configured.\(kind.rawValue).\(kind.copiesSelection ? "copy" : "open")")
+        return controller
+    }
+
+    /// The production picker and the configuration regression use this same factory.
+    static func makeController(for kind: ImportPickerKind) -> UIDocumentPickerViewController {
         let controller = UIDocumentPickerViewController(
             forOpeningContentTypes: kind.contentTypes,
-            asCopy: false
+            asCopy: kind.copiesSelection
         )
         controller.allowsMultipleSelection = kind.allowsMultipleSelection
         controller.shouldShowFileExtensions = true
-        controller.delegate = context.coordinator
         return controller
     }
 
     func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {
         context.coordinator.completion = completion
+        context.coordinator.event = event
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(completion: completion) }
+    func makeCoordinator() -> Coordinator { Coordinator(event: event, completion: completion) }
 
     final class Coordinator: NSObject, UIDocumentPickerDelegate {
         var completion: (ImportPickerOutcome) -> Void
+        var event: (String) -> Void
         private var finished = false
 
-        init(completion: @escaping (ImportPickerOutcome) -> Void) {
+        init(event: @escaping (String) -> Void = { _ in }, completion: @escaping (ImportPickerOutcome) -> Void) {
+            self.event = event
             self.completion = completion
         }
 
         func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             guard !finished else { return }
             finished = true
+            event("received.\(urls.count)")
             guard !urls.isEmpty else {
                 completion(.failed("That location returned nothing Aeon can open. Choose a folder or files stored on this iPhone or in iCloud Drive."))
                 return
@@ -92,6 +108,7 @@ struct ImportDocumentPicker: UIViewControllerRepresentable {
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
             guard !finished else { return }
             finished = true
+            event("cancelled")
             completion(.cancelled)
         }
     }
