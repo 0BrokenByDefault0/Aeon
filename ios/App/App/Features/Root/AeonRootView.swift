@@ -361,12 +361,14 @@ private struct AeonReadyShell: View {
                             highContrast: settingsController.preferences.highSkyContrast,
                             reduceMotionOverride: settingsController.preferences.reduceMotion,
                             importFiles: importFiles,
-                            importFolder: importFolder
+                            importFolder: importFolder,
+                            isForeground: destination == .sky && !nowPlayingVisible
                         )
                         if destination != .sky {
                             destinationPanel(destination, geometry: geometry, insets: readableInsets)
                                 .zIndex(AeonTheme.Layer.content)
-                                .transition(.opacity)
+                                // Utility tabs are independent surfaces, not a crossfade through Sky.
+                                .transition(.identity)
                         }
                         if nowPlayingVisible {
                             nowPlayingPanel(geometry: geometry, insets: readableInsets)
@@ -392,7 +394,6 @@ private struct AeonReadyShell: View {
                 }
             }
         }
-        .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: destination)
         .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
         .onReceive(container.$libraryImportResult) { result in
             guard let result, result.importedTracks > 0 || !result.skippedDuplicateAlbums.isEmpty else { return }
@@ -441,6 +442,7 @@ private struct AeonReadyShell: View {
         .padding(.bottom, regular ? insets.bottom : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(width: width)
+        .modifier(AeonOpaquePanel())
         .ignoresSafeArea(edges: .vertical)
     }
 
@@ -473,6 +475,7 @@ private struct AeonReadyShell: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
+            .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else if destination == .playlists {
@@ -485,6 +488,7 @@ private struct AeonReadyShell: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
+            .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else if destination == .settings {
@@ -500,6 +504,7 @@ private struct AeonReadyShell: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
+            .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
         } else {
@@ -520,6 +525,7 @@ private struct AeonReadyShell: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .frame(width: width)
+            .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .vertical)
             .accessibilityIdentifier("aeon.destination.\(destination.rawValue)")
@@ -554,4 +560,14 @@ private struct LegacyMigrationControllerView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ controller: LegacyMigrationViewController, context: Context) {}
+}
+
+/// Flatten a full-opacity backing with the panel before it is placed above the persistent sky.
+/// Glass may style the panel itself; it must never reveal another screen's content.
+struct AeonOpaquePanel: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(AeonTheme.ColorToken.void)
+            .compositingGroup()
+    }
 }

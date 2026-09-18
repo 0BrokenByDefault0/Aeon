@@ -85,3 +85,44 @@ final class DesignTokenTests: XCTestCase {
         }
     }
 }
+
+extension DesignTokenTests {
+    @MainActor
+    @objc func testOpaquePanelRendersIdenticallyAboveBlackAndWhiteContent() throws {
+        let black = try panelImage(over: .black)
+        let white = try panelImage(over: .white)
+        XCTAssertEqual(black, white, "Utility panels must not blend the underlying Sky into their pixels")
+    }
+
+    @MainActor
+    private func panelImage(over background: Color) throws -> Data {
+        let renderer = ImageRenderer(content:
+            ZStack {
+                background
+                AeonGlass { Color.clear.frame(width: 80, height: 80) }
+                    .modifier(AeonOpaquePanel())
+            }
+            .frame(width: 80, height: 80)
+            .environment(\.colorScheme, .dark)
+        )
+        renderer.scale = 1
+        return try XCTUnwrap(renderer.uiImage?.pngData())
+    }
+
+    @objc func testTabRuleIsCenteredInEachTabIncludingSky() {
+        for width: CGFloat in [44, 78, 108, 210] {
+            for index in 0..<4 {
+                let rect = CGRect(x: CGFloat(index) * width, y: 0, width: width, height: AeonOrbit.stroke)
+                let bounds = AeonTabSelectionRule().path(in: rect).boundingRect
+                XCTAssertEqual(bounds.midX, rect.midX, accuracy: 0.001)
+                XCTAssertEqual(bounds.width, 24, accuracy: 0.001)
+                XCTAssertEqual(bounds.midY, AeonOrbit.stroke / 2, accuracy: 0.001)
+            }
+        }
+    }
+
+    @objc func testQuietSkyHasTwoDistinctEdgeReadingsRatherThanDuplicateQuadrants() {
+        XCTAssertEqual(AeonQuietSkyMarkers.labels, ["UNCHARTED", "UNLIT"])
+        XCTAssertEqual(Set(AeonQuietSkyMarkers.labels).count, 2)
+    }
+}

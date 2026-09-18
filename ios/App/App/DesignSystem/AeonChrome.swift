@@ -173,9 +173,19 @@ struct AeonChrome<PlayerBar: View>: View {
             .frame(maxWidth: .infinity, minHeight: compact ? 58 : 52)
             .contentShape(Rectangle())
             .overlay(alignment: compact ? .top : .leading) {
-                Rectangle().fill(selected ? AeonOrbit.ink : .clear)
-                    .frame(width: compact ? nil : AeonOrbit.stroke, height: compact ? AeonOrbit.stroke : nil)
-                    .padding(.horizontal, compact ? 16 : 0).padding(.vertical, compact ? 0 : 11)
+                if compact {
+                    AeonTabSelectionRule()
+                        .stroke(selected ? AeonOrbit.ink : .clear, style: AeonOrbit.line)
+                        .frame(height: AeonOrbit.stroke)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                } else {
+                    Rectangle().fill(selected ? AeonOrbit.ink : .clear)
+                        .frame(width: AeonOrbit.stroke)
+                        .padding(.vertical, 11)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
             }
         }
         .buttonStyle(.plain).frame(maxWidth: .infinity, minHeight: compact ? 58 : 52)
@@ -187,5 +197,17 @@ struct AeonChrome<PlayerBar: View>: View {
 extension AeonChrome where PlayerBar == EmptyView {
     init(destination: Binding<AeonDestination>, portraitSidebarVisible: Binding<Bool>) {
         self.init(destination: destination, portraitSidebarVisible: portraitSidebarVisible, playerLoaded: false) { EmptyView() }
+    }
+}
+
+/// The indicator is centered in its own tab's bounds, including the first (Sky) tab.
+struct AeonTabSelectionRule: Shape {
+    func path(in rect: CGRect) -> Path {
+        let width = min(24, max(0, rect.width))
+        let y = rect.minY + AeonOrbit.stroke / 2
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX - width / 2, y: y))
+        path.addLine(to: CGPoint(x: rect.midX + width / 2, y: y))
+        return path
     }
 }

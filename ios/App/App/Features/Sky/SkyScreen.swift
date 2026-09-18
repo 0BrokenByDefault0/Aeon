@@ -10,6 +10,7 @@ struct SkyScreen: View {
     let reduceMotionOverride: Bool
     let importFiles: () -> Void
     let importFolder: () -> Void
+    var isForeground = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var importSheetPresented = false
 
@@ -19,40 +20,47 @@ struct SkyScreen: View {
                 SkyMetalView(controller: controller, reduceMotionOverride: reduceMotionOverride)
                     .ignoresSafeArea().opacity(controller.cameraCrossfade ? 0.28 : 1)
                     .animation(.linear(duration: 0.12), value: controller.cameraCrossfade)
+                    .allowsHitTesting(isForeground)
                 if controller.catalogue.stars.isEmpty {
-                    AeonQuietSky(reduceMotion: effectiveReduceMotion,
-                                 regions: controller.catalogue.regions.map { $0.name.uppercased() })
+                    AeonQuietSky(reduceMotion: effectiveReduceMotion || !isForeground,
+                                 showMarkers: isForeground)
                         .ignoresSafeArea().allowsHitTesting(false).accessibilityHidden(true)
                 }
-                SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: highContrast)
-                    .allowsHitTesting(false).accessibilityHidden(true)
-                SkyAccessibilityOverlay(controller: controller).allowsHitTesting(false)
-                SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size,
-                       showCensus: showHUD, reduceMotionOverride: reduceMotionOverride)
-                    .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-                    .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
-                    .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
-                if controller.catalogue.stars.isEmpty {
-                    ScrollView {
-                        emptyState
-                            .frame(minHeight: max(0, geometry.size.height - readableInsets.bottom - 88))
+                // Keep the renderer/camera alive, not the inactive screen's copy and controls.
+                Group {
+                    if isForeground {
+                        SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: highContrast)
+                            .allowsHitTesting(false).accessibilityHidden(true)
+                        SkyAccessibilityOverlay(controller: controller).allowsHitTesting(false)
+                        SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size,
+                               showCensus: showHUD, reduceMotionOverride: reduceMotionOverride)
                             .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-                            .padding(.top, 64).padding(.bottom, readableInsets.bottom + 24)
+                            .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
+                            .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
+                        if controller.catalogue.stars.isEmpty {
+                            ScrollView {
+                                emptyState
+                                    .frame(minHeight: max(0, geometry.size.height - readableInsets.bottom - 88))
+                                    .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
+                                    .padding(.top, 64).padding(.bottom, readableInsets.bottom + 24)
+                            }
+                            .scrollIndicators(.hidden)
+                        }
+                        if let ceremony = controller.ceremony {
+                            VStack(spacing: AeonTheme.Space.xSmall) {
+                                AeonLabel(text: "Celestial event")
+                                AeonDisplayText(ceremony, size: 28, maximumLines: 2)
+                            }
+                            .foregroundStyle(AeonOrbit.title)
+                            .padding(.horizontal, AeonTheme.Space.large).padding(.vertical, AeonTheme.Space.regular)
+                            .background(AeonTheme.ColorToken.void.opacity(0.92))
+                            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+                            .transition(.opacity).allowsHitTesting(false).accessibilityAddTraits(.updatesFrequently)
+                        }
+                        selectionLabel
                     }
-                    .scrollIndicators(.hidden)
                 }
-                if let ceremony = controller.ceremony {
-                    VStack(spacing: AeonTheme.Space.xSmall) {
-                        AeonLabel(text: "Celestial event")
-                        AeonDisplayText(ceremony, size: 28, maximumLines: 2)
-                    }
-                    .foregroundStyle(AeonOrbit.title)
-                    .padding(.horizontal, AeonTheme.Space.large).padding(.vertical, AeonTheme.Space.regular)
-                    .background(AeonTheme.ColorToken.void.opacity(0.92))
-                    .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
-                    .transition(.opacity).allowsHitTesting(false).accessibilityAddTraits(.updatesFrequently)
-                }
-                selectionLabel
+                .transaction { $0.animation = nil }
             }
             .background(AeonTheme.ColorToken.void)
         }
@@ -112,10 +120,14 @@ struct SkyScreen: View {
     }
 }
 
+enum AeonQuietSkyMarkers {
+    static let labels = ["UNCHARTED", "UNLIT"]
+}
+
 /// Decorative sky only; these points never enter the catalogue or hit-testing model.
 private struct AeonQuietSky: View {
     let reduceMotion: Bool
-    let regions: [String]
+    let showMarkers: Bool
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.1, paused: reduceMotion || scenePhase != .active)) { timeline in
@@ -139,12 +151,14 @@ private struct AeonQuietSky: View {
                             context.fill(Path(ellipseIn: star), with: .color(AeonOrbit.ink.opacity(alpha)))
                         }
                     }
-                    let names = regions.isEmpty ? ["UNCHARTED", "UNLIT", "UNCHARTED", "UNLIT"] : regions
-                    ForEach(0..<min(4, names.count), id: \.self) { index in
-                        Text(names[index]).font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .tracking(2).foregroundStyle(AeonOrbit.ink.opacity(0.19))
-                            .position(x: geometry.size.width * (index.isMultiple(of: 2) ? 0.16 : 0.83),
-                                      y: geometry.size.height * (index < 2 ? 0.23 : 0.76))
+                    if showMarkers {
+                        // Two quiet edge readings, not four duplicate quadrant labels.
+                        ForEach(Array(AeonQuietSkyMarkers.labels.enumerated()), id: \.offset) { index, name in
+                            Text(name).font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .tracking(2).foregroundStyle(AeonOrbit.ink.opacity(0.19))
+                                .position(x: geometry.size.width * (index == 0 ? 0.16 : 0.83),
+                                          y: geometry.size.height * 0.23)
+                        }
                     }
                 }
             }

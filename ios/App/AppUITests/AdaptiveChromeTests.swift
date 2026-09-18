@@ -167,12 +167,14 @@ extension AdaptiveChromeTests {
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.library"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.library.empty"].waitForExistence(timeout: 5))
+        assertNoInactiveSky(in: app, importButtons: 1)
         reviewCapture(app, name: "orbital-library-empty")
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.playlists"].tap()
         assertState(app.descendants(matching: .any)["aeon.library.screen"], predicate: "exists == false")
         let create = app.buttons["aeon.playlists.create"]
         assertHittable(create, in: app)
+        assertNoInactiveSky(in: app, importButtons: 0)
         reviewCapture(app, name: "orbital-playlists-empty")
         reviewCapture(create, name: "orbital-primary-playlist-closeup")
         ensureNavigationVisible(in: app)
@@ -185,6 +187,7 @@ extension AdaptiveChromeTests {
             assertHittable(option, in: app)
             XCTAssertTrue(app.windows.firstMatch.frame.contains(option.frame))
         }
+        assertNoInactiveSky(in: app, importButtons: 0)
         reviewCapture(app, name: "orbital-settings")
         app.buttons["aeon.settings.sleep.minutes15"].tap()
         assertState(app.buttons["aeon.settings.sleep.minutes15"], predicate: "selected == true")
@@ -203,6 +206,11 @@ extension AdaptiveChromeTests {
         reviewCapture(toggle, name: "orbital-toggle-after-closeup")
         toggle.tap()
         assertState(toggle, predicate: "value == '\(original ?? "1")'")
+        ensureNavigationVisible(in: app)
+        app.buttons["aeon.navigation.sky"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import").count, 1)
+        reviewCapture(app, name: "orbital-sky-return-after-tabs")
     }
 
     @objc func testOrbitalUIReviewSkyWithOneAlbum() {
@@ -253,8 +261,18 @@ extension AdaptiveChromeTests {
                 assertHittable(button, in: app)
                 XCTAssertTrue(app.windows.firstMatch.frame.contains(button.frame), "Out-of-window target: \(button.frame)")
             }
+            assertNoInactiveSky(in: app, importButtons: 0)
             reviewCapture(app, name: "orbital-ax5-dock-\(orientation.isLandscape ? "landscape" : "portrait")")
         }
+    }
+
+    private func assertNoInactiveSky(in app: XCUIApplication, importButtons: Int) {
+        assertState(app.descendants(matching: .any)["aeon.sky.empty"], predicate: "exists == false")
+        XCTAssertFalse(app.staticTexts["Your sky is quiet"].exists)
+        XCTAssertFalse(app.staticTexts["Bring your records. Aeon will chart them without changing the files you chose."].exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import").count, importButtons,
+                       "Only the active screen's import action may exist")
+        XCTAssertTrue(app.images["aeon.sky.canvas"].exists, "Preserve the renderer and camera, not inactive Sky controls")
     }
 
     private func reviewLaunch(_ arguments: [String]) -> XCUIApplication {
