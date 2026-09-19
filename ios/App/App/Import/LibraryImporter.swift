@@ -159,6 +159,8 @@ final class LibraryImporter: @unchecked Sendable {
 
     /// Scans Aeon's own Files-visible Music directory and adopts audio in place.
     /// No security-scoped external-folder grant is needed and no audio is copied.
+    /// Keep this on the import-area native validation route: adopted media must remain
+    /// resolvable by the production playback engine after every storage change.
     func adoptMusicLibrary(
         cancellation: LibraryImportCancellation = LibraryImportCancellation(),
         progress: @escaping (LibraryImportProgress) -> Void = { _ in }
