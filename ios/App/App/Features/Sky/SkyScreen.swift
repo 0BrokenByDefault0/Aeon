@@ -9,7 +9,7 @@ struct SkyScreen: View {
     let highContrast: Bool
     let reduceMotionOverride: Bool
     let importFiles: () -> Void
-    let importFolder: () -> Void
+    let adoptLibrary: () -> Void
     var isForeground = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var importSheetPresented = false
@@ -65,7 +65,7 @@ struct SkyScreen: View {
             .background(AeonTheme.ColorToken.void)
         }
         .sheet(isPresented: $importSheetPresented) {
-            AeonImportSheet(selectFiles: importFiles, selectFolder: importFolder)
+            AeonImportSheet(selectFiles: importFiles, adoptLibrary: adoptLibrary)
         }
     }
 

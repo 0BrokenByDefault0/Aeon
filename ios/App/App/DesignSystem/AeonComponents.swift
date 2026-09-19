@@ -568,7 +568,7 @@ struct AeonRouteMark: View {
 
 struct AeonImportSheet: View {
     let selectFiles: () -> Void
-    let selectFolder: () -> Void
+    let adoptLibrary: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var contentHeight: CGFloat = 340
@@ -588,16 +588,26 @@ struct AeonImportSheet: View {
                             .buttonStyle(.plain).foregroundStyle(AeonOrbit.secondary)
                             .accessibilityLabel("Close import").accessibilityIdentifier("aeon.import.close")
                         }
-                        Text("Aeon only reads what you hand it.")
+                        Text("Import files, or scan the Music folder Aeon owns in Files.")
                             .font(AeonOrbit.supportingFont).foregroundStyle(AeonOrbit.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     VStack(spacing: AeonTheme.Space.medium) {
                         importOption(title: "Files", detail: "Choose one or more supported audio files.", glyph: .files,
                                      identifier: "aeon.library.import.files", action: selectFiles)
-                        importOption(title: "Folder", detail: "Choose a music folder in Files.", glyph: .folder,
-                                     identifier: "aeon.library.import.folder", action: selectFolder)
+                        importOption(
+                            title: "Adopt Library",
+                            detail: "Scan On My iPhone → ISOLATION → Music. Album folders stay exactly where you put them.",
+                            glyph: .folder,
+                            identifier: "aeon.library.import.adopt",
+                            action: adoptLibrary
+                        )
                     }
+                    Text("Each folder containing audio becomes one album when tags do not provide a better title. Re-scan anytime; existing albums are skipped and moved adopted albums are re-linked when the match is unambiguous.")
+                        .font(AeonTheme.FontToken.ui(.caption))
+                        .foregroundStyle(AeonOrbit.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("aeon.import.adopt.help")
                 }
                 .padding(.horizontal, AeonTheme.Space.edge)
                 .padding(.top, AeonTheme.Space.small).padding(.bottom, AeonTheme.Space.large)

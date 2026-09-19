@@ -91,6 +91,9 @@ extension ImportPickerTests {
         duplicate.skippedDuplicateAlbums = ["Existing"]
         XCTAssertTrue(duplicate.userMessage.contains("already in your Library"))
         XCTAssertFalse(duplicate.userMessage.contains("Added"))
+        var repaired = LibraryImportResult()
+        repaired.repairedTracks = 2
+        XCTAssertTrue(repaired.userMessage.contains("Re-linked 2 adopted tracks"))
     }
 
     /// Real compressed bytes, the actual picker delegate, importer, decoder, database,
@@ -160,6 +163,67 @@ extension ImportPickerTests {
         _ = try await command { services.playbackCoordinator.pause(completion: $0) }
         XCTAssertGreaterThan(observedPosition, 0.01, "The production audio playhead must actually advance")
         XCTAssertEqual(services.playbackController.snapshot?.trackID, track.id)
+        XCTAssertNil(services.playbackController.failure)
+    }
+
+    @MainActor
+    @objc func testAdoptedMusicFolderStaysInPlaceAndPlaysThroughProductionEngine() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("AeonAdoptPlayback-\(UUID().uuidString)", isDirectory: true)
+        let roots = try AppStorageRoots.temporary(at: root, fileManager: .default)
+        let services = try AppServices.production(roots: roots, startSpectrum: false, startPlayback: true)
+        defer {
+            services.playbackController.applicationDidEnterBackground()
+            services.catalogDatabase.close()
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        let fixture = try XCTUnwrap(Bundle(for: ImportPickerTests.self).resourceURL)
+            .appendingPathComponent("audio/tone-48000.mp3")
+        let source = services.mediaStore.documentsMusicRoot
+            .appendingPathComponent("Adopt Artist/Adopt Album/01 Adopted.mp3")
+        try FileManager.default.createDirectory(
+            at: source.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let bytes = try Data(contentsOf: fixture)
+        try bytes.write(to: source, options: .atomic)
+
+        let result = try await services.libraryImporter.adoptMusicLibrary()
+        XCTAssertEqual(result.importedTracks, 1, result.userMessage)
+        XCTAssertEqual(result.importedAlbums, 1, result.userMessage)
+        let album = try XCTUnwrap(services.catalogRepository.albumPage().first)
+        let track = try XCTUnwrap(services.catalogRepository.tracks(albumID: album.id).first)
+        guard case .documents(let path) = track.mediaReference else {
+            return XCTFail("Adopted music must remain a Documents reference")
+        }
+        XCTAssertEqual(path, "Music/Adopt Artist/Adopt Album/01 Adopted.mp3")
+        XCTAssertEqual(try Data(contentsOf: source), bytes)
+
+        let queue = [QueueItem(trackID: track.id, albumID: track.albumID, mediaRef: track.mediaReference)]
+        let loaded = try await command { completion in
+            services.playbackCoordinator.load(
+                trackID: track.id,
+                mediaRef: track.mediaReference,
+                queue: queue,
+                index: 0,
+                completion: completion
+            )
+        }
+        XCTAssertEqual(loaded.trackID, track.id)
+        _ = try await command { services.playbackCoordinator.play(completion: $0) }
+        var observedPosition: Double = 0
+        for _ in 0..<100 {
+            try await Task.sleep(nanoseconds: 20_000_000)
+            let snapshot = try await command { completion in
+                services.playbackCoordinator.getState { completion(.success($0)) }
+            }
+            observedPosition = max(observedPosition, snapshot.position)
+            if observedPosition > 0.01 { break }
+        }
+        _ = try await command { services.playbackCoordinator.pause(completion: $0) }
+        XCTAssertGreaterThan(observedPosition, 0.01)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
         XCTAssertNil(services.playbackController.failure)
     }
 

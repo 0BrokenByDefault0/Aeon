@@ -104,7 +104,7 @@ final class AeonScreenMatrixTests: XCTestCase {
         importMusic.tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["aeon.library.import.files"].isHittable)
-        XCTAssertTrue(app.buttons["aeon.library.import.folder"].isHittable)
+        XCTAssertTrue(app.buttons["aeon.library.import.adopt"].isHittable)
         capture(app, name: "screen-import")
 
         app.terminate()

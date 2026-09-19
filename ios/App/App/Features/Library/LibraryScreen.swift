@@ -5,7 +5,7 @@ struct LibraryScreen: View {
     let importProgress: LibraryImportProgress?
     let importError: String?
     let importFiles: () -> Void
-    let importFolder: () -> Void
+    let adoptLibrary: () -> Void
     let findInSky: (String, Bool) -> Void
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -25,7 +25,7 @@ struct LibraryScreen: View {
                                 findInSky: { id in controller.dismissAlbum(); findInSky(id, effectiveReduceMotion) })
             }
         }
-        .sheet(isPresented: $importSheetPresented) { AeonImportSheet(selectFiles: importFiles, selectFolder: importFolder) }
+        .sheet(isPresented: $importSheetPresented) { AeonImportSheet(selectFiles: importFiles, adoptLibrary: adoptLibrary) }
         .overlay(alignment: .top) {
             if let message = controller.message {
                 AeonToast(message: message).padding(.top, AeonTheme.Space.small).onTapGesture { controller.clearMessage() }

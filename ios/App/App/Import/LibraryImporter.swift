@@ -22,6 +22,7 @@ struct LibraryImportResult: Equatable {
     var importedTracks = 0
     var failedFiles: [URL] = []
     var skippedDuplicateAlbums: [String] = []
+    var repairedTracks = 0
     var failureReasons: [String] = []
 
     /// A completed pipeline is not necessarily a successful import. Always report the outcome.
@@ -29,6 +30,8 @@ struct LibraryImportResult: Equatable {
         var parts: [String] = []
         if importedTracks > 0 {
             parts.append("Added \(importedTracks) track\(importedTracks == 1 ? "" : "s") in \(importedAlbums) album\(importedAlbums == 1 ? "" : "s") to Library.")
+        } else if repairedTracks > 0 {
+            parts.append("Re-linked \(repairedTracks) adopted track\(repairedTracks == 1 ? "" : "s") to \(repairedTracks == 1 ? "its" : "their") current Files location.")
         } else if !failedFiles.isEmpty {
             parts.append("No tracks were imported.")
         } else if !skippedDuplicateAlbums.isEmpty {
@@ -43,6 +46,9 @@ struct LibraryImportResult: Equatable {
         }
         if importedTracks > 0 && !skippedDuplicateAlbums.isEmpty {
             parts.append("\(skippedDuplicateAlbums.count) existing album\(skippedDuplicateAlbums.count == 1 ? "" : "s") skipped.")
+        }
+        if importedTracks > 0 && repairedTracks > 0 {
+            parts.append("Re-linked \(repairedTracks) adopted track\(repairedTracks == 1 ? "" : "s") to \(repairedTracks == 1 ? "its" : "their") current Files location.")
         }
         return parts.joined(separator: "\n\n")
     }
@@ -99,6 +105,11 @@ final class LibraryImporter: @unchecked Sendable {
         let byteCount: Int64
     }
 
+    private enum ScanPolicy: Equatable {
+        case selectedSources
+        case adoptedMusicRoot
+    }
+
     private let repository: CatalogRepository
     private let mediaStore: MediaStore
     private let tagReader: AudioTagReading
@@ -137,12 +148,48 @@ final class LibraryImporter: @unchecked Sendable {
         cancellation: LibraryImportCancellation = LibraryImportCancellation(),
         progress: @escaping (LibraryImportProgress) -> Void = { _ in }
     ) async throws -> LibraryImportResult {
-        let accessed = selectedURLs.filter { $0.startAccessingSecurityScopedResource() }
+        try await importURLs(
+            selectedURLs,
+            mode: mode,
+            scanPolicy: .selectedSources,
+            cancellation: cancellation,
+            progress: progress
+        )
+    }
+
+    /// Scans Aeon's own Files-visible Music directory and adopts audio in place.
+    /// No security-scoped external-folder grant is needed and no audio is copied.
+    func adoptMusicLibrary(
+        cancellation: LibraryImportCancellation = LibraryImportCancellation(),
+        progress: @escaping (LibraryImportProgress) -> Void = { _ in }
+    ) async throws -> LibraryImportResult {
+        try await importURLs(
+            [mediaStore.documentsMusicRoot],
+            mode: .folder,
+            scanPolicy: .adoptedMusicRoot,
+            cancellation: cancellation,
+            progress: progress
+        )
+    }
+
+    private func importURLs(
+        _ selectedURLs: [URL],
+        mode: LibraryImportGroupingMode,
+        scanPolicy: ScanPolicy,
+        cancellation: LibraryImportCancellation,
+        progress: @escaping (LibraryImportProgress) -> Void
+    ) async throws -> LibraryImportResult {
+        let accessed: [URL]
+        if scanPolicy == .selectedSources {
+            accessed = selectedURLs.filter { $0.startAccessingSecurityScopedResource() }
+        } else {
+            accessed = []
+        }
         defer { accessed.forEach { $0.stopAccessingSecurityScopedResource() } }
 
         // A location that is still unreachable once its grant has been claimed is one
         // Aeon genuinely cannot read: an unmounted provider, or a bookmark the system
-        // has revoked. Report it rather than finishing with an empty, silent success.
+        // has revoked. App-owned Music does not require a scoped grant.
         let unreachable = selectedURLs.filter { (try? $0.checkResourceIsReachable()) != true }
         if !selectedURLs.isEmpty, unreachable.count == selectedURLs.count {
             throw LibraryImportError.accessDenied
@@ -152,14 +199,21 @@ final class LibraryImporter: @unchecked Sendable {
         progress(LibraryImportProgress(
             phase: .scanning, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
         ))
-        let files = try collectAudioFiles(selectedURLs, cancellation: cancellation)
+        let files = try collectAudioFiles(
+            selectedURLs,
+            scanPolicy: scanPolicy,
+            cancellation: cancellation
+        )
         guard !files.isEmpty else { throw LibraryImportError.noSupportedAudio }
         let signature = selectionSignature(files: files, mode: mode)
         let cursorKey = "library.import.cursor.\(signature)"
 
-        // Decode only stable local snapshots. A security-scoped URL is not itself a
-        // downloaded, coordinated file; third-party Files providers can evict or move it.
-        let stagingRoot = fileManager.temporaryDirectory.appendingPathComponent("AeonImport-\(UUID().uuidString)", isDirectory: true)
+        // Decode only stable local snapshots for external providers. Music already under
+        // Documents/Music stays in place and is read directly.
+        let stagingRoot = fileManager.temporaryDirectory.appendingPathComponent(
+            "AeonImport-\(UUID().uuidString)",
+            isDirectory: true
+        )
         defer { try? fileManager.removeItem(at: stagingRoot) }
         var originalURLs: [URL: URL] = [:]
         var result = LibraryImportResult()
@@ -196,8 +250,6 @@ final class LibraryImporter: @unchecked Sendable {
             ))
         }
 
-        // Every file was found but none could be read. Report why rather than finishing
-        // with a successful import of nothing.
         if candidates.isEmpty, !result.failedFiles.isEmpty {
             if undownloadedFiles == result.failedFiles.count { throw LibraryImportError.sourceUnavailable }
             return result
@@ -218,11 +270,21 @@ final class LibraryImporter: @unchecked Sendable {
         for groupIndex in startIndex ..< groups.count {
             try cancellation.check()
             let group = ImportGrouper.sortAlbumItems(groups[groupIndex])
-            let groupResult = try await importGroup(group, originalURLs: originalURLs, result: &result, cancellation: cancellation)
+            let groupResult = try await importGroup(
+                group,
+                originalURLs: originalURLs,
+                result: &result,
+                cancellation: cancellation
+            )
             result.importedAlbums += groupResult.albumCount
             result.importedTracks += groupResult.trackCount
+            result.repairedTracks += groupResult.repairedTracks
             if let duplicate = groupResult.duplicate { result.skippedDuplicateAlbums.append(duplicate) }
-            try repository.setSetting(Cursor(signature: signature, nextGroup: groupIndex + 1), forKey: cursorKey, at: now())
+            try repository.setSetting(
+                Cursor(signature: signature, nextGroup: groupIndex + 1),
+                forKey: cursorKey,
+                at: now()
+            )
             progress(LibraryImportProgress(
                 phase: .committing,
                 completedFiles: files.count,
@@ -276,8 +338,8 @@ final class LibraryImporter: @unchecked Sendable {
         originalURLs: [URL: URL],
         result: inout LibraryImportResult,
         cancellation: LibraryImportCancellation
-    ) async throws -> (albumCount: Int, trackCount: Int, duplicate: String?) {
-        guard !group.isEmpty else { return (0, 0, nil) }
+    ) async throws -> (albumCount: Int, trackCount: Int, duplicate: String?, repairedTracks: Int) {
+        guard !group.isEmpty else { return (0, 0, nil, 0) }
         var playable: [ProbedCandidate] = []
         for candidate in group {
             try cancellation.check()
@@ -288,7 +350,7 @@ final class LibraryImporter: @unchecked Sendable {
             let size = (try? candidate.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
             playable.append(ProbedCandidate(candidate: candidate, media: media, byteCount: size))
         }
-        guard !playable.isEmpty else { return (0, 0, nil) }
+        guard !playable.isEmpty else { return (0, 0, nil, 0) }
 
         var fields = ImportGrouper.albumFields(
             for: playable.map(\.candidate),
@@ -299,8 +361,11 @@ final class LibraryImporter: @unchecked Sendable {
            let enriched = try? await metadataEnricher.automaticGenre(for: fields.artist) {
             fields = ImportAlbumFields(title: fields.title, artist: fields.artist, year: fields.year, genre: enriched)
         }
+        if let repaired = try repairAdoptedAlbumIfNeeded(fields: fields, playable: playable), repaired > 0 {
+            return (0, 0, nil, repaired)
+        }
         if try isDuplicate(fields: fields, trackCount: playable.count) {
-            return (0, 0, fields.title)
+            return (0, 0, fields.title, 0)
         }
 
         let timestamp = now()
@@ -347,7 +412,7 @@ final class LibraryImporter: @unchecked Sendable {
                 result.recordFailure(originalURLs[item.candidate.url] ?? item.candidate.url, stage: "could not save the audio", error: error)
             }
         }
-        guard !tracks.isEmpty else { return (0, 0, nil) }
+        guard !tracks.isEmpty else { return (0, 0, nil, 0) }
 
         let artworkKey = await artwork(for: playable.map(\.candidate), originalURLs: originalURLs, albumID: albumID)
         storedArtworkKey = artworkKey
@@ -365,7 +430,7 @@ final class LibraryImporter: @unchecked Sendable {
         do {
             try repository.insertAlbum(album, tracks: tracks)
             committed = true
-            return (1, tracks.count, nil)
+            return (1, tracks.count, nil, 0)
         } catch {
             throw error
         }
@@ -407,14 +472,23 @@ final class LibraryImporter: @unchecked Sendable {
     }
 
     private func isDuplicate(fields: ImportAlbumFields, trackCount: Int) throws -> Bool {
+        try !matchingAlbums(fields: fields, trackCount: trackCount).isEmpty
+    }
+
+    private func matchingAlbums(
+        fields: ImportAlbumFields,
+        trackCount: Int,
+        limit: Int = 2
+    ) throws -> [CatalogAlbumSummary] {
         var offset = 0
-        while true {
+        var matches: [CatalogAlbumSummary] = []
+        while matches.count < limit {
             let page = try repository.albumPage(
                 offset: offset,
                 limit: CatalogDatabase.maximumPageSize,
                 sort: .recentlyAdded
             )
-            if page.contains(where: {
+            matches.append(contentsOf: page.filter {
                 ImportGrouper.isDuplicate(
                     existingTitle: $0.title,
                     existingArtist: $0.artist,
@@ -422,14 +496,81 @@ final class LibraryImporter: @unchecked Sendable {
                     candidate: fields,
                     candidateTrackCount: trackCount
                 )
-            }) { return true }
-            if page.count < CatalogDatabase.maximumPageSize { return false }
+            })
+            if page.count < CatalogDatabase.maximumPageSize { break }
             offset += page.count
         }
+        return Array(matches.prefix(limit))
+    }
+
+    /// Re-link an already-adopted album after the collector moves its folder inside
+    /// Documents/Music. This is deliberately conservative: exactly one matching album,
+    /// all of its tracks must already be collector-owned Documents/Music references,
+    /// and every candidate must match by disc/track number or normalized title.
+    private func repairAdoptedAlbumIfNeeded(
+        fields: ImportAlbumFields,
+        playable: [ProbedCandidate]
+    ) throws -> Int? {
+        let newReferences = playable.compactMap { mediaStore.adoptedDocumentReference(for: $0.candidate.url) }
+        guard newReferences.count == playable.count else { return nil }
+        let matches = try matchingAlbums(fields: fields, trackCount: playable.count)
+        guard matches.count == 1 else { return nil }
+
+        let albumID = matches[0].id
+        let existing = try repository.tracks(albumID: albumID)
+        guard existing.count == playable.count else { return nil }
+        guard existing.allSatisfy({ track in
+            guard case .documents(let path) = track.mediaReference,
+                  path.hasPrefix("Music/"),
+                  !path.hasPrefix("Music/_Imported/"),
+                  !path.hasPrefix("Music/_Migrated/"),
+                  !path.hasPrefix("Music/_Restored/") else { return false }
+            return true
+        }) else { return nil }
+
+        guard existing.indices.allSatisfy({
+            adoptedTrackIdentityMatches(existing[$0], playable[$0].candidate)
+        }) else { return nil }
+
+        var changed = 0
+        for index in existing.indices {
+            if existing[index].mediaReference == newReferences[index] { continue }
+            let item = playable[index]
+            let updated = CatalogTrack(
+                id: existing[index].id,
+                albumID: existing[index].albumID,
+                sequence: existing[index].sequence,
+                discNumber: existing[index].discNumber,
+                trackNumber: existing[index].trackNumber,
+                title: existing[index].title,
+                artist: existing[index].artist,
+                duration: item.media.descriptor.duration,
+                byteCount: item.byteCount,
+                mediaReference: newReferences[index],
+                importedAt: existing[index].importedAt
+            )
+            try repository.updateTrack(updated)
+            changed += 1
+        }
+        return changed
+    }
+
+    private func adoptedTrackIdentityMatches(_ existing: CatalogTrack, _ candidate: ImportCandidate) -> Bool {
+        let inferred = ImportGrouper.trackNumbers(from: candidate.url.lastPathComponent)
+        let candidateDisc = candidate.tags.discNumber ?? inferred.disc
+        let candidateTrack = candidate.tags.trackNumber ?? inferred.track
+        if let existingTrack = existing.trackNumber, let candidateTrack,
+           existingTrack == candidateTrack,
+           (existing.discNumber ?? 1) == (candidateDisc ?? 1) {
+            return true
+        }
+        let candidateTitle = clean(candidate.tags.title) ?? candidate.url.deletingPathExtension().lastPathComponent
+        return ImportGrouper.normalizedPerson(existing.title) == ImportGrouper.normalizedPerson(candidateTitle)
     }
 
     private func collectAudioFiles(
         _ selectedURLs: [URL],
+        scanPolicy: ScanPolicy,
         cancellation: LibraryImportCancellation
     ) throws -> [(url: URL, batchLabel: String)] {
         var collected: [(URL, String)] = []
@@ -460,6 +601,11 @@ final class LibraryImporter: @unchecked Sendable {
                             enumerator.skipDescendants()
                             continue
                         }
+                        if isDirectory, scanPolicy == .adoptedMusicRoot,
+                           isManagedMusicDirectory(entry) {
+                            enumerator.skipDescendants()
+                            continue
+                        }
                         walked.append(entry)
                     }
                 }
@@ -471,12 +617,22 @@ final class LibraryImporter: @unchecked Sendable {
                 try cancellation.check()
                 guard let target = audioTarget(for: candidate) else { continue }
                 let key = target.standardizedFileURL.resolvingSymlinksInPath().path
-                if seen.insert(key).inserted { collected.append((target, batchLabel)) }
+                let resolvedLabel = values?.isDirectory == true
+                    ? target.deletingLastPathComponent().lastPathComponent
+                    : batchLabel
+                if seen.insert(key).inserted { collected.append((target, resolvedLabel)) }
             }
         }
         return collected.sorted {
             $0.0.path.localizedStandardCompare($1.0.path) == .orderedAscending
         }
+    }
+
+    private func isManagedMusicDirectory(_ url: URL) -> Bool {
+        let music = mediaStore.documentsMusicRoot.standardizedFileURL.resolvingSymlinksInPath()
+        let candidate = url.standardizedFileURL.resolvingSymlinksInPath()
+        guard candidate.deletingLastPathComponent() == music else { return false }
+        return ["_Imported", "_Migrated", "_Restored"].contains(candidate.lastPathComponent)
     }
 
     /// Maps a directory entry to the audio file it stands for, or nil when it is not one

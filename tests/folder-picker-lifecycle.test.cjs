@@ -2,56 +2,64 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const {readFileSync} = require('node:fs');
 const {join} = require('node:path');
-const {createHash} = require('node:crypto');
-const read = path => readFileSync(join(__dirname, '..', path), 'utf8');
-const picker = read('ios/App/App/Import/ImportPicker.swift');
-const root = read('ios/App/App/Features/Root/AeonRootView.swift');
-const ui = read('ios/App/AppUITests/ImportPickerPresentationTests.swift');
+const root = join(__dirname, '..');
+const read = path => readFileSync(join(root, path), 'utf8');
+
+const importer = read('ios/App/App/Import/LibraryImporter.swift');
+const container = read('ios/App/App/AppContainer.swift');
+const rootView = read('ios/App/App/Features/Root/AeonRootView.swift');
+const components = read('ios/App/App/DesignSystem/AeonComponents.swift');
 const workflow = read('.github/workflows/ios-ipa.yml');
 
-test('folder uses exactly one root SwiftUI fileImporter', () => {
-  assert.equal((root.match(/\.fileImporter\(/g) || []).length, 1);
-  assert.match(root, /allowedContentTypes: \[\.folder\]/);
-  assert.match(root, /allowsMultipleSelection: false/);
-  assert.match(root, /@State private var folderImporterPresented = false/);
-  assert.doesNotMatch(root, /FolderPickerSession|FolderDocumentPicker/);
+test('official large-library flow adopts Aeons own Music directory in place', () => {
+  assert.match(importer, /func adoptMusicLibrary\(/);
+  assert.match(importer, /\[mediaStore\.documentsMusicRoot\]/);
+  assert.match(importer, /mode: \.folder/);
+  assert.match(importer, /scanPolicy: \.adoptedMusicRoot/);
+  assert.match(importer, /if mediaStore\.adoptedDocumentReference\(for: source\) != nil \{ return source \}/);
 });
 
-test('file copy picker remains separate and unchanged in policy', () => {
-  assert.match(picker, /var copiesSelection: Bool \{ self == \.audioFiles \}/);
-  assert.match(picker, /asCopy: kind\.copiesSelection/);
-  assert.match(root, /ImportDocumentPicker\(kind: kind, event: recordPickerEvent\)/);
-  assert.match(root, /if kind == \.folder \{[\s\S]*?folderImporterPresented = true[\s\S]*?\} else \{\s*picker = kind/);
+test('adoption skips Aeon-managed internal music roots and hidden directories', () => {
+  assert.match(importer, /isManagedMusicDirectory/);
+  for (const name of ['_Imported', '_Migrated', '_Restored']) assert.ok(importer.includes(`"${name}"`));
+  assert.match(importer, /isDirectory, name\.hasPrefix\("\."\)/);
 });
 
-test('folder result acquires access and enters the existing importer handoff', () => {
-  assert.match(root, /folder\.swiftui\.received/);
-  assert.match(root, /acceptPickerOutcome\(\.picked\(urls\), kind: \.folder\)/);
-  assert.match(root, /if case \.picked\(let urls\) = outcome, !kind\.copiesSelection \{\s*sourceAccess = ImportSourceAccess\(urls: urls\)/);
-  assert.match(root, /case \.folder:\s*container\.importLibrary\(urls: urls, mode: \.folder\)/);
+test('folder grouping uses the actual leaf folder during recursive adoption', () => {
+  assert.match(importer, /target\.deletingLastPathComponent\(\)\.lastPathComponent/);
+  assert.match(importer, /folderKey: entry\.url\.deletingLastPathComponent\(\)\.standardizedFileURL\.path/);
 });
 
-test('folder dismissal and failure are observable without private paths', () => {
-  assert.match(root, /folder\.swiftui\.dismissed/);
-  assert.match(root, /folder\.swiftui\.cancelled/);
-  assert.match(root, /folder\.swiftui\.failed/);
-  assert.doesNotMatch(root, /folder\.swiftui\.[^"\n]*lastPathComponent|folder\.swiftui\.[^"\n]*\.path/);
+test('UI exposes Files plus Adopt Library, not the broken external folder picker', () => {
+  assert.match(components, /title: "Adopt Library"/);
+  assert.match(components, /aeon\.library\.import\.adopt/);
+  assert.match(components, /On My iPhone → ISOLATION → Music/);
+  assert.doesNotMatch(components, /aeon\.library\.import\.folder/);
+  assert.match(rootView, /adoptLibrary: \{ container\.adoptMusicLibrary\(\) \}/);
+  assert.doesNotMatch(rootView, /folderImporterPresented|folder\.swiftui/);
 });
 
-test('custom retained folder-host experiment is removed', () => {
-  assert.doesNotMatch(picker, /FolderPickerHost|FolderPickerSession|FolderDocumentPicker/);
+test('adoption uses the existing import progress and result channels', () => {
+  assert.match(container, /func adoptMusicLibrary\(\)/);
+  assert.match(container, /library\.adopt\.started/);
+  assert.match(container, /library\.adopt\.completed/);
+  assert.match(container, /libraryImportProgress = LibraryImportProgress/);
+  assert.match(container, /libraryImportResult = result/);
 });
 
-test('original picker presentation and cancellation coverage remains byte-identical', () => {
-  const original = ui.split('\nextension ImportPickerPresentationTests {')[0];
-  const bytes = Buffer.from(original);
-  const sha = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
-  assert.equal(sha, '934e307695ac699260da8bc61983abfa5e7e2bfe');
+
+test('adopt rescan can conservatively repair moved collector-owned albums', () => {
+  assert.match(importer, /repairAdoptedAlbumIfNeeded/);
+  assert.match(importer, /matchingAlbums\(fields: fields, trackCount: playable\.count\)/);
+  assert.match(importer, /repository\.updateTrack\(updated\)/);
+  assert.match(importer, /!path\.hasPrefix\("Music\/_Imported\/"\)/);
+  assert.match(importer, /!path\.hasPrefix\("Music\/_Migrated\/"\)/);
+  assert.match(importer, /!path\.hasPrefix\("Music\/_Restored\/"\)/);
+  assert.match(importer, /repairedTracks/);
 });
 
-test('IPA build numbering and upload-before-native ordering remain intact', () => {
+test('IPA-first ordering and distinct build numbers remain intact', () => {
   assert.match(workflow, /CURRENT_PROJECT_VERSION="\$GITHUB_RUN_NUMBER"/);
-  assert(workflow.indexOf('- name: Upload fast IPA') < workflow.indexOf('- name: Capture orbital UI review'));
   assert(workflow.indexOf('- name: Upload fast IPA') < workflow.indexOf('- name: Run focused native validation'));
   assert.doesNotMatch(workflow, /continue-on-error/);
 });

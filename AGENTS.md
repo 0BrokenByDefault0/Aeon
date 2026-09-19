@@ -24,6 +24,8 @@ The fast IPA is iteration evidence only: its embedded manifest records native va
 
 - Never introduce emoji into app UI, source, documentation, or test output. Use named SVG icons or plain text.
 - Preserve user-owned music metadata.
+- Treat Files → On My iPhone → ISOLATION → Music as the official large-library adoption root. Adopt files in place; never duplicate or delete collector-owned files there.
+- External folder-picker access is not a release dependency. The Import sheet offers copied Files import plus Adopt Library; do not reintroduce a broken security-scoped folder picker without physical-device evidence.
 - Preserve the near-clear silver glass, white typography, square borders, and vibrant sky unless the user requests changes.
 
 ## Current UI direction — 2026-09-17

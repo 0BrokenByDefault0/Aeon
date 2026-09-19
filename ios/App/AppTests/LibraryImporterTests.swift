@@ -177,6 +177,86 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(try repository.tracks(albumID: album.id).map(\.title), ["Deep"])
     }
 
+    func testAdoptMusicLibraryScansUserFoldersInPlaceSkipsManagedRootsAndRescansIdempotently() async throws {
+        let first = mediaStore.documentsMusicRoot.appendingPathComponent("Artist One/Album One/01 First.wav")
+        let second = mediaStore.documentsMusicRoot.appendingPathComponent("Artist Two/Album Two/01 Second.wav")
+        let managedImported = mediaStore.documentsMusicRoot.appendingPathComponent("_Imported/internal/managed.wav")
+        let managedMigrated = mediaStore.documentsMusicRoot.appendingPathComponent("_Migrated/managed.wav")
+        let managedRestored = mediaStore.documentsMusicRoot.appendingPathComponent("_Restored/op/managed.wav")
+        for url in [first, second, managedImported, managedMigrated, managedRestored] { try writeAudio(url) }
+
+        let reader = StubTagReader(values: [
+            first.lastPathComponent: AudioTags(title: "First", artist: "Artist One", albumArtist: nil, album: nil, year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil),
+            second.lastPathComponent: AudioTags(title: "Second", artist: "Artist Two", albumArtist: nil, album: nil, year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil)
+        ])
+        let importer = makeImporter(reader: reader, probe: StubProbe())
+
+        let initial = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(initial.importedAlbums, 2)
+        XCTAssertEqual(initial.importedTracks, 2)
+        XCTAssertTrue(initial.failedFiles.isEmpty)
+
+        let albums = try repository.albumPage(offset: 0, limit: 10, sort: .title)
+        XCTAssertEqual(Set(albums.map(\.title)), Set(["Album One", "Album Two"]))
+        var adoptedPaths: [String] = []
+        for album in albums {
+            for track in try repository.tracks(albumID: album.id) {
+                guard case .documents(let path) = track.mediaReference else {
+                    return XCTFail("Adopted audio must remain a Documents reference")
+                }
+                adoptedPaths.append(path)
+            }
+        }
+        XCTAssertEqual(Set(adoptedPaths), Set([
+            "Music/Artist One/Album One/01 First.wav",
+            "Music/Artist Two/Album Two/01 Second.wav"
+        ]))
+        XCTAssertEqual(try Data(contentsOf: first), Data("audio".utf8))
+        XCTAssertEqual(try Data(contentsOf: second), Data("audio".utf8))
+
+        let rescan = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(rescan.importedAlbums, 0)
+        XCTAssertEqual(rescan.importedTracks, 0)
+        XCTAssertEqual(Set(rescan.skippedDuplicateAlbums), Set(["Album One", "Album Two"]))
+        XCTAssertEqual(try repository.albumCount(), 2)
+    }
+
+    func testAdoptRescanRelinksMovedAlbumWithoutChangingTrackIdentity() async throws {
+        let original = mediaStore.documentsMusicRoot.appendingPathComponent("Artist/Original Folder/01 Move Me.wav")
+        try writeAudio(original)
+        let tags = AudioTags(
+            title: "Move Me", artist: "Artist", albumArtist: nil, album: "Stable Album",
+            year: nil, genre: nil, trackNumber: 1, discNumber: 1, artworkData: nil
+        )
+        let importer = makeImporter(
+            reader: StubTagReader(values: [original.lastPathComponent: tags]),
+            probe: StubProbe()
+        )
+
+        let first = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(first.importedTracks, 1)
+        let album = try XCTUnwrap(repository.albumPage().first)
+        let before = try XCTUnwrap(repository.tracks(albumID: album.id).first)
+        let beforeID = before.id
+
+        let moved = mediaStore.documentsMusicRoot.appendingPathComponent("Artist/New Folder/01 Move Me.wav")
+        try FileManager.default.createDirectory(at: moved.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: original, to: moved)
+
+        let repaired = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(repaired.importedAlbums, 0)
+        XCTAssertEqual(repaired.importedTracks, 0)
+        XCTAssertEqual(repaired.repairedTracks, 1)
+        let after = try XCTUnwrap(repository.track(id: beforeID))
+        XCTAssertEqual(after.id, beforeID)
+        guard case .documents(let path) = after.mediaReference else {
+            return XCTFail("Repaired adopted audio must remain a Documents reference")
+        }
+        XCTAssertEqual(path, "Music/Artist/New Folder/01 Move Me.wav")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try mediaStore.resolve(after.mediaReference).path))
+        XCTAssertEqual(try repository.albumCount(), 1)
+    }
+
     private func makeImporter(reader: AudioTagReading, probe: MediaProbing) -> LibraryImporter {
         LibraryImporter(
             repository: repository, mediaStore: mediaStore,

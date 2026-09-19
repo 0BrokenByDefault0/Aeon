@@ -17,16 +17,23 @@ final class ImportPickerPresentationTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 8))
     }
 
-    func testImportFolderPresentsTheSystemDocumentPicker() {
+    func testAdoptLibraryScansAppOwnedMusicWithoutOpeningAnotherPicker() {
         let app = launch()
         openImportSheet(in: app)
-        let button = app.buttons["aeon.library.import.folder"]
+        let button = app.buttons["aeon.library.import.adopt"]
         XCTAssertTrue(button.waitForExistence(timeout: 5))
         button.tap()
 
-        XCTAssertTrue(documentPickerIsPresented(over: app), "Folder import opened no picker")
-        dismissDocumentPicker(over: app)
-        XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 8))
+        let notice = app.alerts["Import"]
+        XCTAssertTrue(notice.waitForExistence(timeout: 12), "Adopt Library should complete through Aeon's own Music folder")
+        XCTAssertTrue(
+            notice.staticTexts.matching(NSPredicate(
+                format: "label CONTAINS[c] %@", "On My iPhone"
+            )).firstMatch.exists,
+            notice.debugDescription
+        )
+        XCTAssertFalse(app.buttons["Cancel"].exists, "Adopt Library must not request an external folder grant")
+        notice.buttons["OK"].tap()
     }
 
     func testCancellingAPickerLeavesNoImportErrorBehind() {
@@ -52,7 +59,7 @@ final class ImportPickerPresentationTests: XCTestCase {
             app.buttons["aeon.import.sheet"].exists,
             "The sheet identifier must not replace an import source identifier."
         )
-        for identifier in ["aeon.library.import.files", "aeon.library.import.folder"] {
+        for identifier in ["aeon.library.import.files", "aeon.library.import.adopt"] {
             let sources = app.buttons.matching(identifier: identifier)
             XCTAssertTrue(sources.firstMatch.waitForExistence(timeout: 5))
             XCTAssertEqual(sources.count, 1, "Each import source must have a unique identifier.")

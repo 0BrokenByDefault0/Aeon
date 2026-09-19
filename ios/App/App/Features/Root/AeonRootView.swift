@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct AeonRootView: View {
     @ObservedObject var container: AppContainer
@@ -7,7 +6,6 @@ struct AeonRootView: View {
     /// leave all but one inert, which is why IMPORT FILES opened nothing on device.
     @State private var picker: ImportPickerKind?
     @State private var pickerIsVisible = false
-    @State private var folderImporterPresented = false
     @State private var sourceAccess: ImportSourceAccess?
     @State private var completedImport: LibraryImportResult?
 
@@ -36,30 +34,6 @@ struct AeonRootView: View {
             }
             .ignoresSafeArea()
             .onAppear { pickerIsVisible = true }
-        }
-        .fileImporter(
-            isPresented: $folderImporterPresented,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                recordPickerEvent("folder.swiftui.received.\(urls.count)")
-                acceptPickerOutcome(.picked(urls), kind: .folder)
-            case .failure(let error):
-                let cocoa = error as? CocoaError
-                if cocoa?.code == .userCancelled {
-                    recordPickerEvent("folder.swiftui.cancelled")
-                } else {
-                    recordPickerEvent("folder.swiftui.failed.\((error as NSError).code)")
-                    acceptPickerOutcome(.failed("Aeon could not receive that folder from Files. Try another location or choose the files directly."), kind: .folder)
-                }
-            }
-        }
-        .onChange(of: folderImporterPresented) { visible in
-            guard !visible, picker == nil else { return }
-            pickerIsVisible = false
-            recordPickerEvent("folder.swiftui.dismissed")
         }
         .alert(
             "Import",
@@ -91,12 +65,7 @@ struct AeonRootView: View {
         completedImport = nil
         pickerIsVisible = true
         recordPickerEvent("requested.\(kind.rawValue)")
-        if kind == .folder {
-            recordPickerEvent("configured.folder.swiftui")
-            folderImporterPresented = true
-        } else {
-            picker = kind
-        }
+        picker = kind
     }
 
     private func acceptPickerOutcome(_ outcome: ImportPickerOutcome, kind: ImportPickerKind) {
@@ -210,7 +179,7 @@ struct AeonRootView: View {
                     importProgress: container.libraryImportProgress,
                     importError: container.libraryImportError,
                     importFiles: { requestPicker(.audioFiles) },
-                    importFolder: { requestPicker(.folder) }
+                    adoptLibrary: { container.adoptMusicLibrary() }
                 )
             }
         case .recovery(let issue):
@@ -316,7 +285,7 @@ private struct AeonReadyShell: View {
     let importProgress: LibraryImportProgress?
     let importError: String?
     let importFiles: () -> Void
-    let importFolder: () -> Void
+    let adoptLibrary: () -> Void
     @ObservedObject private var playback: PlaybackController
     @StateObject private var libraryController: LibraryController
     @StateObject private var playlistsController: PlaylistsController
@@ -336,7 +305,7 @@ private struct AeonReadyShell: View {
         importProgress: LibraryImportProgress?,
         importError: String?,
         importFiles: @escaping () -> Void,
-        importFolder: @escaping () -> Void
+        adoptLibrary: @escaping () -> Void
     ) {
         self.container = container
         self.services = services
@@ -344,7 +313,7 @@ private struct AeonReadyShell: View {
         self.importProgress = importProgress
         self.importError = importError
         self.importFiles = importFiles
-        self.importFolder = importFolder
+        self.adoptLibrary = adoptLibrary
         _playback = ObservedObject(wrappedValue: services.playbackController)
         _libraryController = StateObject(wrappedValue: LibraryController(
             repository: services.catalogRepository,
@@ -393,7 +362,7 @@ private struct AeonReadyShell: View {
                             highContrast: settingsController.preferences.highSkyContrast,
                             reduceMotionOverride: settingsController.preferences.reduceMotion,
                             importFiles: importFiles,
-                            importFolder: importFolder,
+                            adoptLibrary: adoptLibrary,
                             isForeground: destination == .sky && !nowPlayingVisible
                         )
                         if destination != .sky {
@@ -495,7 +464,7 @@ private struct AeonReadyShell: View {
                     importProgress: importProgress,
                     importError: importError,
                     importFiles: importFiles,
-                    importFolder: importFolder,
+                    adoptLibrary: adoptLibrary,
                     findInSky: { id, reduceMotion in
                         libraryController.findInSky(id: id, reduceMotion: reduceMotion)
                         if !regular { self.destination = .sky }

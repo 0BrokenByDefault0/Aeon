@@ -376,6 +376,11 @@ final class AppContainer: ObservableObject {
     private var libraryImportCancellation: LibraryImportCancellation?
     private let processEraseToken = UUID().uuidString
 
+    private enum LibraryImportSource: Equatable, Sendable {
+        case selection
+        case adoptedMusicRoot
+    }
+
     init(
         rootsProvider: @escaping RootsProvider,
         servicesFactory: @escaping ServicesFactory,
@@ -441,8 +446,30 @@ final class AppContainer: ObservableObject {
     }
 
     func importLibrary(urls: [URL], mode: LibraryImportGroupingMode) {
+        beginLibraryImport(urls: urls, mode: mode, source: .selection)
+    }
+
+    /// Catalogues audio already placed in Files -> On My iPhone -> ISOLATION -> Music.
+    /// The importer adopts those files in place; it does not duplicate their bytes.
+    func adoptMusicLibrary() {
+        guard let resolvedServices = services else {
+            libraryImportError = "Aeon is still opening your library. Try the scan again in a moment."
+            return
+        }
+        beginLibraryImport(
+            urls: [resolvedServices.mediaStore.documentsMusicRoot],
+            mode: .folder,
+            source: .adoptedMusicRoot
+        )
+    }
+
+    private func beginLibraryImport(
+        urls: [URL],
+        mode: LibraryImportGroupingMode,
+        source: LibraryImportSource
+    ) {
         guard libraryImportTask == nil else {
-            libraryImportError = "An import is already running. Wait for it to finish, or pause it, then choose the source again."
+            libraryImportError = "An import is already running. Wait for it to finish, or pause it, then try again."
             return
         }
         guard case .ready = launchState, let resolvedServices = services else {
@@ -450,15 +477,14 @@ final class AppContainer: ObservableObject {
             return
         }
         guard !urls.isEmpty else {
-            libraryImportError = "Nothing was selected. Choose audio files or a folder to import."
+            libraryImportError = "Nothing was selected. Choose audio files to import."
             return
         }
         let importer = resolvedServices.libraryImporter
 
-        // A folder grant dies with the picked URL, so persist its bookmark while the
-        // grant is still live. Failing to persist is not fatal — this import can still
-        // run — but a later one would have to ask for the folder again.
-        if mode == .folder {
+        // Only externally selected folders need bookmarks. Aeon's own Files-visible
+        // Music directory is already inside the app's persistent Documents container.
+        if source == .selection, mode == .folder {
             for url in urls {
                 let accessed = url.startAccessingSecurityScopedResource()
                 defer { if accessed { url.stopAccessingSecurityScopedResource() } }
@@ -491,26 +517,49 @@ final class AppContainer: ObservableObject {
         )
         libraryImportResult = nil
         libraryImportError = nil
+        if source == .adoptedMusicRoot {
+            try? resolvedServices.diagnosticsLog.record(eventCode: "library.adopt.started")
+        }
         libraryImportTask = Task { [weak self] in
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    try await importer.importURLs(urls, mode: effectiveMode, cancellation: cancellation) { progress in
+                    if source == .adoptedMusicRoot {
+                        return try await importer.adoptMusicLibrary(cancellation: cancellation) { progress in
+                            Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
+                        }
+                    }
+                    return try await importer.importURLs(
+                        urls,
+                        mode: effectiveMode,
+                        cancellation: cancellation
+                    ) { progress in
                         Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
                     }
                 }.value
                 _ = try self?.services?.skyRepository.backfill()
                 self?.services?.skySceneController.reload()
                 self?.libraryImportResult = result
+                if source == .adoptedMusicRoot {
+                    try? self?.services?.diagnosticsLog.record(eventCode: "library.adopt.completed")
+                }
             } catch LibraryImportError.cancelled {
-                self?.libraryImportError = "Import paused. Select the same files or folder to resume."
+                self?.libraryImportError = source == .adoptedMusicRoot
+                    ? "Library scan paused. Run Adopt Library again to resume."
+                    : "Import paused. Select the same files or folder to resume."
             } catch LibraryImportError.noSupportedAudio {
-                self?.libraryImportError = "No supported audio files were found. Aeon reads \(AudioTagReader.supportedExtensions.sorted().joined(separator: ", "))."
+                self?.libraryImportError = source == .adoptedMusicRoot
+                    ? "No supported audio was found in Files → On My iPhone → ISOLATION → Music. Copy album folders there, then run Adopt Library again."
+                    : "No supported audio files were found. Aeon reads \(AudioTagReader.supportedExtensions.sorted().joined(separator: ", "))."
             } catch LibraryImportError.accessDenied {
-                self?.libraryImportError = "Aeon could not open that location. Choose files or a folder on this iPhone or in iCloud Drive, and make sure the location is still available."
+                self?.libraryImportError = source == .adoptedMusicRoot
+                    ? "Aeon could not read its Music folder. Reopen the app and try Adopt Library again."
+                    : "Aeon could not open that location. Choose files on this iPhone or in iCloud Drive, and make sure the location is still available."
             } catch LibraryImportError.sourceUnavailable {
                 self?.libraryImportError = "Those files have not finished downloading from iCloud. Open them once in the Files app, then import again."
             } catch {
-                self?.libraryImportError = "Import stopped before the next album could be committed. Select the same source to resume."
+                self?.libraryImportError = source == .adoptedMusicRoot
+                    ? "The library scan stopped before the next album could be catalogued. Your music files were not changed."
+                    : "Import stopped before the next album could be committed. Select the same source to resume."
             }
             self?.libraryImportProgress = nil
             self?.libraryImportCancellation = nil

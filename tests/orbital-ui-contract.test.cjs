@@ -62,7 +62,7 @@ test('navigation has no selected fill and extends background rather than targets
 
 test('first-pass surfaces retire stock capsules and preserve identifiers', () => {
   for (const text of [components, chrome, settings, sky, library, playlists]) assert.doesNotMatch(text, /\bCapsule\(/);
-  for (const id of ['aeon.library.import.files', 'aeon.library.import.folder', 'aeon.import.sheet']) assert.ok(components.includes(id));
+  for (const id of ['aeon.library.import.files', 'aeon.library.import.adopt', 'aeon.import.sheet']) assert.ok(components.includes(id));
   assert.match(components, /accessibilityElement\(children: \.contain\)\.accessibilityIdentifier\("aeon.import.sheet"\)/);
   assert.match(components, /Aeon only reads what you hand it\./);
   assert.doesNotMatch(components, /without pretending/);

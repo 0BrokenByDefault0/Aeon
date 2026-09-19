@@ -5,6 +5,8 @@
 | Area | Production source | First tests to inspect | Stable UI identifiers / entry points |
 |---|---|---|---|
 | Import | `ios/App/App/Import/`, `app/legacy-migration.*` | `LibraryImporterTests`, `AudioTagReaderTests`, `ImportPickerTests`, `ImportPickerPresentationTests` | `aeon.import.sheet`, `ImportPicker` |
+
+For large libraries, the supported native path is **Adopt Library** from the app-owned Files directory `On My iPhone/ISOLATION/Music`. Files placed there stay in place and are referenced through `MediaStore`; the external security-scoped folder picker is not part of release acceptance.
 | Playback / player | `ios/App/App/Audio/`, `ios/App/App/Playback/`, `ios/App/App/Features/Player/` | `PlaybackCoordinatorTests`, `PlaybackControllerTests`, `PlaybackFlowTests`, `PlayerNavigationTests` | `PlaybackController`, `NowPlayingView`, `PlayerBar` |
 | Library | `ios/App/App/Features/Library/`, `ios/App/App/Persistence/`, `ios/App/App/Domain/` | `LibraryControllerTests`, `CatalogRepositoryTests`, `LibraryFlowTests` | `LibraryScreen`, `LibraryController` |
 | Sky / Metal | `ios/App/App/Features/Sky/`, `ios/App/App/Sky/` | `SkyComposerTests`, `SkyCameraTests`, `SkyHitTestingTests`, `SkyInteractionTests` | `SkyScreen`, `SkySceneController`, `SkyRenderer` |
@@ -55,7 +57,7 @@ Run the manual `Deep release validation` workflow for a release candidate. It ex
 Before release approval, attach physical-device evidence for:
 
 - clean install and an in-place 4.x upgrade without catalogue or media loss;
-- import from local, Files, remembered folder, and iCloud-placeholder cases;
+- import copied files, adopt/rescan Files → On My iPhone → ISOLATION → Music in place, and iCloud-placeholder cases;
 - playback, backgrounding, lock-screen controls, interruptions, route changes, Bluetooth/AirPlay, and a wired/USB route where available;
 - iPhone and iPad navigation, rotation, large text, VoiceOver, Reduce Motion, and Increase Contrast;
 - Sky frame rate and memory targets on the oldest supported device.

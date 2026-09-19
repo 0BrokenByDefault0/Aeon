@@ -157,9 +157,9 @@ extension AdaptiveChromeTests {
         importMusic.tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.import.sheet"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import.files").count, 1)
-        XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import.folder").count, 1)
+        XCTAssertEqual(app.buttons.matching(identifier: "aeon.library.import.adopt").count, 1)
         XCTAssertTrue(app.buttons["aeon.library.import.files"].isHittable)
-        XCTAssertTrue(app.buttons["aeon.library.import.folder"].isHittable)
+        XCTAssertTrue(app.buttons["aeon.library.import.adopt"].isHittable)
         reviewCapture(app, name: "orbital-import-sheet")
 
         app.terminate()
