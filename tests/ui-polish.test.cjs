@@ -68,7 +68,7 @@ test('sheet fits measured content without replacing its identity or handlers', (
   assert.match(sheet, /\.height\(contentHeight \+ AeonTheme.Space.medium \* 2 \+ AeonOrbit.stroke\)/);
   assert.match(sheet, /isAccessibilitySize/);
   assert.doesNotMatch(sheet, /\.id\(/);
-  assert.match(sheet, /Aeon only reads what you hand it\./);
+  assert.match(sheet, /Import files, or scan the Music folder Aeon owns in Files\./);
 });
 test('disclosure, selection, creation and export no longer share the swash arrow', () => {
   assert.match(library, /AeonGlyph\(kind: \.disclosure\)/);
