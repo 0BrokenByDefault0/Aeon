@@ -60,7 +60,7 @@ struct SkyScreen: View {
                             .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
                             .transition(.opacity).allowsHitTesting(false).accessibilityAddTraits(.updatesFrequently)
                         }
-                        selectionLabel(viewport: geometry.size)
+                        selectionFocus(viewport: geometry.size)
                     }
                 }
                 .transaction { $0.animation = nil }
@@ -91,54 +91,61 @@ struct SkyScreen: View {
     }
     private var effectiveReduceMotion: Bool { reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion }
 
-    @ViewBuilder private func selectionLabel(viewport: CGSize) -> some View {
+    @ViewBuilder private func selectionFocus(viewport: CGSize) -> some View {
         if let planet = controller.selectedPlanet {
-            marker(at: controller.camera.screenPoint(for: planet.coordinate, viewport: SkyViewport(size: viewport)),
-                   viewport: viewport,
-                   title: "WORLD \(planet.index)",
-                   subtitle: "\(planet.members.count) ALBUMS")
-                .accessibilityIdentifier("aeon.sky.planet-selection")
-        } else if let star = controller.selectedStar {
-            marker(at: controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport)),
-                   viewport: viewport,
-                   title: (controller.selectedAlbumTitle ?? star.albumID).uppercased(),
-                   subtitle: star.artistName.uppercased())
-                .accessibilityIdentifier("aeon.sky.star-selection")
+            marker(
+                at: controller.camera.screenPoint(for: planet.coordinate, viewport: SkyViewport(size: viewport)),
+                title: "World \(planet.index)",
+                subtitle: "\(planet.members.count) albums",
+                identifier: "aeon.sky.planet-selection"
+            )
+        } else if let star = controller.selectedStar, let readout = controller.selectedAlbumReadout {
+            marker(
+                at: controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport)),
+                title: readout.title,
+                subtitle: readout.subtitle,
+                identifier: "aeon.sky.star-selection"
+            )
+        } else if let center = controller.selectedConstellationCenter,
+                  let readout = controller.selectedConstellationReadout {
+            marker(
+                at: controller.camera.screenPoint(for: center, viewport: SkyViewport(size: viewport)),
+                title: readout.title,
+                subtitle: readout.subtitle,
+                identifier: "aeon.sky.constellation-selection"
+            )
         }
     }
 
-    /// The marked star keeps its reticle; the readout is clamped into the viewport so a
-    /// selection near an edge cannot slide under the status bar or off the screen.
-    private func marker(at point: CGPoint, viewport: CGSize, title: String, subtitle: String) -> some View {
-        let halfWidth = Self.readoutMaximumWidth / 2
-        let clampedX = min(max(point.x, halfWidth + AeonTheme.Space.small), max(halfWidth + AeonTheme.Space.small, viewport.width - halfWidth - AeonTheme.Space.small))
-        let above = point.y - Self.readoutOffset
-        let clampedY = above < readableInsets.top + Self.readoutOffset
-            ? point.y + Self.readoutOffset
-            : above
-        return ZStack {
+    /// Selection identity lives in a stable editorial readout beneath the HUD while the
+    /// reticle remains spatially attached to the chosen object. The title can therefore
+    /// never collide with constellation geometry or drift beneath the status bar.
+    private func marker(at point: CGPoint, title: String, subtitle: String, identifier: String) -> some View {
+        ZStack(alignment: .topLeading) {
             AeonReticleMark()
                 .stroke(AeonTheme.ColorToken.primary.opacity(0.62), style: AeonOrbit.line)
-                .frame(width: 46, height: 46)
+                .frame(width: 54, height: 54)
                 .position(point)
-            VStack(spacing: 2) {
-                Text(title).font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.1)
+            VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
+                AeonDisplayText(title, size: 24, maximumLines: 2)
                     .foregroundStyle(AeonTheme.ColorToken.primary)
-                Text(subtitle).font(AeonTheme.FontToken.metric(.caption2))
+                Text(subtitle)
+                    .font(AeonTheme.FontToken.secondary)
                     .foregroundStyle(AeonTheme.ColorToken.secondary)
             }
-            .lineLimit(1).truncationMode(.tail)
-            .padding(.horizontal, AeonTheme.Space.small).padding(.vertical, AeonTheme.Space.xSmall)
-            .frame(maxWidth: Self.readoutMaximumWidth)
-            .background(AeonTheme.ColorToken.void.opacity(0.88))
+            .padding(.horizontal, AeonTheme.Space.medium).padding(.vertical, AeonTheme.Space.small)
+            .frame(maxWidth: Self.readoutMaximumWidth, alignment: .leading)
+            .background(AeonTheme.ColorToken.void.opacity(0.94))
             .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
-            .position(x: clampedX, y: min(max(clampedY, readableInsets.top + 20), max(readableInsets.top + 20, viewport.height - readableInsets.bottom - 20)))
+            .padding(.leading, AeonTheme.Space.edge)
+            .padding(.top, readableInsets.top + 94)
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(identifier)
         .allowsHitTesting(false)
     }
 
-    private static let readoutMaximumWidth: CGFloat = 240
-    private static let readoutOffset: CGFloat = 44
+    private static let readoutMaximumWidth: CGFloat = 280
 }
 
 enum AeonQuietSkyMarkers {
@@ -170,7 +177,7 @@ private struct SkyLabelOverlay: View {
     let highContrast: Bool
     var body: some View {
         ZStack {
-            ForEach(labels.prefix(80)) { label in
+            ForEach(labels) { label in
                 Text(label.text).font(.system(size: label.isRegion ? 13 : 10, weight: .medium, design: .monospaced))
                     .tracking(label.isRegion ? 1.6 : 0.8)
                     // 0.14 on pure black is below the threshold of legibility; region names
@@ -181,35 +188,85 @@ private struct SkyLabelOverlay: View {
             }
         }
     }
-    private var labels: [Label] {
+    private var labels: [SkyLabelLayout.Placed] {
         let camera = controller.camera
         let resolvedViewport = SkyViewport(size: viewport)
         let starByID = Dictionary(uniqueKeysWithValues: controller.catalogue.stars.map { ($0.albumID, $0) })
+        let candidates: [SkyLabelLayout.Candidate]
         if camera.tier == .galaxy {
-            return controller.catalogue.regions.compactMap { region in
+            candidates = controller.catalogue.regions.compactMap { region in
                 let points = controller.catalogue.stars.filter { $0.regionID == region.id }.map(\.coordinate)
                 guard !points.isEmpty else { return nil }
                 let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
                                       y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count)))
-                return Label(id: region.id, text: region.name.uppercased(), position: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true)
-            }.filter(visible)
+                return SkyLabelLayout.Candidate(
+                    id: region.id, text: region.name.uppercased(),
+                    anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true
+                )
+            }
+        } else if camera.tier == .region || camera.tier == .constellation {
+            candidates = controller.catalogue.constellations.compactMap { constellation in
+                let points = constellation.albumIDs.compactMap { starByID[$0]?.coordinate }
+                guard !points.isEmpty else { return nil }
+                let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
+                                      y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count)))
+                return SkyLabelLayout.Candidate(
+                    id: constellation.id, text: constellation.artistName.uppercased(),
+                    anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: false
+                )
+            }
+        } else {
+            candidates = []
         }
-        guard camera.tier == .region || camera.tier == .constellation else { return [] }
-        return controller.catalogue.constellations.compactMap { constellation in
-            let points = constellation.albumIDs.compactMap { starByID[$0]?.coordinate }
-            guard !points.isEmpty else { return nil }
-            let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
-                                  y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count)))
-            return Label(id: constellation.id, text: constellation.artistName.uppercased(), position: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: false)
-        }.filter(visible)
+        return SkyLabelLayout.place(Array(candidates.prefix(80)), viewport: viewport)
     }
-    private func visible(_ label: Label) -> Bool {
-        (-80...viewport.width + 80).contains(label.position.x) && (-80...viewport.height + 80).contains(label.position.y)
+}
+
+enum SkyLabelLayout {
+    struct Candidate: Identifiable, Equatable {
+        let id: String
+        let text: String
+        let anchor: CGPoint
+        let isRegion: Bool
     }
-    private struct Label: Identifiable {
+
+    struct Placed: Identifiable, Equatable {
         let id: String
         let text: String
         let position: CGPoint
+        let frame: CGRect
         let isRegion: Bool
+    }
+
+    static func place(_ candidates: [Candidate], viewport: CGSize) -> [Placed] {
+        let bounds = CGRect(x: 8, y: 176, width: max(0, viewport.width - 16), height: max(0, viewport.height - 272))
+        guard bounds.width > 0, bounds.height > 0 else { return [] }
+        var occupied: [CGRect] = []
+        var placed: [Placed] = []
+        for candidate in candidates.sorted(by: { $0.isRegion && !$1.isRegion }) {
+            let width = min(candidate.isRegion ? 190 : 154, max(54, CGFloat(candidate.text.count) * (candidate.isRegion ? 8 : 6.4)))
+            let size = CGSize(width: width, height: candidate.isRegion ? 28 : 22)
+            let distance: CGFloat = candidate.isRegion ? 34 : 26
+            let offsets = [
+                CGPoint(x: 0, y: distance), CGPoint(x: 0, y: -distance),
+                CGPoint(x: width / 2 + 18, y: 0), CGPoint(x: -width / 2 - 18, y: 0)
+            ]
+            guard let frame = offsets.lazy.map({ offset in
+                CGRect(
+                    x: candidate.anchor.x + offset.x - size.width / 2,
+                    y: candidate.anchor.y + offset.y - size.height / 2,
+                    width: size.width,
+                    height: size.height
+                )
+            }).first(where: { frame in
+                bounds.contains(frame) && !occupied.contains(where: { $0.insetBy(dx: -8, dy: -6).intersects(frame) })
+            }) else { continue }
+            occupied.append(frame)
+            placed.append(Placed(
+                id: candidate.id, text: candidate.text,
+                position: CGPoint(x: frame.midX, y: frame.midY), frame: frame, isRegion: candidate.isRegion
+            ))
+        }
+        return placed
     }
 }

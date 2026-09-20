@@ -74,6 +74,30 @@ final class SkyCameraTests: XCTestCase {
         )
     }
 
+    func testSkyLabelPlacementKeepsReadoutsOnscreenAndCollisionFree() {
+        let candidates = (0..<8).map { index in
+            SkyLabelLayout.Candidate(
+                id: "label-\(index)",
+                text: "CONSTELLATION \(index)",
+                anchor: CGPoint(x: 190 + CGFloat(index % 2), y: 360 + CGFloat(index % 3)),
+                isRegion: false
+            )
+        }
+        let viewport = CGSize(width: 390, height: 844)
+        let labels = SkyLabelLayout.place(candidates, viewport: viewport)
+
+        XCTAssertFalse(labels.isEmpty)
+        for (index, label) in labels.enumerated() {
+            XCTAssertGreaterThanOrEqual(label.frame.minX, 8)
+            XCTAssertGreaterThanOrEqual(label.frame.minY, 176)
+            XCTAssertLessThanOrEqual(label.frame.maxX, viewport.width - 8)
+            XCTAssertLessThanOrEqual(label.frame.maxY, viewport.height - 96)
+            for other in labels.dropFirst(index + 1) {
+                XCTAssertFalse(label.frame.insetBy(dx: -8, dy: -6).intersects(other.frame))
+            }
+        }
+    }
+
     func testCameraRoundTripsThroughTheSkyRepository() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

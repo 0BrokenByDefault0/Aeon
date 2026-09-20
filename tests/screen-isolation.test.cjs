@@ -23,7 +23,7 @@ test('Sky stays mounted but inactive copy, actions and accessibility overlays do
   assert.match(root, /isForeground: destination == \.sky && !nowPlayingVisible/);
   assert.match(sky, /if isForeground \{\s*SkyLabelOverlay/);
   const foreground = sky.split('if isForeground {')[1].split('.transaction')[0];
-  for (const name of ['SkyAccessibilityOverlay', 'SkyHUD', 'emptyState', 'selectionLabel']) assert.ok(foreground.includes(name), name);
+  for (const name of ['SkyAccessibilityOverlay', 'SkyHUD', 'emptyState', 'selectionFocus']) assert.ok(foreground.includes(name), name);
   assert.match(sky, /SkyMetalView[\s\S]*\.allowsHitTesting\(isForeground\)/);
   assert.match(sky, /effectiveReduceMotion \|\| !isForeground/);
 });

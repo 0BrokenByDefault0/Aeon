@@ -60,6 +60,7 @@ vertex SkyVertexOut skyInstanceVertex(
     float audioScale = 1.0;
     if ((instance.flags & 1) != 0) audioScale += uniforms.spectrum.x * 0.18;
     if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.62;
+    if ((instance.flags & 0x1000) != 0) audioScale += (sin(uniforms.time * 1.15) + 1.0) * 0.035;
     bool backdrop = (instance.flags & 0x800) != 0;
     float albumScale = clamp(uniforms.scale / 1.44, 0.70, 2.20);
     float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size) * audioScale * (backdrop ? 1.0 : albumScale);

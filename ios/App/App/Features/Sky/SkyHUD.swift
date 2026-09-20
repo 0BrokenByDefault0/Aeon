@@ -27,28 +27,50 @@ struct SkyHUD: View {
             AeonBreadcrumb(text: "Sky")
             if !controller.catalogue.stars.isEmpty {
                 HStack(spacing: AeonTheme.Space.medium) {
-                    Text("\(controller.camera.tier.rawValue.uppercased()) VIEW")
+                    HStack(spacing: AeonTheme.Space.small) {
+                        AeonGlyph(kind: .sky).frame(width: 18, height: 18)
+                        Text("\(controller.camera.tier.rawValue.capitalized) view")
+                    }
+                        .font(AeonTheme.FontToken.utility)
+                        .foregroundStyle(AeonOrbit.ink)
+                        .frame(minHeight: AeonTheme.Space.minimumTarget)
                         .accessibilityLabel("Sky altitude, \(controller.camera.tier.rawValue)")
                         .accessibilityIdentifier("aeon.sky.altitude")
                     Spacer(minLength: 0)
-                    Menu("SAVE VIEW") {
+                    Menu {
                         Button("Current framing") { controller.makeCapture(wide: false, viewport: viewportSize) }
                         Button("Wider framing") { controller.makeCapture(wide: true, viewport: viewportSize) }
+                    } label: {
+                        hudAction("Save", glyph: .export)
                     }
                     .accessibilityIdentifier("aeon.sky.capture")
                     if controller.playingStarID != nil {
-                        Button("LOCATE") {
+                        Button {
                             controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
-                        }.accessibilityIdentifier("aeon.sky.locate-playing")
+                        } label: {
+                            hudAction("Locate", glyph: .star)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Locate playing album")
+                        .accessibilityIdentifier("aeon.sky.locate-playing")
                     }
                     if let captureURL = controller.captureURL {
-                        ShareLink(item: captureURL) { Text("SHARE") }.accessibilityIdentifier("aeon.sky.share-capture")
+                        ShareLink(item: captureURL) { hudAction("Share", glyph: .export) }
+                            .accessibilityIdentifier("aeon.sky.share-capture")
                     }
                 }
-                .font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.2)
-                .foregroundStyle(AeonOrbit.secondary).frame(minHeight: AeonTheme.Space.minimumTarget)
+                .foregroundStyle(AeonOrbit.secondary)
             }
         }
+    }
+
+    private func hudAction(_ title: String, glyph: AeonGlyphKind) -> some View {
+        VStack(spacing: 2) {
+            AeonGlyph(kind: glyph).frame(width: 18, height: 18)
+            Text(title).font(AeonTheme.FontToken.microLabel)
+        }
+        .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
+        .contentShape(Rectangle())
     }
     private var censusStrip: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.small) {

@@ -73,9 +73,45 @@ final class SkySceneController: ObservableObject {
         return catalogue.planets.first { $0.id == selectedID }
     }
 
+    var selectedConstellation: SkyConstellation? {
+        guard let selectedID = camera.selectedID else { return nil }
+        return catalogue.constellations.first { $0.id == selectedID }
+    }
+
+    var selectedConstellationCenter: SkyPoint? {
+        guard let selectedConstellation else { return nil }
+        let memberIDs = Set(selectedConstellation.albumIDs)
+        let points = catalogue.stars.lazy.filter { memberIDs.contains($0.albumID) }.map(\.coordinate)
+        guard !points.isEmpty else { return nil }
+        return SkyPoint(
+            x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
+            y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count))
+        )
+    }
+
     var selectedAlbumTitle: String? {
         guard let star = selectedStar else { return nil }
         return (try? catalog.album(id: star.albumID))?.title ?? star.albumID
+    }
+
+    var selectedAlbumReadout: (title: String, subtitle: String)? {
+        guard let star = selectedStar else { return nil }
+        let album = try? catalog.album(id: star.albumID)
+        let title = album?.title ?? star.albumID
+        let region = catalogue.regions.first { $0.id == star.regionID }?.name
+        let details = [album?.artist ?? star.artistName, album?.genre, region]
+            .compactMap { value -> String? in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+        return (title, details.joined(separator: " · "))
+    }
+
+    var selectedConstellationReadout: (title: String, subtitle: String)? {
+        guard let selectedConstellation else { return nil }
+        let region = catalogue.regions.first { $0.id == selectedConstellation.regionID }?.name
+        let count = "\(selectedConstellation.albumIDs.count) \(selectedConstellation.albumIDs.count == 1 ? "album" : "albums")"
+        return (selectedConstellation.artistName, [count, region].compactMap { $0 }.joined(separator: " · "))
     }
 
     var censusText: String {
@@ -291,7 +327,8 @@ final class SkySceneController: ObservableObject {
 
     private func selectedTitle() -> String? {
         if let selectedPlanet { return "WORLD \(selectedPlanet.index)" }
-        if let selectedStar { return "\(selectedStar.artistName) / \(selectedStar.albumID)" }
+        if let readout = selectedAlbumReadout { return "\(readout.title) / \(readout.subtitle)" }
+        if let readout = selectedConstellationReadout { return "\(readout.title) / \(readout.subtitle)" }
         return nil
     }
 

@@ -36,7 +36,8 @@ struct SkyMetalView: UIViewRepresentable {
             catalogue: controller.catalogue,
             camera: controller.camera,
             playingStarID: controller.playingStarID,
-            spectrum: effectiveReduceMotion ? .zero : controller.spectrumLevels
+            spectrum: effectiveReduceMotion ? .zero : controller.spectrumLevels,
+            animateSelection: !effectiveReduceMotion
         )
         context.coordinator.renderer?.configureFrameRate(for: view)
         // The sky stays mounted behind utility panels so the camera survives, but an
