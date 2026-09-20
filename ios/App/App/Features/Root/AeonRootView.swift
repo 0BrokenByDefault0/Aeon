@@ -449,12 +449,14 @@ private struct AeonReadyShell: View {
             }
         )
         .padding(.leading, regularContentLeadingPadding(regular: regular))
-        .padding(.top, insets.top)
         .padding(.bottom, regular ? insets.bottom : 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(width: width)
         .modifier(AeonOpaquePanel())
-        .ignoresSafeArea(edges: .vertical)
+        // Keep the presentation viewport below system chrome. Ignoring the top safe area
+        // let scrolled content pass beneath the Dynamic Island after the initial padding
+        // had moved offscreen; only the background needs bottom-edge continuation.
+        .ignoresSafeArea(edges: .bottom)
     }
 
     @ViewBuilder

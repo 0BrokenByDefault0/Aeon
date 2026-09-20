@@ -83,22 +83,20 @@ struct PlayerBar: View {
             }
             .padding(.horizontal, AeonTheme.Space.medium)
             .frame(minHeight: AeonTheme.Space.playerBar)
-            // The one remaining translucent surface in the app. Over a live starfield it
-            // muddied into the sky; every other utility surface is already opaque.
-            .background(AeonTheme.ColorToken.chamber)
+            .background(AeonTheme.ColorToken.surface)
             .overlay(alignment: .top) {
                 Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
             }
-            .overlay(alignment: .bottomLeading) {
+            .overlay(alignment: .topLeading) {
                 GeometryReader { geometry in
                     Rectangle()
                         .fill(AeonTheme.ColorToken.ivorySecondary)
                         .frame(
                             width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
-                            height: 2
+                            height: 2.5
                         )
                 }
-                .frame(height: 2)
+                .frame(height: 2.5)
                 .accessibilityHidden(true)
             }
         }

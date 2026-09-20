@@ -15,55 +15,67 @@ struct NowPlayingView: View {
     let close: () -> Void
     let locate: (String, Bool) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var queuePresented = false
     @State private var seekPreview: Double?
 
     var body: some View {
         AeonGlass {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    if let presentation = PlayerPresentation.resolve(
-                        snapshot: playback.snapshot,
-                        catalog: catalog,
-                        artworkStore: artworkStore
-                    ), let snapshot = playback.snapshot {
-                        VStack(spacing: AeonTheme.Space.section) {
-                            heading(queuePosition: snapshot.queueIndex.map { (index: $0, count: snapshot.queue.count) })
-                            artworkStage(presentation)
-                            metadata(presentation: presentation, snapshot: snapshot)
-                            seek(presentation: presentation, snapshot: snapshot)
-                            transport(snapshot: snapshot)
-                            queueControls(snapshot: snapshot)
-                            volume(snapshot: snapshot)
-                            secondary(presentation: presentation, snapshot: snapshot)
-                            EQView(playback: playback).id(NowPlayingSection.equalizer)
-                            spectrumSection.id(NowPlayingSection.spectrum)
+            VStack(spacing: 0) {
+                heading(queuePosition: playback.snapshot?.queueIndex.map {
+                    (index: $0, count: playback.snapshot?.queue.count ?? 0)
+                })
+                .padding(.horizontal, AeonTheme.Space.edge)
+                .background(AeonTheme.ColorToken.void)
+
+                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        if let presentation = PlayerPresentation.resolve(
+                            snapshot: playback.snapshot,
+                            catalog: catalog,
+                            artworkStore: artworkStore
+                        ), let snapshot = playback.snapshot {
+                            VStack(spacing: AeonTheme.Space.section) {
+                                VStack(spacing: AeonTheme.Space.large) {
+                                    artworkStage(presentation)
+                                    metadata(presentation: presentation)
+                                    seek(presentation: presentation, snapshot: snapshot)
+                                    transport(snapshot: snapshot)
+                                }
+                                queueControls(snapshot: snapshot)
+                                volume(snapshot: snapshot)
+                                secondary(presentation: presentation, snapshot: snapshot)
+                                EQView(playback: playback).id(NowPlayingSection.equalizer)
+                                spectrumSection.id(NowPlayingSection.spectrum)
+                            }
+                            .padding(.horizontal, AeonTheme.Space.edge)
+                            .padding(.top, AeonTheme.Space.large)
+                            .padding(.bottom, AeonTheme.Space.section)
+                            .frame(maxWidth: 620)
+                            .frame(maxWidth: .infinity)
+                        } else {
+                            VStack(spacing: AeonTheme.Space.section) {
+                                AeonEmptyState(
+                                    title: "Nothing in the player",
+                                    detail: "Choose a track from your library and it will appear here.",
+                                    actionTitle: "BACK TO AEON",
+                                    action: close
+                                )
+                                .accessibilityIdentifier("aeon.player.empty")
+                            }
+                            .padding(.horizontal, AeonTheme.Space.edge)
+                            .padding(.vertical, AeonTheme.Space.section)
+                            .frame(maxWidth: 620, minHeight: 420)
+                            .frame(maxWidth: .infinity)
                         }
-                        .padding(.horizontal, AeonTheme.Space.edge)
-                        .padding(.bottom, AeonTheme.Space.section)
-                        .frame(maxWidth: 620)
-                        .frame(maxWidth: .infinity)
-                    } else {
-                        VStack(spacing: AeonTheme.Space.section) {
-                            heading(queuePosition: nil)
-                            AeonEmptyState(
-                                title: "Nothing in the player",
-                                detail: "Choose a track from your library and it will appear here.",
-                                actionTitle: "BACK TO AEON",
-                                action: close
-                            )
-                            .accessibilityIdentifier("aeon.player.empty")
-                        }
-                        .padding(.horizontal, AeonTheme.Space.edge)
-                        .padding(.bottom, AeonTheme.Space.section)
-                        .frame(maxWidth: 620, minHeight: 420)
-                        .frame(maxWidth: .infinity)
                     }
-                }
-                .scrollIndicators(.hidden)
-                .onAppear {
-                    guard let initialSection else { return }
-                    DispatchQueue.main.async { proxy.scrollTo(initialSection, anchor: .top) }
+                    .scrollIndicators(.hidden)
+                    .onAppear {
+                        guard let initialSection else { return }
+                        DispatchQueue.main.async { proxy.scrollTo(initialSection, anchor: .top) }
+                    }
                 }
             }
         }
@@ -99,7 +111,8 @@ struct NowPlayingView: View {
 
     private func artworkStage(_ presentation: PlayerPresentation) -> some View {
         GeometryReader { geometry in
-            let size = min(360, max(190, geometry.size.width - 56))
+            let maximum: CGFloat = dynamicTypeSize.isAccessibilitySize ? 220 : 280
+            let size = min(maximum, max(176, geometry.size.width - 72))
             ZStack {
                 // The record on the stage is marked by the same reticle that marks every
                 // other current choice. A circle drawn around square artwork read as a
@@ -111,14 +124,14 @@ struct NowPlayingView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 386)
+        .frame(height: dynamicTypeSize.isAccessibilitySize ? 246 : 306)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Artwork for \(presentation.album.title)")
     }
 
-    private func metadata(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
+    private func metadata(presentation: PlayerPresentation) -> some View {
         VStack(spacing: AeonTheme.Space.small) {
-            AeonDisplayText(presentation.track.title, size: 40, maximumLines: 2)
+            AeonDisplayText(presentation.track.title, size: 36, maximumLines: 2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(AeonOrbit.title)
             // Artist and album were the same size, weight and family, so the three
@@ -128,11 +141,9 @@ struct NowPlayingView: View {
                 .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
                 .multilineTextAlignment(.center)
             Text(presentation.album.title)
-                .font(AeonTheme.FontToken.metric(.caption, weight: .regular))
-                .tracking(1.1)
+                .font(AeonTheme.FontToken.secondary)
                 .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                 .multilineTextAlignment(.center)
-            AeonLabel(text: snapshot.intent == .playing ? "Playing" : "Paused")
             if let failure = playback.failure, failure.recoverable {
                 Button { playback.dismissFailure() } label: {
                     Text(failure.message)
@@ -174,17 +185,18 @@ struct NowPlayingView: View {
     private func transport(snapshot: PlaybackSnapshot) -> some View {
         HStack(spacing: 34) {
             transportButton(.previous, label: "Previous track", identifier: "aeon.player.previous", action: playback.previous)
-            // The one control in the app that carries weight rather than outline. It stays
-            // square, like every other surface, and the glyph is drawn from the same set.
             Button {
                 AeonFeedback.transport()
                 playback.toggle()
             } label: {
-                AeonGlyph(kind: snapshot.intent == .playing ? .pause : .play)
-                    .foregroundStyle(AeonTheme.ColorToken.void)
-                    .frame(width: 68, height: 68)
-                    .background(Rectangle().fill(AeonTheme.ColorToken.bone))
-                    .contentShape(Rectangle())
+                ZStack {
+                    AeonReticleField().fill(AeonOrbit.activeFill)
+                    AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line)
+                    AeonGlyph(kind: snapshot.intent == .playing ? .pause : .play)
+                        .frame(width: 30, height: 30)
+                }
+                .frame(width: 72, height: 72)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(snapshot.intent == .playing ? "Pause" : "Play")
@@ -194,21 +206,32 @@ struct NowPlayingView: View {
     }
 
     private func queueControls(snapshot: PlaybackSnapshot) -> some View {
-        HStack(spacing: AeonTheme.Space.small) {
-            Button("SHUFFLE", action: playback.shuffleUpcoming)
-                .buttonStyle(AeonButtonStyle(tier: .bare))
-                .accessibilityIdentifier("aeon.player.shuffle")
-            // Tier stays fixed. Swapping bare for hairline on state change made the mark
-            // appear and disappear under the thumb and shifted the row's rhythm.
-            Button("REPEAT · \(snapshot.repeatMode.rawValue.uppercased())", action: playback.cycleRepeatMode)
-                .buttonStyle(AeonButtonStyle(tier: .bare))
-                .foregroundStyle(snapshot.repeatMode == .off ? AeonOrbit.secondary : AeonOrbit.ink)
-                .accessibilityValue(snapshot.repeatMode.rawValue)
-                .accessibilityIdentifier("aeon.player.repeat")
-            Button("UP NEXT") { queuePresented = true }
-                .buttonStyle(AeonButtonStyle(tier: .bare))
-                .accessibilityIdentifier("aeon.player.queue.open")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AeonTheme.Space.small) { queueControlContent(snapshot: snapshot) }
+            VStack(spacing: AeonTheme.Space.xSmall) { queueControlContent(snapshot: snapshot) }
         }
+    }
+
+    @ViewBuilder
+    private func queueControlContent(snapshot: PlaybackSnapshot) -> some View {
+        secondaryTransportButton(
+            glyph: .shuffle, title: "Shuffle", active: false,
+            accessibilityLabel: "Shuffle upcoming tracks",
+            identifier: "aeon.player.shuffle", action: playback.shuffleUpcoming
+        )
+        secondaryTransportButton(
+            glyph: .repeatTrack,
+            title: snapshot.repeatMode == .off ? "Repeat" : (snapshot.repeatMode == .one ? "Repeat one" : "Repeat all"),
+            active: snapshot.repeatMode != .off,
+            accessibilityLabel: "Repeat mode",
+            accessibilityValue: snapshot.repeatMode.rawValue,
+            identifier: "aeon.player.repeat", action: playback.cycleRepeatMode
+        )
+        secondaryTransportButton(
+            glyph: .grip, title: "Up next", active: false,
+            accessibilityLabel: "Open Up Next queue",
+            identifier: "aeon.player.queue.open", action: { queuePresented = true }
+        )
     }
 
     private func volume(snapshot: PlaybackSnapshot) -> some View {
@@ -260,6 +283,9 @@ struct NowPlayingView: View {
             if let output = outputDescription(snapshot.outputFormat), !output.isEmpty {
                 detailLine(label: "OUTPUT", value: output)
             }
+            if let loudness = replayGainDescription(snapshot), !loudness.isEmpty {
+                detailLine(label: "LEVEL", value: loudness)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -306,6 +332,36 @@ struct NowPlayingView: View {
         .accessibilityIdentifier(identifier)
     }
 
+    private func secondaryTransportButton(
+        glyph: AeonGlyphKind,
+        title: String,
+        active: Bool,
+        accessibilityLabel: String,
+        accessibilityValue: String? = nil,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            AeonFeedback.activated()
+            action()
+        } label: {
+            HStack(spacing: AeonTheme.Space.small) {
+                AeonGlyph(kind: glyph).frame(width: 22, height: 22)
+                Text(title).font(AeonTheme.FontToken.utility).lineLimit(1)
+            }
+            .foregroundStyle(active ? AeonOrbit.ink : AeonOrbit.secondary)
+            .padding(.horizontal, AeonTheme.Space.small)
+            .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget)
+            .background(active ? AeonOrbit.activeFill : .clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue ?? "")
+        .accessibilityAddTraits(active ? .isSelected : [])
+        .accessibilityIdentifier(identifier)
+    }
+
     private func detailLine(label: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: AeonTheme.Space.medium) {
             AeonLabel(text: label).frame(width: 64, alignment: .leading)
@@ -333,6 +389,20 @@ struct NowPlayingView: View {
         return values.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
+    private func replayGainDescription(_ snapshot: PlaybackSnapshot) -> String? {
+        let mode = snapshot.replayGainMode
+        guard mode != .off else { return nil }
+        let gain = mode == .track
+            ? snapshot.sourceFormat?.replayGain?.trackGainDB
+            : snapshot.sourceFormat?.replayGain?.albumGainDB
+        var values = [mode.rawValue.uppercased()]
+        if let gain { values.append(String(format: "%+.1f dB", gain)) }
+        if snapshot.replayGainPreampDB != 0 {
+            values.append(String(format: "%+.1f dB PREAMP", snapshot.replayGainPreampDB))
+        }
+        return values.joined(separator: " · ")
+    }
+
     private func sampleRate(_ rate: Double) -> String {
         let khz = rate / 1_000
         return khz.rounded() == khz ? "\(Int(khz)) KHZ" : String(format: "%.1f KHZ", khz)
@@ -357,11 +427,11 @@ private struct AeonHorizontalRangeControl: View {
             let fraction = CGFloat((clampedValue - range.lowerBound) / max(0.000_001, range.upperBound - range.lowerBound))
             ZStack(alignment: .leading) {
                 Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: 2)
-                Rectangle().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * fraction, height: 2)
-                Rectangle()
+                Rectangle().fill(AeonTheme.ColorToken.bone).frame(width: geometry.size.width * fraction, height: 3)
+                Circle()
                     .fill(AeonTheme.ColorToken.bone)
-                    .frame(width: 6, height: 22)
-                    .offset(x: max(0, min(geometry.size.width - 6, geometry.size.width * fraction - 3)))
+                    .frame(width: 12, height: 12)
+                    .offset(x: max(0, min(geometry.size.width - 12, geometry.size.width * fraction - 6)))
             }
             .contentShape(Rectangle())
             .gesture(

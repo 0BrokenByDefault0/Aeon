@@ -28,7 +28,8 @@ test('the reticle survives every control box it is drawn into', () => {
 test('timer visual geometry and rectangular hit cells agree', () => {
   const segment = component.split('struct AeonSegment<Value')[1].split('struct AeonRow')[0];
   assert.match(segment, /let cellWidth = geometry\.size\.width \/ CGFloat\(max\(1, values\.count\)\)/);
-  assert.match(segment, /\.frame\(width: cellWidth, height: 48\)\s*\.contentShape\(Rectangle\(\)\)/);
+  assert.match(segment, /\.frame\(width: cellWidth, height: 48\)[\s\S]*?\.contentShape\(Rectangle\(\)\)/);
+  assert.match(segment, /\.background\(selection == value \? AeonOrbit\.activeFill : \.clear\)/);
   // The mark is one cell wide and centred on the chosen cell, and travels to it.
   assert.match(segment, /AeonReticleMark\(\)[\s\S]*?\.frame\(width: cellWidth, height: 48\)/);
   assert.match(segment, /offset\(x: -geometry\.size\.width \/ 2 \+ cellWidth \* \(CGFloat\(index\) \+ 0\.5\)\)/);

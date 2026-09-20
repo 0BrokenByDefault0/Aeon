@@ -21,6 +21,10 @@ enum AeonTheme {
         static let silver = secondary
         static let rule = hairline
         static let strongRule = secondary.opacity(0.52)
+        static let interactive = primary
+        static let disabled = tertiary.opacity(0.55)
+        static let separator = hairline
+        static let surface = chamber
         static let danger = Color(red: 0.87, green: 0.36, blue: 0.31)
     }
 
@@ -99,6 +103,14 @@ enum AeonTheme {
         static func metric(_ style: Font.TextStyle = .caption, weight: Font.Weight = .regular) -> Font {
             .system(style, design: .monospaced, weight: weight).monospacedDigit()
         }
+
+        // Semantic roles keep hierarchy consistent while preserving Dynamic Type.
+        static let title = ui(.title2, weight: .semibold)
+        static let body = ui(.body)
+        static let secondary = ui(.subheadline)
+        static let utility = ui(.callout, weight: .medium)
+        static let metadata = metric(.caption)
+        static let microLabel = metric(.caption2, weight: .medium)
     }
 }
 

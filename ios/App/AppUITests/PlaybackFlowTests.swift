@@ -20,6 +20,25 @@ final class PlaybackFlowTests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["aeon.player.spectrum"].exists)
     }
 
+    func testNowPlayingScrollStaysBelowHeaderAndEveryEQBandIsReachable() {
+        let app = launch()
+        openNowPlaying(in: app)
+        let close = app.buttons["aeon.player.close"]
+        let locate = app.buttons["aeon.player.locate"]
+        scrollUp(in: app, until: locate)
+        XCTAssertTrue(locate.isHittable)
+        XCTAssertGreaterThanOrEqual(locate.frame.minY, close.frame.maxY)
+
+        let bands = app.descendants(matching: .any)["aeon.player.eq.bands"]
+        scrollUp(in: app, until: bands)
+        XCTAssertTrue(bands.waitForExistence(timeout: 4))
+        let lastBand = app.descendants(matching: .any)["aeon.player.eq.band.16000"]
+        for _ in 0..<8 where !lastBand.isHittable { bands.swipeLeft() }
+        XCTAssertTrue(lastBand.exists)
+        XCTAssertTrue(lastBand.isHittable)
+        XCTAssertGreaterThanOrEqual(lastBand.frame.width, 44)
+    }
+
     func testQueueActionsKeepCurrentPinnedAndSaveInline() {
         let app = launch()
         openNowPlaying(in: app)

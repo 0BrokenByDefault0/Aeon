@@ -337,10 +337,12 @@ struct AeonToggleStyle: ToggleStyle {
                     Text("OFF")
                         .foregroundStyle(configuration.isOn ? AeonOrbit.secondary : AeonOrbit.ink)
                         .frame(width: 56, height: 44)
+                        .background(!configuration.isOn ? AeonOrbit.activeFill : .clear)
                         .overlay { if !configuration.isOn { AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line) } }
                     Text("ON")
                         .foregroundStyle(configuration.isOn ? AeonOrbit.ink : AeonOrbit.secondary)
                         .frame(width: 56, height: 44)
+                        .background(configuration.isOn ? AeonOrbit.activeFill : .clear)
                         .overlay { if configuration.isOn { AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line) } }
                 }
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -387,6 +389,7 @@ struct AeonSegment<Value: Hashable>: View {
                             .lineLimit(1).minimumScaleFactor(0.8)
                             .foregroundStyle(selection == value ? AeonOrbit.ink : AeonOrbit.secondary)
                             .frame(width: cellWidth, height: 48)
+                            .background(selection == value ? AeonOrbit.activeFill : .clear)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

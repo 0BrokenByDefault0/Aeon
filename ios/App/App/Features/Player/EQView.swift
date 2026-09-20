@@ -31,25 +31,39 @@ struct EQView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: AeonTheme.Space.medium) {
-            VStack(alignment: .leading, spacing: 4) {
-                AeonLabel(text: "Equalizer")
-                Text("Ten bands · ±12 dB")
-                    .font(AeonTheme.FontToken.ui(.caption))
-                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: AeonTheme.Space.medium) {
+                headerCopy
+                Spacer()
+                enabledToggle
             }
-            Spacer()
-            Toggle(
-                "Equalizer enabled",
-                isOn: Binding(
-                    get: { playback.snapshot?.eqEnabled ?? false },
-                    set: { enabled in playback.setEQ(enabled: enabled, bands: currentBands) }
-                )
-            )
-            .toggleStyle(AeonToggleStyle(showsLabel: false))
-            .accessibilityLabel("Equalizer enabled")
-            .accessibilityIdentifier("aeon.player.eq.bypass")
+            VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
+                headerCopy
+                enabledToggle
+            }
         }
+    }
+
+    private var headerCopy: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            AeonLabel(text: "Equalizer")
+            Text("Ten bands · ±12 dB")
+                .font(AeonTheme.FontToken.secondary)
+                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+        }
+    }
+
+    private var enabledToggle: some View {
+        Toggle(
+            "Equalizer enabled",
+            isOn: Binding(
+                get: { playback.snapshot?.eqEnabled ?? false },
+                set: { enabled in playback.setEQ(enabled: enabled, bands: currentBands) }
+            )
+        )
+        .toggleStyle(AeonToggleStyle(showsLabel: false))
+        .accessibilityLabel("Equalizer enabled")
+        .accessibilityIdentifier("aeon.player.eq.bypass")
     }
 
     private var presets: some View {
@@ -81,8 +95,14 @@ struct EQView: View {
 
     private var bandEditor: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-            AeonLabel(text: "Bands")
-            ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .firstTextBaseline) {
+                AeonLabel(text: "Bands")
+                Spacer()
+                Text("10 bands · scroll")
+                    .font(AeonTheme.FontToken.metadata)
+                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
+            }
+            ScrollView(.horizontal, showsIndicators: true) {
                 HStack(alignment: .top, spacing: AeonTheme.Space.small) {
                     ForEach(Self.frequencies.indices, id: \.self) { index in
                         EQBandControl(
@@ -93,7 +113,10 @@ struct EQView: View {
                     }
                 }
                 .padding(.vertical, AeonTheme.Space.small)
+                .padding(.horizontal, 2)
             }
+            .accessibilityIdentifier("aeon.player.eq.bands")
+            .accessibilityHint("Swipe horizontally to reach all ten equalizer bands")
         }
     }
 
@@ -161,6 +184,7 @@ private struct EQBandControl: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Int(frequency)) hertz gain")
         .accessibilityValue("\(db(gain)) decibels")
+        .accessibilityIdentifier("aeon.player.eq.band.\(Int(frequency))")
         .accessibilityAdjustableAction { direction in
             onChange(min(12, max(-12, gain + (direction == .increment ? 1 : -1))))
         }
