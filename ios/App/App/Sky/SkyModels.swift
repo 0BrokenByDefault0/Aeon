@@ -172,6 +172,31 @@ struct SkyCatalogue: Codable, Equatable, Sendable {
     static let empty = SkyCatalogue(regions: [], constellations: [], stars: [], planets: [])
 }
 
+/// The close-range figure revealed around an album star. Collection placement remains
+/// one stable point per album; these deterministic local points add detail only when
+/// the camera is near enough to resolve it.
+enum SkyAlbumConstellation {
+    static func points(albumID: String, center: SkyPoint) -> [SkyPoint] {
+        let directions: [SkyPoint] = [
+            .init(x: 1, y: 0), .init(x: 1, y: 1), .init(x: 0, y: 1), .init(x: -1, y: 1),
+            .init(x: -1, y: 0), .init(x: -1, y: -1), .init(x: 0, y: -1), .init(x: 1, y: -1)
+        ]
+        let seed = SkyStableHash.value(albumID)
+        var result = [center]
+        for index in 0..<5 {
+            let direction = directions[(Int(seed & 7) + index * 3) % directions.count]
+            let radius = Int32(10 + Int(SkyStableHash.mix(seed &+ UInt64(index)) % 9))
+            result.append(SkyPoint(
+                x: center.x &+ direction.x &* radius,
+                y: center.y &+ direction.y &* radius
+            ))
+        }
+        return result
+    }
+
+    static let segments: [(Int, Int)] = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0)]
+}
+
 enum SkyStableHash {
     static func value(_ string: String, seed: UInt64 = 0xcbf29ce484222325) -> UInt64 {
         var hash = seed

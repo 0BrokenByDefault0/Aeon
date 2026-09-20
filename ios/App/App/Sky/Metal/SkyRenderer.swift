@@ -52,6 +52,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private var planets: [SkyPlanet] = []
     private var constellations: [SkyConstellation] = []
     private var selectedID: String?
+    private var renderedTier: SkyZoomTier?
     private var playingStarID: String?
     private var animateSelection = true
     private var spectrum = SpectrumLevels.zero
@@ -110,10 +111,11 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     ) {
         let catalogueChanged = stars != catalogue.stars || planets != catalogue.planets || constellations != catalogue.constellations || starBuffer == nil
         let selectionChanged = selectedID != camera.selectedID || self.playingStarID != playingStarID || self.animateSelection != animateSelection
+        let tierChanged = renderedTier != camera.tier
         let spectrumChanged = self.spectrum != spectrum
         self.camera = camera
         self.spectrum = spectrum
-        guard catalogueChanged || selectionChanged || spectrumChanged else { return }
+        guard catalogueChanged || selectionChanged || tierChanged || spectrumChanged else { return }
         if catalogueChanged {
             stars = catalogue.stars
             planets = catalogue.planets
@@ -121,9 +123,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             stats.catalogueUploads += 1
         }
         selectedID = camera.selectedID
+        renderedTier = camera.tier
         self.playingStarID = playingStarID
         self.animateSelection = animateSelection
-        if catalogueChanged || selectionChanged {
+        if catalogueChanged || selectionChanged || tierChanged {
             rebuildStaticLineBuffer()
             rebuildSelectionBuffers()
             stats.selectionUploads += 1
@@ -182,6 +185,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         let planetMemberIDs = Set(selectedPlanet?.members.map(\.albumID) ?? [])
         let hasSelection = selectedPlanet != nil || selectedStarID != nil || selectedConstellation != nil
         let playingCoordinate = stars.first { $0.albumID == playingStarID }?.coordinate
+        let tier = camera.tier
         let albumInstances = stars.map { star in
             let isPlanetMember = planetMemberIDs.contains(star.albumID)
             let isConstellationMember = constellationMemberIDs.contains(star.albumID)
@@ -196,7 +200,15 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             } else {
                 nearPlaying = false
             }
-            let alpha: Float = !hasSelection || isHighlighted ? 1 : 0.38
+            let baseAlpha: Float
+            let baseSize: Float
+            switch tier {
+            case .collection: (baseAlpha, baseSize) = (0.48, 2.6)
+            case .system: (baseAlpha, baseSize) = (0.70, 3.6)
+            case .album: (baseAlpha, baseSize) = (0.88, 4.8)
+            case .focus: (baseAlpha, baseSize) = (1, 5.2)
+            }
+            let alpha: Float = (!hasSelection || isHighlighted ? baseAlpha : baseAlpha * 0.18)
             let classes: [SIMD4<Float>] = [
                 SIMD4(0.66, 0.76, 1, alpha), SIMD4(0.84, 0.89, 1, alpha),
                 SIMD4(0.96, 0.95, 1, alpha), SIMD4(1, 0.91, 0.77, alpha), SIMD4(1, 0.79, 0.54, alpha)
@@ -210,16 +222,38 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                 // Also drawable pixels, and multiplied by `albumScale` (0.70-2.20) in the
                 // shader. Kept clear of the backdrop's largest layer at every zoom so a
                 // charted album always outranks decoration.
-                size: isSelectedStar ? 8 : (isConstellationMember ? 6.5 : Float(5 + (isPlaying ? 1 : 0))),
+                size: isSelectedStar ? 8.5 : (isConstellationMember ? baseSize + 1.2 : baseSize + (isPlaying ? 1 : 0)),
                 flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0)
                     | (isHighlighted && animateSelection ? 0x1000 : 0),
                 turbulence: 0
             )
         }
-        let starInstances = backdrop + albumInstances
+        let albumFigureInstances: [GPUInstance]
+        if let selectedStarID,
+           tier == .focus,
+           let selected = stars.first(where: { $0.albumID == selectedStarID }) {
+            albumFigureInstances = SkyAlbumConstellation.points(albumID: selectedStarID, center: selected.coordinate)
+                .dropFirst()
+                .enumerated()
+                .map { index, point in
+                    let strength: Float = index.isMultiple(of: 2) ? 1 : 0.82
+                    return GPUInstance(
+                        position: SIMD2(Float(point.x), Float(point.y)),
+                        color0: SIMD4(0.76, 0.86, 1, strength),
+                        color1: SIMD4(0.76, 0.86, 1, strength),
+                        color2: SIMD4(0.76, 0.86, 1, strength),
+                        size: index.isMultiple(of: 2) ? 5.4 : 4.2,
+                        flags: animateSelection ? 0x1000 : 0,
+                        turbulence: 0
+                    )
+                }
+        } else {
+            albumFigureInstances = []
+        }
+        let starInstances = backdrop + albumInstances + albumFigureInstances
         starCount = starInstances.count
         starBuffer = makeBuffer(starInstances)
-        let glows = albumInstances.map {
+        let glows = (albumInstances + albumFigureInstances).map {
             var value = $0
             value.size *= 3.6
             value.color0 *= SIMD4<Float>(0.42, 0.45, 0.55, 0.2)
@@ -252,15 +286,33 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         lines.reserveCapacity(constellations.reduce(0) { $0 + $1.figureSegments.count * 2 })
         for constellation in constellations {
             let selected = constellation.id == selectedConstellationID
+            switch camera.tier {
+            case .collection: continue
+            case .system where !selected: continue
+            case .focus where !selected: continue
+            default: break
+            }
             for segment in constellation.figureSegments {
                 guard let from = starByID[segment.fromAlbumID], let to = starByID[segment.toAlbumID] else { continue }
                 let dx = Int64(from.coordinate.x) - Int64(to.coordinate.x)
                 let dy = Int64(from.coordinate.y) - Int64(to.coordinate.y)
-                guard dx * dx + dy * dy <= Int64(SkyComposer.starSpacing * 6) * Int64(SkyComposer.starSpacing * 6) else { continue }
-                let alpha: Float = selected ? 0.62 : (selectedConstellationID == nil ? 0.26 : 0.10)
+                guard dx * dx + dy * dy <= Int64(SkyComposer.starSpacing * 4) * Int64(SkyComposer.starSpacing * 4) else { continue }
+                let alpha: Float = selected ? 0.58 : (selectedConstellationID == nil ? 0.17 : 0.06)
                 let color = SIMD4<Float>(selected ? 0.72 : 0.49, selected ? 0.80 : 0.56, selected ? 0.96 : 0.68, alpha)
                 lines.append(GPULine(position: SIMD2(Float(from.coordinate.x), Float(from.coordinate.y)), color: color))
                 lines.append(GPULine(position: SIMD2(Float(to.coordinate.x), Float(to.coordinate.y)), color: color))
+            }
+        }
+        if camera.tier == .focus,
+           let selectedStarID,
+           let selected = stars.first(where: { $0.albumID == selectedStarID }) {
+            let points = SkyAlbumConstellation.points(albumID: selectedStarID, center: selected.coordinate)
+            let color = SIMD4<Float>(0.70, 0.80, 0.98, 0.52)
+            for (fromIndex, toIndex) in SkyAlbumConstellation.segments {
+                guard points.indices.contains(fromIndex), points.indices.contains(toIndex) else { continue }
+                let from = points[fromIndex], to = points[toIndex]
+                lines.append(GPULine(position: SIMD2(Float(from.x), Float(from.y)), color: color))
+                lines.append(GPULine(position: SIMD2(Float(to.x), Float(to.y)), color: color))
             }
         }
         lineCount = lines.count
@@ -275,6 +327,16 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
 
     private func planetInstance(_ planet: SkyPlanet, selected: Bool) -> GPUInstance {
         let colors = planet.descriptor.bandColors
+        let size: Float
+        if selected {
+            size = 46
+        } else {
+            switch camera.tier {
+            case .collection: size = 30
+            case .system: size = 34
+            case .album, .focus: size = 38
+            }
+        }
         func vector(_ index: Int) -> SIMD4<Float> {
             let color = colors.isEmpty ? SkyColor(red: 120, green: 132, blue: 150) : colors[index % colors.count]
             return SIMD4(Float(color.red) / 255, Float(color.green) / 255, Float(color.blue) / 255, 1)
@@ -284,7 +346,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             color0: vector(0),
             color1: vector(1),
             color2: vector(2),
-            size: selected ? 46 : 28,
+            size: size,
             flags: UInt32(selected ? 3 : 2) | (planet.descriptor.hasRings ? 0x100 : 0),
             turbulence: Float(planet.descriptor.turbulence) / 1024
         )

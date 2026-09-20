@@ -46,13 +46,12 @@ test('every compact indicator shares the same tab-local centered path', () => {
 });
 
 test('empty sky has exactly two distinct labels rather than repeated quadrant markers', () => {
-  assert.match(sky, /static let labels = \["UNCHARTED", "UNLIT"\]/);
-  assert.match(sky, /ForEach\(Array\(AeonQuietSkyMarkers\.labels\.enumerated\(\)\)/);
-  assert.doesNotMatch(sky, /"UNCHARTED", "UNLIT", "UNCHARTED"/);
+  assert.doesNotMatch(sky, /"UNCHARTED"|"UNLIT"/);
+  assert.match(sky, /Text\("Your sky is empty"\)/);
   // Bearings are decorative and shown only while nothing is charted. The starfield
   // itself is the renderer's fixed-seed backdrop, not a second SwiftUI canvas.
-  assert.match(sky, /struct AeonQuietSkyBearings: View/);
-  assert.match(sky, /if controller\.catalogue\.stars\.isEmpty \{\s*AeonQuietSkyBearings\(\)/);
+  assert.doesNotMatch(sky, /AeonQuietSkyBearings/);
+  assert.match(sky, /if controller\.catalogue\.stars\.isEmpty \{\s*VStack/);
   assert.match(sky, /allowsHitTesting\(false\)\.accessibilityHidden\(true\)/);
   assert.doesNotMatch(sky, /Canvas \{ context, size in/);
 });

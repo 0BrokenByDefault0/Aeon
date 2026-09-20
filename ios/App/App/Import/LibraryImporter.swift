@@ -26,6 +26,7 @@ struct LibraryImportResult: Equatable {
     var updatedTracks = 0
     var unchangedFiles = 0
     var missingFiles = 0
+    var enumeratedFiles = 0
     var failureReasons: [String] = []
 
     /// A completed pipeline is not necessarily a successful import. Always report the outcome.
@@ -139,6 +140,19 @@ final class LibraryImporter: @unchecked Sendable {
             var missing: Bool
         }
         var entries: [Entry]
+        var directories: [DirectorySnapshot]?
+    }
+
+    private struct DirectorySnapshot: Codable, Equatable {
+        let relativePath: String
+        let modificationTime: TimeInterval?
+        let containsDirectories: Bool
+    }
+
+    private struct AdoptedScan {
+        var files: [CollectedAudioFile]
+        var directories: [DirectorySnapshot]
+        var enumeratedFiles: Int
     }
 
     private struct AdoptionPlan {
@@ -245,21 +259,30 @@ final class LibraryImporter: @unchecked Sendable {
         progress(LibraryImportProgress(
             phase: .scanning, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
         ))
-        let discoveredFiles = try collectAudioFiles(
-            selectedURLs,
-            scanPolicy: scanPolicy,
-            cancellation: cancellation
-        )
+        let storedAdoptedIndex = scanPolicy == .adoptedMusicRoot
+            ? try repository.setting(AdoptedImportIndex.self, forKey: Self.adoptedIndexKey)
+            : nil
+        let adoptedScan: AdoptedScan?
+        let discoveredFiles: [CollectedAudioFile]
+        if scanPolicy == .adoptedMusicRoot, let root = selectedURLs.first {
+            let scan = try collectAdoptedAudioFiles(root: root, previous: storedAdoptedIndex, cancellation: cancellation)
+            adoptedScan = scan
+            discoveredFiles = scan.files
+        } else {
+            adoptedScan = nil
+            discoveredFiles = try collectAudioFiles(selectedURLs, scanPolicy: scanPolicy, cancellation: cancellation)
+        }
         var result = LibraryImportResult()
+        result.enumeratedFiles = adoptedScan?.enumeratedFiles ?? discoveredFiles.count
         var files = discoveredFiles
         var priorAdoptedIndex: AdoptedImportIndex?
         if scanPolicy == .adoptedMusicRoot {
-            let stored = try repository.setting(AdoptedImportIndex.self, forKey: Self.adoptedIndexKey)
-            priorAdoptedIndex = try stored ?? bootstrapAdoptedIndex(from: discoveredFiles)
+            priorAdoptedIndex = try storedAdoptedIndex ?? bootstrapAdoptedIndex(from: discoveredFiles)
             if discoveredFiles.isEmpty, let priorAdoptedIndex, !priorAdoptedIndex.entries.isEmpty {
                 result.missingFiles = priorAdoptedIndex.entries.count
                 var missing = priorAdoptedIndex
                 for index in missing.entries.indices { missing.entries[index].missing = true }
+                missing.directories = adoptedScan?.directories
                 try repository.setSetting(missing, forKey: Self.adoptedIndexKey, at: now())
                 progress(LibraryImportProgress(
                     phase: .complete, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
@@ -296,7 +319,9 @@ final class LibraryImporter: @unchecked Sendable {
         guard !discoveredFiles.isEmpty else { throw LibraryImportError.noSupportedAudio }
         if files.isEmpty {
             if scanPolicy == .adoptedMusicRoot {
-                try persistAdoptedIndex(files: discoveredFiles, previous: priorAdoptedIndex)
+                try persistAdoptedIndex(
+                    files: discoveredFiles, directories: adoptedScan?.directories ?? [], previous: priorAdoptedIndex
+                )
             }
             progress(LibraryImportProgress(
                 phase: .complete, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
@@ -393,7 +418,9 @@ final class LibraryImporter: @unchecked Sendable {
         try cancellation.check()
         try repository.removeSetting(forKey: cursorKey)
         if scanPolicy == .adoptedMusicRoot {
-            try persistAdoptedIndex(files: discoveredFiles, previous: priorAdoptedIndex)
+            try persistAdoptedIndex(
+                files: discoveredFiles, directories: adoptedScan?.directories ?? [], previous: priorAdoptedIndex
+            )
         }
         progress(LibraryImportProgress(
             phase: .complete,
@@ -709,11 +736,12 @@ final class LibraryImporter: @unchecked Sendable {
         return AdoptedImportIndex(entries: files.compactMap { file in
             guard let path = file.relativePath, let track = tracks[path] else { return nil }
             return indexEntry(file: file, track: track, missing: false)
-        })
+        }, directories: nil)
     }
 
     private func persistAdoptedIndex(
         files: [CollectedAudioFile],
+        directories: [DirectorySnapshot],
         previous: AdoptedImportIndex?
     ) throws {
         let tracks = try adoptedTracksByRelativePath()
@@ -742,7 +770,11 @@ final class LibraryImporter: @unchecked Sendable {
             return missing
         })
         entries.sort { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
-        try repository.setSetting(AdoptedImportIndex(entries: entries), forKey: Self.adoptedIndexKey, at: now())
+        try repository.setSetting(
+            AdoptedImportIndex(entries: entries, directories: directories),
+            forKey: Self.adoptedIndexKey,
+            at: now()
+        )
     }
 
     private func adoptedTracksByRelativePath() throws -> [String: CatalogTrack] {
@@ -832,6 +864,97 @@ final class LibraryImporter: @unchecked Sendable {
 
     private func indexFingerprint(_ entry: AdoptedImportIndex.Entry) -> String {
         "\(entry.fileSize):\(entry.modificationTime ?? -1)"
+    }
+
+    /// Walks the directory tree but reuses indexed file metadata for unchanged leaf
+    /// folders. Adding one album therefore lists the hierarchy plus that album only;
+    /// existing album folders never re-enter the file/tag/probe pipeline.
+    private func collectAdoptedAudioFiles(
+        root: URL,
+        previous: AdoptedImportIndex?,
+        cancellation: LibraryImportCancellation
+    ) throws -> AdoptedScan {
+        let previousDirectories = Dictionary(
+            uniqueKeysWithValues: (previous?.directories ?? []).map { ($0.relativePath, $0) }
+        )
+        let previousEntries = Dictionary(grouping: previous?.entries.filter { !$0.missing } ?? []) {
+            ($0.relativePath as NSString).deletingLastPathComponent
+        }
+        var scan = AdoptedScan(files: [], directories: [], enumeratedFiles: 0)
+
+        func walk(_ directory: URL, relativePath: String) throws {
+            try cancellation.check()
+            let directoryValues = try? directory.resourceValues(forKeys: [.contentModificationDateKey])
+            let modificationTime = directoryValues?.contentModificationDate?.timeIntervalSince1970
+            if let prior = previousDirectories[relativePath],
+               let priorModificationTime = prior.modificationTime,
+               let modificationTime,
+               !prior.containsDirectories,
+               timestampsMatch(priorModificationTime, modificationTime) {
+                for entry in previousEntries[relativePath] ?? [] {
+                    let url = root.appendingPathComponent(entry.relativePath, isDirectory: false)
+                    scan.files.append(CollectedAudioFile(
+                        url: url,
+                        batchLabel: url.deletingLastPathComponent().lastPathComponent,
+                        relativePath: entry.relativePath,
+                        fileSize: entry.fileSize,
+                        modificationTime: entry.modificationTime,
+                        resourceIdentifier: entry.resourceIdentifier
+                    ))
+                }
+                scan.directories.append(prior)
+                return
+            }
+
+            let keys: [URLResourceKey] = [
+                .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
+                .fileSizeKey, .contentModificationDateKey, .fileResourceIdentifierKey
+            ]
+            let children = try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: keys,
+                options: []
+            ).sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+            var containsDirectories = false
+            for child in children {
+                try cancellation.check()
+                let values = try? child.resourceValues(forKeys: Set(keys))
+                if values?.isDirectory == true {
+                    guard values?.isSymbolicLink != true, !child.lastPathComponent.hasPrefix(".") else { continue }
+                    if isManagedMusicDirectory(child) { continue }
+                    containsDirectories = true
+                    let childPath = relativePath.isEmpty
+                        ? child.lastPathComponent
+                        : relativePath + "/" + child.lastPathComponent
+                    try walk(child, relativePath: childPath)
+                    continue
+                }
+                guard let target = audioTarget(for: child) else { continue }
+                scan.enumeratedFiles += 1
+                let targetValues: URLResourceValues?
+                if target == child { targetValues = values }
+                else { targetValues = try? target.resourceValues(forKeys: Set(keys)) }
+                let path = adoptedRelativePath(for: target)
+                scan.files.append(CollectedAudioFile(
+                    url: target,
+                    batchLabel: target.deletingLastPathComponent().lastPathComponent,
+                    relativePath: path,
+                    fileSize: Int64(targetValues?.fileSize ?? 0),
+                    modificationTime: targetValues?.contentModificationDate?.timeIntervalSince1970,
+                    resourceIdentifier: resourceIdentifier(targetValues?.fileResourceIdentifier)
+                ))
+            }
+            scan.directories.append(DirectorySnapshot(
+                relativePath: relativePath,
+                modificationTime: modificationTime,
+                containsDirectories: containsDirectories
+            ))
+        }
+
+        try walk(root, relativePath: "")
+        scan.files.sort { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
+        scan.directories.sort { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
+        return scan
     }
 
     private func collectAudioFiles(

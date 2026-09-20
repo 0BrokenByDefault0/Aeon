@@ -111,6 +111,17 @@ final class SkyComposerTests: XCTestCase {
         XCTAssertTrue(forward.regions.first { $0.id == SkyRegionIdentity.uncharted }?.isUncharted == true)
     }
 
+    func testAlbumConstellationIsDeterministicAndLocal() {
+        let center = SkyPoint(x: 500, y: -700)
+        let first = SkyAlbumConstellation.points(albumID: "album-9", center: center)
+        let second = SkyAlbumConstellation.points(albumID: "album-9", center: center)
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.first, center)
+        XCTAssertEqual(first.count, 6)
+        XCTAssertTrue(first.allSatisfy { distanceSquared($0, center) <= UInt64(18 * 18 * 2) })
+    }
+
     func testRepositoryBackfillPersistsStarsAndIsANoOpWhenRepeated() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

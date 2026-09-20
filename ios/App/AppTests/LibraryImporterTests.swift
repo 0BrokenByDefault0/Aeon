@@ -231,11 +231,16 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(probe.callCount, probesAfterInitial)
         XCTAssertEqual(try repository.albumCount(), 2)
 
+        let indexedRescan = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(indexedRescan.enumeratedFiles, 0, "unchanged album folders should be reused from the directory index")
+        XCTAssertEqual(indexedRescan.unchangedFiles, 2)
+
         try writeAudio(third)
         let update = try await importer.adoptMusicLibrary()
         XCTAssertEqual(update.importedAlbums, 1)
         XCTAssertEqual(update.importedTracks, 1)
         XCTAssertEqual(update.unchangedFiles, 2)
+        XCTAssertEqual(update.enumeratedFiles, 1, "only the newly added album folder should enumerate audio files")
         XCTAssertEqual(reader.callCount - tagReadsAfterInitial, 2, "only the new file should receive tag and artwork reads")
         XCTAssertEqual(probe.callCount - probesAfterInitial, 2, "only the new file should be decoded and verified")
         XCTAssertEqual(try repository.albumCount(), 3)

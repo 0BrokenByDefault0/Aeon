@@ -49,11 +49,13 @@ test('toggle displays boolean words with native switch semantics and a full row 
   assert.match(toggle, /accessibilityRepresentation/);
   assert.match(toggle, /Button \{\s*AeonFeedback\.activated\(\)\s*configuration\.isOn\.toggle\(\)\s*\} label:/);
 });
-test('the three collection empty states share one recipe, preserving their separate metaphors', () => {
-  for (const [screen, motif] of [[sky, 'sky'], [library, 'collection'], [playlists, 'route']]) {
+test('utility empty states share a recipe while Sky remains an immersive universe', () => {
+  for (const [screen, motif] of [[library, 'collection'], [playlists, 'route']]) {
     assert.match(screen, /AeonEmptyState\(/);
     assert.ok(screen.includes(`motif: .${motif}`));
   }
+  assert.doesNotMatch(sky, /AeonEmptyState\(/);
+  assert.match(sky, /Text\("Your sky is empty"\)/);
   assert.match(library, /actionTitle: "IMPORT MUSIC"/);
   assert.match(library, /if hasLibraryContent \{\s*Button/);
   assert.match(native, /emptyLibrary\.frame\.contains\(libraryImport\.frame\)/);

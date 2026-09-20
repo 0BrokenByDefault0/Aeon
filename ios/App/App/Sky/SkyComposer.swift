@@ -152,12 +152,21 @@ struct SkyComposer {
                     artistName: first.artistName,
                     regionID: first.regionID,
                     albumIDs: values.map(\.albumID),
-                    figureSegments: zip(values, values.dropFirst()).map {
-                        SkyFigureSegment(fromAlbumID: $0.albumID, toAlbumID: $1.albumID)
-                    }
+                    figureSegments: localFigureSegments(values)
                 )
             }
             .sorted { $0.artistKey < $1.artistKey }
+    }
+
+    private func localFigureSegments(_ stars: [SkyStar]) -> [SkyFigureSegment] {
+        let maximumDistance = UInt64(Self.starSpacing * 4) * UInt64(Self.starSpacing * 4)
+        return stars.indices.dropFirst().compactMap { index in
+            let star = stars[index]
+            guard let neighbor = stars[..<index].min(by: {
+                Self.distanceSquared($0.coordinate, star.coordinate) < Self.distanceSquared($1.coordinate, star.coordinate)
+            }), Self.distanceSquared(neighbor.coordinate, star.coordinate) <= maximumDistance else { return nil }
+            return SkyFigureSegment(fromAlbumID: neighbor.albumID, toAlbumID: star.albumID)
+        }
     }
 
     private func makeRegions(stars: [SkyStar]) -> [SkyRegion] {

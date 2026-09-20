@@ -121,10 +121,6 @@ extension DesignTokenTests {
         }
     }
 
-    @objc func testQuietSkyHasTwoDistinctEdgeReadingsRatherThanDuplicateQuadrants() {
-        XCTAssertEqual(AeonQuietSkyMarkers.labels, ["UNCHARTED", "UNLIT"])
-        XCTAssertEqual(Set(AeonQuietSkyMarkers.labels).count, 2)
-    }
 }
 
 extension DesignTokenTests {

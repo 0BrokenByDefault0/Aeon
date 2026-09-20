@@ -78,9 +78,12 @@ test('first-pass surfaces retire stock capsules and preserve identifiers', () =>
   assert.doesNotMatch(components, /without pretending/);
 });
 
-test('Sky empty state uses the shared recipe with its own motif', () => {
-  assert.match(sky, /AeonEmptyState\(title: "Your sky is quiet"/);
-  assert.match(sky, /motif: \.sky/);
+test('Sky empty state remains a quiet invitation over the live universe', () => {
+  assert.match(sky, /Text\("Your sky is empty"\)/);
+  assert.match(sky, /Text\("Add music to begin charting it\."\)/);
+  assert.match(sky, /Button\("IMPORT MUSIC"\)/);
+  assert.doesNotMatch(sky, /AeonEmptyState\(/);
+  assert.doesNotMatch(sky, /motif: \.sky/);
   assert.match(components, /case \.sky: AeonGhostDisc\(\)/);
   assert.match(library, /motif: \.collection/);
   assert.match(components, /case \.collection: AeonCollectionMark\(\)/);

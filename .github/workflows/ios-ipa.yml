@@ -189,6 +189,7 @@ jobs:
             -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalUIReviewEmptyScreensAndControls \
             -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalUIReviewSkyWithOneAlbum \
             -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalDockBoundsAfterAX5EmptyStateNavigation \
+            -only-testing:AppUITests/AeonScreenMatrixTests/testCapturesSkyEmptyImportUnchartedConstellationAndPlanetStates \
             > "$RUNNER_TEMP/aeon-ui-review/review.log" 2>&1
           result=$?
           set -e

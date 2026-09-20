@@ -144,6 +144,8 @@ struct SkyMetalView: UIViewRepresentable {
             )
             if case .star(let id) = target, controller.selectedStar?.albumID == id {
                 commitSelection(id)
+            } else if case .star(let id) = target {
+                controller.locate(id: id, reduceMotion: reduceMotion)
             } else if case .constellation(let id) = target {
                 controller.locate(id: id, reduceMotion: reduceMotion)
             } else if case .planet(let id) = target {

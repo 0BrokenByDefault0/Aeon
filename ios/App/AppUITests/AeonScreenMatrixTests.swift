@@ -116,13 +116,29 @@ final class AeonScreenMatrixTests: XCTestCase {
         app = launch(["-AeonSkyFixture", "small"])
         let canvas = app.images["aeon.sky.canvas"]
         XCTAssertTrue(canvas.waitForExistence(timeout: 12))
+        capture(app, name: "screen-small-collection-planets")
         canvas.pinch(withScale: 2.2, velocity: 1.5)
-        capture(app, name: "screen-constellation")
+        capture(app, name: "screen-album-near")
+
+        app.terminate()
+        app = launch(["-AeonSkyFixture", "populated"])
+        XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 12))
+        capture(app, name: "screen-populated-collection")
+
+        app.terminate()
+        app = launch(["-AeonSkyFixture", "album-selected"])
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.star-selection"].waitForExistence(timeout: 12))
+        capture(app, name: "screen-album-focus")
 
         app.terminate()
         app = launch(["-AeonSkyFixture", "planet-selected"])
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.planet-selection"].waitForExistence(timeout: 12))
-        capture(app, name: "screen-planet-selected")
+        capture(app, name: "screen-planet-focus")
+        let explore = app.buttons["aeon.sky.planet.explore"]
+        XCTAssertTrue(explore.isHittable)
+        explore.tap()
+        Thread.sleep(forTimeInterval: 1)
+        capture(app, name: "screen-system-scale")
     }
 
     func testCapturesLibraryGridListAlbumEditorAndIPadSplitStates() {

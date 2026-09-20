@@ -54,13 +54,28 @@ final class SkyCameraTests: XCTestCase {
     }
 
     func testZoomTiersHaveStableBoundariesAndDoubleTapStepsOut() {
-        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 0.2, selectedID: nil).tier, .galaxy)
-        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 0.8, selectedID: nil).tier, .region)
-        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 2, selectedID: nil).tier, .constellation)
-        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 5, selectedID: nil).tier, .system)
+        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 0.2, selectedID: nil).tier, .collection)
+        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 0.8, selectedID: nil).tier, .system)
+        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 2, selectedID: nil).tier, .album)
+        XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 5, selectedID: nil).tier, .focus)
         let viewport = SkyViewport(size: CGSize(width: 400, height: 800))
         let system = SkyCameraState(centerX: 0, centerY: 0, scale: 5, selectedID: nil)
-        XCTAssertEqual(system.zoomedOutOneTier(anchor: viewport.center, viewport: viewport).scale, 3.0, accuracy: 0.0001)
+        XCTAssertEqual(system.zoomedOutOneTier(anchor: viewport.center, viewport: viewport).scale, 2.4, accuracy: 0.0001)
+    }
+
+    func testAlbumFocusProducesAVisibleProjectedFigure() {
+        let viewport = SkyViewport(size: CGSize(width: 390, height: 844))
+        let points = SkyAlbumConstellation.points(albumID: "album-7", center: SkyPoint(x: 900, y: -340))
+        let camera = SkyCameraState.focusFraming(points: points, viewport: viewport)
+        let projected = points.map { camera.screenPoint(for: $0, viewport: viewport) }
+        let width = projected.map(\.x).max()! - projected.map(\.x).min()!
+        let height = projected.map(\.y).max()! - projected.map(\.y).min()!
+        let focusSize = max(width, height)
+        let usableShortEdge = min(viewport.size.width, viewport.size.height) - 72
+
+        XCTAssertEqual(camera.tier, .focus)
+        XCTAssertGreaterThanOrEqual(focusSize, usableShortEdge * 0.25)
+        XCTAssertLessThanOrEqual(focusSize, usableShortEdge * 0.45 + 1)
     }
 
     func testInvalidPersistedCameraValuesRecoverToSafeBounds() {
