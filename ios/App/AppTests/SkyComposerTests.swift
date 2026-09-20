@@ -2,6 +2,32 @@ import XCTest
 @testable import App
 
 final class SkyComposerTests: XCTestCase {
+    func testCompositionMatchesPreSimplificationCatalogues() throws {
+        let genres = ["Jazz", "Rock", "", "Uncharted", "Various Artists"]
+        var albums: [SkyAlbumInput] = []
+        for index in 1...240 {
+            let artist = "Artist \(index % 17)"
+            let date = Date(timeIntervalSince1970: Double(index / 3))
+            let canonical: String? = index % 7 == 0 ? "Ambient" : nil
+            albums.append(SkyAlbumInput(
+                id: "album-\(index)", sequence: Int64(index), title: "Album \(index)",
+                artist: artist, genre: genres[index % 5], importedAt: date,
+                isCompilation: index % 19 == 0, canonicalArtistGenre: canonical
+            ))
+        }
+        let composer = SkyComposer()
+        let initial = try composer.compose(albums: Array(albums.prefix(80)))
+        let incremental = try composer.compose(albums: albums.reversed(), preserving: initial)
+        let full = try composer.compose(albums: albums)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let fingerprints = try [initial, incremental, full].map {
+            SkyStableHash.value(String(decoding: try encoder.encode($0), as: UTF8.self))
+        }
+        // Recorded from b7eaa57: includes coordinates, regions, figures, and planet cohorts.
+        XCTAssertEqual(fingerprints, [14537898339054895489, 4308177784464051124, 8699994634793629668])
+    }
+
     func testGrammarProducesOneStarPerAlbumAndFiguresOnlyForRealRepeatedArtists() throws {
         let catalogue = try SkyComposer().compose(albums: [
             album(1, artist: "Autechre", genre: "Electronic"),

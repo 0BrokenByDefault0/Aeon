@@ -60,11 +60,15 @@ vertex SkyVertexOut skyInstanceVertex(
     float audioScale = 1.0;
     if ((instance.flags & 1) != 0) audioScale += uniforms.spectrum.x * 0.18;
     if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.62;
-    float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size) * audioScale;
+    bool backdrop = (instance.flags & 0x800) != 0;
+    float albumScale = clamp(uniforms.scale / 1.44, 0.70, 2.20);
+    float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size) * audioScale * (backdrop ? 1.0 : albumScale);
     float2 ndcOffset = float2(pixelOffset.x / (uniforms.viewport.x * 0.5),
                               -pixelOffset.y / (uniforms.viewport.y * 0.5));
     SkyVertexOut out;
-    out.position = float4(worldToNDC(instance.position, uniforms) + ndcOffset, 0, 1);
+    float2 backdropOffset = float2(fract(uniforms.center.x * instance.turbulence * 0.00009), fract(uniforms.center.y * instance.turbulence * 0.00009));
+    float2 backdropPosition = fract(instance.position + backdropOffset) * 2.0 - 1.0;
+    out.position = float4((backdrop ? backdropPosition : worldToNDC(instance.position, uniforms)) + ndcOffset, 0, 1);
     out.uv = corner * 0.5 + 0.5;
     out.color0 = instance.color0;
     out.color1 = instance.color1;

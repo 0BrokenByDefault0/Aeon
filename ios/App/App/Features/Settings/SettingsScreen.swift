@@ -30,7 +30,8 @@ struct SettingsScreen: View {
                     }
                     settingsSection("Playback") {
                         VStack(alignment: .leading, spacing: AeonTheme.Space.regular) {
-                            labelValue("Sleep timer", value: controller.sleepTimer.label)
+                            Text("Sleep timer").font(AeonTheme.FontToken.ui(.callout, weight: .regular))
+                                .foregroundStyle(AeonTheme.ColorToken.textPrimary)
                             AeonSegment(
                                 values: SettingsSleepTimer.allCases,
                                 selection: Binding(get: { controller.sleepTimer }, set: controller.setSleepTimer),
@@ -45,9 +46,6 @@ struct SettingsScreen: View {
                         settingsNavigationRow(title: "Equalizer", value: "10 BANDS",
                             detail: "Ten bands, ±12 dB. Tune it while something's playing.",
                             identifier: "aeon.settings.eq.open") { openNowPlaying(.equalizer) }
-                        settingsNavigationRow(title: "Spectrum", value: "REACTIVE",
-                            detail: "Star glow and nebula breath follow the music.",
-                            identifier: "aeon.settings.spectrum.open") { openNowPlaying(.spectrum) }
                     }
                     settingsSection("Library") {
                         orbitalToggle(title: "One import, one album",
@@ -79,6 +77,9 @@ struct SettingsScreen: View {
                         .padding(.vertical, AeonTheme.Space.regular)
                     }
                     settingsSection("The Sky") {
+                        settingsNavigationRow(title: "Spectrum", value: "REACTIVE",
+                            detail: "Star glow follows the music.",
+                            identifier: "aeon.settings.spectrum.open") { openNowPlaying(.spectrum) }
                         orbitalToggle(title: "Heads-up display", detail: nil,
                             isOn: Binding(get: { controller.preferences.hud }, set: controller.setHUD),
                             identifier: "aeon.settings.hud")
@@ -139,9 +140,9 @@ struct SettingsScreen: View {
     private func compactSleepLabel(_ value: SettingsSleepTimer) -> String {
         switch value {
         case .off: return "OFF"
-        case .minutes15: return "15"
-        case .minutes30: return "30"
-        case .minutes60: return "1H"
+        case .minutes15: return "15M"
+        case .minutes30: return "30M"
+        case .minutes60: return "60M"
         case .endOfAlbum: return "END"
         }
     }

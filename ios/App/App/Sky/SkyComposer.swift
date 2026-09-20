@@ -17,7 +17,8 @@ struct SkyComposer {
         let placements = regionPlacements(for: ordered)
         var stars = existing.stars
         var occupied = SpatialIndex(points: existing.stars.filter { !$0.isUncharted }.map(\.coordinate))
-        let groupedExisting = Dictionary(grouping: existing.stars, by: \.artistKey)
+        let existingAnchors = Dictionary(grouping: existing.stars, by: \.artistKey).compactMapValues(\.last)
+        var latestStars = existingAnchors
 
         for album in ordered where existingByAlbum[album.id] == nil {
             let artistKey = Self.artistKey(for: album)
@@ -25,7 +26,7 @@ struct SkyComposer {
             let coordinate: SkyPoint
             if placement == .uncharted {
                 coordinate = unchartedCoordinate(albumID: album.id)
-            } else if let prior = (groupedExisting[artistKey] ?? stars.filter { $0.artistKey == artistKey }).last {
+            } else if let prior = existingAnchors[artistKey] ?? latestStars[artistKey] {
                 coordinate = nearbyCoordinate(albumID: album.id, anchor: prior.coordinate, occupied: &occupied)
             } else {
                 coordinate = outwardCoordinate(album: album, occupied: &occupied)
@@ -42,6 +43,7 @@ struct SkyComposer {
                 isUncharted: placement == .uncharted,
                 magnitude: placement == .uncharted ? min(album.magnitude, 40) : album.magnitude
             ))
+            latestStars[artistKey] = stars.last
         }
         stars.sort { lhs, rhs in
             if lhs.importedAt != rhs.importedAt { return lhs.importedAt < rhs.importedAt }
@@ -56,13 +58,13 @@ struct SkyComposer {
     }
 
     private enum Placement: Equatable {
-        case region(id: String, name: String)
+        case region(String)
         case variousArtists
         case uncharted
 
         var regionID: String {
             switch self {
-            case .region(let id, _): return id
+            case .region(let id): return id
             case .variousArtists: return SkyRegionIdentity.variousArtists
             case .uncharted: return SkyRegionIdentity.uncharted
             }
@@ -80,45 +82,29 @@ struct SkyComposer {
     }
 
     private func regionPlacements(for albums: [SkyAlbumInput]) -> [String: Placement] {
-        let groups = Dictionary(grouping: albums, by: Self.artistKey)
-        var result: [String: Placement] = [:]
-        for (artistKey, values) in groups {
+        Dictionary(grouping: albums, by: Self.artistKey).mapValues { values in
             if values.contains(where: Self.isVariousArtists) {
-                result[artistKey] = .variousArtists
-                continue
+                return .variousArtists
             }
-            let tagged = values.compactMap { album -> (String, String, Date, Int64)? in
-                let name = album.genre.trimmingCharacters(in: .whitespacesAndNewlines)
-                let key = SkyStableHash.normalized(name)
-                return key.isEmpty ? nil : (key, name, album.importedAt, album.sequence)
+            let tagged = values.compactMap { album -> (String, Date, Int64)? in
+                let key = SkyStableHash.normalized(album.genre)
+                return key.isEmpty ? nil : (key, album.importedAt, album.sequence)
             }
-            guard !tagged.isEmpty else {
-                result[artistKey] = .uncharted
-                continue
-            }
-            let genres = Set(tagged.map(\.0))
-            if genres.count == 1, let first = tagged.first {
-                result[artistKey] = .region(id: Self.regionID(first.0), name: first.1)
-                continue
-            }
-            let canonical = values.compactMap { $0.canonicalArtistGenre?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .first { !SkyStableHash.normalized($0).isEmpty }
-            if let canonical {
-                result[artistKey] = .region(id: Self.regionID(SkyStableHash.normalized(canonical)), name: canonical)
-                continue
-            }
+            guard let first = tagged.first else { return .uncharted }
             let counts = Dictionary(grouping: tagged, by: \.0).mapValues(\.count)
-            let maximum = counts.values.max() ?? 0
-            let earliestWinner = tagged
-                .filter { counts[$0.0] == maximum }
-                .sorted {
-                    if $0.2 != $1.2 { return $0.2 < $1.2 }
-                    if $0.3 != $1.3 { return $0.3 < $1.3 }
-                    return $0.0 < $1.0
-                }.first!
-            result[artistKey] = .region(id: Self.regionID(earliestWinner.0), name: earliestWinner.1)
+            if counts.count > 1,
+               let canonical = values.lazy.compactMap(\.canonicalArtistGenre)
+                .map(SkyStableHash.normalized).first(where: { !$0.isEmpty }) {
+                return .region(Self.regionID(canonical))
+            }
+            let maximum = counts.values.max()
+            let winner = tagged.filter { counts[$0.0] == maximum }.min {
+                if $0.1 != $1.1 { return $0.1 < $1.1 }
+                if $0.2 != $1.2 { return $0.2 < $1.2 }
+                return $0.0 < $1.0
+            } ?? first
+            return .region(Self.regionID(winner.0))
         }
-        return result
     }
 
     private func outwardCoordinate(album: SkyAlbumInput, occupied: inout SpatialIndex) -> SkyPoint {
@@ -197,7 +183,7 @@ struct SkyComposer {
         var cursor = 0
         while cursor + Self.albumsPerPlanet <= available.count {
             let cohort = Array(available[cursor..<(cursor + Self.albumsPerPlanet)])
-            let index = (planets.map(\.index).max() ?? 0) + 1
+            let index = (planets.last?.index ?? 0) + 1
             let formation = cohort.last!.importedAt
             let frontierSquared = stars.lazy
                 .filter { $0.importedAt <= formation }

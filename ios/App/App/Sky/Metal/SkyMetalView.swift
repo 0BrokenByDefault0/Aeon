@@ -4,9 +4,10 @@ import SwiftUI
 struct SkyMetalView: UIViewRepresentable {
     @ObservedObject var controller: SkySceneController
     let reduceMotionOverride: Bool
+    let commitSelection: (String) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    func makeCoordinator() -> Coordinator { Coordinator(controller: controller) }
+    func makeCoordinator() -> Coordinator { Coordinator(controller: controller, commitSelection: commitSelection) }
 
     func makeUIView(context: Context) -> MTKView {
         let view = MTKView(frame: .zero, device: MTLCreateSystemDefaultDevice())
@@ -28,6 +29,7 @@ struct SkyMetalView: UIViewRepresentable {
     func updateUIView(_ view: MTKView, context: Context) {
         let effectiveReduceMotion = reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
         context.coordinator.controller = controller
+        context.coordinator.commitSelection = commitSelection
         context.coordinator.reduceMotion = effectiveReduceMotion
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
@@ -42,13 +44,16 @@ struct SkyMetalView: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var controller: SkySceneController
+        var commitSelection: (String) -> Void
         var renderer: SkyRenderer?
         var reduceMotion = false
         private var panStart = SkyCameraState.home
         private var pinchStart = SkyCameraState.home
         private let hitTester = SkyHitTester()
 
-        init(controller: SkySceneController) { self.controller = controller }
+        init(controller: SkySceneController, commitSelection: @escaping (String) -> Void) {
+            self.controller = controller; self.commitSelection = commitSelection
+        }
 
         func install(on view: MTKView) {
             renderer = SkyRenderer(view: view)
@@ -61,7 +66,6 @@ struct SkyMetalView: UIViewRepresentable {
             hold.minimumPressDuration = 0.6
             pan.delegate = self
             pinch.delegate = self
-            singleTap.require(toFail: doubleTap)
             singleTap.require(toFail: hold)
             [pan, pinch, singleTap, doubleTap, hold].forEach(view.addGestureRecognizer)
         }
@@ -114,7 +118,9 @@ struct SkyMetalView: UIViewRepresentable {
                 camera: controller.camera,
                 viewport: viewport
             )
-            if case .constellation(let id) = target {
+            if case .star(let id) = target, controller.selectedStar?.albumID == id {
+                commitSelection(id)
+            } else if case .constellation(let id) = target {
                 controller.locate(id: id, reduceMotion: reduceMotion)
             } else {
                 controller.select(target)

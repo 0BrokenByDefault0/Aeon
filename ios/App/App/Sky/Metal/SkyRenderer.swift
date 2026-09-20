@@ -57,12 +57,14 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private var camera = SkyCameraState.home
     private var starBuffer: MTLBuffer?
     private var glowBuffer: MTLBuffer?
+    private let backdrop: [GPUInstance] = SkyRenderer.makeBackdrop()
     private var lineBuffer: MTLBuffer?
     private var traceBuffer: MTLBuffer?
     private var planetBuffer: MTLBuffer?
     private var selectedPlanetBuffer: MTLBuffer?
     private var selectedPlanetTexture: MTLTexture?
     private var starCount = 0
+    private var glowCount = 0
     private var lineCount = 0
     private var traceCount = 0
     private var planetCount = 0
@@ -106,7 +108,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         playingStarID: String? = nil,
         spectrum: SpectrumLevels = .zero
     ) {
-        let catalogueChanged = stars != catalogue.stars || planets != catalogue.planets || constellations != catalogue.constellations
+        let catalogueChanged = stars != catalogue.stars || planets != catalogue.planets || constellations != catalogue.constellations || starBuffer == nil
         let selectionChanged = selectedID != camera.selectedID || self.playingStarID != playingStarID
         let spectrumChanged = self.spectrum != spectrum
         self.camera = camera
@@ -147,7 +149,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)),
             spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, 0)
         )
-        encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: starCount, uniforms: &uniforms)
+        encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: glowCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: lineBuffer, count: lineCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: traceBuffer, count: traceCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: starPipeline, buffer: starBuffer, count: starCount, uniforms: &uniforms)
@@ -173,7 +175,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         let selectedPlanet = planets.first { $0.id == selectedID }
         let memberIDs = Set(selectedPlanet?.members.map(\.albumID) ?? [])
         let playingCoordinate = stars.first { $0.albumID == playingStarID }?.coordinate
-        let starInstances = stars.map { star in
+        let albumInstances = stars.map { star in
             let isMember = memberIDs.contains(star.albumID)
             let isPlaying = star.albumID == playingStarID
             let nearPlaying: Bool
@@ -185,22 +187,25 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                 nearPlaying = false
             }
             let alpha: Float = selectedPlanet == nil || isMember ? 1 : 0.2
-            let color = star.isUncharted
-                ? SIMD4<Float>(0.72, 0.75, 0.78, alpha)
-                : SIMD4<Float>(0.92, 0.90, 0.82, alpha)
+            let classes: [SIMD4<Float>] = [
+                SIMD4(0.66, 0.76, 1, alpha), SIMD4(0.84, 0.89, 1, alpha),
+                SIMD4(0.96, 0.95, 1, alpha), SIMD4(1, 0.91, 0.77, alpha), SIMD4(1, 0.79, 0.54, alpha)
+            ]
+            let color = classes[Int(SkyStableHash.value(star.albumID) % UInt64(classes.count))]
             return GPUInstance(
                 position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)),
                 color0: color,
                 color1: color,
                 color2: color,
-                size: Float(3 + Int(star.magnitude) / 48 + (isPlaying ? 2 : 0)),
+                size: Float(3.2 + (isPlaying ? 0.6 : 0)),
                 flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0),
                 turbulence: 0
             )
         }
+        let starInstances = backdrop + albumInstances
         starCount = starInstances.count
         starBuffer = makeBuffer(starInstances)
-        let glows = starInstances.map {
+        let glows = albumInstances.map {
             var value = $0
             value.size *= 3.6
             value.color0 *= SIMD4<Float>(0.42, 0.45, 0.55, 0.2)
@@ -208,6 +213,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             return value
         }
         glowBuffer = makeBuffer(glows)
+        glowCount = glows.count
 
         rebuildPlanetBuffers()
         guard let selected = selectedPlanet else {
@@ -299,6 +305,22 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         return values.withUnsafeBytes { bytes in
             guard let address = bytes.baseAddress else { return nil }
             return device.makeBuffer(bytes: address, length: bytes.count, options: .storageModeShared)
+        }
+    }
+
+    private static func makeBackdrop() -> [GPUInstance] {
+        // Fixed seed: this is one sky, not a fresh decorative scatter every launch.
+        (0..<1_400).map { index in
+            let a = SkyStableHash.mix(UInt64(index) &+ 0xAE01)
+            let b = SkyStableHash.mix(a)
+            let layer = index % 3
+            let x = Float(a & 0xffff) / Float(0xffff)
+            let y = Float(b & 0xffff) / Float(0xffff)
+            let radius: Float = layer == 0 ? 0.45 : (layer == 1 ? 0.70 : 0.95)
+            let alpha: Float = layer == 0 ? 0.08 : (layer == 1 ? 0.14 : 0.19)
+            return GPUInstance(position: SIMD2(x, y), color0: SIMD4(0.91, 0.93, 0.96, alpha),
+                               color1: SIMD4(0.91, 0.93, 0.96, alpha), color2: SIMD4(0.91, 0.93, 0.96, alpha),
+                               size: radius, flags: 0x800, turbulence: Float(layer + 1) * 0.25)
         }
     }
 
