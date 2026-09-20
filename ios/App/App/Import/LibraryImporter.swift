@@ -901,7 +901,7 @@ final class LibraryImporter: @unchecked Sendable {
             }
         }
         return collected.sorted {
-            $0.0.path.localizedStandardCompare($1.0.path) == .orderedAscending
+            $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending
         }
     }
 
