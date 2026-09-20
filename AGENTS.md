@@ -47,3 +47,17 @@ Use the shared `AeonEmptyState` recipe with distinct sky, collection and route m
 Equal-option controls use identical inset oval chambers and explicit non-overlapping touch cells, with only the selected chamber filled. Toggle endpoints read OFF and ON, never quantity marks. Keep the primary action's three-chamber orbital geometry and the shared stroke weight. Import cards are unfilled rounded outlines with top-aligned icon/title stacks; fit the source sheet to measured content and allow large-text scrolling without replacing the sheet's identity.
 
 Reserve the swash arrow for primary actions. Chevron means disclosure, plus means add/create, downward tray means choose input, upward tray means export, and circular arrow means repair/retry. Supporting text is regular-weight sans serif. Settings shows the embedded version/build/commit to distinguish signing inputs. UI work must not change the file-copy importer, folder presenter, playback engine, signing identity, or IPA-first workflow.
+
+## Reticle and feedback update — 2026-09-20
+
+This supersedes conflicting geometry details above. The selection language is `AeonReticleMark`: four viewfinder ticks, no enclosing shape and no fill at rest. It marks a *current choice* — selected segment, toggle endpoint, the record on the Now Playing stage. It is not a general border: source cards and text fields keep continuous outlines, because corner ticks on an unchosen region read as selection.
+
+The mark must never be drawn into a box too small to hold four separated corners. `AeonReticleMark.resolvedBox` grows an undersized box about its centre and arm length is capped at a third of each span; do not bypass either. The toggle draws two equal 56pt cells rather than overlaying the mark on its labels.
+
+Controls are unfilled at rest and wash only the area inside the ticks while pressed. Because that delta is small, touch feedback is not optional: route it through `AeonFeedback` (selection, activation, transport, success, failure). `AeonFeedback` is intentionally not `@MainActor` — `ButtonStyle.makeBody` is not isolated — and hops to main internally.
+
+One icon system: `AeonGlyphKind`. Do not reintroduce `Image(systemName:)` in app UI. `FontToken.ui()` is the sans for running prose and names; `FontToken.metric()` is the mono for values, counts, timecodes and tracked eyebrows. Do not make either the other.
+
+Artwork is square everywhere, including the mini player. Utility surfaces are opaque, including the player bar. Sky keeps `SkyHUD`, `SkyAccessibilityOverlay` and the ceremony banner mounted whenever it is the foreground destination, and pauses its Metal draw loop when it is not; `showHUD` and `highContrast` must stay wired to their Settings toggles.
+
+Audio: EQ boosts are answered by `AudioEngineGraph.headroomDB` makeup attenuation, and the transport ramps the program mixer to silence before stopping players. Keep those separate from master volume (main mixer) and ReplayGain (per-player volume). ReplayGain has a Settings control; the tag reader covers ID3, FLAC and MP4. `AudioSessionController.preferSampleRate` exists but is not wired — it needs a running-engine reconfiguration path and physical-device evidence first.

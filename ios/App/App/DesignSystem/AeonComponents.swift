@@ -1,4 +1,5 @@
 import Dispatch
+import Foundation
 import SwiftUI
 import UIKit
 
@@ -60,7 +61,11 @@ struct AeonReticleField: Shape {
 ///
 /// The visual press delta is deliberately small, so the haptic carries most of the
 /// confirmation. Generators are prepared lazily and shared; UIKit coalesces repeats.
-@MainActor
+/// Deliberately not `@MainActor`. Call sites include `ButtonStyle.makeBody`, which the
+/// protocol does not isolate, so an actor-isolated surface here would not compile from
+/// the very places that need it. `UIFeedbackGenerator` is main-thread-only, so the hop
+/// happens inside instead — synchronously when already on main, to keep haptics aligned
+/// with the touch that caused them.
 enum AeonFeedback {
     private static let selection = UISelectionFeedbackGenerator()
     private static let light = UIImpactFeedbackGenerator(style: .light)
@@ -69,33 +74,23 @@ enum AeonFeedback {
 
     static var isEnabled = !AeonTestOverrides.reduceMotion
 
-    /// Moving between tabs, segments, sort orders — anything that changes a selection.
-    static func selectionChanged() {
+    private static func onMain(_ body: @escaping () -> Void) {
         guard isEnabled else { return }
-        selection.selectionChanged()
+        if Thread.isMainThread { body() } else { DispatchQueue.main.async(execute: body) }
     }
+
+    /// Moving between tabs, segments, sort orders — anything that changes a selection.
+    static func selectionChanged() { onMain { selection.selectionChanged() } }
 
     /// A control was activated: a button press, a toggle flip.
-    static func activated() {
-        guard isEnabled else { return }
-        light.impactOccurred()
-    }
+    static func activated() { onMain { light.impactOccurred() } }
 
     /// Transport edges: play, pause, track change. Firmer than an ordinary press.
-    static func transport() {
-        guard isEnabled else { return }
-        rigid.impactOccurred()
-    }
+    static func transport() { onMain { rigid.impactOccurred() } }
 
-    static func succeeded() {
-        guard isEnabled else { return }
-        notice.notificationOccurred(.success)
-    }
+    static func succeeded() { onMain { notice.notificationOccurred(.success) } }
 
-    static func failed() {
-        guard isEnabled else { return }
-        notice.notificationOccurred(.error)
-    }
+    static func failed() { onMain { notice.notificationOccurred(.error) } }
 }
 
 enum AeonGlyphKind {

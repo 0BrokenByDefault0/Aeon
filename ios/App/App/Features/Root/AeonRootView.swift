@@ -96,6 +96,7 @@ struct AeonRootView: View {
         case .cancelled:
             return
         case .failed(let message):
+            AeonFeedback.failed()
             container.reportLibraryImportProblem(message)
         case .picked(let urls):
             recordPickerEvent("handoff.\(kind.rawValue).\(urls.count)")
@@ -405,6 +406,8 @@ private struct AeonReadyShell: View {
         .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
         .onReceive(container.$libraryImportResult) { result in
             guard let result, result.importedTracks > 0 || !result.skippedDuplicateAlbums.isEmpty else { return }
+            // An import is the one long-running thing the app does; confirm it in the hand.
+            AeonFeedback.succeeded()
             libraryController.dismissAlbum()
             libraryController.setQuery("")
             libraryController.setSort(.recent)

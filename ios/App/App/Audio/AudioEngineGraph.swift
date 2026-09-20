@@ -165,7 +165,9 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private static let transportRampSteps = 6
 
     private func rampProgramVolumeToSilence() {
-        guard isConfigured else { return }
+        // With the engine stopped nothing is rendering, so there is no discontinuity to
+        // smooth and no reason to spend the latency. Stopping an idle graph stays instant.
+        guard isConfigured, engine.isRunning else { return }
         let start = programMixer.outputVolume
         guard start > 0.001 else { return }
         let interval = UInt32((Self.transportRampSeconds / Double(Self.transportRampSteps)) * 1_000_000)
