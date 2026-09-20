@@ -131,8 +131,8 @@ test('switch row activation wraps the label, spacer, and traveling knob in one b
   assert.match(style, /Button \{\s*AeonFeedback\.activated\(\)\s*configuration\.isOn\.toggle\(\)\s*\} label: \{\s*HStack/);
   assert.match(style, /if showsLabel \{\s*configuration\.label\s*Spacer/);
   assert.match(style, /\.contentShape\(Rectangle\(\)\)/);
-  assert.match(native, /toggle\.tap\(\)[\s\S]*?value != %@/);
-  assert.match(native, /assertState\(toggle, predicate: "value ==/);
+  assert.match(native, /toggle\.tap\(\)[\s\S]*?waitForValueChange\(toggle, from: original/);
+  assert.match(native, /changedToggle\.tap\(\)[\s\S]*?waitForValue\(changedToggle, equalTo: original/);
 });
 
 test('player controls reuse the orbital system without changing preset gains or actions', () => {
