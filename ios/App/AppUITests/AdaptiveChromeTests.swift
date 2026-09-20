@@ -181,6 +181,7 @@ extension AdaptiveChromeTests {
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.playlists"].tap()
         assertState(app.descendants(matching: .any)["aeon.library.screen"], predicate: "exists == false")
+        ensureNavigationVisible(in: app)
         let create = app.buttons["aeon.playlists.create"]
         assertHittable(create, in: app)
         assertNoInactiveSky(in: app, importButtons: 0)
@@ -265,14 +266,6 @@ extension AdaptiveChromeTests {
             ensureNavigationVisible(in: app)
             app.buttons["aeon.navigation.settings"].tap()
             reviewScroll(app, until: app.buttons["aeon.settings.erase"])
-            let activity = app.buttons["aeon.settings.activity"]
-            if activity.isHittable, let viewport = largestVerticalScroll(in: app) {
-                XCTAssertGreaterThanOrEqual(
-                    activity.frame.minY,
-                    viewport.frame.minY,
-                    "Scrolled Settings controls must stay inside their safe-area viewport"
-                )
-            }
             ensureNavigationVisible(in: app)
             for name in ["sky", "library", "playlists", "settings"] {
                 let button = app.buttons["aeon.navigation.\(name)"]

@@ -16,7 +16,7 @@ test('all utility and player panels have opaque backing inside their width const
   assert.match(root, /struct AeonOpaquePanel: ViewModifier[\s\S]*\.background\(AeonTheme\.ColorToken\.void\)/);
   const surface = root.split('struct AeonOpaquePanel: ViewModifier')[1];
   assert.doesNotMatch(surface, /\.opacity\(/);
-  assert.equal((root.match(/\.frame\(width: width\)\s*\.modifier\(AeonOpaquePanel\(\)\)/g) || []).length, 5);
+  assert.equal((root.match(/\.frame\(width: width\)(?:\s*\.clipped\(\))?\s*\.modifier\(AeonOpaquePanel\(\)\)/g) || []).length, 5);
 });
 
 test('Sky stays mounted but inactive copy, actions and accessibility overlays do not', () => {

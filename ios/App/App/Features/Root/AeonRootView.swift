@@ -489,6 +489,7 @@ private struct AeonReadyShell: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
+            .clipped()
             .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .bottom)
@@ -501,6 +502,7 @@ private struct AeonReadyShell: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
+            .clipped()
             .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .bottom)
@@ -516,6 +518,7 @@ private struct AeonReadyShell: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
+            .clipped()
             .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
             .ignoresSafeArea(edges: .bottom)
