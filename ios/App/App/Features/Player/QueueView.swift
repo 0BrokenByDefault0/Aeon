@@ -183,7 +183,7 @@ struct QueueView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let offset {
-                AeonGlyph(kind: .grip, decorative: false)
+                AeonGlyph(kind: .grip)
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
@@ -191,6 +191,11 @@ struct QueueView: View {
                         draggedOffset = offset
                         return NSItemProvider(object: String(offset) as NSString)
                     }
+                    // One element for the whole 44pt target, carrying the image trait the
+                    // handle used to get for free from a filled SF Symbol. Assistive
+                    // technology and XCUITest both address it as an image.
+                    .accessibilityElement()
+                    .accessibilityAddTraits(.isImage)
                     .accessibilityLabel("Reorder \(title)")
                     .accessibilityHint("Drag to a new position")
                     .accessibilityIdentifier("aeon.player.queue.drag.\(item.trackID)")

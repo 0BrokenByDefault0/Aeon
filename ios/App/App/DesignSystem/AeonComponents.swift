@@ -100,12 +100,11 @@ enum AeonGlyphKind {
     case volumeLow, volumeHigh, grip, check
 }
 
+/// Always decorative. An interactive parent owns the accessibility element, its label
+/// and its identifier; a glyph never carries them itself, because a stroked Shape is
+/// not exposed as an image element the way a filled SF Symbol was.
 struct AeonGlyph: View {
     let kind: AeonGlyphKind
-    /// Decorative by default. An interactive element that attaches its own label and
-    /// identifier directly to the glyph must pass `decorative: false`, or the hidden
-    /// flag swallows the element and XCUITest cannot find it at all.
-    var decorative = true
     var body: some View {
         AeonGlyphPath(kind: kind).stroke(style: AeonOrbit.line)
             .frame(width: 24, height: 24)
@@ -113,7 +112,7 @@ struct AeonGlyph: View {
             // is a glyph has an activation point sitting in the gap between lines. These
             // replaced filled SF Symbols, whose opaque bodies made the whole box hittable.
             .contentShape(Rectangle())
-            .accessibilityHidden(decorative)
+            .accessibilityHidden(true)
     }
 }
 

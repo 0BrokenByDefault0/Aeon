@@ -247,9 +247,16 @@ struct SettingsScreen: View {
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: AeonTheme.Space.small)
                     Button { eraseText = ""; erasePresented = true } label: {
-                        AeonGlyph(kind: .erase).frame(width: 44, height: 44)
+                        AeonGlyph(kind: .erase)
+                            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain).foregroundStyle(AeonTheme.ColorToken.danger)
+                    // The target lives on the Button, not only on its label: a hidden
+                    // decorative label gives the Button no frame to derive an activation
+                    // point from, which is what the navigation buttons already avoid.
+                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                    .contentShape(Rectangle())
                     .accessibilityLabel("Erase everything").accessibilityIdentifier("aeon.settings.erase")
                 }
                 note("Albums, audio, playlists, and the log — the sky goes dark.")
