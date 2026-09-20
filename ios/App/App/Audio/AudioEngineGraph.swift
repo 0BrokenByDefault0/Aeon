@@ -149,9 +149,46 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         player.play()
     }
 
+    /// Transport de-click.
+    ///
+    /// Stopping or pausing an `AVAudioPlayerNode` truncates the waveform at whatever
+    /// sample the render loop happened to reach. On anything with low-frequency content
+    /// that step is an audible click. Ramping the program mixer to silence first removes
+    /// it for about 18 ms of latency.
+    ///
+    /// The ramp runs on the caller's transport queue — never on main and never on the
+    /// render thread — and uses the program mixer specifically so it cannot collide with
+    /// master volume (main mixer) or ReplayGain (per-player volume). Volume is restored
+    /// once the players are silent, so no resume path has to remember to undo it and a
+    /// missed restore can never strand playback at zero.
+    static let transportRampSeconds = 0.018
+    private static let transportRampSteps = 6
+
+    private func rampProgramVolumeToSilence() {
+        guard isConfigured else { return }
+        let start = programMixer.outputVolume
+        guard start > 0.001 else { return }
+        let interval = UInt32((Self.transportRampSeconds / Double(Self.transportRampSteps)) * 1_000_000)
+        for step in 1...Self.transportRampSteps {
+            programMixer.outputVolume = start * (1 - Float(step) / Float(Self.transportRampSteps))
+            usleep(interval)
+        }
+        programMixer.outputVolume = 0
+    }
+
+    private func silenceThenRestore(_ stop: () -> Void) {
+        let restored = isConfigured ? programMixer.outputVolume : 1
+        rampProgramVolumeToSilence()
+        stop()
+        // The players are stopped, so nothing renders; restoring now is inaudible.
+        if isConfigured { programMixer.outputVolume = max(restored, 0.001) }
+    }
+
     func pause() {
-        playerA.pause()
-        playerB.pause()
+        silenceThenRestore {
+            playerA.pause()
+            playerB.pause()
+        }
     }
 
     func stop() {
@@ -232,8 +269,11 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     func cancelScheduledPlayback() {
         scheduleHostOrigin = nil
         scheduledStarts.removeAll()
-        playerA.stop()
-        playerB.stop()
+        // This, not pause(), is the path the queue scheduler takes for a user pause.
+        silenceThenRestore {
+            playerA.stop()
+            playerB.stop()
+        }
     }
 
     func closeScheduledFile(slot: AudioSlot) {
@@ -388,6 +428,20 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         }
     }
 
+    /// Makeup attenuation for the loudest boosted band.
+    ///
+    /// The presets reach +9 dB. Applied on top of a track already mastered near full
+    /// scale, with nothing downstream to catch it, that is guaranteed clipping at the
+    /// main mixer. Pulling `globalGain` down by the largest positive band gain keeps the
+    /// boosted band at unity instead of above it, so the EQ changes balance rather than
+    /// level. Bands that only cut need no compensation.
+    static func headroomDB(for bands: [EQBand]) -> Double {
+        let loudest = bands.map(\.gainDB).max() ?? 0
+        guard loudest.isFinite, loudest > 0 else { return 0 }
+        // AVAudioUnitEQ clamps globalGain to -96...24 dB.
+        return -min(loudest, 24)
+    }
+
     private func applyEQBands() {
         for (index, filter) in equalizer.bands.enumerated() {
             guard index < eqBands.count else {
@@ -401,6 +455,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             filter.gain = Float(band.gainDB)
             filter.bypass = false
         }
+        equalizer.globalGain = eqEnabled ? Float(Self.headroomDB(for: eqBands)) : 0
     }
 
     private func installPendingSpectrumTap() {

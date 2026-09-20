@@ -59,6 +59,24 @@ final class AudioSessionController: AudioSessionActivating {
         try session.setActive(true)
     }
 
+    /// Ask the hardware to run at the source's own rate.
+    ///
+    /// Without this iOS parks the session at 48 kHz and resamples the 44.1 kHz content
+    /// that most collections are made of. `setPreferredSampleRate` is a hint the system
+    /// may decline — on many Bluetooth routes it will — so this is best effort and never
+    /// fails a load.
+    ///
+    /// Only call this while nothing is rendering. Changing the rate under a running
+    /// engine forces a reconfiguration this app does not yet observe, so the caller is
+    /// responsible for the "engine is idle" precondition.
+    func preferSampleRate(_ rate: Double) {
+        guard rate.isFinite, rate >= 8_000, rate <= 192_000 else { return }
+        guard abs(session.sampleRate - rate) > 1 else { return }
+        try? session.setPreferredSampleRate(rate)
+    }
+
+    var currentSampleRate: Double { session.sampleRate }
+
     func deactivate() {
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
