@@ -41,7 +41,7 @@ struct LibraryScreen: View {
                 LazyVStack(alignment: .leading, spacing: AeonTheme.Space.section) {
                     header
                     if let importProgress { importStatus(importProgress) }
-                    if let importError, !importError.isEmpty { inlineStatus(importError, symbol: "exclamationmark.triangle") }
+                    if let importError, !importError.isEmpty { inlineStatus(importError, glyph: .refresh) }
                     if let album = controller.continueAlbum, hasLibraryContent { continueListening(album) }
                     if hasLibraryContent { controls }
                     content(width: geometry.size.width)
@@ -79,14 +79,16 @@ struct LibraryScreen: View {
     private var controls: some View {
         VStack(spacing: AeonTheme.Space.regular) {
             HStack(spacing: AeonTheme.Space.small) {
-                Image(systemName: "magnifyingglass").foregroundStyle(AeonOrbit.secondary)
+                AeonGlyph(kind: .search).foregroundStyle(AeonOrbit.secondary)
                 TextField("Search albums, artists, tracks", text: Binding(get: { controller.query }, set: controller.setQuery))
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonTheme.ColorToken.textPrimary)
                     .accessibilityIdentifier("aeon.library.search")
                 if controller.isSearching {
-                    Button { controller.setQuery("") } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                        .buttonStyle(.plain).accessibilityLabel("Clear search")
+                    Button { controller.setQuery("") } label: {
+                        AeonGlyph(kind: .close).frame(width: 44, height: 44).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).accessibilityLabel("Clear search")
                 }
             }
             .padding(.leading, AeonTheme.Space.regular).frame(minHeight: 48)
@@ -95,18 +97,31 @@ struct LibraryScreen: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AeonTheme.Space.large) {
                         ForEach(LibraryController.Sort.allCases) { sort in
-                            Button(sort.label) { controller.setSort(sort) }
-                                .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
-                                .foregroundStyle(controller.sort == sort ? AeonOrbit.ink : AeonOrbit.secondary)
-                                .frame(minHeight: 44)
-                                .overlay(alignment: .bottom) {
-                                    Rectangle().fill(controller.sort == sort ? AeonOrbit.ink : .clear).frame(height: AeonOrbit.stroke)
-                                }
-                                .accessibilityAddTraits(controller.sort == sort ? .isSelected : [])
-                                .accessibilityIdentifier("aeon.library.sort.\(sort.rawValue)")
+                            Button(sort.label) {
+                                if controller.sort != sort { AeonFeedback.selectionChanged() }
+                                controller.setSort(sort)
+                            }
+                            .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
+                            .foregroundStyle(controller.sort == sort ? AeonOrbit.ink : AeonOrbit.secondary)
+                            .frame(minHeight: 44)
+                            .overlay(alignment: .bottom) {
+                                Rectangle().fill(controller.sort == sort ? AeonOrbit.ink : .clear).frame(height: AeonOrbit.stroke)
+                            }
+                            .accessibilityAddTraits(controller.sort == sort ? .isSelected : [])
+                            .accessibilityIdentifier("aeon.library.sort.\(sort.rawValue)")
                         }
                     }
+                    .padding(.trailing, AeonTheme.Space.medium)
                 }
+                // The last order used to be cut mid-word against the density buttons,
+                // which read as a clipping bug rather than as scrollable content.
+                .mask(LinearGradient(stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: 0.88),
+                    .init(color: .clear, location: 1)
+                ], startPoint: .leading, endPoint: .trailing))
+                Rectangle().fill(AeonTheme.ColorToken.rule)
+                    .frame(width: AeonTheme.Stroke.hairline, height: 24).accessibilityHidden(true)
                 HStack(spacing: AeonTheme.Space.xSmall) {
                     densityButton(.grid, glyph: .library)
                     densityButton(.list, glyph: .files)
@@ -237,16 +252,19 @@ struct LibraryScreen: View {
                 .font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonOrbit.secondary)
         }.accessibilityIdentifier("aeon.library.import.progress")
     }
-    private func inlineStatus(_ text: String, symbol: String) -> some View {
+    private func inlineStatus(_ text: String, glyph: AeonGlyphKind) -> some View {
         HStack(alignment: .top, spacing: AeonTheme.Space.medium) {
-            Image(systemName: symbol)
+            AeonGlyph(kind: glyph)
             Text(text).font(AeonTheme.FontToken.ui(.callout))
         }
         .foregroundStyle(AeonOrbit.secondary).padding(AeonTheme.Space.regular)
         .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
     }
     private func densityButton(_ density: LibraryController.Density, glyph: AeonGlyphKind) -> some View {
-        Button { controller.setDensity(density) } label: {
+        Button {
+            if controller.density != density { AeonFeedback.selectionChanged() }
+            controller.setDensity(density)
+        } label: {
             AeonGlyph(kind: glyph).foregroundStyle(controller.density == density ? AeonOrbit.ink : AeonOrbit.secondary)
                 .frame(width: 44, height: 44).contentShape(Rectangle())
                 .overlay(alignment: .bottom) {

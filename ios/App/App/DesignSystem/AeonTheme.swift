@@ -83,10 +83,19 @@ enum AeonTheme {
         static let nocturnePostScriptName = "AeonNocturne-Regular"
         static let maximumDisplayScale: CGFloat = 1.55
 
+        /// Running text: titles people read, names, and paragraphs of prose.
+        ///
+        /// This was briefly monospaced along with everything else. Mono has no width
+        /// variation to ration, so multi-line body copy — the metadata-lookup disclosure
+        /// in Settings especially — wrapped raggedly and read as log output, and an
+        /// artist name in mono under a serif album title fought the display face.
+        /// Measurements keep the mono; prose does not.
         static func ui(_ style: Font.TextStyle = .body, weight: Font.Weight = .regular) -> Font {
-            .system(style, design: .monospaced, weight: weight)
+            .system(style, design: .default, weight: weight)
         }
 
+        /// Anything that is a value rather than a sentence: counts, timecodes, eyebrows,
+        /// tracked labels. Tabular figures so digits do not jitter as they update.
         static func metric(_ style: Font.TextStyle = .caption, weight: Font.Weight = .regular) -> Font {
             .system(style, design: .monospaced, weight: weight).monospacedDigit()
         }
