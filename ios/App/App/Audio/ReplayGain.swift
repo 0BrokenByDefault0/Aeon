@@ -56,7 +56,72 @@ enum ReplayGainMetadataReader {
         if signature.prefix(4) == Data("fLaC".utf8) {
             return readFLAC(handle: handle, maximumBytes: maximumBytes)
         }
+        // MP4 families carry the tags as iTunes freeform atoms. m4a, aac and alac are a
+        // third of the supported extensions and previously returned .empty every time,
+        // so an Apple-ecosystem library got no loudness matching at all.
+        if signature.count >= 8, Data(signature[4 ..< 8]) == Data("ftyp".utf8) {
+            return readMP4(handle: handle, maximumBytes: maximumBytes)
+        }
         return .empty
+    }
+
+    private static let mp4Containers: Set<Data> = Set(
+        ["moov", "udta", "ilst", "----"].map { Data($0.utf8) }
+    )
+
+    private static func readMP4(handle: FileHandle, maximumBytes: Int) -> ReplayGainValues {
+        guard let moov = locateMP4Moov(handle: handle, maximumBytes: maximumBytes) else { return .empty }
+        var fields: [String: String] = [:]
+        collectMP4Freeform(in: moov, into: &fields)
+        return ReplayGainValues.parse(fields: fields)
+    }
+
+    private static func locateMP4Moov(handle: FileHandle, maximumBytes: Int) -> Data? {
+        var offset: UInt64 = 0
+        // A malformed file must not spin here; real files reach moov within a few atoms.
+        for _ in 0 ..< 64 {
+            try? handle.seek(toOffset: offset)
+            guard let header = try? handle.read(upToCount: 8), header.count == 8 else { return nil }
+            let size = bigEndian(header, at: 0)
+            // size 0 means "to end of file" and 1 means a 64-bit size follows; neither is
+            // worth supporting for a metadata probe.
+            guard size >= 8, size <= maximumBytes else { return nil }
+            if Data(header.dropFirst(4)) == Data("moov".utf8) {
+                return try? handle.read(upToCount: size - 8)
+            }
+            offset += UInt64(size)
+        }
+        return nil
+    }
+
+    /// Walk `moov` for `----` freeform atoms, pairing each `name` with the `data` that
+    /// follows it inside the same container.
+    private static func collectMP4Freeform(in payload: Data, into fields: inout [String: String], depth: Int = 0) {
+        guard depth < 8 else { return }
+        var offset = 0
+        var pendingKey: String?
+        while offset + 8 <= payload.count {
+            let size = bigEndian(payload, at: offset)
+            guard size >= 8, size <= payload.count - offset else { return }
+            let type = Data(payload[(offset + 4) ..< (offset + 8)])
+            let body = Data(payload[(offset + 8) ..< (offset + size)])
+            if type == Data("meta".utf8) {
+                // `meta` is a full box: four bytes of version and flags precede children.
+                if body.count > 4 { collectMP4Freeform(in: Data(body.dropFirst(4)), into: &fields, depth: depth + 1) }
+            } else if mp4Containers.contains(type) {
+                collectMP4Freeform(in: body, into: &fields, depth: depth + 1)
+            } else if type == Data("name".utf8), body.count > 4 {
+                pendingKey = String(data: Data(body.dropFirst(4)), encoding: .utf8)?.uppercased()
+            } else if type == Data("data".utf8), body.count > 8 {
+                // data payload: 4 bytes type indicator, 4 bytes locale, then the value.
+                if let key = pendingKey, keys.contains(key),
+                   let value = String(data: Data(body.dropFirst(8)), encoding: .utf8) {
+                    fields[key] = value
+                }
+                pendingKey = nil
+            }
+            offset += size
+        }
     }
 
     private static func readID3(handle: FileHandle, maximumBytes: Int) -> ReplayGainValues {

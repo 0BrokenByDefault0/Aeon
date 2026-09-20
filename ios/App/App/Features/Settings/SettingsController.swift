@@ -57,6 +57,9 @@ final class SettingsController: ObservableObject {
 
     @Published private(set) var preferences: AeonPreferences
     @Published private(set) var sleepTimer: SettingsSleepTimer = .off
+    /// Mirrors the coordinator so the Settings control has something to bind to. The
+    /// whole ReplayGain pipeline shipped without any way to reach it from the app.
+    @Published private(set) var replayGainMode: ReplayGainMode = .off
     @Published private(set) var sleepStatus = ""
     @Published private(set) var storage = AeonStorageMeasurement()
     @Published private(set) var operationMessage: String?
@@ -106,7 +109,11 @@ final class SettingsController: ObservableObject {
         if let legacyEnabled = try? repository.setting(Bool.self, forKey: MetadataEnricher.lookupEnabledKey) {
             preferences.metadataLookups = legacyEnabled
         }
-        playbackObservation = playback.$snapshot.sink { [weak self] snapshot in self?.observeSleepAlbum(snapshot) }
+        replayGainMode = playback.snapshot?.replayGainMode ?? .off
+        playbackObservation = playback.$snapshot.sink { [weak self] snapshot in
+            self?.observeSleepAlbum(snapshot)
+            if let mode = snapshot?.replayGainMode { self?.replayGainMode = mode }
+        }
         measureStorage()
     }
 
@@ -116,6 +123,11 @@ final class SettingsController: ObservableObject {
         preferences.oneImportOneAlbum = enabled
         persistPreferences()
         try? repository.setSetting(enabled, forKey: Self.importGroupingKey)
+    }
+
+    func setReplayGainMode(_ mode: ReplayGainMode) {
+        replayGainMode = mode
+        playback.setReplayGainMode(mode)
     }
 
     func setMetadataLookups(_ enabled: Bool) {
@@ -355,12 +367,32 @@ final class SettingsController: ObservableObject {
         Task { [weak self] in await self?.fadeToSleep() }
     }
 
+    /// Amplitude at `progress` (0 = start of the fade, 1 = silence) on a decibel-linear
+    /// taper down to -60 dB.
+    ///
+    /// A straight amplitude ramp sounds wrong: loudness tracks roughly the logarithm of
+    /// amplitude, so halving amplitude is only about a 6 dB drop. The old 20-step linear
+    /// fade therefore seemed to hold at volume and then fall off a cliff at the very end.
+    /// This taper sounds like a steady decline instead.
+    nonisolated static func sleepFadeAmplitude(progress: Double) -> Double {
+        let clamped = min(1, max(0, progress))
+        guard clamped < 1 else { return 0 }
+        return pow(10, (-60 * clamped) / 20)
+    }
+
+    private static let sleepFadeSeconds = 8.0
+    private static let sleepFadeSteps = 160
+
     private func fadeToSleep() async {
         let original = playback.snapshot?.masterVolume ?? 0.9
-        for step in stride(from: 19, through: 0, by: -1) {
+        let steps = Self.sleepFadeSteps
+        // 20 Hz stepping on an un-smoothed mixer parameter zippered on sustained tones;
+        // 160 steps over 8 s is 20 ms apart and inaudible as steps.
+        let interval = UInt64((Self.sleepFadeSeconds / Double(steps)) * 1_000_000_000)
+        for step in 0...steps {
             guard !Task.isCancelled else { return }
-            playback.setVolume(Float(original * Double(step) / 20))
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            playback.setVolume(Float(original * Self.sleepFadeAmplitude(progress: Double(step) / Double(steps))))
+            try? await Task.sleep(nanoseconds: interval)
         }
         playback.pause()
         playback.setVolume(Float(original))

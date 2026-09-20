@@ -22,7 +22,7 @@ struct SettingsScreen: View {
         GeometryReader { geometry in
             let inset = geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge
             ScrollView {
-                VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                         AeonDisplayText("Settings", size: 42, maximumLines: 1)
                             .foregroundStyle(AeonOrbit.title)
@@ -43,9 +43,23 @@ struct SettingsScreen: View {
                             note(controller.sleepStatus.isEmpty ? "Fades out, then stops." : controller.sleepStatus)
                         }
                         .padding(.bottom, AeonTheme.Space.regular).rowDivider()
+                        VStack(alignment: .leading, spacing: AeonTheme.Space.regular) {
+                            Text("Match loudness").font(AeonTheme.FontToken.ui(.callout, weight: .regular))
+                                .foregroundStyle(AeonTheme.ColorToken.textPrimary)
+                            AeonSegment(
+                                values: ReplayGainMode.allCases,
+                                selection: Binding(get: { controller.replayGainMode }, set: controller.setReplayGainMode),
+                                label: { $0.label },
+                                identifier: { "aeon.settings.replaygain.\($0.rawValue)" },
+                                spokenLabel: { $0.spokenLabel }
+                            )
+                            .accessibilityIdentifier("aeon.settings.replaygain.control")
+                            note("Uses ReplayGain tags already in your files, so quiet records stop disappearing between loud ones. Nothing is analysed or written; untagged tracks play untouched.")
+                        }
+                        .padding(.bottom, AeonTheme.Space.regular).rowDivider()
                         settingsNavigationRow(title: "Equalizer", value: "10 BANDS",
-                            detail: "Ten bands, ±12 dB. Tune it while something's playing.",
-                            identifier: "aeon.settings.eq.open") { openNowPlaying(.equalizer) }
+                            detail: "Ten bands, ±12 dB, with automatic headroom so boosts cannot clip.",
+                            identifier: "aeon.settings.eq.open", showsDivider: false) { openNowPlaying(.equalizer) }
                     }
                     settingsSection("Library") {
                         orbitalToggle(title: "One import, one album",
@@ -88,7 +102,7 @@ struct SettingsScreen: View {
                             identifier: "aeon.settings.sky-contrast")
                         orbitalToggle(title: "Reduce motion", detail: nil,
                             isOn: Binding(get: { controller.preferences.reduceMotion }, set: controller.setReduceMotion),
-                            identifier: "aeon.settings.reduce-motion")
+                            identifier: "aeon.settings.reduce-motion", showsDivider: false)
                     }
                     footer
                 }
@@ -133,8 +147,13 @@ struct SettingsScreen: View {
         .overlay(alignment: .bottom) {
             if let message = controller.operationMessage {
                 AeonToast(message: message).padding(AeonTheme.Space.edge).padding(.bottom, contentBottomInset)
+                    .task {
+                        try? await Task.sleep(nanoseconds: UInt64(AeonTheme.Duration.toast * 1_000_000_000))
+                        controller.clearMessage()
+                    }
             }
         }
+        .animation(.easeOut(duration: AeonTheme.Duration.chrome), value: controller.operationMessage)
     }
 
     private func compactSleepLabel(_ value: SettingsSleepTimer) -> String {
@@ -168,7 +187,8 @@ struct SettingsScreen: View {
         .overlay(alignment: .top) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
     }
 
-    private func orbitalToggle(title: String, detail: String?, isOn: Binding<Bool>, identifier: String) -> some View {
+    private func orbitalToggle(title: String, detail: String?, isOn: Binding<Bool>, identifier: String,
+                               showsDivider: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
             Toggle(isOn: isOn) {
                 Text(title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
@@ -180,11 +200,13 @@ struct SettingsScreen: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, AeonTheme.Space.small).padding(.bottom, AeonTheme.Space.small).rowDivider()
+        .padding(.vertical, AeonTheme.Space.small).padding(.bottom, AeonTheme.Space.small)
+        .rowDivider(showsDivider)
     }
 
     private func settingsNavigationRow(title: String, value: String, detail: String?, identifier: String,
-                                       glyph: AeonGlyphKind = .disclosure, action: @escaping () -> Void) -> some View {
+                                       glyph: AeonGlyphKind = .disclosure, showsDivider: Bool = true,
+                                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
                 HStack(spacing: AeonTheme.Space.small) {
@@ -198,7 +220,8 @@ struct SettingsScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).padding(.vertical, AeonTheme.Space.small).rowDivider().accessibilityIdentifier(identifier)
+        .buttonStyle(.plain).padding(.vertical, AeonTheme.Space.small)
+        .rowDivider(showsDivider).accessibilityIdentifier(identifier)
     }
 
     private func note(_ value: String) -> some View {
@@ -224,7 +247,7 @@ struct SettingsScreen: View {
                         .foregroundStyle(AeonTheme.ColorToken.textPrimary).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: AeonTheme.Space.small)
                     Button { eraseText = ""; erasePresented = true } label: {
-                        Image(systemName: "trash").frame(width: 44, height: 44)
+                        AeonGlyph(kind: .erase).frame(width: 44, height: 44)
                     }
                     .buttonStyle(.plain).foregroundStyle(AeonTheme.ColorToken.danger)
                     .accessibilityLabel("Erase everything").accessibilityIdentifier("aeon.settings.erase")
@@ -252,8 +275,12 @@ struct SettingsScreen: View {
 }
 
 private extension View {
-    func rowDivider() -> some View {
-        overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
+    @ViewBuilder func rowDivider(_ shows: Bool = true) -> some View {
+        if shows {
+            overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
+        } else {
+            self
+        }
     }
 }
 

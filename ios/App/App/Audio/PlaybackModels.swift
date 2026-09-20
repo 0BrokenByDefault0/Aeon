@@ -5,10 +5,29 @@ enum PlaybackIntent: String, Codable {
     case paused
 }
 
-enum ReplayGainMode: String, Codable {
+enum ReplayGainMode: String, Codable, CaseIterable, Identifiable {
+    // Declaration order is the order the Settings control offers them.
     case off
-    case album
     case track
+    case album
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .off: return "OFF"
+        case .track: return "TRACK"
+        case .album: return "ALBUM"
+        }
+    }
+
+    var spokenLabel: String {
+        switch self {
+        case .off: return "Off"
+        case .track: return "Match track loudness"
+        case .album: return "Match album loudness"
+        }
+    }
 }
 
 enum RepeatMode: String, Codable, CaseIterable {
