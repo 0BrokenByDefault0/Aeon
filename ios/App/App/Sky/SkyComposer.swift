@@ -6,7 +6,7 @@ enum SkyComposerError: Error, Equatable {
 }
 
 struct SkyComposer {
-    static let albumsPerPlanet = 20
+    static let albumsPerPlanet = 15
     static let starSpacing: Int32 = 64
     static let planetExclusionRadius: UInt32 = 42
 
@@ -177,21 +177,37 @@ struct SkyComposer {
     }
 
     private func makePlanets(albums: [SkyAlbumInput], stars: [SkyStar], existing: [SkyPlanet]) -> [SkyPlanet] {
-        var planets = existing.sorted { $0.index < $1.index }
-        let assigned = Set(existing.flatMap { $0.members.map(\.albumID) })
-        let available = albums.filter { !assigned.contains($0.id) }
-        var cursor = 0
-        while cursor + Self.albumsPerPlanet <= available.count {
-            let cohort = Array(available[cursor..<(cursor + Self.albumsPerPlanet)])
-            let index = (planets.last?.index ?? 0) + 1
+        let targetCount = albums.count / Self.albumsPerPlanet
+        guard targetCount > 0 else { return [] }
+        let existingByIndex = Dictionary(uniqueKeysWithValues: existing.map { ($0.index, $0) })
+        var planets: [SkyPlanet] = []
+        planets.reserveCapacity(targetCount)
+        for index in 1...targetCount {
+            let start = (index - 1) * Self.albumsPerPlanet
+            let cohort = Array(albums[start..<(start + Self.albumsPerPlanet)])
+            if let stable = existingByIndex[index] {
+                planets.append(SkyPlanet(
+                    index: stable.index,
+                    members: cohort.map { PlanetMember(albumID: $0.id, importedAt: $0.importedAt) },
+                    frontierRadius: stable.frontierRadius,
+                    formationTimestamp: stable.formationTimestamp,
+                    seed: stable.seed,
+                    coordinate: stable.coordinate,
+                    exclusionRadius: stable.exclusionRadius,
+                    descriptor: stable.descriptor
+                ))
+                continue
+            }
             let formation = cohort.last!.importedAt
             let frontierSquared = stars.lazy
                 .filter { $0.importedAt <= formation }
                 .map { $0.coordinate.radiusSquared }
                 .max() ?? 0
             let frontier = UInt32(min(UInt64(UInt32.max), Self.integerSquareRoot(frontierSquared)))
-            let seedText = cohort.map(\.id).joined(separator: "\u{1f}") + "#\(index)"
-            let seed = SkyStableHash.mix(SkyStableHash.value(seedText))
+            // Planet identity belongs to the milestone slot, not mutable metadata or
+            // the current album IDs occupying it. Adding/deleting records therefore
+            // never reseeds or relocates the landmarks that still exist.
+            let seed = SkyStableHash.mix(SkyStableHash.value("aeon.planet.\(index)"))
             let descriptor = planetDescriptor(cohort: cohort, seed: seed)
             let coordinate = planetCoordinate(
                 seed: seed,
@@ -208,7 +224,6 @@ struct SkyComposer {
                 exclusionRadius: Self.planetExclusionRadius,
                 descriptor: descriptor
             ))
-            cursor += Self.albumsPerPlanet
         }
         return planets
     }

@@ -60,14 +60,12 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private var glowBuffer: MTLBuffer?
     private let backdrop: [GPUInstance] = SkyRenderer.makeBackdrop()
     private var lineBuffer: MTLBuffer?
-    private var traceBuffer: MTLBuffer?
     private var planetBuffer: MTLBuffer?
     private var selectedPlanetBuffer: MTLBuffer?
     private var selectedPlanetTexture: MTLTexture?
     private var starCount = 0
     private var glowCount = 0
     private var lineCount = 0
-    private var traceCount = 0
     private var planetCount = 0
     private var selectedPlanetCount = 0
     private(set) var stats = SkyRendererStats()
@@ -154,7 +152,6 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         )
         encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: glowCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: lineBuffer, count: lineCount, uniforms: &uniforms)
-        encodeLines(encoder, buffer: traceBuffer, count: traceCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: starPipeline, buffer: starBuffer, count: starCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: planetPipeline, buffer: planetBuffer, count: planetCount, uniforms: &uniforms)
         if let selectedPlanetTexture {
@@ -234,24 +231,11 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
 
         rebuildPlanetBuffers()
         guard let selected = selectedPlanet else {
-            traceBuffer = nil
-            traceCount = 0
             selectedPlanetBuffer = nil
             selectedPlanetTexture = nil
             selectedPlanetCount = 0
             return
         }
-        let starByID = Dictionary(uniqueKeysWithValues: stars.map { ($0.albumID, $0) })
-        var traces: [GPULine] = []
-        traces.reserveCapacity(selected.members.count * 2)
-        for member in selected.members {
-            guard let star = starByID[member.albumID] else { continue }
-            let color = SIMD4<Float>(0.64, 0.77, 0.94, 0.56)
-            traces.append(GPULine(position: SIMD2(Float(selected.coordinate.x), Float(selected.coordinate.y)), color: color))
-            traces.append(GPULine(position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)), color: color))
-        }
-        traceCount = traces.count
-        traceBuffer = makeBuffer(traces)
         selectedPlanetBuffer = makeBuffer([planetInstance(selected, selected: true)])
         selectedPlanetCount = 1
         selectedPlanetTexture = makeTexture(for: selected)
@@ -270,6 +254,9 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             let selected = constellation.id == selectedConstellationID
             for segment in constellation.figureSegments {
                 guard let from = starByID[segment.fromAlbumID], let to = starByID[segment.toAlbumID] else { continue }
+                let dx = Int64(from.coordinate.x) - Int64(to.coordinate.x)
+                let dy = Int64(from.coordinate.y) - Int64(to.coordinate.y)
+                guard dx * dx + dy * dy <= Int64(SkyComposer.starSpacing * 6) * Int64(SkyComposer.starSpacing * 6) else { continue }
                 let alpha: Float = selected ? 0.62 : (selectedConstellationID == nil ? 0.26 : 0.10)
                 let color = SIMD4<Float>(selected ? 0.72 : 0.49, selected ? 0.80 : 0.56, selected ? 0.96 : 0.68, alpha)
                 lines.append(GPULine(position: SIMD2(Float(from.coordinate.x), Float(from.coordinate.y)), color: color))
@@ -340,7 +327,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         // used 0.45-0.95, which is a third of a point on a 3x screen: the whole backdrop
         // rasterised to almost nothing and a small library looked like a rendering
         // failure rather than a sky. These values are sized for 2x/3x devices.
-        (0..<2_200).map { index in
+        let stars = (0..<2_200).map { index in
             let a = SkyStableHash.mix(UInt64(index) &+ 0xAE01)
             let b = SkyStableHash.mix(a)
             let layer = index % 3
@@ -352,6 +339,18 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                                color1: SIMD4(0.91, 0.93, 0.96, alpha), color2: SIMD4(0.91, 0.93, 0.96, alpha),
                                size: radius, flags: 0x800, turbulence: Float(layer + 1) * 0.25)
         }
+        let haze = (0..<180).map { index in
+            let a = SkyStableHash.mix(UInt64(index) &+ 0xAE0D)
+            let b = SkyStableHash.mix(a)
+            let x = Float(a & 0xffff) / Float(0xffff)
+            let y = Float(b & 0xffff) / Float(0xffff)
+            let cool = index.isMultiple(of: 3)
+            let color = cool ? SIMD4<Float>(0.25, 0.37, 0.62, 0.026) : SIMD4<Float>(0.62, 0.34, 0.28, 0.018)
+            return GPUInstance(position: SIMD2(x, y), color0: color, color1: color, color2: color,
+                               size: Float(18 + Int(a % 34)), flags: 0x800 | 0x2000,
+                               turbulence: Float(index % 4 + 1) * 0.13)
+        }
+        return haze + stars
     }
 
     private func encodeInstances(

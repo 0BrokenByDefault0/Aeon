@@ -23,51 +23,58 @@ struct SkyHUD: View {
         }
     }
     private var topControls: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            AeonBreadcrumb(text: "Sky")
-            if !controller.catalogue.stars.isEmpty {
-                HStack(spacing: AeonTheme.Space.medium) {
-                    HStack(spacing: AeonTheme.Space.small) {
-                        AeonGlyph(kind: .sky).frame(width: 18, height: 18)
-                        Text("\(controller.camera.tier.rawValue.capitalized) view")
-                    }
-                        .font(AeonTheme.FontToken.utility)
-                        .foregroundStyle(AeonOrbit.ink)
-                        .frame(minHeight: AeonTheme.Space.minimumTarget)
-                        .accessibilityLabel("Sky altitude, \(controller.camera.tier.rawValue)")
-                        .accessibilityIdentifier("aeon.sky.altitude")
-                    Spacer(minLength: 0)
-                    Menu {
-                        Button("Current framing") { controller.makeCapture(wide: false, viewport: viewportSize) }
-                        Button("Wider framing") { controller.makeCapture(wide: true, viewport: viewportSize) }
-                    } label: {
-                        hudAction("Save", glyph: .export)
-                    }
-                    .accessibilityIdentifier("aeon.sky.capture")
-                    if controller.playingStarID != nil {
-                        Button {
-                            controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
-                        } label: {
-                            hudAction("Locate", glyph: .star)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Locate playing album")
-                        .accessibilityIdentifier("aeon.sky.locate-playing")
-                    }
-                    if let captureURL = controller.captureURL {
-                        ShareLink(item: captureURL) { hudAction("Share", glyph: .export) }
-                            .accessibilityIdentifier("aeon.sky.share-capture")
-                    }
+        HStack(spacing: AeonTheme.Space.small) {
+            HStack(spacing: AeonTheme.Space.small) {
+                AeonGlyph(kind: .sky).frame(width: 17, height: 17)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("SKY").font(AeonTheme.FontToken.metric(.caption2, weight: .semibold)).tracking(1.2)
+                    Text(controller.viewModeLabel).font(AeonTheme.FontToken.ui(.caption))
                 }
-                .foregroundStyle(AeonOrbit.secondary)
+            }
+            .foregroundStyle(AeonOrbit.ink)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Sky, \(controller.viewModeLabel)")
+            .accessibilityIdentifier("aeon.sky.altitude")
+            Spacer(minLength: 0)
+            if !controller.catalogue.stars.isEmpty {
+                if controller.camera.selectedID != nil || controller.camera.tier != .galaxy {
+                    Button {
+                        controller.showGalaxy(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
+                    } label: { hudAction("Galaxy", glyph: .sky) }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("aeon.sky.galaxy")
+                }
+                if controller.playingStarID != nil {
+                    Button {
+                        controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
+                    } label: { hudAction("Current", glyph: .star) }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Locate playing album")
+                    .accessibilityIdentifier("aeon.sky.locate-playing")
+                }
+                Menu {
+                    Button("Current framing") { controller.makeCapture(wide: false, viewport: viewportSize) }
+                    Button("Wider framing") { controller.makeCapture(wide: true, viewport: viewportSize) }
+                } label: { hudAction("Capture", glyph: .export) }
+                    .accessibilityIdentifier("aeon.sky.capture")
+                if let captureURL = controller.captureURL {
+                    ShareLink(item: captureURL) { hudAction("Share", glyph: .export) }
+                        .accessibilityIdentifier("aeon.sky.share-capture")
+                }
             }
         }
+        .foregroundStyle(AeonOrbit.secondary)
+        .padding(.leading, AeonTheme.Space.medium)
+        .padding(.trailing, AeonTheme.Space.small)
+        .frame(minHeight: 50)
+        .background(AeonTheme.ColorToken.void.opacity(0.76))
+        .overlay(RoundedRectangle(cornerRadius: AeonTheme.Radius.control).stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
     }
 
     private func hudAction(_ title: String, glyph: AeonGlyphKind) -> some View {
         VStack(spacing: 2) {
             AeonGlyph(kind: glyph).frame(width: 18, height: 18)
-            Text(title).font(AeonTheme.FontToken.microLabel)
+            Text(title).font(AeonTheme.FontToken.metric(.caption2))
         }
         .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
         .contentShape(Rectangle())

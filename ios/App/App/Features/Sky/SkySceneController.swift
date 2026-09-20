@@ -21,6 +21,7 @@ final class SkySceneController: ObservableObject {
     private var spectrumObservation: AnyCancellable?
     private var ceremonyTask: Task<Void, Never>?
     private var cameraTask: Task<Void, Never>?
+    private var viewportSize = CGSize(width: 390, height: 844)
 
     init(
         repository: SkyRepository,
@@ -114,6 +115,26 @@ final class SkySceneController: ObservableObject {
         return (selectedConstellation.artistName, [count, region].compactMap { $0 }.joined(separator: " · "))
     }
 
+    var selectedPlanetReadout: (title: String, subtitle: String)? {
+        guard let planet = selectedPlanet else { return nil }
+        return (
+            planet.systemName,
+            "Albums \(planet.albumRange.lowerBound)–\(planet.albumRange.upperBound) · \(planet.members.count) records"
+        )
+    }
+
+    var viewModeLabel: String {
+        if selectedPlanet != nil { return "Planet focus" }
+        if selectedStar != nil { return "Album focus" }
+        if selectedConstellation != nil { return "Constellation focus" }
+        switch camera.tier {
+        case .galaxy: return "Galaxy"
+        case .region: return "Collection"
+        case .constellation: return "Constellations"
+        case .system: return "System"
+        }
+    }
+
     var censusText: String {
         "\(catalogue.stars.count) albums adrift · \(catalogue.constellations.count) constellations"
     }
@@ -134,8 +155,13 @@ final class SkySceneController: ObservableObject {
     func setCamera(_ value: SkyCameraState, persist: Bool = false) {
         cameraTask?.cancel()
         cameraCrossfade = false
-        camera = value.sanitized
+        camera = constrained(value)
         if persist, Self.fixtureName() == nil { try? repository.save(camera: camera) }
+    }
+
+    func updateViewport(_ size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        viewportSize = size
     }
 
     func select(_ target: SkyHitTarget?) {
@@ -167,14 +193,38 @@ final class SkySceneController: ObservableObject {
             ),
             kind: transition.kind
         )
+        animateCamera(to: transition.target, kind: transition.kind)
+    }
+
+    func showGalaxy(reduceMotion: Bool) {
+        var target = SkyCameraState.framing(
+            points: catalogue.stars.map(\.coordinate) + catalogue.planets.map(\.coordinate),
+            viewport: SkyViewport(size: viewportSize),
+            padding: 72
+        )
+        target.selectedID = nil
+        animateCamera(to: target, kind: reduceMotion ? .crossFade : .flight)
+    }
+
+    func exploreSelectedPlanet(reduceMotion: Bool) {
+        guard let planet = selectedPlanet else { return }
+        let memberIDs = Set(planet.members.map(\.albumID))
+        let points = catalogue.stars.filter { memberIDs.contains($0.albumID) }.map(\.coordinate) + [planet.coordinate]
+        var target = SkyCameraState.framing(points: points, viewport: SkyViewport(size: viewportSize), padding: 76)
+        target.selectedID = planet.id
+        animateCamera(to: target, kind: reduceMotion ? .crossFade : .flight)
+    }
+
+    private func animateCamera(to rawTarget: SkyCameraState, kind: SkyCameraTransitionKind) {
         cameraTask?.cancel()
+        let target = constrained(rawTarget)
         let origin = camera
-        if transition.kind == .crossFade {
+        if kind == .crossFade {
             cameraTask = Task { [weak self] in
                 self?.cameraCrossfade = true
                 try? await Task.sleep(nanoseconds: 120_000_000)
                 guard !Task.isCancelled, let self else { return }
-                self.camera = transition.target.sanitized
+                self.camera = target
                 try? await Task.sleep(nanoseconds: 120_000_000)
                 guard !Task.isCancelled else { return }
                 self.cameraCrossfade = false
@@ -188,10 +238,10 @@ final class SkySceneController: ObservableObject {
                     let linear = Double(step) / Double(steps)
                     let eased = linear * linear * (3 - 2 * linear)
                     self.camera = SkyCameraState(
-                        centerX: origin.centerX + (transition.target.centerX - origin.centerX) * eased,
-                        centerY: origin.centerY + (transition.target.centerY - origin.centerY) * eased,
-                        scale: origin.scale + (transition.target.scale - origin.scale) * eased,
-                        selectedID: transition.target.selectedID
+                        centerX: origin.centerX + (target.centerX - origin.centerX) * eased,
+                        centerY: origin.centerY + (target.centerY - origin.centerY) * eased,
+                        scale: origin.scale + (target.scale - origin.scale) * eased,
+                        selectedID: target.selectedID
                     )
                     try? await Task.sleep(nanoseconds: 30_000_000)
                 }
@@ -199,6 +249,13 @@ final class SkySceneController: ObservableObject {
                 if Self.fixtureName() == nil { try? self.repository.save(camera: self.camera) }
             }
         }
+    }
+
+    private func constrained(_ value: SkyCameraState) -> SkyCameraState {
+        value.sanitized.constrained(
+            to: catalogue.stars.map(\.coordinate) + catalogue.planets.map(\.coordinate),
+            viewport: SkyViewport(size: viewportSize)
+        )
     }
 
     func locatePlaying(reduceMotion: Bool) {
@@ -326,7 +383,7 @@ final class SkySceneController: ObservableObject {
     }
 
     private func selectedTitle() -> String? {
-        if let selectedPlanet { return "WORLD \(selectedPlanet.index)" }
+        if let selectedPlanet { return selectedPlanet.systemName }
         if let readout = selectedAlbumReadout { return "\(readout.title) / \(readout.subtitle)" }
         if let readout = selectedConstellationReadout { return "\(readout.title) / \(readout.subtitle)" }
         return nil

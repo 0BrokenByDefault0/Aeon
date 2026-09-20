@@ -93,12 +93,7 @@ struct SkyScreen: View {
 
     @ViewBuilder private func selectionFocus(viewport: CGSize) -> some View {
         if let planet = controller.selectedPlanet {
-            marker(
-                at: controller.camera.screenPoint(for: planet.coordinate, viewport: SkyViewport(size: viewport)),
-                title: "World \(planet.index)",
-                subtitle: "\(planet.members.count) albums",
-                identifier: "aeon.sky.planet-selection"
-            )
+            planetMarker(planet, viewport: viewport)
         } else if let star = controller.selectedStar, let readout = controller.selectedAlbumReadout {
             marker(
                 at: controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport)),
@@ -115,6 +110,43 @@ struct SkyScreen: View {
                 identifier: "aeon.sky.constellation-selection"
             )
         }
+    }
+
+    private func planetMarker(_ planet: SkyPlanet, viewport: CGSize) -> some View {
+        let point = controller.camera.screenPoint(for: planet.coordinate, viewport: SkyViewport(size: viewport))
+        let readout = controller.selectedPlanetReadout
+        return ZStack(alignment: .topLeading) {
+            AeonReticleMark()
+                .stroke(AeonTheme.ColorToken.primary.opacity(0.68), style: AeonOrbit.line)
+                .frame(width: 72, height: 72)
+                .position(point)
+                .allowsHitTesting(false)
+            VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                AeonDisplayText(readout?.title ?? planet.systemName, size: 24, maximumLines: 2)
+                    .foregroundStyle(AeonTheme.ColorToken.primary)
+                Text(readout?.subtitle ?? "\(planet.members.count) records")
+                    .font(AeonTheme.FontToken.ui(.caption))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary)
+                HStack(spacing: AeonTheme.Space.medium) {
+                    Button("EXPLORE SYSTEM") { controller.exploreSelectedPlanet(reduceMotion: effectiveReduceMotion) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("aeon.sky.planet.explore")
+                    Button("GALAXY") { controller.showGalaxy(reduceMotion: effectiveReduceMotion) }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("aeon.sky.planet.galaxy")
+                }
+                .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))
+                .foregroundStyle(AeonOrbit.ink)
+            }
+            .padding(.horizontal, AeonTheme.Space.medium).padding(.vertical, AeonTheme.Space.small)
+            .frame(maxWidth: Self.readoutMaximumWidth, alignment: .leading)
+            .background(AeonTheme.ColorToken.void.opacity(0.90))
+            .overlay(RoundedRectangle(cornerRadius: AeonTheme.Radius.control).stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+            .padding(.leading, AeonTheme.Space.edge)
+            .padding(.top, readableInsets.top + 76)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("aeon.sky.planet-selection")
     }
 
     /// Selection identity lives in a stable editorial readout beneath the HUD while the
@@ -194,7 +226,7 @@ private struct SkyLabelOverlay: View {
         let starByID = Dictionary(uniqueKeysWithValues: controller.catalogue.stars.map { ($0.albumID, $0) })
         let candidates: [SkyLabelLayout.Candidate]
         if camera.tier == .galaxy {
-            candidates = controller.catalogue.regions.compactMap { region in
+            let regions = controller.catalogue.regions.compactMap { region -> SkyLabelLayout.Candidate? in
                 let points = controller.catalogue.stars.filter { $0.regionID == region.id }.map(\.coordinate)
                 guard !points.isEmpty else { return nil }
                 let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
@@ -204,8 +236,15 @@ private struct SkyLabelOverlay: View {
                     anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true
                 )
             }
+            let planets = controller.catalogue.planets.map { planet in
+                SkyLabelLayout.Candidate(
+                    id: planet.id, text: planet.name.uppercased(),
+                    anchor: camera.screenPoint(for: planet.coordinate, viewport: resolvedViewport), isRegion: true
+                )
+            }
+            candidates = planets + Array(regions.prefix(12))
         } else if camera.tier == .region || camera.tier == .constellation {
-            candidates = controller.catalogue.constellations.compactMap { constellation in
+            let constellations = controller.catalogue.constellations.compactMap { constellation -> SkyLabelLayout.Candidate? in
                 let points = constellation.albumIDs.compactMap { starByID[$0]?.coordinate }
                 guard !points.isEmpty else { return nil }
                 let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
@@ -215,6 +254,13 @@ private struct SkyLabelOverlay: View {
                     anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: false
                 )
             }
+            let planets = controller.catalogue.planets.map { planet in
+                SkyLabelLayout.Candidate(
+                    id: planet.id, text: planet.name.uppercased(),
+                    anchor: camera.screenPoint(for: planet.coordinate, viewport: resolvedViewport), isRegion: true
+                )
+            }
+            candidates = planets + constellations
         } else {
             candidates = []
         }

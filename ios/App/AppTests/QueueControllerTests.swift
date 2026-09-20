@@ -28,6 +28,28 @@ final class QueueControllerTests: XCTestCase {
         XCTAssertEqual(coordinator.queueCalls[0].index, 1)
     }
 
+    func testPlayNextInsertsImmediatelyAfterCurrentWithoutChangingCurrent() {
+        let coordinator = QueueRecordingCoordinator(snapshot: makeSnapshot())
+        let controller = PlaybackController(coordinator: coordinator)
+        controller.accept(snapshot: coordinator.snapshot)
+        controller.playNext(track("urgent"))
+
+        XCTAssertEqual(coordinator.queueCalls[0].items.map(\.trackID), ["past", "current", "urgent", "next", "last"])
+        XCTAssertEqual(coordinator.queueCalls[0].index, 1)
+    }
+
+    func testAddToQueueAppendsAndRemoveUsesDistinctMutation() {
+        let coordinator = QueueRecordingCoordinator(snapshot: makeSnapshot())
+        let controller = PlaybackController(coordinator: coordinator)
+        controller.accept(snapshot: coordinator.snapshot)
+        controller.addToQueue(track("later"))
+        XCTAssertEqual(coordinator.queueCalls[0].items.map(\.trackID), ["past", "current", "next", "last", "later"])
+
+        controller.removeFromQueue(at: 2)
+        XCTAssertEqual(coordinator.queueCalls[1].items.map(\.trackID), ["past", "current", "last", "later"])
+        XCTAssertEqual(coordinator.queueCalls[1].index, 1)
+    }
+
     func testShuffleNeverMovesPastOrCurrentRows() {
         let coordinator = QueueRecordingCoordinator(snapshot: makeSnapshot())
         let controller = PlaybackController(coordinator: coordinator)
@@ -102,6 +124,14 @@ final class QueueControllerTests: XCTestCase {
             sourceFormat: nil,
             outputFormat: nil,
             timestamp: Date(timeIntervalSince1970: 1)
+        )
+    }
+
+    private func track(_ id: String) -> CatalogTrack {
+        CatalogTrack(
+            id: id, albumID: "album", sequence: 1, discNumber: 1, trackNumber: 1,
+            title: id.capitalized, artist: "Artist", duration: 120, byteCount: 32,
+            mediaReference: .native(relativePath: "\(id).wav"), importedAt: Date(timeIntervalSince1970: 1)
         )
     }
 }

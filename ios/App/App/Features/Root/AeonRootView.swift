@@ -446,6 +446,17 @@ private struct AeonReadyShell: View {
                 services.skySceneController.locate(id: albumID, reduceMotion: reduced)
                 destination = .sky
                 nowPlayingVisible = false
+            },
+            showAlbum: { albumID in
+                libraryController.selectAlbum(id: albumID)
+                destination = .library
+                nowPlayingVisible = false
+            },
+            showArtist: { artist in
+                libraryController.dismissAlbum()
+                libraryController.setQuery(artist)
+                destination = .library
+                nowPlayingVisible = false
             }
         )
         .padding(.leading, regularContentLeadingPadding(regular: regular))
@@ -497,7 +508,19 @@ private struct AeonReadyShell: View {
             let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
                 ? AeonTheme.Space.playerBar : 0)
             AeonGlass {
-                PlaylistsScreen(controller: playlistsController, contentBottomInset: bottomInset)
+                PlaylistsScreen(
+                    controller: playlistsController,
+                    contentBottomInset: bottomInset,
+                    showAlbum: { id in
+                        libraryController.selectAlbum(id: id)
+                        self.destination = .library
+                    },
+                    showArtist: { artist in
+                        libraryController.dismissAlbum()
+                        libraryController.setQuery(artist)
+                        self.destination = .library
+                    }
+                )
                     .padding(.leading, regularContentLeadingPadding(regular: regular))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

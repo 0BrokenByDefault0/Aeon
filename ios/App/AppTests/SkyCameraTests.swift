@@ -60,7 +60,7 @@ final class SkyCameraTests: XCTestCase {
         XCTAssertEqual(SkyCameraState(centerX: 0, centerY: 0, scale: 5, selectedID: nil).tier, .system)
         let viewport = SkyViewport(size: CGSize(width: 400, height: 800))
         let system = SkyCameraState(centerX: 0, centerY: 0, scale: 5, selectedID: nil)
-        XCTAssertEqual(system.zoomedOutOneTier(anchor: viewport.center, viewport: viewport).scale, 2.6, accuracy: 0.0001)
+        XCTAssertEqual(system.zoomedOutOneTier(anchor: viewport.center, viewport: viewport).scale, 3.0, accuracy: 0.0001)
     }
 
     func testInvalidPersistedCameraValuesRecoverToSafeBounds() {

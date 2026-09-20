@@ -23,6 +23,9 @@ struct LibraryImportResult: Equatable {
     var failedFiles: [URL] = []
     var skippedDuplicateAlbums: [String] = []
     var repairedTracks = 0
+    var updatedTracks = 0
+    var unchangedFiles = 0
+    var missingFiles = 0
     var failureReasons: [String] = []
 
     /// A completed pipeline is not necessarily a successful import. Always report the outcome.
@@ -32,6 +35,10 @@ struct LibraryImportResult: Equatable {
             parts.append("Added \(importedTracks) track\(importedTracks == 1 ? "" : "s") in \(importedAlbums) album\(importedAlbums == 1 ? "" : "s") to Library.")
         } else if repairedTracks > 0 {
             parts.append("Re-linked \(repairedTracks) adopted track\(repairedTracks == 1 ? "" : "s") to \(repairedTracks == 1 ? "its" : "their") current Files location.")
+        } else if updatedTracks > 0 {
+            parts.append("Updated \(updatedTracks) changed track\(updatedTracks == 1 ? "" : "s") without rescanning unchanged music.")
+        } else if unchangedFiles > 0 {
+            parts.append("Your Library is current. \(unchangedFiles) unchanged file\(unchangedFiles == 1 ? " was" : "s were") skipped.")
         } else if !failedFiles.isEmpty {
             parts.append("No tracks were imported.")
         } else if !skippedDuplicateAlbums.isEmpty {
@@ -49,6 +56,12 @@ struct LibraryImportResult: Equatable {
         }
         if importedTracks > 0 && repairedTracks > 0 {
             parts.append("Re-linked \(repairedTracks) adopted track\(repairedTracks == 1 ? "" : "s") to \(repairedTracks == 1 ? "its" : "their") current Files location.")
+        }
+        if importedTracks > 0 && unchangedFiles > 0 {
+            parts.append("Skipped \(unchangedFiles) unchanged file\(unchangedFiles == 1 ? "" : "s") using the import index.")
+        }
+        if missingFiles > 0 {
+            parts.append("\(missingFiles) indexed file\(missingFiles == 1 ? " is" : "s are") currently missing; catalogue entries were preserved.")
         }
         return parts.joined(separator: "\n\n")
     }
@@ -93,6 +106,7 @@ final class LibraryImportCancellation {
 
 final class LibraryImporter: @unchecked Sendable {
     static let maximumConcurrentProbes = 4
+    private static let adoptedIndexKey = "library.import.adopted-index.v1"
 
     private struct Cursor: Codable, Equatable {
         let signature: String
@@ -103,6 +117,36 @@ final class LibraryImporter: @unchecked Sendable {
         let candidate: ImportCandidate
         let media: ProbedMedia
         let byteCount: Int64
+    }
+
+    private struct CollectedAudioFile {
+        let url: URL
+        let batchLabel: String
+        let relativePath: String?
+        let fileSize: Int64
+        let modificationTime: TimeInterval?
+        let resourceIdentifier: String?
+    }
+
+    private struct AdoptedImportIndex: Codable, Equatable {
+        struct Entry: Codable, Equatable {
+            var relativePath: String
+            var fileSize: Int64
+            var modificationTime: TimeInterval?
+            var resourceIdentifier: String?
+            var trackID: String?
+            var albumID: String?
+            var missing: Bool
+        }
+        var entries: [Entry]
+    }
+
+    private struct AdoptionPlan {
+        var unchanged: [(CollectedAudioFile, AdoptedImportIndex.Entry)] = []
+        var new: [CollectedAudioFile] = []
+        var modified: [(CollectedAudioFile, AdoptedImportIndex.Entry)] = []
+        var moved: [(CollectedAudioFile, AdoptedImportIndex.Entry)] = []
+        var missing: [AdoptedImportIndex.Entry] = []
     }
 
     private enum ScanPolicy: Equatable {
@@ -201,12 +245,64 @@ final class LibraryImporter: @unchecked Sendable {
         progress(LibraryImportProgress(
             phase: .scanning, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
         ))
-        let files = try collectAudioFiles(
+        let discoveredFiles = try collectAudioFiles(
             selectedURLs,
             scanPolicy: scanPolicy,
             cancellation: cancellation
         )
-        guard !files.isEmpty else { throw LibraryImportError.noSupportedAudio }
+        var result = LibraryImportResult()
+        var files = discoveredFiles
+        var priorAdoptedIndex: AdoptedImportIndex?
+        if scanPolicy == .adoptedMusicRoot {
+            let stored = try repository.setting(AdoptedImportIndex.self, forKey: Self.adoptedIndexKey)
+            priorAdoptedIndex = try stored ?? bootstrapAdoptedIndex(from: discoveredFiles)
+            if discoveredFiles.isEmpty, let priorAdoptedIndex, !priorAdoptedIndex.entries.isEmpty {
+                result.missingFiles = priorAdoptedIndex.entries.count
+                var missing = priorAdoptedIndex
+                for index in missing.entries.indices { missing.entries[index].missing = true }
+                try repository.setSetting(missing, forKey: Self.adoptedIndexKey, at: now())
+                progress(LibraryImportProgress(
+                    phase: .complete, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
+                ))
+                return result
+            }
+            if let priorAdoptedIndex {
+                let plan = classifyAdoptedFiles(discoveredFiles, against: priorAdoptedIndex)
+                result.unchangedFiles = plan.unchanged.count
+                result.missingFiles = plan.missing.count
+                var delta = plan.new
+                for (file, entry) in plan.moved {
+                    if try relinkAdoptedTrack(entry, to: file) { result.repairedTracks += 1 }
+                    else { delta.append(file) }
+                }
+                for (file, entry) in plan.modified {
+                    do {
+                        if try await refreshAdoptedTrack(entry, from: file, cancellation: cancellation) {
+                            result.updatedTracks += 1
+                        } else {
+                            delta.append(file)
+                        }
+                    } catch LibraryImportError.cancelled {
+                        throw LibraryImportError.cancelled
+                    } catch {
+                        result.recordFailure(file.url, stage: "could not refresh changed audio", error: error)
+                    }
+                }
+                // `files` began as the complete scan. Incremental work is only the
+                // classified delta; unchanged entries never reach tag/probe stages.
+                files = delta
+            }
+        }
+        guard !discoveredFiles.isEmpty else { throw LibraryImportError.noSupportedAudio }
+        if files.isEmpty {
+            if scanPolicy == .adoptedMusicRoot {
+                try persistAdoptedIndex(files: discoveredFiles, previous: priorAdoptedIndex)
+            }
+            progress(LibraryImportProgress(
+                phase: .complete, completedFiles: 0, totalFiles: 0, completedGroups: 0, totalGroups: 0
+            ))
+            return result
+        }
         let signature = selectionSignature(files: files, mode: mode)
         let cursorKey = "library.import.cursor.\(signature)"
 
@@ -218,7 +314,6 @@ final class LibraryImporter: @unchecked Sendable {
         )
         defer { try? fileManager.removeItem(at: stagingRoot) }
         var originalURLs: [URL: URL] = [:]
-        var result = LibraryImportResult()
         var undownloadedFiles = 0
         var candidates: [ImportCandidate] = []
         candidates.reserveCapacity(files.count)
@@ -297,6 +392,9 @@ final class LibraryImporter: @unchecked Sendable {
         }
         try cancellation.check()
         try repository.removeSetting(forKey: cursorKey)
+        if scanPolicy == .adoptedMusicRoot {
+            try persistAdoptedIndex(files: discoveredFiles, previous: priorAdoptedIndex)
+        }
         progress(LibraryImportProgress(
             phase: .complete,
             completedFiles: files.count,
@@ -570,12 +668,178 @@ final class LibraryImporter: @unchecked Sendable {
         return ImportGrouper.normalizedPerson(existing.title) == ImportGrouper.normalizedPerson(candidateTitle)
     }
 
+    private func classifyAdoptedFiles(
+        _ files: [CollectedAudioFile],
+        against index: AdoptedImportIndex
+    ) -> AdoptionPlan {
+        var plan = AdoptionPlan()
+        var unused: [String: AdoptedImportIndex.Entry] = [:]
+        for entry in index.entries { unused[entry.relativePath] = entry }
+        for file in files {
+            guard let path = file.relativePath else { plan.new.append(file); continue }
+            if let prior = unused.removeValue(forKey: path) {
+                if file.fileSize == prior.fileSize,
+                   timestampsMatch(file.modificationTime, prior.modificationTime) {
+                    plan.unchanged.append((file, prior))
+                } else {
+                    plan.modified.append((file, prior))
+                }
+                continue
+            }
+            let fallbackMatches = unused.values.filter {
+                $0.fileSize == file.fileSize && timestampsMatch($0.modificationTime, file.modificationTime)
+            }
+            if let identifier = file.resourceIdentifier,
+               let match = unused.values.first(where: { $0.resourceIdentifier == identifier }) {
+                unused.removeValue(forKey: match.relativePath)
+                plan.moved.append((file, match))
+            } else if fallbackMatches.count == 1, let match = fallbackMatches.first {
+                unused.removeValue(forKey: match.relativePath)
+                plan.moved.append((file, match))
+            } else {
+                plan.new.append(file)
+            }
+        }
+        plan.missing = Array(unused.values)
+        return plan
+    }
+
+    private func bootstrapAdoptedIndex(from files: [CollectedAudioFile]) throws -> AdoptedImportIndex {
+        let tracks = try adoptedTracksByRelativePath()
+        return AdoptedImportIndex(entries: files.compactMap { file in
+            guard let path = file.relativePath, let track = tracks[path] else { return nil }
+            return indexEntry(file: file, track: track, missing: false)
+        })
+    }
+
+    private func persistAdoptedIndex(
+        files: [CollectedAudioFile],
+        previous: AdoptedImportIndex?
+    ) throws {
+        let tracks = try adoptedTracksByRelativePath()
+        var previousByPath: [String: AdoptedImportIndex.Entry] = [:]
+        for entry in previous?.entries ?? [] { previousByPath[entry.relativePath] = entry }
+        let currentPaths = Set(files.compactMap(\.relativePath))
+        let currentIdentifiers = Set(files.compactMap(\.resourceIdentifier))
+        let currentFingerprintCounts = Dictionary(grouping: files) { fileFingerprint($0) }.mapValues(\.count)
+        var entries = files.compactMap { file -> AdoptedImportIndex.Entry? in
+            guard let path = file.relativePath else { return nil }
+            if let track = tracks[path] { return indexEntry(file: file, track: track, missing: false) }
+            guard var prior = previousByPath[path] else { return nil }
+            prior.fileSize = file.fileSize
+            prior.modificationTime = file.modificationTime
+            prior.resourceIdentifier = file.resourceIdentifier
+            prior.missing = false
+            return prior
+        }
+        entries.append(contentsOf: (previous?.entries ?? []).filter {
+            !currentPaths.contains($0.relativePath)
+                && ($0.resourceIdentifier == nil || !currentIdentifiers.contains($0.resourceIdentifier!))
+                && currentFingerprintCounts[indexFingerprint($0), default: 0] != 1
+        }.map {
+            var missing = $0
+            missing.missing = true
+            return missing
+        })
+        entries.sort { $0.relativePath.localizedStandardCompare($1.relativePath) == .orderedAscending }
+        try repository.setSetting(AdoptedImportIndex(entries: entries), forKey: Self.adoptedIndexKey, at: now())
+    }
+
+    private func adoptedTracksByRelativePath() throws -> [String: CatalogTrack] {
+        var result: [String: CatalogTrack] = [:]
+        var offset = 0
+        while true {
+            let albums = try repository.albumPage(offset: offset, limit: CatalogDatabase.maximumPageSize, sort: .recentlyAdded)
+            for album in albums {
+                for track in try repository.tracks(albumID: album.id) {
+                    guard case .documents(let path) = track.mediaReference,
+                          path.hasPrefix("Music/"),
+                          !path.hasPrefix("Music/_Imported/"),
+                          !path.hasPrefix("Music/_Migrated/"),
+                          !path.hasPrefix("Music/_Restored/") else { continue }
+                    result[String(path.dropFirst("Music/".count))] = track
+                }
+            }
+            if albums.count < CatalogDatabase.maximumPageSize { break }
+            offset += albums.count
+        }
+        return result
+    }
+
+    private func indexEntry(file: CollectedAudioFile, track: CatalogTrack, missing: Bool) -> AdoptedImportIndex.Entry {
+        AdoptedImportIndex.Entry(
+            relativePath: file.relativePath ?? "",
+            fileSize: file.fileSize,
+            modificationTime: file.modificationTime,
+            resourceIdentifier: file.resourceIdentifier,
+            trackID: track.id,
+            albumID: track.albumID,
+            missing: missing
+        )
+    }
+
+    private func relinkAdoptedTrack(_ entry: AdoptedImportIndex.Entry, to file: CollectedAudioFile) throws -> Bool {
+        guard let trackID = entry.trackID,
+              let track = try repository.track(id: trackID),
+              let reference = mediaStore.adoptedDocumentReference(for: file.url) else { return false }
+        try repository.updateTrack(CatalogTrack(
+            id: track.id, albumID: track.albumID, sequence: track.sequence,
+            discNumber: track.discNumber, trackNumber: track.trackNumber,
+            title: track.title, artist: track.artist, duration: track.duration,
+            byteCount: file.fileSize, mediaReference: reference, importedAt: track.importedAt
+        ))
+        return true
+    }
+
+    private func refreshAdoptedTrack(
+        _ entry: AdoptedImportIndex.Entry,
+        from file: CollectedAudioFile,
+        cancellation: LibraryImportCancellation
+    ) async throws -> Bool {
+        guard let trackID = entry.trackID,
+              let track = try repository.track(id: trackID),
+              let reference = mediaStore.adoptedDocumentReference(for: file.url) else { return false }
+        try cancellation.check()
+        try await materialize(file.url)
+        let tags = try await tagReader.read(url: file.url, includeArtwork: false)
+        guard case .playable(let media) = metadataProbe.probe(url: file.url) else { return false }
+        let inferred = ImportGrouper.trackNumbers(from: file.url.lastPathComponent)
+        try repository.updateTrack(CatalogTrack(
+            id: track.id, albumID: track.albumID, sequence: track.sequence,
+            discNumber: tags.discNumber ?? inferred.disc ?? track.discNumber,
+            trackNumber: tags.trackNumber ?? inferred.track ?? track.trackNumber,
+            title: clean(tags.title) ?? track.title,
+            artist: clean(tags.artist) ?? track.artist,
+            duration: media.descriptor.duration,
+            byteCount: file.fileSize,
+            mediaReference: reference,
+            importedAt: track.importedAt
+        ))
+        return true
+    }
+
+    private func timestampsMatch(_ lhs: TimeInterval?, _ rhs: TimeInterval?) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none): return true
+        case (.some(let lhs), .some(let rhs)): return abs(lhs - rhs) < 0.001
+        default: return false
+        }
+    }
+
+    private func fileFingerprint(_ file: CollectedAudioFile) -> String {
+        "\(file.fileSize):\(file.modificationTime ?? -1)"
+    }
+
+    private func indexFingerprint(_ entry: AdoptedImportIndex.Entry) -> String {
+        "\(entry.fileSize):\(entry.modificationTime ?? -1)"
+    }
+
     private func collectAudioFiles(
         _ selectedURLs: [URL],
         scanPolicy: ScanPolicy,
         cancellation: LibraryImportCancellation
-    ) throws -> [(url: URL, batchLabel: String)] {
-        var collected: [(URL, String)] = []
+    ) throws -> [CollectedAudioFile] {
+        var collected: [CollectedAudioFile] = []
         var seen = Set<String>()
         for selected in selectedURLs {
             try cancellation.check()
@@ -622,12 +886,36 @@ final class LibraryImporter: @unchecked Sendable {
                 let resolvedLabel = values?.isDirectory == true
                     ? target.deletingLastPathComponent().lastPathComponent
                     : batchLabel
-                if seen.insert(key).inserted { collected.append((target, resolvedLabel)) }
+                guard seen.insert(key).inserted else { continue }
+                let metadata = try? target.resourceValues(forKeys: [
+                    .fileSizeKey, .contentModificationDateKey, .fileResourceIdentifierKey
+                ])
+                collected.append(CollectedAudioFile(
+                    url: target,
+                    batchLabel: resolvedLabel,
+                    relativePath: scanPolicy == .adoptedMusicRoot ? adoptedRelativePath(for: target) : nil,
+                    fileSize: Int64(metadata?.fileSize ?? 0),
+                    modificationTime: metadata?.contentModificationDate?.timeIntervalSince1970,
+                    resourceIdentifier: resourceIdentifier(metadata?.fileResourceIdentifier)
+                ))
             }
         }
         return collected.sorted {
             $0.0.path.localizedStandardCompare($1.0.path) == .orderedAscending
         }
+    }
+
+    private func adoptedRelativePath(for url: URL) -> String? {
+        let root = mediaStore.documentsMusicRoot.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        guard path.hasPrefix(root + "/") else { return nil }
+        return String(path.dropFirst(root.count + 1))
+    }
+
+    private func resourceIdentifier(_ value: Any?) -> String? {
+        guard let value else { return nil }
+        if let data = value as? Data { return data.base64EncodedString() }
+        return String(describing: value)
     }
 
     private func isManagedMusicDirectory(_ url: URL) -> Bool {
@@ -694,14 +982,13 @@ final class LibraryImporter: @unchecked Sendable {
     private static let ubiquitousPlaceholderSuffix = ".icloud"
 
     private func selectionSignature(
-        files: [(url: URL, batchLabel: String)],
+        files: [CollectedAudioFile],
         mode: LibraryImportGroupingMode
     ) -> String {
         var content = mode.rawValue + "\n"
         for entry in files {
-            let values = try? entry.url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
             content += entry.url.standardizedFileURL.path
-            content += "\u{0}\(values?.fileSize ?? -1)\u{0}\(values?.contentModificationDate?.timeIntervalSince1970 ?? -1)\n"
+            content += "\u{0}\(entry.fileSize)\u{0}\(entry.modificationTime ?? -1)\n"
         }
         return SHA256.hash(data: Data(content.utf8)).map { String(format: "%02x", $0) }.joined()
     }

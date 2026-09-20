@@ -138,9 +138,7 @@ struct LibraryScreen: View {
                 .frame(maxWidth: .infinity)
         case .ready:
             if controller.isSearching {
-                SearchResultsView(results: controller.searchResults, thumbnails: controller.thumbnails,
-                                  selectAlbum: controller.selectAlbum,
-                                  playTrack: { albumID, trackID in controller.playAlbum(id: albumID, startingTrackID: trackID) })
+                SearchResultsView(controller: controller, thumbnails: controller.thumbnails)
             } else if controller.albums.isEmpty { emptyLibrary }
             else if controller.density == .grid { regionShelves(width: width) }
             else { albumList }

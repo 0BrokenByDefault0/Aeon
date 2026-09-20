@@ -128,10 +128,13 @@ struct AlbumDetailView: View {
                 }
             }
         } label: {
-            Label("ADD TO PLAYLIST", systemImage: "text.badge.plus")
-                .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
-                .tracking(1.0)
-                .frame(minHeight: AeonTheme.Space.minimumTarget)
+            HStack(spacing: AeonTheme.Space.small) {
+                AeonGlyph(kind: .add)
+                Text("ADD TO PLAYLIST")
+            }
+            .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
+            .tracking(1.0)
+            .frame(minHeight: AeonTheme.Space.minimumTarget)
         }
         .frame(minHeight: AeonTheme.Space.minimumTarget)
         .contentShape(Rectangle())
@@ -194,18 +197,24 @@ struct AlbumDetailView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("aeon.album.track.play.\(track.id)")
-                    Menu {
-                        Button("PLAY FROM HERE") {
-                            controller.playAlbum(id: album.id, startingTrackID: track.id)
+                    TrackActionMenu(
+                        track: track,
+                        catalog: controller.repository,
+                        playback: controller.playback,
+                        playFromHere: { controller.playAlbum(id: album.id, startingTrackID: track.id) },
+                        showAlbum: { controller.selectAlbum(id: track.albumID) },
+                        showArtist: {
+                            controller.setQuery(track.artist)
+                            controller.dismissAlbum()
+                            close()
                         }
-                    } label: {
+                    ) {
                         AeonGlyph(kind: .more)
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     }
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                    .accessibilityLabel("Actions for \(track.title)")
                 }
                 .frame(minHeight: 62)
                 .overlay(alignment: .bottom) {

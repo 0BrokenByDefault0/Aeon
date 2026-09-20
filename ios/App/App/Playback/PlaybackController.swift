@@ -165,6 +165,37 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
         )
     }
 
+    func playNext(_ track: CatalogTrack) {
+        let item = QueueItem(trackID: track.id, albumID: track.albumID, mediaRef: track.mediaReference)
+        guard let snapshot, let currentIndex = snapshot.queueIndex,
+              snapshot.queue.indices.contains(currentIndex) else {
+            loadAndPlay(track: track, queue: [item], index: 0)
+            return
+        }
+        var revised = snapshot.queue
+        revised.insert(item, at: currentIndex + 1)
+        commitQueue(revised, currentIndex: currentIndex, message: "Playing next: \(track.title).")
+    }
+
+    func addToQueue(_ track: CatalogTrack) {
+        let item = QueueItem(trackID: track.id, albumID: track.albumID, mediaRef: track.mediaReference)
+        guard let snapshot, let currentIndex = snapshot.queueIndex,
+              snapshot.queue.indices.contains(currentIndex) else {
+            loadAndPlay(track: track, queue: [item], index: 0)
+            return
+        }
+        commitQueue(snapshot.queue + [item], currentIndex: currentIndex, message: "Added to queue: \(track.title).")
+    }
+
+    func removeFromQueue(at index: Int) {
+        guard let snapshot, let currentIndex = snapshot.queueIndex,
+              snapshot.queue.indices.contains(index), index != currentIndex else { return }
+        var revised = snapshot.queue
+        revised.remove(at: index)
+        let revisedCurrent = index < currentIndex ? currentIndex - 1 : currentIndex
+        commitQueue(revised, currentIndex: revisedCurrent, message: "Removed from queue.")
+    }
+
     func shuffleUpcoming() {
         var generator = SystemRandomNumberGenerator()
         shuffleUpcoming(using: &generator)

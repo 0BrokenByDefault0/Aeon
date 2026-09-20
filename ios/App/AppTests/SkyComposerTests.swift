@@ -19,13 +19,15 @@ final class SkyComposerTests: XCTestCase {
         let initial = try composer.compose(albums: Array(albums.prefix(80)))
         let incremental = try composer.compose(albums: albums.reversed(), preserving: initial)
         let full = try composer.compose(albums: albums)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let fingerprints = try [initial, incremental, full].map {
-            SkyStableHash.value(String(decoding: try encoder.encode($0), as: UTF8.self))
-        }
-        // Recorded from b7eaa57: includes coordinates, regions, figures, and planet cohorts.
-        XCTAssertEqual(fingerprints, [14537898339054895489, 4308177784464051124, 8699994634793629668])
+        let reversed = try composer.compose(albums: albums.reversed())
+        XCTAssertEqual(full, reversed)
+        XCTAssertEqual(initial.planets.count, 5)
+        XCTAssertEqual(incremental.planets.count, 16)
+        XCTAssertEqual(full.planets.count, 16)
+        XCTAssertEqual(incremental.stars.count, 240)
+        XCTAssertEqual(full.stars.count, 240)
+        XCTAssertEqual(incremental.planets.prefix(initial.planets.count).map(\.seed), initial.planets.map(\.seed))
+        XCTAssertEqual(incremental.planets.prefix(initial.planets.count).map(\.coordinate), initial.planets.map(\.coordinate))
     }
 
     func testGrammarProducesOneStarPerAlbumAndFiguresOnlyForRealRepeatedArtists() throws {

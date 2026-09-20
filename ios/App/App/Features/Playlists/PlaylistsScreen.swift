@@ -3,11 +3,21 @@ import SwiftUI
 struct PlaylistsScreen: View {
     @ObservedObject var controller: PlaylistsController
     let contentBottomInset: CGFloat
+    let showAlbum: (String) -> Void
+    let showArtist: (String) -> Void
     @State private var creationPresented = false
     @State private var detailPresented = false
     @State private var name = ""
-    init(controller: PlaylistsController, contentBottomInset: CGFloat = 0) {
-        self.controller = controller; self.contentBottomInset = contentBottomInset
+    init(
+        controller: PlaylistsController,
+        contentBottomInset: CGFloat = 0,
+        showAlbum: @escaping (String) -> Void = { _ in },
+        showArtist: @escaping (String) -> Void = { _ in }
+    ) {
+        self.controller = controller
+        self.contentBottomInset = contentBottomInset
+        self.showAlbum = showAlbum
+        self.showArtist = showArtist
     }
     var body: some View {
         GeometryReader { geometry in
@@ -48,7 +58,12 @@ struct PlaylistsScreen: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $detailPresented, onDismiss: controller.dismissSelection) {
-            PlaylistDetailView(controller: controller, close: { detailPresented = false })
+            PlaylistDetailView(
+                controller: controller,
+                close: { detailPresented = false },
+                showAlbum: { id in detailPresented = false; showAlbum(id) },
+                showArtist: { artist in detailPresented = false; showArtist(artist) }
+            )
         }
         .overlay(alignment: .bottom) {
             if let message = controller.message {
@@ -118,6 +133,8 @@ struct PlaylistsScreen: View {
 private struct PlaylistDetailView: View {
     @ObservedObject var controller: PlaylistsController
     let close: () -> Void
+    let showAlbum: (String) -> Void
+    let showArtist: (String) -> Void
     @State private var deleteConfirmation = false
     var body: some View {
         AeonSheet {
@@ -164,15 +181,25 @@ private struct PlaylistDetailView: View {
         }
     }
     private func trackRow(_ route: PlaylistRouteItem, index: Int) -> some View {
-        AeonRow(title: route.item.trackTitle,
-                detail: route.unavailable ? "FILE UNAVAILABLE · \(route.item.artist) · \(route.item.albumTitle)"
-                    : "\(route.item.artist) · \(route.item.albumTitle)") {
-            Menu {
-                Button("PLAY FROM HERE") { controller.play(startingAt: index) }.disabled(route.unavailable)
-                Button("REMOVE", role: .destructive) { controller.remove(position: index) }
-            } label: {
-                AeonGlyph(kind: .more).frame(width: 44, height: 44).foregroundStyle(AeonOrbit.secondary)
-            }.accessibilityLabel("Actions for \(route.item.trackTitle)")
+        AeonRow(
+            title: route.item.trackTitle,
+            detail: route.unavailable ? "FILE UNAVAILABLE · \(route.item.artist) · \(route.item.albumTitle)"
+                : "\(route.item.artist) · \(route.item.albumTitle)"
+        ) {
+            if let track = try? controller.repository.track(id: route.item.trackID) {
+                TrackActionMenu(
+                    track: track,
+                    catalog: controller.repository,
+                    playback: controller.playback,
+                    playFromHere: route.unavailable ? nil : { controller.play(startingAt: index) },
+                    showAlbum: { showAlbum(route.item.albumID) },
+                    showArtist: { showArtist(route.item.artist) },
+                    remove: { controller.remove(position: index) }
+                ) {
+                    AeonGlyph(kind: .more).frame(width: 44, height: 44)
+                }
+                .foregroundStyle(AeonOrbit.secondary)
+            }
         }
     }
 }

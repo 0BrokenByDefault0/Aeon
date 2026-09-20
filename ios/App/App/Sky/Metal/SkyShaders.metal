@@ -62,8 +62,11 @@ vertex SkyVertexOut skyInstanceVertex(
     if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.62;
     if ((instance.flags & 0x1000) != 0) audioScale += (sin(uniforms.time * 1.15) + 1.0) * 0.035;
     bool backdrop = (instance.flags & 0x800) != 0;
+    bool planet = (instance.flags & 2) != 0;
     float albumScale = clamp(uniforms.scale / 1.44, 0.70, 2.20);
-    float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size) * audioScale * (backdrop ? 1.0 : albumScale);
+    float planetScale = clamp(sqrt(uniforms.scale / 1.8), 0.75, 2.8);
+    float objectScale = planet ? planetScale : albumScale;
+    float2 pixelOffset = corner * float2(instance.size * ringScale, instance.size) * audioScale * (backdrop ? 1.0 : objectScale);
     float2 ndcOffset = float2(pixelOffset.x / (uniforms.viewport.x * 0.5),
                               -pixelOffset.y / (uniforms.viewport.y * 0.5));
     SkyVertexOut out;
@@ -100,6 +103,10 @@ vertex SkyVertexOut skyLineVertex(
 
 fragment float4 skyStarFragment(SkyVertexOut in [[stage_in]]) {
     float radius = length(in.uv - 0.5) * 2.0;
+    if ((in.flags & 0x2000) != 0) {
+        float haze = pow(max(0.0, 1.0 - radius), 3.2) * in.color0.a;
+        return float4(in.color0.rgb * haze, haze);
+    }
     float core = smoothstep(1.0, 0.05, radius);
     float spike = max(smoothstep(0.08, 0.0, abs(in.uv.x - 0.5)),
                       smoothstep(0.08, 0.0, abs(in.uv.y - 0.5))) * smoothstep(1.0, 0.0, radius);
@@ -122,11 +129,15 @@ fragment float4 skyPlanetFragment(SkyVertexOut in [[stage_in]]) {
     float radius = length(centered) * 2.0;
     bool rings = (in.flags & 0x100) != 0;
     float sphere = smoothstep(1.0, 0.94, radius);
-    float bands = clamp(in.uv.y * 3.0 + sin(in.uv.x * 18.0) * in.turbulence, 0.0, 2.999);
+    float seedNoise = sin((in.uv.x * 41.0 + in.uv.y * 29.0 + in.turbulence * 19.0) * 3.14159);
+    float bands = clamp(in.uv.y * 3.0 + sin(in.uv.x * 18.0 + seedNoise) * in.turbulence, 0.0, 2.999);
     float4 color = bands < 1.0 ? in.color0 : (bands < 2.0 ? in.color1 : in.color2);
     float light = 0.52 + 0.48 * max(0.0, dot(normalize(float3(centered, sqrt(max(0.0, 0.25 - dot(centered, centered))))), normalize(float3(-0.5, -0.4, 1.0))));
     float ring = rings ? smoothstep(0.08, 0.0, abs(length(float2(centered.x / 1.42, centered.y / 0.28)) - 0.48)) : 0.0;
-    return float4(color.rgb * light * sphere + color.rgb * ring * 0.42, max(sphere, ring * 0.65));
+    float limb = smoothstep(1.06, 0.86, radius) - smoothstep(0.98, 0.80, radius);
+    float detail = 0.90 + 0.10 * seedNoise;
+    return float4(color.rgb * light * detail * sphere + float3(0.30, 0.48, 0.72) * limb * 0.22 + color.rgb * ring * 0.42,
+                  max(max(sphere, limb * 0.42), ring * 0.65));
 }
 
 fragment float4 skyPlanetTextureFragment(

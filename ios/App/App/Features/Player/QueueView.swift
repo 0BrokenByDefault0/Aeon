@@ -5,6 +5,8 @@ struct QueueView: View {
     @ObservedObject var playback: PlaybackController
     let catalog: CatalogRepository
     let close: () -> Void
+    var showAlbum: (String) -> Void = { _ in }
+    var showArtist: (String) -> Void = { _ in }
     @State private var naming = false
     @State private var playlistName = ""
     @State private var draggedOffset: Int?
@@ -182,6 +184,20 @@ struct QueueView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            if let track {
+                TrackActionMenu(
+                    track: track,
+                    catalog: catalog,
+                    playback: playback,
+                    showAlbum: { close(); showAlbum(item.albumID) },
+                    showArtist: { close(); showArtist(artist) },
+                    remove: offset == nil ? nil : { playback.removeFromQueue(at: position - 1) }
+                ) {
+                    AeonGlyph(kind: .more)
+                        .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                }
+                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            }
             if let offset {
                 AeonGlyph(kind: .grip)
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
@@ -254,4 +270,170 @@ private struct QueueDropDelegate: DropDelegate {
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+}
+
+enum TrackActionSheet: String, Identifiable {
+    case playlist
+    case info
+    var id: String { rawValue }
+}
+
+struct TrackActionMenu<Label: View>: View {
+    let track: CatalogTrack
+    let catalog: CatalogRepository
+    @ObservedObject var playback: PlaybackController
+    let playFromHere: (() -> Void)?
+    let showAlbum: (() -> Void)?
+    let showArtist: (() -> Void)?
+    let remove: (() -> Void)?
+    let label: Label
+    @State private var presentedSheet: TrackActionSheet?
+
+    init(
+        track: CatalogTrack,
+        catalog: CatalogRepository,
+        playback: PlaybackController,
+        playFromHere: (() -> Void)? = nil,
+        showAlbum: (() -> Void)? = nil,
+        showArtist: (() -> Void)? = nil,
+        remove: (() -> Void)? = nil,
+        @ViewBuilder label: () -> Label
+    ) {
+        self.track = track
+        self.catalog = catalog
+        self.playback = playback
+        self.playFromHere = playFromHere
+        self.showAlbum = showAlbum
+        self.showArtist = showArtist
+        self.remove = remove
+        self.label = label()
+    }
+
+    var body: some View {
+        Menu {
+            Button("PLAY NEXT") { playback.playNext(track) }
+            Button("ADD TO QUEUE") { playback.addToQueue(track) }
+            Button("ADD TO PLAYLIST") { presentedSheet = .playlist }
+            if let showAlbum { Button("SHOW ALBUM", action: showAlbum) }
+            if let showArtist, !track.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button("SHOW ARTIST", action: showArtist)
+            }
+            Button("TRACK INFO") { presentedSheet = .info }
+            if let playFromHere { Button("PLAY FROM HERE", action: playFromHere) }
+            if let remove { Button("REMOVE", role: .destructive, action: remove) }
+        } label: { label }
+        .sheet(item: $presentedSheet) { destination in
+            switch destination {
+            case .playlist:
+                TrackPlaylistPicker(track: track, catalog: catalog)
+            case .info:
+                TrackInfoSheet(track: track, album: try? catalog.album(id: track.albumID))
+            }
+        }
+        .accessibilityLabel("Actions for \(track.title)")
+    }
+}
+
+private struct TrackPlaylistPicker: View {
+    let track: CatalogTrack
+    let catalog: CatalogRepository
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var error: String?
+
+    var body: some View {
+        AeonSheet {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                    AeonDisplayText("Add to playlist", size: 32, maximumLines: 2)
+                        .foregroundStyle(AeonOrbit.title)
+                    let playlists = (try? catalog.playlists()) ?? []
+                    if !playlists.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(playlists) { playlist in
+                                Button {
+                                    add(to: playlist.id)
+                                } label: {
+                                    AeonRow(title: playlist.name, detail: "PLAYLIST") {
+                                        AeonGlyph(kind: .add).frame(width: 44, height: 44)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        AeonLabel(text: "New playlist")
+                        TextField("Playlist name", text: $name)
+                            .textInputAutocapitalization(.words)
+                            .padding(.horizontal, AeonTheme.Space.regular)
+                            .frame(minHeight: AeonTheme.Space.minimumTarget)
+                            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+                        Button("CREATE AND ADD") { createAndAdd() }
+                            .buttonStyle(AeonButtonStyle(tier: .filled))
+                            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if let error {
+                        Text(error).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonTheme.ColorToken.danger)
+                    }
+                    Button("CANCEL") { dismiss() }.buttonStyle(AeonButtonStyle(tier: .bare))
+                }
+                .padding(AeonTheme.Space.edge)
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func add(to playlistID: String) {
+        do {
+            let ids = try catalog.playlistItems(playlistID: playlistID).map(\.trackID) + [track.id]
+            try catalog.replacePlaylistItems(playlistID: playlistID, trackIDs: ids)
+            AeonFeedback.succeeded()
+            dismiss()
+        } catch {
+            self.error = "The track could not be added."
+            AeonFeedback.failed()
+        }
+    }
+
+    private func createAndAdd() {
+        do {
+            _ = try catalog.createPlaylist(name: name, trackIDs: [track.id])
+            AeonFeedback.succeeded()
+            dismiss()
+        } catch {
+            self.error = "The playlist could not be created."
+            AeonFeedback.failed()
+        }
+    }
+}
+
+private struct TrackInfoSheet: View {
+    let track: CatalogTrack
+    let album: CatalogAlbum?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        AeonSheet {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                AeonDisplayText(track.title, size: 32, maximumLines: 3).foregroundStyle(AeonOrbit.title)
+                VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
+                    detail("ARTIST", track.artist.isEmpty ? album?.artist ?? "Unknown" : track.artist)
+                    detail("ALBUM", album?.title ?? "Unknown")
+                    if let trackNumber = track.trackNumber { detail("TRACK", "\(trackNumber)") }
+                    if let duration = track.duration { detail("DURATION", String(format: "%d:%02d", Int(duration) / 60, Int(duration) % 60)) }
+                }
+                Button("DONE") { dismiss() }.buttonStyle(AeonButtonStyle(tier: .filled))
+            }
+            .padding(AeonTheme.Space.edge)
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func detail(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            AeonLabel(text: label)
+            Text(value).font(AeonTheme.FontToken.ui(.body)).foregroundStyle(AeonOrbit.ink)
+        }
+    }
 }

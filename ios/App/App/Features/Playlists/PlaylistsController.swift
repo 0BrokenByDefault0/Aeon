@@ -20,8 +20,8 @@ final class PlaylistsController: ObservableObject {
     @Published private(set) var selectedItems: [PlaylistRouteItem] = []
     @Published private(set) var message: String?
 
-    private let repository: CatalogRepository
-    private let playback: PlaybackController
+    let repository: CatalogRepository
+    let playback: PlaybackController
     private var observation: CatalogObservation?
 
     init(repository: CatalogRepository, playback: PlaybackController) {
@@ -83,8 +83,7 @@ final class PlaylistsController: ObservableObject {
         }
         let index = min(max(0, position), tracks.count - 1)
         let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
-        playback.load(track: tracks[index], queue: queue, index: index)
-        playback.play()
+        playback.loadAndPlay(track: tracks[index], queue: queue, index: index)
         message = "Route loaded into the queue."
     }
 

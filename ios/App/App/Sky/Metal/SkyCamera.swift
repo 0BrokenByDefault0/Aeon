@@ -15,8 +15,8 @@ struct SkyViewport: Equatable, Sendable {
 }
 
 struct SkyCameraState: Codable, Equatable, Sendable {
-    static let minimumScale = 0.08
-    static let maximumScale = 12.0
+    static let minimumScale = 0.18
+    static let maximumScale = 8.0
     static let home = SkyCameraState(centerX: 0, centerY: 0, scale: 0.72, selectedID: nil)
 
     var centerX: Double
@@ -33,9 +33,9 @@ struct SkyCameraState: Codable, Equatable, Sendable {
 
     var tier: SkyZoomTier {
         switch scale {
-        case ..<0.45: return .galaxy
-        case ..<1.2: return .region
-        case ..<3.2: return .constellation
+        case ..<0.55: return .galaxy
+        case ..<1.4: return .region
+        case ..<3.5: return .constellation
         default: return .system
         }
     }
@@ -75,15 +75,34 @@ struct SkyCameraState: Codable, Equatable, Sendable {
         let target: Double
         switch tier {
         case .galaxy: target = Self.minimumScale
-        case .region: target = 0.3
-        case .constellation: target = 0.9
-        case .system: target = 2.6
+        case .region: target = 0.42
+        case .constellation: target = 1.1
+        case .system: target = 3.0
         }
         return zoomed(by: target / scale, anchor: anchor, viewport: viewport)
     }
 
     func reframed(from oldViewport: SkyViewport, to newViewport: SkyViewport) -> SkyCameraState {
         self
+    }
+
+    func constrained(to points: [SkyPoint], viewport: SkyViewport, padding: Double = 180) -> SkyCameraState {
+        guard let first = points.first else { return sanitized }
+        var minX = Double(first.x), maxX = Double(first.x)
+        var minY = Double(first.y), maxY = Double(first.y)
+        for point in points.dropFirst() {
+            minX = min(minX, Double(point.x)); maxX = max(maxX, Double(point.x))
+            minY = min(minY, Double(point.y)); maxY = max(maxY, Double(point.y))
+        }
+        minX -= padding; maxX += padding; minY -= padding; maxY += padding
+        let halfWidth = Double(viewport.size.width) / (2 * scale)
+        let halfHeight = Double(viewport.size.height) / (2 * scale)
+        var value = sanitized
+        value.centerX = minX + halfWidth > maxX - halfWidth
+            ? (minX + maxX) / 2 : min(maxX - halfWidth, max(minX + halfWidth, value.centerX))
+        value.centerY = minY + halfHeight > maxY - halfHeight
+            ? (minY + maxY) / 2 : min(maxY - halfHeight, max(minY + halfHeight, value.centerY))
+        return value
     }
 
     static func framing(points: [SkyPoint], viewport: SkyViewport, padding: CGFloat = 56) -> SkyCameraState {

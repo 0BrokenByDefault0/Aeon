@@ -12,23 +12,29 @@ final class PlanetModelTests: XCTestCase {
         let sha256: String
     }
 
-    func testPlanetsFormEveryTwentyAlbumsWithImmutableOrderedMembership() throws {
+    func testPlanetsFormEveryFifteenAlbumsWithStableMilestoneIdentity() throws {
         let composer = SkyComposer()
         let albums = makeAlbums(count: 65)
         let first = try composer.compose(albums: albums)
-        XCTAssertEqual(first.planets.count, 3)
-        XCTAssertEqual(first.planets.map { $0.members.count }, [20, 20, 20])
-        XCTAssertEqual(first.planets[0].members.map(\.albumID), (1...20).map { "album-\($0)" })
+        XCTAssertEqual(first.planets.count, 4)
+        XCTAssertEqual(first.planets.map { $0.members.count }, [15, 15, 15, 15])
+        XCTAssertEqual(first.planets[0].members.map(\.albumID), (1...15).map { "album-\($0)" })
 
         var changed = Array(albums.dropFirst())
         changed[0] = makeAlbum(2, genre: "Retagged")
         let rebuilt = try composer.compose(albums: changed, preserving: first)
-        XCTAssertEqual(rebuilt.planets, first.planets)
+        XCTAssertEqual(rebuilt.planets.map(\.id), first.planets.map(\.id))
+        XCTAssertEqual(rebuilt.planets.map(\.seed), first.planets.map(\.seed))
+        XCTAssertEqual(rebuilt.planets.map(\.coordinate), first.planets.map(\.coordinate))
+        XCTAssertEqual(rebuilt.planets.map(\.descriptor), first.planets.map(\.descriptor))
+        XCTAssertEqual(rebuilt.planets[0].members.map(\.albumID), (2...16).map { "album-\($0)" })
+
+        XCTAssertTrue(try composer.compose(albums: Array(albums.prefix(14)), preserving: first).planets.isEmpty)
     }
 
     func testPlanetDescriptorUsesContentAndListeningDoesNotChangeSurfaceIdentity() throws {
         let composer = SkyComposer()
-        let colorful = (1...20).map { index in
+        let colorful = (1...15).map { index in
             SkyAlbumInput(
                 id: "album-\(index)",
                 sequence: Int64(index),
@@ -89,10 +95,10 @@ final class PlanetModelTests: XCTestCase {
         let start = CFAbsoluteTimeGetCurrent()
         let catalogue = try SkyComposer().compose(albums: makeAlbums(count: 10_000))
         let duration = CFAbsoluteTimeGetCurrent() - start
-        XCTAssertEqual(catalogue.planets.count, 500)
+        XCTAssertEqual(catalogue.planets.count, 666)
         let members = catalogue.planets.flatMap { $0.members.map(\.albumID) }
-        XCTAssertEqual(Set(members).count, 10_000)
-        XCTAssertEqual(members.count, 10_000)
+        XCTAssertEqual(Set(members).count, 9_990)
+        XCTAssertEqual(members.count, 9_990)
         // Keep this as a regression guard without making hosted-runner variance a release blocker.
         XCTAssertLessThan(duration, 20)
         for planet in catalogue.planets {

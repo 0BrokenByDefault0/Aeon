@@ -14,6 +14,8 @@ struct NowPlayingView: View {
     let reduceMotionOverride: Bool
     let close: () -> Void
     let locate: (String, Bool) -> Void
+    let showAlbum: (String) -> Void
+    let showArtist: (String) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var queuePresented = false
@@ -81,7 +83,13 @@ struct NowPlayingView: View {
         }
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
         .sheet(isPresented: $queuePresented) {
-            QueueView(playback: playback, catalog: catalog, close: { queuePresented = false })
+            QueueView(
+                playback: playback,
+                catalog: catalog,
+                close: { queuePresented = false },
+                showAlbum: showAlbum,
+                showArtist: showArtist
+            )
         }
         .onAppear { spectrum.setReduceMotion(effectiveReduceMotion) }
         .onChange(of: reduceMotion) { spectrum.setReduceMotion($0 || reduceMotionOverride || AeonTestOverrides.reduceMotion) }

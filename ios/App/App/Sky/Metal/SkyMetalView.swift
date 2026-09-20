@@ -32,6 +32,7 @@ struct SkyMetalView: UIViewRepresentable {
         context.coordinator.controller = controller
         context.coordinator.commitSelection = commitSelection
         context.coordinator.reduceMotion = effectiveReduceMotion
+        controller.updateViewport(view.bounds.size)
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
             camera: controller.camera,
@@ -57,9 +58,7 @@ struct SkyMetalView: UIViewRepresentable {
         var commitSelection: (String) -> Void
         var renderer: SkyRenderer?
         var reduceMotion = false
-        private var panStart = SkyCameraState.home
-        private var gestureStart = SkyCameraState.home
-        private var gestureAnchorWorld: CGPoint?
+        private var lastPanTranslation = CGPoint.zero
         private var lastPinchScale: CGFloat = 1
         private let hitTester = SkyHitTester()
 
@@ -93,11 +92,14 @@ struct SkyMetalView: UIViewRepresentable {
         @objc private func pan(_ gesture: UIPanGestureRecognizer) {
             guard let view = gesture.view else { return }
             if gesture.state == .began {
-                panStart = controller.camera
+                lastPanTranslation = .zero
                 // A direct touch always wins over a pending locate/coast transition.
                 controller.setCamera(controller.camera)
             }
-            let camera = panStart.panned(screenTranslation: gesture.translation(in: view).asSize)
+            let translation = gesture.translation(in: view)
+            let delta = CGPoint(x: translation.x - lastPanTranslation.x, y: translation.y - lastPanTranslation.y)
+            lastPanTranslation = translation
+            let camera = controller.camera.panned(screenTranslation: delta.asSize)
             switch gesture.state {
             case .began, .changed:
                 controller.setCamera(camera)
@@ -115,9 +117,7 @@ struct SkyMetalView: UIViewRepresentable {
             guard let view = gesture.view else { return }
             let viewport = SkyViewport(size: view.bounds.size)
             if gesture.state == .began {
-                gestureStart = controller.camera
                 lastPinchScale = gesture.scale
-                gestureAnchorWorld = controller.camera.worldPoint(for: gesture.location(in: view), viewport: viewport)
                 controller.setCamera(controller.camera)
             }
             // Apply only the incremental scale since the last callback. This composes correctly
@@ -130,9 +130,6 @@ struct SkyMetalView: UIViewRepresentable {
                 viewport: viewport
             )
             controller.setCamera(camera, persist: gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed)
-            if gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed {
-                gestureAnchorWorld = nil
-            }
         }
 
         @objc private func tap(_ gesture: UITapGestureRecognizer) {
@@ -148,6 +145,8 @@ struct SkyMetalView: UIViewRepresentable {
             if case .star(let id) = target, controller.selectedStar?.albumID == id {
                 commitSelection(id)
             } else if case .constellation(let id) = target {
+                controller.locate(id: id, reduceMotion: reduceMotion)
+            } else if case .planet(let id) = target {
                 controller.locate(id: id, reduceMotion: reduceMotion)
             } else {
                 controller.select(target)

@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct SearchResultsView: View {
-    let results: CatalogSearchResults
+    @ObservedObject var controller: LibraryController
     let thumbnails: [String: UIImage]
-    let selectAlbum: (String) -> Void
-    let playTrack: (String, String) -> Void
+
+    private var results: CatalogSearchResults { controller.searchResults }
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: AeonTheme.Space.large) {
@@ -28,7 +28,7 @@ struct SearchResultsView: View {
             if !results.albums.isEmpty {
                 resultSection("ALBUMS") {
                     ForEach(results.albums) { album in
-                        Button { selectAlbum(album.id) } label: {
+                        Button { controller.selectAlbum(id: album.id) } label: {
                             HStack(spacing: AeonTheme.Space.medium) {
                                 AeonArtwork(
                                     image: album.artworkKey.flatMap { thumbnails[$0] }.map(Image.init(uiImage:)),
@@ -54,19 +54,34 @@ struct SearchResultsView: View {
             }
             if !results.tracks.isEmpty {
                 resultSection("TRACKS") {
-                    ForEach(results.tracks) { track in
-                        Button { playTrack(track.albumID, track.trackID) } label: {
-                            AeonRow(
-                                title: track.trackTitle,
-                                detail: [track.artist, track.albumTitle].filter { !$0.isEmpty }.joined(separator: " · ")
-                            ) {
-                                AeonGlyph(kind: .play)
-                                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                    ForEach(results.tracks) { hit in
+                        if let track = try? controller.repository.track(id: hit.trackID) {
+                            HStack(spacing: AeonTheme.Space.small) {
+                                Button { controller.playAlbum(id: hit.albumID, startingTrackID: hit.trackID) } label: {
+                                    AeonRow(
+                                        title: hit.trackTitle,
+                                        detail: [hit.artist, hit.albumTitle].filter { !$0.isEmpty }.joined(separator: " · ")
+                                    ) {
+                                        AeonGlyph(kind: .play)
+                                            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Play \(hit.trackTitle)")
+                                .accessibilityIdentifier("aeon.library.search.track.\(hit.trackID)")
+                                TrackActionMenu(
+                                    track: track,
+                                    catalog: controller.repository,
+                                    playback: controller.playback,
+                                    showAlbum: { controller.selectAlbum(id: hit.albumID) },
+                                    showArtist: { controller.setQuery(hit.artist) }
+                                ) {
+                                    AeonGlyph(kind: .more)
+                                        .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                                }
+                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                             }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Play \(track.trackTitle)")
-                        .accessibilityIdentifier("aeon.library.search.track.\(track.trackID)")
                     }
                 }
             }

@@ -124,6 +124,15 @@ struct PlanetDescriptor: Codable, Equatable, Sendable {
 
 struct SkyPlanet: Codable, Equatable, Identifiable, Sendable {
     var id: String { "planet:\(index)" }
+    var name: String {
+        let names = ["Vesper", "Orison", "Caelum", "Lumen", "Nacre", "Aster", "Eidolon", "Vela"]
+        return "\(names[Int(seed % UInt64(names.count))]) \(Self.roman(index))"
+    }
+    var systemName: String { "\(name) System" }
+    var albumRange: ClosedRange<Int> {
+        let start = (index - 1) * SkyComposer.albumsPerPlanet + 1
+        return start...(start + SkyComposer.albumsPerPlanet - 1)
+    }
     let index: Int
     let members: [PlanetMember]
     let frontierRadius: UInt32
@@ -141,6 +150,16 @@ struct SkyPlanet: Codable, Equatable, Identifiable, Sendable {
             result.count += 1
         }
         return total.count == 0 ? 48 : UInt8(clamping: total.sum / total.count)
+    }
+
+    private static func roman(_ value: Int) -> String {
+        let numerals = [(10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")]
+        var remaining = max(1, value)
+        var result = ""
+        for (number, numeral) in numerals {
+            while remaining >= number { result += numeral; remaining -= number }
+        }
+        return result
     }
 }
 

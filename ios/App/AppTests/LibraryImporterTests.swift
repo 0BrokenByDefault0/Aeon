@@ -180,6 +180,7 @@ final class LibraryImporterTests: XCTestCase {
     func testAdoptMusicLibraryScansUserFoldersInPlaceSkipsManagedRootsAndRescansIdempotently() async throws {
         let first = mediaStore.documentsMusicRoot.appendingPathComponent("Artist One/Album One/01 First.wav")
         let second = mediaStore.documentsMusicRoot.appendingPathComponent("Artist Two/Album Two/01 Second.wav")
+        let third = mediaStore.documentsMusicRoot.appendingPathComponent("Artist Three/Album Three/01 Third.wav")
         let managedImported = mediaStore.documentsMusicRoot.appendingPathComponent("_Imported/internal/managed.wav")
         let managedMigrated = mediaStore.documentsMusicRoot.appendingPathComponent("_Migrated/managed.wav")
         let managedRestored = mediaStore.documentsMusicRoot.appendingPathComponent("_Restored/op/managed.wav")
@@ -187,9 +188,11 @@ final class LibraryImporterTests: XCTestCase {
 
         let reader = StubTagReader(values: [
             first.lastPathComponent: AudioTags(title: "First", artist: "Artist One", albumArtist: nil, album: nil, year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil),
-            second.lastPathComponent: AudioTags(title: "Second", artist: "Artist Two", albumArtist: nil, album: nil, year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil)
+            second.lastPathComponent: AudioTags(title: "Second", artist: "Artist Two", albumArtist: nil, album: nil, year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil),
+            third.lastPathComponent: AudioTags(title: "Third", artist: "Artist Three", albumArtist: nil, album: nil, year: nil, genre: nil, trackNumber: 1, discNumber: nil, artworkData: nil)
         ])
-        let importer = makeImporter(reader: reader, probe: StubProbe())
+        let probe = StubProbe()
+        let importer = makeImporter(reader: reader, probe: probe)
 
         let initial = try await importer.adoptMusicLibrary()
         XCTAssertEqual(initial.importedAlbums, 2)
@@ -213,12 +216,59 @@ final class LibraryImporterTests: XCTestCase {
         ]))
         XCTAssertEqual(try Data(contentsOf: first), Data("audio".utf8))
         XCTAssertEqual(try Data(contentsOf: second), Data("audio".utf8))
+        let tagReadsAfterInitial = reader.callCount
+        let probesAfterInitial = probe.callCount
 
+        // Simulate an upgrade from the pre-index build. Existing Documents references
+        // bootstrap the index without decoding the collection one more time.
+        try repository.removeSetting(forKey: "library.import.adopted-index.v1")
         let rescan = try await importer.adoptMusicLibrary()
         XCTAssertEqual(rescan.importedAlbums, 0)
         XCTAssertEqual(rescan.importedTracks, 0)
-        XCTAssertEqual(Set(rescan.skippedDuplicateAlbums), Set(["Album One", "Album Two"]))
+        XCTAssertEqual(rescan.unchangedFiles, 2)
+        XCTAssertTrue(rescan.skippedDuplicateAlbums.isEmpty)
+        XCTAssertEqual(reader.callCount, tagReadsAfterInitial)
+        XCTAssertEqual(probe.callCount, probesAfterInitial)
         XCTAssertEqual(try repository.albumCount(), 2)
+
+        try writeAudio(third)
+        let update = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(update.importedAlbums, 1)
+        XCTAssertEqual(update.importedTracks, 1)
+        XCTAssertEqual(update.unchangedFiles, 2)
+        XCTAssertEqual(reader.callCount - tagReadsAfterInitial, 2, "only the new file should receive tag and artwork reads")
+        XCTAssertEqual(probe.callCount - probesAfterInitial, 2, "only the new file should be decoded and verified")
+        XCTAssertEqual(try repository.albumCount(), 3)
+    }
+
+    func testAdoptIndexRefreshesOnlyModifiedFilesAndPreservesMissingCatalogueEntries() async throws {
+        let file = mediaStore.documentsMusicRoot.appendingPathComponent("Artist/Album/01 Track.wav")
+        try writeAudio(file)
+        let reader = StubTagReader(values: [
+            file.lastPathComponent: AudioTags(title: "Track", artist: "Artist", albumArtist: nil, album: "Album", year: nil, genre: nil, trackNumber: 1, discNumber: 1, artworkData: nil)
+        ])
+        let probe = StubProbe()
+        let importer = makeImporter(reader: reader, probe: probe)
+        let initial = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(initial.importedTracks, 1)
+        let album = try XCTUnwrap(repository.albumPage().first)
+        let track = try XCTUnwrap(repository.tracks(albumID: album.id).first)
+        let reads = reader.callCount
+        let probes = probe.callCount
+
+        try Data("audio changed".utf8).write(to: file, options: .atomic)
+        let modified = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(modified.updatedTracks, 1)
+        XCTAssertEqual(modified.importedAlbums, 0)
+        XCTAssertEqual(reader.callCount, reads + 1)
+        XCTAssertEqual(probe.callCount, probes + 1)
+        XCTAssertEqual(try repository.track(id: track.id)?.byteCount, Int64("audio changed".utf8.count))
+
+        try FileManager.default.removeItem(at: file)
+        let missing = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(missing.missingFiles, 1)
+        XCTAssertEqual(try repository.albumCount(), 1)
+        XCTAssertNotNil(try repository.track(id: track.id))
     }
 
     func testAdoptRescanRelinksMovedAlbumWithoutChangingTrackIdentity() async throws {
@@ -275,8 +325,10 @@ final class LibraryImporterTests: XCTestCase {
 
 private final class StubTagReader: AudioTagReading {
     let values: [String: AudioTags]
+    private(set) var callCount = 0
     init(values: [String: AudioTags]) { self.values = values }
     func read(url: URL, includeArtwork: Bool) async throws -> AudioTags {
+        callCount += 1
         var value = values[url.lastPathComponent] ?? AudioTags(title: nil)
         if !includeArtwork { value.artworkData = nil }
         return value
@@ -287,10 +339,11 @@ private final class StubProbe: MediaProbing {
     let failures: Set<String>
     private let lock = NSLock()
     private(set) var peakConcurrentCalls = 0
+    private(set) var callCount = 0
     private var activeCalls = 0
     init(failures: Set<String> = []) { self.failures = failures }
     func probe(url: URL) -> MediaCapability {
-        lock.lock(); activeCalls += 1; peakConcurrentCalls = max(peakConcurrentCalls, activeCalls); lock.unlock()
+        lock.lock(); callCount += 1; activeCalls += 1; peakConcurrentCalls = max(peakConcurrentCalls, activeCalls); lock.unlock()
         defer { lock.lock(); activeCalls -= 1; lock.unlock() }
         if failures.contains(url.lastPathComponent) { return .decodeFailed(reason: "fixture") }
         return .playable(ProbedMedia(
