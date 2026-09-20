@@ -128,38 +128,81 @@ extension DesignTokenTests {
 }
 
 extension DesignTokenTests {
-    @objc func testEveryEqualChamberHasIdenticalGeometryAndNoOverlap() {
-        for count in [2, 5] {
-            for width: CGFloat in [240, 272, 342, 540] {
-                let bounds = CGRect(x: 13, y: 7, width: width, height: 48)
-                let shape = AeonSegmentedCapsule(chamberCount: count, layout: .equal)
-                let first = shape.equalChamberFrame(at: 0, in: bounds)
-                for index in 0..<count {
-                    let frame = shape.equalChamberFrame(at: index, in: bounds)
-                    XCTAssertEqual(frame.width, first.width, accuracy: 0.001)
-                    XCTAssertEqual(frame.height, first.height, accuracy: 0.001)
-                    XCTAssertTrue(bounds.contains(frame))
-                    let fill = AeonSegmentedCapsule(chamberCount: count, layout: .equal,
-                                                   part: .chamber(index)).path(in: bounds)
-                    XCTAssertEqual(fill.boundingRect.width, first.width, accuracy: 0.001)
-                    XCTAssertEqual(fill.boundingRect.height, first.height, accuracy: 0.001)
-                    XCTAssertTrue(fill.contains(CGPoint(x: frame.midX, y: frame.midY)))
-                    for other in 0..<count where other != index {
-                        let neighbor = shape.equalChamberFrame(at: other, in: bounds)
-                        XCTAssertFalse(frame.intersects(neighbor))
-                        XCTAssertFalse(fill.contains(CGPoint(x: neighbor.midX, y: neighbor.midY)))
-                    }
-                }
-            }
+    /// The reticle replaced `AeonSegmentedCapsule`, but these tests kept referring to the
+    /// deleted type, so the unit-test target no longer compiled. They now assert the
+    /// geometry the reticle actually has to hold.
+    @objc func testReticleKeepsFourSeparateCornersInEveryControlBox() {
+        let boxes = [
+            CGRect(x: 0, y: 0, width: 300, height: 56),   // primary action
+            CGRect(x: 13, y: 7, width: 68, height: 48),   // one segment cell
+            CGRect(x: 0, y: 0, width: 56, height: 44),    // a toggle endpoint
+            CGRect(x: 0, y: 0, width: 20, height: 14)     // undersized: bare text
+        ]
+        for box in boxes {
+            let resolved = AeonReticleMark.resolvedBox(in: box)
+            XCTAssertGreaterThanOrEqual(resolved.width, AeonReticleMark.minimumSize.width)
+            XCTAssertGreaterThanOrEqual(resolved.height, AeonReticleMark.minimumSize.height)
+            XCTAssertEqual(resolved.midX, box.midX, accuracy: 0.001)
+            XCTAssertEqual(resolved.midY, box.midY, accuracy: 0.001)
+
+            let bounds = AeonReticleMark().path(in: box).boundingRect
+            XCTAssertEqual(bounds.midX, box.midX, accuracy: 0.001)
+            XCTAssertEqual(bounds.midY, box.midY, accuracy: 0.001)
+            // The ticks sit on the inset box, so the drawn extent is exactly the inset.
+            XCTAssertEqual(bounds.width, resolved.width - 16, accuracy: 0.001)
+            XCTAssertEqual(bounds.height, resolved.height - 12, accuracy: 0.001)
+            // Opposite arms must never meet: each is at most a third of the span, so the
+            // mark can never collapse into the smear it drew over a two-letter label.
+            XCTAssertLessThanOrEqual(armLength(in: box), bounds.width / 3 + 0.001)
+            XCTAssertLessThanOrEqual(armLength(in: box), bounds.height / 3 + 0.001)
         }
     }
 
-    @objc func testPrimaryActionRetainsItsCenterOnlyOrbitalFill() {
-        let bounds = CGRect(x: 0, y: 0, width: 300, height: 56)
-        let fill = AeonSegmentedCapsule(part: .chamber(1)).path(in: bounds)
-        XCTAssertTrue(fill.contains(CGPoint(x: 150, y: 28)))
-        XCTAssertFalse(fill.contains(CGPoint(x: 20, y: 28)))
-        XCTAssertFalse(fill.contains(CGPoint(x: 280, y: 28)))
-        XCTAssertEqual(AeonOrbit.stroke, 1.125)
+    /// Longest horizontal arm the mark draws, recovered from the rendered path.
+    private func armLength(in box: CGRect) -> CGFloat {
+        let resolved = AeonReticleMark.resolvedBox(in: box)
+        return max(4, min(12, (resolved.width - 16) / 3, (resolved.height - 12) / 3))
+    }
+
+    @objc func testPressedReticleStaysInsideItsBoxAndGrowsInward() {
+        let box = CGRect(x: 0, y: 0, width: 300, height: 56)
+        let rest = AeonReticleMark().path(in: box).boundingRect
+        let pressed = AeonReticleMark(pressed: true).path(in: box).boundingRect
+        XCTAssertEqual(rest, pressed)
+        XCTAssertTrue(box.insetBy(dx: -0.001, dy: -0.001).contains(rest))
+        // The press wash fills only the area the ticks enclose, never the whole control.
+        let field = AeonReticleField().path(in: box).boundingRect
+        XCTAssertEqual(field, box.insetBy(dx: 8, dy: 6))
+        XCTAssertFalse(field.contains(CGPoint(x: box.minX + 1, y: box.midY)))
+        XCTAssertEqual(AeonOrbit.stroke, 1)
+    }
+
+    @objc func testEqualizerBoostsAreCompensatedSoTheyCannotClip() {
+        let flat = (0..<10).map { EQBand(frequency: Double(31 << $0), q: 1, gainDB: 0) }
+        XCTAssertEqual(AudioEngineGraph.headroomDB(for: flat), 0, accuracy: 0.0001)
+
+        let bassRitual = EQView.presets.first { $0.name == "BASS RITUAL" }
+        XCTAssertNotNil(bassRitual)
+        let boosted = zip(EQView.frequencies, bassRitual?.gains ?? []).map {
+            EQBand(frequency: $0.0, q: 1, gainDB: $0.1)
+        }
+        // +9 dB of boost must be answered by -9 dB of makeup, or the main mixer clips.
+        XCTAssertEqual(AudioEngineGraph.headroomDB(for: boosted), -9, accuracy: 0.0001)
+
+        let cutOnly = EQView.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: -6) }
+        XCTAssertEqual(AudioEngineGraph.headroomDB(for: cutOnly), 0, accuracy: 0.0001)
+    }
+
+    @objc func testSleepFadeIsDecibelLinearRatherThanAStraightAmplitudeRamp() {
+        XCTAssertEqual(SettingsController.sleepFadeAmplitude(progress: 0), 1, accuracy: 0.0001)
+        XCTAssertEqual(SettingsController.sleepFadeAmplitude(progress: 1), 0, accuracy: 0.0001)
+        // Halfway through the fade is -30 dB, not the -6 dB a linear ramp would give.
+        XCTAssertEqual(SettingsController.sleepFadeAmplitude(progress: 0.5), 0.0316, accuracy: 0.001)
+        var previous = Double.infinity
+        for step in 0...20 {
+            let value = SettingsController.sleepFadeAmplitude(progress: Double(step) / 20)
+            XCTAssertLessThan(value, previous)
+            previous = value
+        }
     }
 }

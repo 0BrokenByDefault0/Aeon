@@ -9,18 +9,36 @@ enum AeonOrbit {
     static let title = AeonTheme.ColorToken.primary
     static let ink = AeonTheme.ColorToken.primary
     static let secondary = AeonTheme.ColorToken.secondary
-    static let activeFill = Color.clear
+    /// A press is a wash inside the ticks, never a filled control at rest.
+    static let activeFill = AeonTheme.ColorToken.primary.opacity(0.08)
     static let supportingFont = AeonTheme.FontToken.ui(.subheadline, weight: .regular)
 }
 
 /// Four viewfinder ticks; no enclosing shape, radius, or fill.
+///
+/// The ticks are inset from the box and run inward, so the mark needs a box wide
+/// enough to hold four separated corners. Drawn into anything smaller the opposite
+/// arms cross and the mark collapses into a smear, which is what happened when this
+/// was overlaid directly onto a two-letter `Text`. Undersized boxes are grown about
+/// their own centre, and arm length can never exceed a third of either span.
 struct AeonReticleMark: Shape {
+    static let minimumSize = CGSize(width: 44, height: 26)
     var pressed = false
+
+    static func resolvedBox(in bounds: CGRect) -> CGRect {
+        let width = max(bounds.width, minimumSize.width)
+        let height = max(bounds.height, minimumSize.height)
+        guard width != bounds.width || height != bounds.height else { return bounds }
+        return CGRect(x: bounds.midX - width / 2, y: bounds.midY - height / 2, width: width, height: height)
+    }
+
     func path(in bounds: CGRect) -> Path {
-        let length = min(pressed ? 14 : 12, max(6, bounds.height * 0.22))
+        let box = Self.resolvedBox(in: bounds)
         let insetX: CGFloat = 8, insetY: CGFloat = 6
-        let left = bounds.minX + insetX, right = bounds.maxX - insetX
-        let top = bounds.minY + insetY, bottom = bounds.maxY - insetY
+        let left = box.minX + insetX, right = box.maxX - insetX
+        let top = box.minY + insetY, bottom = box.maxY - insetY
+        guard right > left, bottom > top else { return Path() }
+        let length = max(4, min(pressed ? 15 : 12, (right - left) / 3, (bottom - top) / 3))
         var path = Path()
         path.move(to: CGPoint(x: left, y: top + length)); path.addLine(to: CGPoint(x: left, y: top)); path.addLine(to: CGPoint(x: left + length, y: top))
         path.move(to: CGPoint(x: right - length, y: top)); path.addLine(to: CGPoint(x: right, y: top)); path.addLine(to: CGPoint(x: right, y: top + length))
@@ -30,9 +48,61 @@ struct AeonReticleMark: Shape {
     }
 }
 
+/// The area the four ticks enclose. Used only for the press wash, so a pressed
+/// control reads as armed without ever becoming a filled shape at rest.
+struct AeonReticleField: Shape {
+    func path(in bounds: CGRect) -> Path {
+        Path(AeonReticleMark.resolvedBox(in: bounds).insetBy(dx: 8, dy: 6))
+    }
+}
+
+/// Touch feedback for a control set that is otherwise entirely unfilled strokes.
+///
+/// The visual press delta is deliberately small, so the haptic carries most of the
+/// confirmation. Generators are prepared lazily and shared; UIKit coalesces repeats.
+@MainActor
+enum AeonFeedback {
+    private static let selection = UISelectionFeedbackGenerator()
+    private static let light = UIImpactFeedbackGenerator(style: .light)
+    private static let rigid = UIImpactFeedbackGenerator(style: .rigid)
+    private static let notice = UINotificationFeedbackGenerator()
+
+    static var isEnabled = !AeonTestOverrides.reduceMotion
+
+    /// Moving between tabs, segments, sort orders — anything that changes a selection.
+    static func selectionChanged() {
+        guard isEnabled else { return }
+        selection.selectionChanged()
+    }
+
+    /// A control was activated: a button press, a toggle flip.
+    static func activated() {
+        guard isEnabled else { return }
+        light.impactOccurred()
+    }
+
+    /// Transport edges: play, pause, track change. Firmer than an ordinary press.
+    static func transport() {
+        guard isEnabled else { return }
+        rigid.impactOccurred()
+    }
+
+    static func succeeded() {
+        guard isEnabled else { return }
+        notice.notificationOccurred(.success)
+    }
+
+    static func failed() {
+        guard isEnabled else { return }
+        notice.notificationOccurred(.error)
+    }
+}
+
 enum AeonGlyphKind {
     case sky, library, playlists, settings, star, arrow, files, folder
     case disclosure, picker, export, add, refresh
+    case play, pause, next, previous, search, close, more, erase, shuffle, repeatTrack
+    case volumeLow, volumeHigh, grip, check
 }
 
 struct AeonGlyph: View {
@@ -99,6 +169,43 @@ private struct AeonGlyphPath: Shape {
             line([(8,15),(10,12),(12,17),(14,11),(17,15)])
         case .folder:
             line([(2,7),(2,4),(9,4),(12,7),(22,7),(22,20),(2,20),(2,7),(22,7)])
+        case .play:
+            line([(7,3),(20,12),(7,21),(7,3)])
+        case .pause:
+            line([(8,4),(8,20)]); line([(16,4),(16,20)])
+        case .next:
+            line([(5,4),(16,12),(5,20),(5,4)]); line([(19,4),(19,20)])
+        case .previous:
+            line([(19,4),(8,12),(19,20),(19,4)]); line([(5,4),(5,20)])
+        case .search:
+            circle(10,10,7)
+            line([(15,15),(21,21)])
+        case .close:
+            line([(5,5),(19,19)]); line([(19,5),(5,19)])
+        case .more:
+            circle(5,12,1.3); circle(12,12,1.3); circle(19,12,1.3)
+        case .erase:
+            line([(4,6),(20,6)])
+            line([(9,6),(9,3),(15,3),(15,6)])
+            line([(6,6),(7,21),(17,21),(18,6)])
+        case .shuffle:
+            line([(3,6),(8,6),(16,18),(21,18)])
+            line([(18,15),(21,18),(18,21)])
+            line([(3,18),(8,18),(11,14)])
+            line([(14,8),(16,6),(21,6)]); line([(18,3),(21,6),(18,9)])
+        case .repeatTrack:
+            line([(6,4),(18,4),(21,8),(18,12)])
+            line([(18,20),(6,20),(3,16),(6,12)])
+        case .volumeLow:
+            line([(3,9),(7,9),(12,4),(12,20),(7,15),(3,15),(3,9)])
+        case .volumeHigh:
+            line([(2,9),(6,9),(11,4),(11,20),(6,15),(2,15),(2,9)])
+            path.move(to: point(15,8)); path.addCurve(to: point(15,16), control1: point(18,10), control2: point(18,14))
+            path.move(to: point(18,5)); path.addCurve(to: point(18,19), control1: point(23,9), control2: point(23,15))
+        case .grip:
+            line([(4,8),(20,8)]); line([(4,12),(20,12)]); line([(4,16),(20,16)])
+        case .check:
+            line([(4,12),(10,18),(20,6)])
         }
         return path
     }
@@ -163,17 +270,22 @@ enum AeonButtonTier { case filled, hairline, bare }
 struct AeonButtonStyle: ButtonStyle {
     let tier: AeonButtonTier
     var destructive = false
+    /// Marks flanking a primary action. The house pair is the star and the swash arrow,
+    /// which suit a call to action like IMPORT MUSIC. A transport action overrides them:
+    /// a sparkle and a "go" arrow around the word PLAY say nothing about playing.
+    var leadingMark: AeonGlyphKind = .star
+    var trailingMark: AeonGlyphKind = .arrow
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 0) {
-            if tier == .filled { AeonGlyph(kind: .star).frame(width: 42) }
+            if tier == .filled { AeonGlyph(kind: leadingMark).frame(width: 42) }
             configuration.label
                 .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
                 .tracking(1.2).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
-            if tier == .filled { AeonGlyph(kind: .arrow).frame(width: 42) }
+            if tier == .filled { AeonGlyph(kind: trailingMark).frame(width: 42) }
         }
         .padding(.horizontal, tier == .filled ? 4 : AeonTheme.Space.regular)
         .padding(.vertical, AeonTheme.Space.medium)
@@ -182,7 +294,10 @@ struct AeonButtonStyle: ButtonStyle {
         .foregroundStyle(destructive ? AeonTheme.ColorToken.danger : AeonOrbit.ink)
         .contentShape(Rectangle())
         .background {
-            Color.clear
+            // Pressed controls fill only the area the ticks enclose; at rest nothing is filled.
+            if tier != .bare, configuration.isPressed {
+                AeonReticleField().fill(AeonOrbit.activeFill)
+            }
         }
         .overlay {
             if tier != .bare {
@@ -192,6 +307,10 @@ struct AeonButtonStyle: ButtonStyle {
         }
         .opacity(isEnabled ? 1 : 0.42)
         .animation(reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.press), value: configuration.isPressed)
+        .onChange(of: configuration.isPressed) { pressed in
+            guard pressed, isEnabled else { return }
+            AeonFeedback.activated()
+        }
     }
 }
 
@@ -200,15 +319,26 @@ struct AeonToggleStyle: ToggleStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
     func makeBody(configuration: Configuration) -> some View {
-        Button { configuration.isOn.toggle() } label: {
+        Button {
+            AeonFeedback.activated()
+            configuration.isOn.toggle()
+        } label: {
             HStack(spacing: AeonTheme.Space.regular) {
                 if showsLabel {
                     configuration.label
                     Spacer(minLength: AeonTheme.Space.small)
                 }
-                HStack(spacing: AeonTheme.Space.small) {
-                    Text("OFF").foregroundStyle(configuration.isOn ? AeonOrbit.secondary : AeonOrbit.ink)
-                    Text("ON").foregroundStyle(configuration.isOn ? AeonOrbit.ink : AeonOrbit.secondary)
+                // Two equal cells, so the reticle always marks a full-size box rather than
+                // two letterforms, and the control's trailing edge lines up with every
+                // other row value on the screen.
+                HStack(spacing: 0) {
+                    Text("OFF")
+                        .foregroundStyle(configuration.isOn ? AeonOrbit.secondary : AeonOrbit.ink)
+                        .frame(width: 56, height: 44)
+                        .overlay { if !configuration.isOn { AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line) } }
+                    Text("ON")
+                        .foregroundStyle(configuration.isOn ? AeonOrbit.ink : AeonOrbit.secondary)
+                        .frame(width: 56, height: 44)
                         .overlay { if configuration.isOn { AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line) } }
                 }
                 .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -235,6 +365,7 @@ struct AeonSegment<Value: Hashable>: View {
     var identifier: (Value) -> String = { _ in "" }
     var spokenLabel: ((Value) -> String)? = nil
     @ScaledMetric(relativeTo: .caption2) private var metricSize: CGFloat = 11
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     init(values: [Value], selection: Binding<Value>, label: @escaping (Value) -> String,
          identifier: @escaping (Value) -> String = { _ in "" }, spokenLabel: ((Value) -> String)? = nil) {
         self.values = values; _selection = selection; self.label = label
@@ -245,7 +376,10 @@ struct AeonSegment<Value: Hashable>: View {
             let cellWidth = geometry.size.width / CGFloat(max(1, values.count))
             HStack(spacing: 0) {
                 ForEach(values, id: \.self) { value in
-                    Button { selection = value } label: {
+                    Button {
+                        if selection != value { AeonFeedback.selectionChanged() }
+                        selection = value
+                    } label: {
                         Text(label(value).uppercased())
                             .font(.system(size: min(metricSize, 17), weight: .medium, design: .monospaced))
                             .lineLimit(1).minimumScaleFactor(0.8)
@@ -261,9 +395,13 @@ struct AeonSegment<Value: Hashable>: View {
             }
             .overlay {
                 if let index = values.firstIndex(of: selection) {
+                    // The mark travels to the chosen cell instead of cutting, so the
+                    // control reads as one instrument rather than five separate lamps.
                     AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line)
                         .frame(width: cellWidth, height: 48)
                         .offset(x: -geometry.size.width / 2 + cellWidth * (CGFloat(index) + 0.5))
+                        .animation(reduceMotion || AeonTestOverrides.reduceMotion
+                            ? nil : .easeOut(duration: AeonTheme.Duration.chrome), value: index)
                         .allowsHitTesting(false)
                 }
             }
@@ -453,7 +591,7 @@ struct AeonImportSheet: View {
                                 .foregroundStyle(AeonOrbit.title)
                             Spacer(minLength: 0)
                             Button { dismiss() } label: {
-                                Image(systemName: "xmark").frame(width: 44, height: 44)
+                                AeonGlyph(kind: .close).frame(width: 44, height: 44)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain).foregroundStyle(AeonOrbit.secondary)
@@ -514,7 +652,10 @@ struct AeonImportSheet: View {
             }
             .padding(AeonTheme.Space.regular).frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
             .contentShape(Rectangle())
-            .overlay(AeonReticleMark().stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
+            // A source card is a region to choose, not a chosen one. Corner ticks read as
+            // selection, so cards keep a continuous unfilled outline.
+            .overlay(RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
+                .stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
         }
         .buttonStyle(.plain).accessibilityIdentifier(identifier)
     }
@@ -525,13 +666,25 @@ private struct AeonImportContentHeight: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
+/// A transient status line.
+///
+/// This sits on top of body copy, so it is fully opaque rather than `AeonGlass`'s 97%:
+/// the three percent of bleed was enough to read the paragraph underneath through it.
 struct AeonToast: View {
     let message: String
     var body: some View {
-        AeonGlass {
-            Text(message).font(AeonTheme.FontToken.ui(.callout, weight: .regular)).foregroundStyle(AeonOrbit.ink)
-                .padding(.horizontal, AeonTheme.Space.large).frame(minHeight: AeonTheme.Space.minimumTarget)
-        }.accessibilityAddTraits(.updatesFrequently)
+        Text(message)
+            .font(AeonTheme.FontToken.ui(.callout, weight: .regular))
+            .foregroundStyle(AeonOrbit.ink)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, AeonTheme.Space.large)
+            .padding(.vertical, AeonTheme.Space.small)
+            .frame(minHeight: AeonTheme.Space.minimumTarget)
+            .background(AeonTheme.ColorToken.void)
+            .overlay(Rectangle().stroke(AeonTheme.ColorToken.strongRule, lineWidth: AeonTheme.Stroke.hairline))
+            .accessibilityAddTraits(.updatesFrequently)
+            .transition(.opacity)
     }
 }
 

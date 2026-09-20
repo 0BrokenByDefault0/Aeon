@@ -80,8 +80,7 @@ struct AeonChrome<PlayerBar: View>: View {
                         .transition(.move(edge: .bottom))
                     }
                     Button { portraitSidebarVisible.toggle() } label: {
-                        Image(systemName: portraitSidebarVisible ? "xmark" : "line.3.horizontal")
-                            .font(.system(size: 17, weight: .medium))
+                        AeonGlyph(kind: portraitSidebarVisible ? .close : .grip)
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                             .contentShape(Rectangle())
                     }
@@ -148,21 +147,25 @@ struct AeonChrome<PlayerBar: View>: View {
     private func navigationButton(_ item: AeonDestination, compact: Bool) -> some View {
         let selected = destination == item
         let largeText = dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText
+        // The glyph is the larger half of a tab; leaving it dim while only the word
+        // brightened made selection read as a typographic accident.
+        let glyphTint = selected ? AeonOrbit.ink : AeonOrbit.secondary
         return Button {
+            if destination != item { AeonFeedback.selectionChanged() }
             destination = item; portraitSidebarVisible = false
         } label: {
             Group {
                 if largeText {
-                    AeonGlyph(kind: item.glyph).foregroundStyle(AeonOrbit.secondary)
+                    AeonGlyph(kind: item.glyph).foregroundStyle(glyphTint)
                 } else if compact {
                     VStack(spacing: AeonTheme.Space.xSmall) {
-                        AeonGlyph(kind: item.glyph).foregroundStyle(AeonOrbit.secondary)
+                        AeonGlyph(kind: item.glyph).foregroundStyle(glyphTint)
                         Text(item.title).font(AeonTheme.FontToken.metric(.caption2, weight: selected ? .semibold : .medium))
                             .foregroundStyle(selected ? AeonOrbit.ink : AeonOrbit.secondary)
                     }
                 } else {
                     HStack(spacing: AeonTheme.Space.medium) {
-                        AeonGlyph(kind: item.glyph).foregroundStyle(AeonOrbit.secondary)
+                        AeonGlyph(kind: item.glyph).foregroundStyle(glyphTint)
                         Text(item.title).font(AeonTheme.FontToken.metric(.caption, weight: selected ? .semibold : .medium))
                             .foregroundStyle(selected ? AeonOrbit.ink : AeonOrbit.secondary)
                         Spacer(minLength: 0)

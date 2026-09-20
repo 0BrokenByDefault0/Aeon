@@ -13,19 +13,26 @@ const settings = read('ios/App/App/Features/Settings/SettingsScreen.swift');
 const native = read('ios/App/AppUITests/AdaptiveChromeTests.swift');
 const unit = read('ios/App/AppTests/DesignTokenTests.swift');
 
-test('equal controls draw the same nonoverlapping ellipse for every choice and state', () => {
-  const equal = component.split('if layout == .equal {')[1].split('let cell =')[0];
-  assert.match(equal, /for index in 0\.\.<count/);
-  assert.match(equal, /path\.addEllipse\(in: equalChamberFrame\(at: index, in: bounds\)\)/);
-  assert.match(equal, /case \.chamber\(let index\):[\s\S]*?Path\(ellipseIn: equalChamberFrame/);
-  assert.match(component, /\.insetBy\(dx: min\(3, cellWidth \/ 4\), dy: min\(4, bounds.height \/ 4\)\)/);
-  assert.match(unit, /XCTAssertFalse\(frame\.intersects\(neighbor\)\)/);
+test('the reticle survives every control box it is drawn into', () => {
+  const mark = component.split('struct AeonReticleMark: Shape')[1].split('struct AeonReticleField')[0];
+  // A box too small for four separated corners is grown about its own centre, and the
+  // arms are capped at a third of each span. Without both, overlaying the mark on a
+  // two-letter label collapsed it into a smear straight through the glyphs.
+  assert.match(mark, /static let minimumSize = CGSize\(width: 44, height: 26\)/);
+  assert.match(mark, /static func resolvedBox\(in bounds: CGRect\) -> CGRect/);
+  assert.match(mark, /max\(bounds\.width, minimumSize\.width\)/);
+  assert.match(mark, /min\(pressed \? 15 : 12, \(right - left\) \/ 3, \(bottom - top\) \/ 3\)/);
+  assert.match(unit, /XCTAssertGreaterThanOrEqual\(resolved\.width, AeonReticleMark\.minimumSize\.width\)/);
+  assert.match(unit, /testReticleKeepsFourSeparateCornersInEveryControlBox/);
 });
 test('timer visual geometry and rectangular hit cells agree', () => {
   const segment = component.split('struct AeonSegment<Value')[1].split('struct AeonRow')[0];
   assert.match(segment, /let cellWidth = geometry\.size\.width \/ CGFloat\(max\(1, values\.count\)\)/);
   assert.match(segment, /\.frame\(width: cellWidth, height: 48\)\s*\.contentShape\(Rectangle\(\)\)/);
-  assert.match(segment, /part: \.chamber\(index\)/);
+  // The mark is one cell wide and centred on the chosen cell, and travels to it.
+  assert.match(segment, /AeonReticleMark\(\)[\s\S]*?\.frame\(width: cellWidth, height: 48\)/);
+  assert.match(segment, /offset\(x: -geometry\.size\.width \/ 2 \+ cellWidth \* \(CGFloat\(index\) \+ 0\.5\)\)/);
+  assert.match(segment, /AeonFeedback\.selectionChanged\(\)/);
   assert.match(native, /for x in \[0\.15, 0\.85\]/);
   assert.match(native, /XCTAssertEqual\(options\.filter \{ \$0\.isSelected \}\.count, 1\)/);
 });
@@ -35,8 +42,11 @@ test('toggle displays boolean words with native switch semantics and a full row 
   assert.match(toggle, /Text\("ON"\)/);
   assert.doesNotMatch(toggle, /Text\("[−+]"\)/);
   assert.match(toggle, /frame\(width: 112, height: 44\)/);
+  // Two equal 56pt cells, so the reticle always marks a full box rather than letterforms
+  // and the control's trailing edge lines up with every other row value.
+  assert.equal((toggle.match(/\.frame\(width: 56, height: 44\)/g) || []).length, 2);
   assert.match(toggle, /accessibilityRepresentation/);
-  assert.match(toggle, /Button \{ configuration\.isOn\.toggle\(\) \} label:/);
+  assert.match(toggle, /Button \{\s*AeonFeedback\.activated\(\)\s*configuration\.isOn\.toggle\(\)\s*\} label:/);
 });
 test('the three collection empty states share one recipe, preserving their separate metaphors', () => {
   for (const [screen, motif] of [[sky, 'sky'], [library, 'collection'], [playlists, 'route']]) {

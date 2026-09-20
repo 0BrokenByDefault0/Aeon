@@ -24,12 +24,22 @@ test('reticle marks replace capsule controls', () => {
   assert.match(components, /AeonGlyphPath\(kind: kind\)\.stroke\(style: AeonOrbit\.line\)/);
 });
 
-test('primary actions use reticle press feedback with no fill', () => {
+test('primary actions are unfilled at rest and wash only inside the ticks when pressed', () => {
   const style = components.split('struct AeonButtonStyle: ButtonStyle')[1].split('struct AeonToggleStyle')[0];
   assert.match(style, /AeonReticleMark\(pressed: configuration\.isPressed\)/);
-  assert.doesNotMatch(style, /\.fill\(/);
-  assert.match(style, /AeonGlyph\(kind: \.star\)/);
-  assert.match(style, /AeonGlyph\(kind: \.arrow\)/);
+  // Every fill in the style is gated on isPressed and scoped to the reticle field,
+  // so nothing is ever a filled shape at rest.
+  for (const fill of style.match(/^.*\.fill\(.*$/gm) || []) {
+    assert.match(fill, /AeonReticleField\(\)\.fill\(AeonOrbit\.activeFill\)/, fill.trim());
+  }
+  assert.match(style, /if tier != \.bare, configuration\.isPressed \{\s*AeonReticleField\(\)\.fill/);
+  // Primary actions keep the house marks by default; a transport action overrides them.
+  assert.match(style, /var leadingMark: AeonGlyphKind = \.star/);
+  assert.match(style, /var trailingMark: AeonGlyphKind = \.arrow/);
+  assert.match(style, /AeonGlyph\(kind: leadingMark\)/);
+  assert.match(style, /AeonGlyph\(kind: trailingMark\)/);
+  // The visual press delta is small, so the haptic has to carry the confirmation.
+  assert.match(style, /AeonFeedback\.activated\(\)/);
 });
 
 test('sleep choices form one fitted control with complete spoken labels', () => {
@@ -68,9 +78,10 @@ test('first-pass surfaces retire stock capsules and preserve identifiers', () =>
   assert.doesNotMatch(components, /without pretending/);
 });
 
-test('Sky empty state is copy and import action only', () => {
-  assert.doesNotMatch(sky, /AeonEmptyState/);
-  assert.match(sky, /Your sky is quiet/);
+test('Sky empty state uses the shared recipe with its own motif', () => {
+  assert.match(sky, /AeonEmptyState\(title: "Your sky is quiet"/);
+  assert.match(sky, /motif: \.sky/);
+  assert.match(components, /case \.sky: AeonGhostDisc\(\)/);
   assert.match(library, /motif: \.collection/);
   assert.match(components, /case \.collection: AeonCollectionMark\(\)/);
   assert.match(library, /Your collection starts here\./);
@@ -117,7 +128,7 @@ test('UI evidence follows IPA delivery and does not prevent broader native check
 
 test('switch row activation wraps the label, spacer, and traveling knob in one button', () => {
   const style = components.split('struct AeonToggleStyle: ToggleStyle')[1].split('struct AeonSegment<Value')[0];
-  assert.match(style, /Button \{ configuration\.isOn\.toggle\(\) \} label: \{\s*HStack/);
+  assert.match(style, /Button \{\s*AeonFeedback\.activated\(\)\s*configuration\.isOn\.toggle\(\)\s*\} label: \{\s*HStack/);
   assert.match(style, /if showsLabel \{\s*configuration\.label\s*Spacer/);
   assert.match(style, /\.contentShape\(Rectangle\(\)\)/);
   assert.match(native, /toggle\.tap\(\)[\s\S]*?value != %@/);
@@ -134,8 +145,8 @@ test('player controls reuse the orbital system without changing preset gains or 
   assert.match(eq, /Preset\(name: "BASS RITUAL", gains: \[9, 8, 6, 3, 0, -1, 0, 0, 1, 2\]\)/);
   assert.match(eq, /playback\.setEQ\(enabled: true, bands: bands\)/);
   const stage = player.split('private func artworkStage')[1].split('private func metadata')[0];
-  assert.doesNotMatch(stage, /Rectangle\(/);
-  assert.match(stage, /Circle\(\)/);
+  assert.doesNotMatch(stage, /Circle\(\)/);
+  assert.match(stage, /AeonReticleMark\(\)/);
   assert.match(player, /playback\.seek\(to: \$0\)/);
   assert.match(native, /orbital-eq-presets-closeup/);
 });
