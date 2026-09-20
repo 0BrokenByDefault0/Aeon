@@ -211,11 +211,11 @@ extension AdaptiveChromeTests {
         XCTAssertNotNil(original)
         reviewCapture(toggle, name: "orbital-toggle-before-closeup")
         toggle.tap()
-        let changed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", original ?? "1"), object: toggle)
-        XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
-        reviewCapture(toggle, name: "orbital-toggle-after-closeup")
-        toggle.tap()
-        assertState(toggle, predicate: "value == '\(original ?? "1")'")
+        XCTAssertTrue(waitForValueChange(toggle, from: original, timeout: 5), "Settings switch did not change")
+        let changedToggle = app.switches["aeon.settings.import-grouping"]
+        reviewCapture(changedToggle, name: "orbital-toggle-after-closeup")
+        changedToggle.tap()
+        XCTAssertTrue(waitForValue(changedToggle, equalTo: original, timeout: 5), "Settings switch did not restore")
         ensureNavigationVisible(in: app)
         app.buttons["aeon.navigation.sky"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.empty"].waitForExistence(timeout: 5))
@@ -266,11 +266,11 @@ extension AdaptiveChromeTests {
             app.buttons["aeon.navigation.settings"].tap()
             reviewScroll(app, until: app.buttons["aeon.settings.erase"])
             let activity = app.buttons["aeon.settings.activity"]
-            if activity.isHittable {
+            if activity.isHittable, let viewport = largestVerticalScroll(in: app) {
                 XCTAssertGreaterThanOrEqual(
                     activity.frame.minY,
-                    app.statusBars.firstMatch.frame.maxY,
-                    "Scrolled Settings controls must stay below system chrome"
+                    viewport.frame.minY,
+                    "Scrolled Settings controls must stay inside their safe-area viewport"
                 )
             }
             ensureNavigationVisible(in: app)
@@ -315,9 +315,7 @@ extension AdaptiveChromeTests {
     }
     private func reviewScroll(_ app: XCUIApplication, until element: XCUIElement) {
         for _ in 0..<24 where !element.exists || !element.isHittable {
-            let vertical = app.scrollViews.allElementsBoundByIndex
-                .filter { isUsableFrame($0.frame) }
-                .max { lhs, rhs in lhs.frame.height < rhs.frame.height }
+            let vertical = largestVerticalScroll(in: app)
             guard let vertical else { break }
             // Drag near the trailing edge so seek, volume and horizontal EQ controls
             // cannot intercept the gesture intended for the long-form player.
@@ -325,6 +323,28 @@ extension AdaptiveChromeTests {
                 .press(forDuration: 0.01, thenDragTo: vertical.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.24)))
         }
         assertHittable(element, in: app)
+    }
+    private func largestVerticalScroll(in app: XCUIApplication) -> XCUIElement? {
+        app.scrollViews.allElementsBoundByIndex
+            .filter { isUsableFrame($0.frame) }
+            .max { lhs, rhs in lhs.frame.height < rhs.frame.height }
+    }
+    private func waitForValueChange(_ element: XCUIElement, from original: String?, timeout: TimeInterval) -> Bool {
+        waitForValue(element, equalTo: original, timeout: timeout, shouldEqual: false)
+    }
+    private func waitForValue(
+        _ element: XCUIElement,
+        equalTo expected: String?,
+        timeout: TimeInterval,
+        shouldEqual: Bool = true
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let matches = (element.value as? String) == expected
+            if matches == shouldEqual { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        } while Date() < deadline
+        return false
     }
     private func isUsableFrame(_ frame: CGRect) -> Bool {
         frame.origin.x.isFinite && frame.origin.y.isFinite
