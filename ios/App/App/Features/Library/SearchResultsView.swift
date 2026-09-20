@@ -60,7 +60,7 @@ struct SearchResultsView: View {
                                 title: track.trackTitle,
                                 detail: [track.artist, track.albumTitle].filter { !$0.isEmpty }.joined(separator: " · ")
                             ) {
-                                Image(systemName: "play.fill")
+                                AeonGlyph(kind: .play)
                                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                             }
                         }

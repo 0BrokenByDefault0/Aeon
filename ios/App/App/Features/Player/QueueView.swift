@@ -46,7 +46,7 @@ struct QueueView: View {
             }
             Spacer()
             Button(action: close) {
-                Image(systemName: "xmark")
+                AeonGlyph(kind: .close)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
@@ -106,7 +106,7 @@ struct QueueView: View {
 
     private func status(_ message: String) -> some View {
         HStack(spacing: AeonTheme.Space.small) {
-            Image(systemName: "checkmark.circle")
+            AeonGlyph(kind: .check)
             Text(message)
                 .font(AeonTheme.FontToken.ui(.caption))
         }
@@ -183,7 +183,7 @@ struct QueueView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let offset {
-                Image(systemName: "line.3.horizontal")
+                AeonGlyph(kind: .grip)
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())

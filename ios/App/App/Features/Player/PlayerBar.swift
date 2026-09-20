@@ -69,13 +69,13 @@ struct PlayerBar: View {
                 .accessibilityIdentifier("aeon.player.open")
 
                 transportButton(
-                    snapshot.intent == .playing ? "pause.fill" : "play.fill",
+                    snapshot.intent == .playing ? .pause : .play,
                     label: snapshot.intent == .playing ? "Pause" : "Play",
                     identifier: "aeon.player.toggle",
                     action: playback.toggle
                 )
                 transportButton(
-                    "forward.end.fill",
+                    .next,
                     label: "Next track",
                     identifier: "aeon.player.next",
                     action: playback.next
@@ -83,7 +83,9 @@ struct PlayerBar: View {
             }
             .padding(.horizontal, AeonTheme.Space.medium)
             .frame(minHeight: AeonTheme.Space.playerBar)
-            .background(AeonTheme.ColorToken.chamber.opacity(0.58))
+            // The one remaining translucent surface in the app. Over a live starfield it
+            // muddied into the sky; every other utility surface is already opaque.
+            .background(AeonTheme.ColorToken.chamber)
             .overlay(alignment: .top) {
                 Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
             }
@@ -102,35 +104,25 @@ struct PlayerBar: View {
         }
     }
 
+    // Square, hairline-bordered, exactly like every other cover in the app. The rounded
+    // corner here was the last survivor of the pre-square geometry.
     private func miniArtwork(_ image: Image?) -> some View {
-        ZStack {
-            AeonTheme.ColorToken.surfaceSelected
-            if let image {
-                image.resizable().scaledToFill()
-            } else {
-                Image(systemName: "circle.grid.cross")
-                    .font(.system(size: 14, weight: .light))
-                    .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-            }
-        }
-        .frame(width: 44, height: 44)
-        .clipShape(RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-        )
+        AeonArtwork(image: image, size: 44)
     }
 
     private func transportButton(
-        _ symbol: String,
+        _ glyph: AeonGlyphKind,
         label: String,
         identifier: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
+        Button {
+            AeonFeedback.transport()
+            action()
+        } label: {
+            AeonGlyph(kind: glyph)
                 .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(AeonTheme.ColorToken.bone)

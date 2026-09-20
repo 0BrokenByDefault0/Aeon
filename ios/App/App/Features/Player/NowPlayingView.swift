@@ -86,13 +86,9 @@ struct NowPlayingView: View {
             AeonBreadcrumb(text: "Now Playing")
             Spacer(minLength: 0)
             Button(action: close) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
+                AeonGlyph(kind: .close)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                    .background(
-                        RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                            .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.72))
-                    )
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(AeonTheme.ColorToken.textPrimary)
@@ -105,9 +101,12 @@ struct NowPlayingView: View {
         GeometryReader { geometry in
             let size = min(360, max(190, geometry.size.width - 56))
             ZStack {
-                Circle()
-                    .stroke(AeonOrbit.ink.opacity(0.12), style: AeonOrbit.line)
-                    .frame(width: size + 24, height: size + 24)
+                // The record on the stage is marked by the same reticle that marks every
+                // other current choice. A circle drawn around square artwork read as a
+                // leftover from the pre-square geometry.
+                AeonReticleMark()
+                    .stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line)
+                    .frame(width: size + 40, height: size + 36)
                 AeonArtwork(image: presentation.artwork, size: size)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -122,15 +121,18 @@ struct NowPlayingView: View {
             AeonDisplayText(presentation.track.title, size: 40, maximumLines: 2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(AeonOrbit.title)
+            // Artist and album were the same size, weight and family, so the three
+            // centred lines read as one undifferentiated block. Artist now leads.
             Text(presentation.artist)
-                .font(AeonTheme.FontToken.ui(.callout, weight: .medium))
+                .font(AeonTheme.FontToken.ui(.headline, weight: .medium))
                 .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
                 .multilineTextAlignment(.center)
             Text(presentation.album.title)
-                .font(AeonTheme.FontToken.ui(.callout))
-                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                .font(AeonTheme.FontToken.metric(.caption, weight: .regular))
+                .tracking(1.1)
+                .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                 .multilineTextAlignment(.center)
-            AeonLabel(text: snapshot.intent == .playing ? "Playing" : "In the player")
+            AeonLabel(text: snapshot.intent == .playing ? "Playing" : "Paused")
             if let failure = playback.failure, failure.recoverable {
                 Button { playback.dismissFailure() } label: {
                     Text(failure.message)
@@ -171,18 +173,23 @@ struct NowPlayingView: View {
 
     private func transport(snapshot: PlaybackSnapshot) -> some View {
         HStack(spacing: 34) {
-            transportButton("backward.end.fill", label: "Previous track", identifier: "aeon.player.previous", action: playback.previous)
-            Button(action: playback.toggle) {
-                Image(systemName: snapshot.intent == .playing ? "pause.fill" : "play.fill")
-                    .font(.system(size: 24, weight: .semibold))
+            transportButton(.previous, label: "Previous track", identifier: "aeon.player.previous", action: playback.previous)
+            // The one control in the app that carries weight rather than outline. It stays
+            // square, like every other surface, and the glyph is drawn from the same set.
+            Button {
+                AeonFeedback.transport()
+                playback.toggle()
+            } label: {
+                AeonGlyph(kind: snapshot.intent == .playing ? .pause : .play)
                     .foregroundStyle(AeonTheme.ColorToken.void)
-                    .frame(width: 64, height: 64)
-                    .background(Circle().fill(AeonTheme.ColorToken.bone))
+                    .frame(width: 68, height: 68)
+                    .background(Rectangle().fill(AeonTheme.ColorToken.bone))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(snapshot.intent == .playing ? "Pause" : "Play")
             .accessibilityIdentifier("aeon.player.primary-toggle")
-            transportButton("forward.end.fill", label: "Next track", identifier: "aeon.player.next-full", action: playback.next)
+            transportButton(.next, label: "Next track", identifier: "aeon.player.next-full", action: playback.next)
         }
     }
 
@@ -191,8 +198,11 @@ struct NowPlayingView: View {
             Button("SHUFFLE", action: playback.shuffleUpcoming)
                 .buttonStyle(AeonButtonStyle(tier: .bare))
                 .accessibilityIdentifier("aeon.player.shuffle")
+            // Tier stays fixed. Swapping bare for hairline on state change made the mark
+            // appear and disappear under the thumb and shifted the row's rhythm.
             Button("REPEAT · \(snapshot.repeatMode.rawValue.uppercased())", action: playback.cycleRepeatMode)
-                .buttonStyle(AeonButtonStyle(tier: snapshot.repeatMode == .off ? .bare : .hairline))
+                .buttonStyle(AeonButtonStyle(tier: .bare))
+                .foregroundStyle(snapshot.repeatMode == .off ? AeonOrbit.secondary : AeonOrbit.ink)
                 .accessibilityValue(snapshot.repeatMode.rawValue)
                 .accessibilityIdentifier("aeon.player.repeat")
             Button("UP NEXT") { queuePresented = true }
@@ -203,7 +213,7 @@ struct NowPlayingView: View {
 
     private func volume(snapshot: PlaybackSnapshot) -> some View {
         HStack(spacing: AeonTheme.Space.medium) {
-            Image(systemName: "speaker.fill").accessibilityHidden(true)
+            AeonGlyph(kind: .volumeLow).accessibilityHidden(true)
             AeonHorizontalRangeControl(
                 value: snapshot.masterVolume,
                 range: 0...1,
@@ -212,7 +222,7 @@ struct NowPlayingView: View {
                 onChanged: { playback.setVolume(Float($0)) },
                 onEnded: { _ in }
             )
-            Image(systemName: "speaker.wave.2.fill").accessibilityHidden(true)
+            AeonGlyph(kind: .volumeHigh).accessibilityHidden(true)
         }
         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
     }
@@ -221,7 +231,7 @@ struct NowPlayingView: View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.regular) {
             Button { locate(presentation.album.id, effectiveReduceMotion) } label: {
                 HStack(spacing: AeonTheme.Space.medium) {
-                    Image(systemName: "scope")
+                    AeonGlyph(kind: .sky)
                         .foregroundStyle(AeonTheme.ColorToken.ivorySecondary)
                         .frame(width: 24)
                     VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
@@ -233,8 +243,7 @@ struct NowPlayingView: View {
                             .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     }
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                    AeonGlyph(kind: .disclosure)
                         .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                 }
                 .padding(.vertical, AeonTheme.Space.small)
@@ -282,14 +291,14 @@ struct NowPlayingView: View {
         reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion
     }
 
-    private func transportButton(_ symbol: String, label: String, identifier: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 21, weight: .medium))
+    private func transportButton(_ glyph: AeonGlyphKind, label: String, identifier: String, action: @escaping () -> Void) -> some View {
+        Button {
+            AeonFeedback.transport()
+            action()
+        } label: {
+            AeonGlyph(kind: glyph)
                 .frame(width: 48, height: 48)
-                .background(
-                    Circle().fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
-                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(AeonTheme.ColorToken.textPrimary)

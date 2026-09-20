@@ -152,7 +152,7 @@ private struct PlaylistDetailView: View {
                     AeonLabel(text: "\(controller.selectedItems.count) tracks")
                 }
                 Spacer()
-                Button(action: close) { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                Button(action: close) { AeonGlyph(kind: .close).frame(width: 44, height: 44) }
                     .buttonStyle(.plain).accessibilityLabel("Close Playlist").accessibilityIdentifier("aeon.playlists.detail.close")
             }
             HStack(spacing: AeonTheme.Space.medium) {
@@ -171,7 +171,7 @@ private struct PlaylistDetailView: View {
                 Button("PLAY FROM HERE") { controller.play(startingAt: index) }.disabled(route.unavailable)
                 Button("REMOVE", role: .destructive) { controller.remove(position: index) }
             } label: {
-                Image(systemName: "ellipsis").frame(width: 44, height: 44).foregroundStyle(AeonOrbit.secondary)
+                AeonGlyph(kind: .more).frame(width: 44, height: 44).foregroundStyle(AeonOrbit.secondary)
             }.accessibilityLabel("Actions for \(route.item.trackTitle)")
         }
     }

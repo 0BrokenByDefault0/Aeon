@@ -42,7 +42,8 @@ struct AlbumDetailView: View {
     private var header: some View {
         HStack(spacing: AeonTheme.Space.medium) {
             Button(action: close) {
-                Image(systemName: embedded ? "chevron.left" : "xmark")
+                AeonGlyph(kind: embedded ? .disclosure : .close)
+                    .rotationEffect(.degrees(embedded ? 180 : 0))
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
@@ -57,7 +58,7 @@ struct AlbumDetailView: View {
                 Button("EDIT") { editing = true }
                 Button("DELETE ALBUM", role: .destructive) { confirmingDelete = true }
             } label: {
-                Image(systemName: "ellipsis")
+                AeonGlyph(kind: .more)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
@@ -95,7 +96,7 @@ struct AlbumDetailView: View {
         VStack(spacing: AeonTheme.Space.medium) {
             HStack(spacing: AeonTheme.Space.small) {
                 Button("PLAY") { controller.playAlbum(id: album.id) }
-                    .buttonStyle(AeonButtonStyle(tier: .filled))
+                    .buttonStyle(AeonButtonStyle(tier: .filled, leadingMark: .play, trailingMark: .disclosure))
                     .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
                     .accessibilityIdentifier("aeon.album.play")
@@ -198,7 +199,7 @@ struct AlbumDetailView: View {
                             controller.playAlbum(id: album.id, startingTrackID: track.id)
                         }
                     } label: {
-                        Image(systemName: "ellipsis")
+                        AeonGlyph(kind: .more)
                             .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     }
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)

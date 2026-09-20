@@ -120,7 +120,7 @@ struct AlbumEditorView: View {
             }
             Spacer()
             Button(action: { dismiss() }) {
-                Image(systemName: "xmark")
+                AeonGlyph(kind: .close)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
             }
             .buttonStyle(.plain)
