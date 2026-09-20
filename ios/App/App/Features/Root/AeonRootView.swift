@@ -483,27 +483,25 @@ private struct AeonReadyShell: View {
                     }
                 )
                 .padding(.leading, regularContentLeadingPadding(regular: regular))
-                .padding(.top, insets.top)
                 .padding(.bottom, regular ? insets.bottom : 0)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
             .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
-            .ignoresSafeArea(edges: .vertical)
+            .ignoresSafeArea(edges: .bottom)
         } else if destination == .playlists {
             let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
                 ? AeonTheme.Space.playerBar : 0)
             AeonGlass {
                 PlaylistsScreen(controller: playlistsController, contentBottomInset: bottomInset)
                     .padding(.leading, regularContentLeadingPadding(regular: regular))
-                    .padding(.top, insets.top)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
             .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
-            .ignoresSafeArea(edges: .vertical)
+            .ignoresSafeArea(edges: .bottom)
         } else if destination == .settings {
             let bottomInset = insets.bottom + (regular && geometry.size.width <= geometry.size.height && playback.snapshot?.trackID != nil
                 ? AeonTheme.Space.playerBar : 0)
@@ -513,13 +511,12 @@ private struct AeonReadyShell: View {
                     nowPlayingVisible = true
                 }
                 .padding(.leading, regularContentLeadingPadding(regular: regular))
-                .padding(.top, insets.top)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: width)
             .modifier(AeonOpaquePanel())
             .padding(.leading, regularPanelLeadingPadding(regular: regular))
-            .ignoresSafeArea(edges: .vertical)
+            .ignoresSafeArea(edges: .bottom)
         } else {
             AeonGlass {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {

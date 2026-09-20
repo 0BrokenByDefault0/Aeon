@@ -265,6 +265,14 @@ extension AdaptiveChromeTests {
             ensureNavigationVisible(in: app)
             app.buttons["aeon.navigation.settings"].tap()
             reviewScroll(app, until: app.buttons["aeon.settings.erase"])
+            let activity = app.buttons["aeon.settings.activity"]
+            if activity.isHittable {
+                XCTAssertGreaterThanOrEqual(
+                    activity.frame.minY,
+                    app.statusBars.firstMatch.frame.maxY,
+                    "Scrolled Settings controls must stay below system chrome"
+                )
+            }
             ensureNavigationVisible(in: app)
             for name in ["sky", "library", "playlists", "settings"] {
                 let button = app.buttons["aeon.navigation.\(name)"]
@@ -291,12 +299,37 @@ extension AdaptiveChromeTests {
         app.launchArguments = arguments + ["-AeonReduceMotionTesting"]
         app.launch()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.root"].waitForExistence(timeout: 12))
+        // CoreSimulator occasionally publishes a transient infinite accessibility
+        // window immediately after a UI-test relaunch. The pixels are correct, but
+        // every activation point is invalid until the AX bridge is re-established.
+        // Retry only that infrastructure state; a finite app window still has to
+        // satisfy every normal reachability assertion below.
+        if !isUsableFrame(app.windows.firstMatch.frame) {
+            app.terminate()
+            app.launch()
+            XCTAssertTrue(app.descendants(matching: .any)["aeon.root"].waitForExistence(timeout: 12))
+        }
+        XCTAssertTrue(isUsableFrame(app.windows.firstMatch.frame), "Simulator did not publish a finite app window")
         XCTAssertEqual(app.webViews.count, 0)
         return app
     }
     private func reviewScroll(_ app: XCUIApplication, until element: XCUIElement) {
-        for _ in 0..<24 where !element.exists || !element.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        for _ in 0..<24 where !element.exists || !element.isHittable {
+            let vertical = app.scrollViews.allElementsBoundByIndex
+                .filter { isUsableFrame($0.frame) }
+                .max { lhs, rhs in lhs.frame.height < rhs.frame.height }
+            guard let vertical else { break }
+            // Drag near the trailing edge so seek, volume and horizontal EQ controls
+            // cannot intercept the gesture intended for the long-form player.
+            vertical.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.82))
+                .press(forDuration: 0.01, thenDragTo: vertical.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.24)))
+        }
         assertHittable(element, in: app)
+    }
+    private func isUsableFrame(_ frame: CGRect) -> Bool {
+        frame.origin.x.isFinite && frame.origin.y.isFinite
+            && frame.width.isFinite && frame.height.isFinite
+            && frame.width > 0 && frame.height > 0
     }
     private func reviewCapture(_ element: XCUIElement, name: String) {
         // Accessibility state can settle before a removal transition has finished drawing.
