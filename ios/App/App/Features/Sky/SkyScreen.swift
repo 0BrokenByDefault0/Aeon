@@ -2,7 +2,11 @@ import SwiftUI
 
 struct SkyScreen: View {
     @ObservedObject var controller: SkySceneController
+    let importProgress: LibraryImportProgress?
+    let importError: String?
     let readableInsets: AeonReadableInsets
+    let showHUD: Bool
+    let highContrast: Bool
     let reduceMotionOverride: Bool
     let importFiles: () -> Void
     let adoptLibrary: () -> Void
@@ -13,17 +17,48 @@ struct SkyScreen: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let edge = geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge
             ZStack {
-                SkyMetalView(controller: controller, reduceMotionOverride: reduceMotionOverride, commitSelection: commitSelection)
+                SkyMetalView(controller: controller,
+                             reduceMotionOverride: effectiveReduceMotion || !isForeground,
+                             commitSelection: commitSelection,
+                             isForeground: isForeground)
                     .ignoresSafeArea().opacity(controller.cameraCrossfade ? 0.28 : 1)
                     .animation(.linear(duration: 0.12), value: controller.cameraCrossfade)
                     .allowsHitTesting(isForeground)
+                // Keep the renderer and camera alive, not the inactive screen's copy and controls.
                 Group {
                     if isForeground {
-                        SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: false)
+                        SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: highContrast)
                             .allowsHitTesting(false).accessibilityHidden(true)
+                        // The only VoiceOver route into the sky. Without it every star,
+                        // constellation and region is invisible to assistive technology.
+                        SkyAccessibilityOverlay(controller: controller).allowsHitTesting(false)
+                        SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size,
+                               showCensus: showHUD, reduceMotionOverride: reduceMotionOverride)
+                            .padding(.horizontal, edge)
+                            .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
+                            .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
                         if controller.catalogue.stars.isEmpty {
-                            emptyState.frame(maxWidth: 300)
+                            AeonQuietSkyBearings()
+                            ScrollView {
+                                emptyState
+                                    .frame(minHeight: max(0, geometry.size.height - readableInsets.bottom - 88))
+                                    .padding(.horizontal, edge)
+                                    .padding(.top, 64).padding(.bottom, readableInsets.bottom + 24)
+                            }
+                            .scrollIndicators(.hidden)
+                        }
+                        if let ceremony = controller.ceremony {
+                            VStack(spacing: AeonTheme.Space.xSmall) {
+                                AeonLabel(text: "Celestial event")
+                                AeonDisplayText(ceremony, size: 28, maximumLines: 2)
+                            }
+                            .foregroundStyle(AeonOrbit.title)
+                            .padding(.horizontal, AeonTheme.Space.large).padding(.vertical, AeonTheme.Space.regular)
+                            .background(AeonTheme.ColorToken.void.opacity(0.92))
+                            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+                            .transition(.opacity).allowsHitTesting(false).accessibilityAddTraits(.updatesFrequently)
                         }
                         selectionLabel(viewport: geometry.size)
                     }
@@ -39,75 +74,93 @@ struct SkyScreen: View {
 
     private var emptyState: some View {
         VStack(spacing: AeonTheme.Space.large) {
-            Text("Your sky is quiet")
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .foregroundStyle(AeonTheme.ColorToken.secondary)
-            Button("IMPORT MUSIC") { importSheetPresented = true }
-                .buttonStyle(AeonButtonStyle(tier: .filled))
-                .accessibilityIdentifier("aeon.library.import")
+            AeonEmptyState(title: "Your sky is quiet",
+                           detail: "Bring your records. Aeon will chart them without changing the files you chose.",
+                           actionTitle: "IMPORT MUSIC", motif: .sky,
+                           actionIdentifier: "aeon.library.import") { importSheetPresented = true }
+            if let importError, !importError.isEmpty {
+                HStack(alignment: .top, spacing: AeonTheme.Space.small) {
+                    AeonGlyph(kind: .refresh).accessibilityHidden(true)
+                    Text(importError).font(AeonTheme.FontToken.ui(.caption)).fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(AeonOrbit.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
+                .accessibilityIdentifier("aeon.sky.import.error")
+            }
         }
         .frame(maxWidth: .infinity).accessibilityElement(children: .contain).accessibilityIdentifier("aeon.sky.empty")
     }
     private var effectiveReduceMotion: Bool { reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion }
 
     @ViewBuilder private func selectionLabel(viewport: CGSize) -> some View {
-        if let star = controller.selectedStar {
-            let point = controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport))
-            VStack(spacing: 2) {
-                Text((controller.selectedAlbumTitle ?? star.albumID).uppercased()).font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.1)
-                Text(star.artistName).font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.5))
-            }
-            .foregroundStyle(AeonTheme.ColorToken.primary)
-            .position(x: point.x, y: point.y - 30)
-            .overlay(Circle().stroke(AeonTheme.ColorToken.primary.opacity(0.45), lineWidth: 1).frame(width: 34, height: 34).position(point))
-            .accessibilityIdentifier("aeon.sky.star-selection")
+        if let planet = controller.selectedPlanet {
+            marker(at: controller.camera.screenPoint(for: planet.coordinate, viewport: SkyViewport(size: viewport)),
+                   viewport: viewport,
+                   title: "WORLD \(planet.index)",
+                   subtitle: "\(planet.members.count) ALBUMS")
+                .accessibilityIdentifier("aeon.sky.planet-selection")
+        } else if let star = controller.selectedStar {
+            marker(at: controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport)),
+                   viewport: viewport,
+                   title: (controller.selectedAlbumTitle ?? star.albumID).uppercased(),
+                   subtitle: star.artistName.uppercased())
+                .accessibilityIdentifier("aeon.sky.star-selection")
         }
     }
+
+    /// The marked star keeps its reticle; the readout is clamped into the viewport so a
+    /// selection near an edge cannot slide under the status bar or off the screen.
+    private func marker(at point: CGPoint, viewport: CGSize, title: String, subtitle: String) -> some View {
+        let halfWidth = Self.readoutMaximumWidth / 2
+        let clampedX = min(max(point.x, halfWidth + AeonTheme.Space.small), max(halfWidth + AeonTheme.Space.small, viewport.width - halfWidth - AeonTheme.Space.small))
+        let above = point.y - Self.readoutOffset
+        let clampedY = above < readableInsets.top + Self.readoutOffset
+            ? point.y + Self.readoutOffset
+            : above
+        return ZStack {
+            AeonReticleMark()
+                .stroke(AeonTheme.ColorToken.primary.opacity(0.62), style: AeonOrbit.line)
+                .frame(width: 46, height: 46)
+                .position(point)
+            VStack(spacing: 2) {
+                Text(title).font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.1)
+                    .foregroundStyle(AeonTheme.ColorToken.primary)
+                Text(subtitle).font(AeonTheme.FontToken.metric(.caption2))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary)
+            }
+            .lineLimit(1).truncationMode(.tail)
+            .padding(.horizontal, AeonTheme.Space.small).padding(.vertical, AeonTheme.Space.xSmall)
+            .frame(maxWidth: Self.readoutMaximumWidth)
+            .background(AeonTheme.ColorToken.void.opacity(0.88))
+            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+            .position(x: clampedX, y: min(max(clampedY, readableInsets.top + 20), max(readableInsets.top + 20, viewport.height - readableInsets.bottom - 20)))
+        }
+        .allowsHitTesting(false)
+    }
+
+    private static let readoutMaximumWidth: CGFloat = 240
+    private static let readoutOffset: CGFloat = 44
 }
 
 enum AeonQuietSkyMarkers {
     static let labels = ["UNCHARTED", "UNLIT"]
 }
 
-/// Decorative sky only; these points never enter the catalogue or hit-testing model.
-private struct AeonQuietSky: View {
-    let reduceMotion: Bool
-    let showMarkers: Bool
-    @Environment(\.scenePhase) private var scenePhase
+/// Two quiet edge readings for a sky with nothing charted in it yet.
+///
+/// The starfield itself is drawn by the renderer's fixed-seed backdrop, so this no
+/// longer duplicates it in SwiftUI; all that remains is the pair of bearings that
+/// give an otherwise featureless field a sense of scale.
+struct AeonQuietSkyBearings: View {
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.1, paused: reduceMotion || scenePhase != .active)) { timeline in
-            GeometryReader { geometry in
-                let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
-                ZStack {
-                    AeonTheme.ColorToken.void
-                    Canvas { context, size in
-                        for index in 0..<84 {
-                            let seed = Double(index + 1)
-                            let x = (seed * 0.61803398875).truncatingRemainder(dividingBy: 1)
-                            let y = (seed * 0.41421356237).truncatingRemainder(dividingBy: 1)
-                            let depth = Double(index % 3 + 1)
-                            let offsetX = reduceMotion ? 0 : sin(time * 0.065 + depth) * depth * 1.4
-                            let offsetY = reduceMotion ? 0 : cos(time * 0.047 + depth) * depth
-                            let radius = index % 11 == 0 ? 1.0 : 0.55
-                            let twinkle = index == 23 && !reduceMotion ? sin(time * 0.55) * 0.08 : 0
-                            let alpha = (index % 11 == 0 ? 0.26 : 0.11) + twinkle
-                            let star = CGRect(x: x * size.width + offsetX, y: y * size.height + offsetY,
-                                              width: radius * 2, height: radius * 2)
-                            context.fill(Path(ellipseIn: star), with: .color(AeonOrbit.ink.opacity(alpha)))
-                        }
-                    }
-                    if showMarkers {
-                        // Two quiet edge readings, not four duplicate quadrant labels.
-                        ForEach(Array(AeonQuietSkyMarkers.labels.enumerated()), id: \.offset) { index, name in
-                            Text(name).font(.system(size: 9, weight: .medium, design: .monospaced))
-                                .tracking(2).foregroundStyle(AeonOrbit.ink.opacity(0.19))
-                                .position(x: geometry.size.width * (index == 0 ? 0.16 : 0.83),
-                                          y: geometry.size.height * 0.23)
-                        }
-                    }
-                }
+        GeometryReader { geometry in
+            ForEach(Array(AeonQuietSkyMarkers.labels.enumerated()), id: \.offset) { index, name in
+                Text(name).font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .tracking(2).foregroundStyle(AeonOrbit.ink.opacity(0.19))
+                    .position(x: geometry.size.width * (index == 0 ? 0.16 : 0.83),
+                              y: geometry.size.height * 0.23)
             }
         }
+        .allowsHitTesting(false).accessibilityHidden(true)
     }
 }
 
@@ -120,7 +173,10 @@ private struct SkyLabelOverlay: View {
             ForEach(labels.prefix(80)) { label in
                 Text(label.text).font(.system(size: label.isRegion ? 13 : 10, weight: .medium, design: .monospaced))
                     .tracking(label.isRegion ? 1.6 : 0.8)
-                    .foregroundStyle(AeonTheme.ColorToken.primary.opacity(highContrast ? 1 : (label.isRegion ? 0.14 : 0.30)))
+                    // 0.14 on pure black is below the threshold of legibility; region names
+                    // were effectively invisible even with Sky contrast turned on, because
+                    // the flag was never plumbed through from Settings.
+                    .foregroundStyle(AeonTheme.ColorToken.primary.opacity(highContrast ? 1 : (label.isRegion ? 0.34 : 0.52)))
                     .position(label.position)
             }
         }

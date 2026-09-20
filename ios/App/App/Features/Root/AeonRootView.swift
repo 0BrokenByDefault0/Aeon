@@ -355,7 +355,11 @@ private struct AeonReadyShell: View {
                     ZStack(alignment: .topTrailing) {
                         SkyScreen(
                             controller: services.skySceneController,
+                            importProgress: importProgress,
+                            importError: importError,
                             readableInsets: readableInsets,
+                            showHUD: settingsController.preferences.hud,
+                            highContrast: settingsController.preferences.highSkyContrast,
                             reduceMotionOverride: settingsController.preferences.reduceMotion,
                             importFiles: importFiles,
                             adoptLibrary: adoptLibrary,
@@ -369,6 +373,9 @@ private struct AeonReadyShell: View {
                             destinationPanel(destination, geometry: geometry, insets: readableInsets)
                                 .zIndex(AeonTheme.Layer.content)
                                 // Utility tabs are independent surfaces, not a crossfade through Sky.
+                                // A fade here would show the live Metal view through the panel for
+                                // the length of the transition, which is the ghosting this replaced.
+                                // Arrival is confirmed by the selection haptic in AeonChrome instead.
                                 .transition(.identity)
                         }
                         if nowPlayingVisible {

@@ -197,7 +197,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                 color0: color,
                 color1: color,
                 color2: color,
-                size: Float(3.2 + (isPlaying ? 0.6 : 0)),
+                // Also drawable pixels, and multiplied by `albumScale` (0.70-2.20) in the
+                // shader. Kept clear of the backdrop's largest layer at every zoom so a
+                // charted album always outranks decoration.
+                size: Float(5 + (isPlaying ? 1 : 0)),
                 flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0),
                 turbulence: 0
             )
@@ -310,14 +313,20 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
 
     private static func makeBackdrop() -> [GPUInstance] {
         // Fixed seed: this is one sky, not a fresh decorative scatter every launch.
-        (0..<1_400).map { index in
+        //
+        // `size` is a half-extent in DRAWABLE PIXELS, not points, because the shader
+        // divides by `uniforms.viewport`, which is `view.drawableSize`. The first pass
+        // used 0.45-0.95, which is a third of a point on a 3x screen: the whole backdrop
+        // rasterised to almost nothing and a small library looked like a rendering
+        // failure rather than a sky. These values are sized for 2x/3x devices.
+        (0..<2_200).map { index in
             let a = SkyStableHash.mix(UInt64(index) &+ 0xAE01)
             let b = SkyStableHash.mix(a)
             let layer = index % 3
             let x = Float(a & 0xffff) / Float(0xffff)
             let y = Float(b & 0xffff) / Float(0xffff)
-            let radius: Float = layer == 0 ? 0.45 : (layer == 1 ? 0.70 : 0.95)
-            let alpha: Float = layer == 0 ? 0.08 : (layer == 1 ? 0.14 : 0.19)
+            let radius: Float = layer == 0 ? 1.3 : (layer == 1 ? 1.9 : 2.7)
+            let alpha: Float = layer == 0 ? 0.20 : (layer == 1 ? 0.32 : 0.46)
             return GPUInstance(position: SIMD2(x, y), color0: SIMD4(0.91, 0.93, 0.96, alpha),
                                color1: SIMD4(0.91, 0.93, 0.96, alpha), color2: SIMD4(0.91, 0.93, 0.96, alpha),
                                size: radius, flags: 0x800, turbulence: Float(layer + 1) * 0.25)

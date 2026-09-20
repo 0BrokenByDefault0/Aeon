@@ -5,6 +5,7 @@ struct SkyMetalView: UIViewRepresentable {
     @ObservedObject var controller: SkySceneController
     let reduceMotionOverride: Bool
     let commitSelection: (String) -> Void
+    var isForeground = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeCoordinator() -> Coordinator { Coordinator(controller: controller, commitSelection: commitSelection) }
@@ -38,6 +39,14 @@ struct SkyMetalView: UIViewRepresentable {
             spectrum: effectiveReduceMotion ? .zero : controller.spectrumLevels
         )
         context.coordinator.renderer?.configureFrameRate(for: view)
+        // The sky stays mounted behind utility panels so the camera survives, but an
+        // opaque panel covers every pixel of it. Driving the draw loop at 60fps into a
+        // surface nobody can see is pure battery cost, so decorative motion stops with
+        // effectiveReduceMotion || !isForeground and only resumes on return.
+        if !AeonTestOverrides.staticSky {
+            view.isPaused = !isForeground
+            view.enableSetNeedsDisplay = !isForeground
+        }
         if AeonTestOverrides.staticSky { view.setNeedsDisplay() }
     }
 
