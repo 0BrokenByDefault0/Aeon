@@ -106,7 +106,7 @@ final class AeonAccessibilityTests: XCTestCase {
         let app = launch(["-AeonPlaybackFixture", "loaded"])
         XCTAssertTrue(app.buttons["aeon.player.open"].waitForExistence(timeout: 12))
         app.buttons["aeon.player.open"].tap()
-        XCTAssertTrue(app.staticTexts["IN THE PLAYER"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["PAUSED"].waitForExistence(timeout: 5))
         let transport = app.buttons["aeon.player.primary-toggle"]
         XCTAssertEqual(transport.label, "Play")
         assertMinimumTarget(transport)

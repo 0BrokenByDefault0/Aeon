@@ -183,7 +183,7 @@ struct QueueView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let offset {
-                AeonGlyph(kind: .grip)
+                AeonGlyph(kind: .grip, decorative: false)
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
