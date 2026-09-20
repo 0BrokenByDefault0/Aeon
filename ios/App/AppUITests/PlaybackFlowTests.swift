@@ -25,13 +25,14 @@ final class PlaybackFlowTests: XCTestCase {
         openNowPlaying(in: app)
         let close = app.buttons["aeon.player.close"]
         let locate = app.buttons["aeon.player.locate"]
-        scrollUp(in: app, until: locate)
+        scrollUntilHittable(locate, in: app)
         XCTAssertTrue(locate.isHittable)
         XCTAssertGreaterThanOrEqual(locate.frame.minY, close.frame.maxY)
 
         let bands = app.descendants(matching: .any)["aeon.player.eq.bands"]
-        scrollUp(in: app, until: bands)
+        scrollUntilHittable(bands, in: app)
         XCTAssertTrue(bands.waitForExistence(timeout: 4))
+        XCTAssertTrue(bands.isHittable)
         let lastBand = app.descendants(matching: .any)["aeon.player.eq.band.16000"]
         for _ in 0..<8 where !lastBand.isHittable { bands.swipeLeft() }
         XCTAssertTrue(lastBand.exists)
@@ -104,5 +105,9 @@ final class PlaybackFlowTests: XCTestCase {
         for _ in 0..<6 where !element.exists {
             app.swipeUp()
         }
+    }
+
+    private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<10 where !element.isHittable { app.swipeUp() }
     }
 }
