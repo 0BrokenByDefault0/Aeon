@@ -469,6 +469,8 @@ private struct AeonReadyShell: View {
         let width = regular
             ? regularPanelWidth(in: geometry)
             : geometry.size.width
+        // Destination scroll views stay inside the container's top safe area; only
+        // their opaque backing extends through the bottom system inset.
         if destination == .library {
             AeonGlass {
                 LibraryScreen(
