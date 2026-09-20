@@ -16,37 +16,37 @@ const playlists = source('Features/Playlists/PlaylistsScreen');
 const native = read('ios/App/AppUITests/AdaptiveChromeTests.swift');
 const workflow = read('.github/workflows/ios-ipa.yml');
 
-test('one reusable shape and line token serve primary, segment, toggle, and icons', () => {
-  assert.equal((components.match(/struct AeonSegmentedCapsule: Shape/g) || []).length, 1);
-  assert.match(components, /static let stroke: CGFloat = 1\.125/);
-  assert.match(components, /var chamberCount = 3/);
-  assert.match(components, /var endWidth: CGFloat = 42/);
-  assert.match(components, /path\.addEllipse\(in: oval\(index\)\)/);
+test('reticle marks replace capsule controls', () => {
+  assert.equal((components.match(/struct AeonReticleMark: Shape/g) || []).length, 1);
+  assert.match(components, /static let stroke: CGFloat = 1/);
+  assert.match(components, /lineCap: \.butt/);
+  assert.doesNotMatch(components, /AeonSegmentedCapsule/);
   assert.match(components, /AeonGlyphPath\(kind: kind\)\.stroke\(style: AeonOrbit\.line\)/);
 });
 
-test('primary rest state is unfilled and press state fills only its center', () => {
+test('primary actions use reticle press feedback with no fill', () => {
   const style = components.split('struct AeonButtonStyle: ButtonStyle')[1].split('struct AeonToggleStyle')[0];
-  assert.match(style, /tier == \.filled && configuration\.isPressed/);
-  assert.match(style, /AeonSegmentedCapsule\(part: \.chamber\(1\)\)\.fill\(AeonOrbit\.activeFill\)/);
-  assert.doesNotMatch(style, /AeonSegmentedCapsule\(\)\.fill/);
+  assert.match(style, /AeonReticleMark\(pressed: configuration\.isPressed\)/);
+  assert.doesNotMatch(style, /\.fill\(/);
   assert.match(style, /AeonGlyph\(kind: \.star\)/);
   assert.match(style, /AeonGlyph\(kind: \.arrow\)/);
 });
 
 test('sleep choices form one fitted control with complete spoken labels', () => {
   assert.match(settings, /AeonSegment\([\s\S]*?values: SettingsSleepTimer\.allCases/);
-  for (const label of ['OFF', '15', '30', '1H', 'END']) assert.ok(settings.includes(`return "${label}"`));
+  for (const label of ['OFF', '15M', '30M', '60M', 'END']) assert.ok(settings.includes(`return "${label}"`));
   assert.match(settings, /spokenLabel: \{ \$0\.label \}/);
   assert.doesNotMatch(settings, /ScrollView\(\.horizontal/);
   assert.match(components, /\.accessibilityAddTraits\(selection == value \? \.isSelected : \[\]\)/);
 });
 
-test('toggle keeps native accessibility semantics and a separate moving ellipse', () => {
+test('toggle keeps native accessibility semantics without a capsule', () => {
   const style = components.split('struct AeonToggleStyle: ToggleStyle')[1].split('struct AeonSegment<Value')[0];
   assert.match(style, /\.accessibilityRepresentation/);
   assert.match(style, /Toggle\(isOn: configuration\.\$isOn\)/);
-  assert.match(style, /part: \.knob,[\s\S]*?knobPosition: configuration\.isOn \? 1 : 0/);
+  assert.match(style, /Text\("OFF"\)/);
+  assert.match(style, /Text\("ON"\)/);
+  assert.match(style, /AeonReticleMark\(\)/);
   assert.match(style, /frame\(width: 112, height: 44\)/);
   assert.match(style, /minHeight: AeonTheme\.Space\.minimumTarget/);
 });
@@ -68,9 +68,8 @@ test('first-pass surfaces retire stock capsules and preserve identifiers', () =>
   assert.doesNotMatch(components, /without pretending/);
 });
 
-test('empty states share a recipe with distinct motifs and a reachable action', () => {
-  assert.match(sky, /motif: \.sky/);
-  assert.match(components, /case \.sky: AeonGhostDisc\(\)/);
+test('Sky empty state is copy and import action only', () => {
+  assert.doesNotMatch(sky, /AeonEmptyState/);
   assert.match(sky, /Your sky is quiet/);
   assert.match(library, /motif: \.collection/);
   assert.match(components, /case \.collection: AeonCollectionMark\(\)/);
@@ -83,10 +82,10 @@ test('empty states share a recipe with distinct motifs and a reachable action', 
 });
 
 test('motion pauses and utility panels do not smear the live sky', () => {
-  assert.match(sky, /paused: reduceMotion \|\| scenePhase != \.active/);
+  assert.match(sky, /effectiveReduceMotion/);
   assert.match(components, /paused: reduceMotion \|\| AeonTestOverrides\.reduceMotion \|\| scenePhase != \.active/);
   assert.doesNotMatch(components, /AeonBlur|RadialGradient/);
-  assert.match(components, /\.clipShape\(Circle\(\)\)/);
+  assert.doesNotMatch(components, /\.clipShape\(Circle\(\)\)/);
 });
 
 test('library shelves use actual region membership and retain pagination', () => {
