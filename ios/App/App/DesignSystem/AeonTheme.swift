@@ -3,23 +3,24 @@ import UIKit
 
 enum AeonTheme {
     enum ColorToken {
-        // Core editorial palette from the Aeon 5 product-design handoff.
-        static let void = Color(red: 10 / 255, green: 10 / 255, blue: 11 / 255)
-        static let chamber = Color(red: 21 / 255, green: 22 / 255, blue: 25 / 255)
+        static let void = Color.black
+        static let chamber = Color(red: 10 / 255, green: 13 / 255, blue: 18 / 255)
         static let chamberOpaque = chamber.opacity(0.98)
-        static let surfaceSelected = Color(red: 29 / 255, green: 31 / 255, blue: 35 / 255)
+        static let surfaceSelected = Color(red: 20 / 255, green: 25 / 255, blue: 33 / 255)
 
-        static let bone = Color(red: 242 / 255, green: 236 / 255, blue: 217 / 255)
-        static let ivorySecondary = Color(red: 216 / 255, green: 208 / 255, blue: 185 / 255)
-        static let textPrimary = Color(red: 244 / 255, green: 242 / 255, blue: 236 / 255)
-        static let boneSecondary = Color(red: 183 / 255, green: 184 / 255, blue: 188 / 255)
-        static let boneTertiary = Color(red: 133 / 255, green: 135 / 255, blue: 141 / 255)
-
-        // Retained as a compatibility alias for older surfaces; new selection states
-        // should prefer surfaceSelected or ivorySecondary.
-        static let silver = ivorySecondary
-        static let rule = Color.white.opacity(0.16)
-        static let strongRule = Color.white.opacity(0.30)
+        static let primary = Color(red: 232 / 255, green: 237 / 255, blue: 244 / 255)
+        static let secondary = Color(red: 168 / 255, green: 178 / 255, blue: 193 / 255)
+        static let tertiary = Color(red: 126 / 255, green: 136 / 255, blue: 152 / 255)
+        static let hairline = Color(red: 42 / 255, green: 48 / 255, blue: 58 / 255)
+        // Compatibility names keep the surface diff small; all resolve to the cold ramp.
+        static let bone = primary
+        static let ivorySecondary = secondary
+        static let textPrimary = primary
+        static let boneSecondary = secondary
+        static let boneTertiary = tertiary
+        static let silver = secondary
+        static let rule = hairline
+        static let strongRule = secondary.opacity(0.52)
         static let danger = Color(red: 0.87, green: 0.36, blue: 0.31)
     }
 
@@ -83,7 +84,7 @@ enum AeonTheme {
         static let maximumDisplayScale: CGFloat = 1.55
 
         static func ui(_ style: Font.TextStyle = .body, weight: Font.Weight = .regular) -> Font {
-            .system(style, design: .default, weight: weight)
+            .system(style, design: .monospaced, weight: weight)
         }
 
         static func metric(_ style: Font.TextStyle = .caption, weight: Font.Weight = .regular) -> Font {

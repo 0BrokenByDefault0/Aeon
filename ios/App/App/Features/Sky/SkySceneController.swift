@@ -73,6 +73,11 @@ final class SkySceneController: ObservableObject {
         return catalogue.planets.first { $0.id == selectedID }
     }
 
+    var selectedAlbumTitle: String? {
+        guard let star = selectedStar else { return nil }
+        return (try? catalog.album(id: star.albumID))?.title ?? star.albumID
+    }
+
     var censusText: String {
         "\(catalogue.stars.count) albums adrift · \(catalogue.constellations.count) constellations"
     }

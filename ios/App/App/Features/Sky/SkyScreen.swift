@@ -2,14 +2,11 @@ import SwiftUI
 
 struct SkyScreen: View {
     @ObservedObject var controller: SkySceneController
-    let importProgress: LibraryImportProgress?
-    let importError: String?
     let readableInsets: AeonReadableInsets
-    let showHUD: Bool
-    let highContrast: Bool
     let reduceMotionOverride: Bool
     let importFiles: () -> Void
     let adoptLibrary: () -> Void
+    let commitSelection: (String) -> Void
     var isForeground = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var importSheetPresented = false
@@ -17,47 +14,18 @@ struct SkyScreen: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                SkyMetalView(controller: controller, reduceMotionOverride: reduceMotionOverride)
+                SkyMetalView(controller: controller, reduceMotionOverride: reduceMotionOverride, commitSelection: commitSelection)
                     .ignoresSafeArea().opacity(controller.cameraCrossfade ? 0.28 : 1)
                     .animation(.linear(duration: 0.12), value: controller.cameraCrossfade)
                     .allowsHitTesting(isForeground)
-                if controller.catalogue.stars.isEmpty {
-                    AeonQuietSky(reduceMotion: effectiveReduceMotion || !isForeground,
-                                 showMarkers: isForeground)
-                        .ignoresSafeArea().allowsHitTesting(false).accessibilityHidden(true)
-                }
-                // Keep the renderer/camera alive, not the inactive screen's copy and controls.
                 Group {
                     if isForeground {
-                        SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: highContrast)
+                        SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: false)
                             .allowsHitTesting(false).accessibilityHidden(true)
-                        SkyAccessibilityOverlay(controller: controller).allowsHitTesting(false)
-                        SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size,
-                               showCensus: showHUD, reduceMotionOverride: reduceMotionOverride)
-                            .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-                            .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
-                            .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
                         if controller.catalogue.stars.isEmpty {
-                            ScrollView {
-                                emptyState
-                                    .frame(minHeight: max(0, geometry.size.height - readableInsets.bottom - 88))
-                                    .padding(.horizontal, geometry.size.width < 360 ? AeonTheme.Space.compactEdge : AeonTheme.Space.edge)
-                                    .padding(.top, 64).padding(.bottom, readableInsets.bottom + 24)
-                            }
-                            .scrollIndicators(.hidden)
+                            emptyState.frame(maxWidth: 300)
                         }
-                        if let ceremony = controller.ceremony {
-                            VStack(spacing: AeonTheme.Space.xSmall) {
-                                AeonLabel(text: "Celestial event")
-                                AeonDisplayText(ceremony, size: 28, maximumLines: 2)
-                            }
-                            .foregroundStyle(AeonOrbit.title)
-                            .padding(.horizontal, AeonTheme.Space.large).padding(.vertical, AeonTheme.Space.regular)
-                            .background(AeonTheme.ColorToken.void.opacity(0.92))
-                            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
-                            .transition(.opacity).allowsHitTesting(false).accessibilityAddTraits(.updatesFrequently)
-                        }
-                        selectionLabel
+                        selectionLabel(viewport: geometry.size)
                     }
                 }
                 .transaction { $0.animation = nil }
@@ -71,44 +39,29 @@ struct SkyScreen: View {
 
     private var emptyState: some View {
         VStack(spacing: AeonTheme.Space.large) {
-            AeonEmptyState(title: "Your sky is quiet",
-                           detail: "Bring your records. Aeon will chart them without changing the files you chose.",
-                           actionTitle: "IMPORT MUSIC", motif: .sky,
-                           actionIdentifier: "aeon.library.import") { importSheetPresented = true }
-            if let importError, !importError.isEmpty {
-                HStack(alignment: .top, spacing: AeonTheme.Space.small) {
-                    Image(systemName: "exclamationmark.triangle").accessibilityHidden(true)
-                    Text(importError).font(AeonTheme.FontToken.ui(.caption)).fixedSize(horizontal: false, vertical: true)
-                }
-                .foregroundStyle(AeonOrbit.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
-                .accessibilityIdentifier("aeon.sky.import.error")
-            }
+            Text("Your sky is quiet")
+                .font(.system(size: 13, weight: .regular, design: .monospaced))
+                .foregroundStyle(AeonTheme.ColorToken.secondary)
+            Button("IMPORT MUSIC") { importSheetPresented = true }
+                .buttonStyle(AeonButtonStyle(tier: .filled))
+                .accessibilityIdentifier("aeon.library.import")
         }
         .frame(maxWidth: .infinity).accessibilityElement(children: .contain).accessibilityIdentifier("aeon.sky.empty")
     }
     private var effectiveReduceMotion: Bool { reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion }
 
-    @ViewBuilder private var selectionLabel: some View {
-        if let planet = controller.selectedPlanet {
-            VStack {
-                Spacer()
-                selectionReadout("WORLD \(planet.index) · \(planet.members.count) ALBUMS")
-                    .accessibilityIdentifier("aeon.sky.planet-selection")
-            }.padding(.bottom, readableInsets.bottom + 24)
-        } else if let star = controller.selectedStar {
-            VStack {
-                Spacer()
-                selectionReadout("\(star.artistName.uppercased()) · ALBUM \(star.sequence)")
-                    .accessibilityIdentifier("aeon.sky.star-selection")
-            }.padding(.bottom, readableInsets.bottom + 24)
+    @ViewBuilder private func selectionLabel(viewport: CGSize) -> some View {
+        if let star = controller.selectedStar {
+            let point = controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport))
+            VStack(spacing: 2) {
+                Text((controller.selectedAlbumTitle ?? star.albumID).uppercased()).font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.1)
+                Text(star.artistName).font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.5))
+            }
+            .foregroundStyle(AeonTheme.ColorToken.primary)
+            .position(x: point.x, y: point.y - 30)
+            .overlay(Circle().stroke(AeonTheme.ColorToken.primary.opacity(0.45), lineWidth: 1).frame(width: 34, height: 34).position(point))
+            .accessibilityIdentifier("aeon.sky.star-selection")
         }
-    }
-    private func selectionReadout(_ text: String) -> some View {
-        Text(text).font(AeonTheme.FontToken.metric(.caption, weight: .medium)).tracking(1.4)
-            .foregroundStyle(AeonOrbit.ink).padding(.horizontal, AeonTheme.Space.regular)
-            .frame(minHeight: AeonTheme.Space.minimumTarget)
-            .background(AeonTheme.ColorToken.void.opacity(0.88))
-            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
     }
 }
 
@@ -165,10 +118,10 @@ private struct SkyLabelOverlay: View {
     var body: some View {
         ZStack {
             ForEach(labels.prefix(80)) { label in
-                Text(label.text).font(.system(size: label.isRegion ? 12 : 10, weight: .medium, design: .monospaced))
+                Text(label.text).font(.system(size: label.isRegion ? 13 : 10, weight: .medium, design: .monospaced))
                     .tracking(label.isRegion ? 1.6 : 0.8)
-                    .foregroundStyle(AeonTheme.ColorToken.textPrimary.opacity(highContrast ? 1 : (label.isRegion ? 0.9 : 0.82)))
-                    .shadow(color: .black, radius: 3).position(label.position)
+                    .foregroundStyle(AeonTheme.ColorToken.primary.opacity(highContrast ? 1 : (label.isRegion ? 0.14 : 0.30)))
+                    .position(label.position)
             }
         }
     }
@@ -176,7 +129,7 @@ private struct SkyLabelOverlay: View {
         let camera = controller.camera
         let resolvedViewport = SkyViewport(size: viewport)
         let starByID = Dictionary(uniqueKeysWithValues: controller.catalogue.stars.map { ($0.albumID, $0) })
-        if camera.tier == .galaxy || camera.tier == .region {
+        if camera.tier == .galaxy {
             return controller.catalogue.regions.compactMap { region in
                 let points = controller.catalogue.stars.filter { $0.regionID == region.id }.map(\.coordinate)
                 guard !points.isEmpty else { return nil }
@@ -185,6 +138,7 @@ private struct SkyLabelOverlay: View {
                 return Label(id: region.id, text: region.name.uppercased(), position: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true)
             }.filter(visible)
         }
+        guard camera.tier == .region || camera.tier == .constellation else { return [] }
         return controller.catalogue.constellations.compactMap { constellation in
             let points = constellation.albumIDs.compactMap { starByID[$0]?.coordinate }
             guard !points.isEmpty else { return nil }

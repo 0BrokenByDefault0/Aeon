@@ -126,13 +126,13 @@ struct AeonRootView: View {
                 Text("LIBRARY MIGRATION")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .tracking(2.2)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))
                 Text("Your library is intact.")
                     .font(.system(size: 30, weight: .regular, design: .serif))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AeonTheme.ColorToken.primary)
                 Text("\(summary.recordCount) records and \(summary.artifactCount) embedded files are ready for the native migration pipeline.")
                     .font(.system(size: 15))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 460)
             }
@@ -144,27 +144,27 @@ struct AeonRootView: View {
                 Text(progress.catalogueReady ? "LIBRARY READY" : "PRESERVING LIBRARY")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .tracking(2.2)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))
                 Text(progress.message)
                     .font(.system(size: 28, weight: .regular, design: .serif))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AeonTheme.ColorToken.primary)
                 ProgressView(value: progress.fraction)
-                    .tint(.white)
+                    .tint(AeonTheme.ColorToken.primary)
                     .frame(maxWidth: 360)
                 Text("\(progress.completedArtifacts) of \(progress.totalArtifacts) embedded files verified")
                     .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.62))
                 HStack(spacing: 12) {
                     if progress.catalogueReady {
                         Button("Continue with Available Files") { container.continueAfterMigration() }
                             .buttonStyle(.borderedProminent)
-                            .tint(.white)
+                            .tint(AeonTheme.ColorToken.primary)
                             .foregroundStyle(.black)
                     }
                     if let diagnosticsURL = container.migrationDiagnosticsURL {
                         ShareLink(item: diagnosticsURL) { Text("Export Diagnostics") }
                             .buttonStyle(.bordered)
-                            .tint(.white)
+                            .tint(AeonTheme.ColorToken.primary)
                     }
                 }
             }
@@ -187,21 +187,21 @@ struct AeonRootView: View {
                 Text("AEON COULD NOT OPEN")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .tracking(2)
-                    .foregroundStyle(.white.opacity(0.58))
+                    .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))
                 Text(issue.message)
                     .font(.system(size: 17))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AeonTheme.ColorToken.primary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 480)
                 if issue.catalogRecovery != nil {
                     HStack(spacing: 12) {
                         Button("Restore Catalogue") { picker = .catalogArchive }
                             .buttonStyle(.bordered)
-                            .tint(.white)
+                            .tint(AeonTheme.ColorToken.primary)
                             .accessibilityIdentifier("aeon.launch.restore")
                         Button("Start Clean") { container.retryStartup() }
                             .buttonStyle(.borderedProminent)
-                            .tint(.white)
+                            .tint(AeonTheme.ColorToken.primary)
                             .foregroundStyle(.black)
                             .accessibilityIdentifier("aeon.launch.retry")
                     }
@@ -209,13 +209,13 @@ struct AeonRootView: View {
                     HStack(spacing: 12) {
                         Button("Retry") { container.retryStartup() }
                             .buttonStyle(.borderedProminent)
-                            .tint(.white)
+                            .tint(AeonTheme.ColorToken.primary)
                             .foregroundStyle(.black)
                             .accessibilityIdentifier("aeon.launch.retry")
                         if let diagnosticsURL = container.migrationDiagnosticsURL {
                             ShareLink(item: diagnosticsURL) { Text("Export Diagnostics") }
                                 .buttonStyle(.bordered)
-                                .tint(.white)
+                                .tint(AeonTheme.ColorToken.primary)
                         }
                     }
                 }
@@ -227,11 +227,11 @@ struct AeonRootView: View {
 
     private func launchMessage(_ value: String) -> some View {
         VStack(spacing: 18) {
-            ProgressView().tint(.white)
+            ProgressView().tint(AeonTheme.ColorToken.primary)
             Text(value)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                 .tracking(2.4)
-                .foregroundStyle(.white.opacity(0.62))
+                .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.62))
         }
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("aeon.launch.progress")
@@ -240,14 +240,14 @@ struct AeonRootView: View {
     private func importProgress(_ progress: LibraryImportProgress) -> some View {
         VStack(spacing: 10) {
             ProgressView(value: importFraction(progress))
-                .tint(.white)
+                .tint(AeonTheme.ColorToken.primary)
                 .frame(maxWidth: 340)
             Text(importProgressLabel(progress))
                 .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.66))
+                .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.66))
             Button("Pause Import") { container.cancelLibraryImport() }
                 .buttonStyle(.bordered)
-                .tint(.white)
+                .tint(AeonTheme.ColorToken.primary)
                 .accessibilityIdentifier("aeon.library.import.cancel")
         }
         .accessibilityIdentifier("aeon.library.import.progress")
@@ -355,14 +355,14 @@ private struct AeonReadyShell: View {
                     ZStack(alignment: .topTrailing) {
                         SkyScreen(
                             controller: services.skySceneController,
-                            importProgress: importProgress,
-                            importError: importError,
                             readableInsets: readableInsets,
-                            showHUD: settingsController.preferences.hud,
-                            highContrast: settingsController.preferences.highSkyContrast,
                             reduceMotionOverride: settingsController.preferences.reduceMotion,
                             importFiles: importFiles,
                             adoptLibrary: adoptLibrary,
+                            commitSelection: { id in
+                                libraryController.selectAlbum(id: id)
+                                destination = .library
+                            },
                             isForeground: destination == .sky && !nowPlayingVisible
                         )
                         if destination != .sky {

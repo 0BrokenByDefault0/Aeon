@@ -2,138 +2,30 @@ import Dispatch
 import SwiftUI
 import UIKit
 
-/// One line language for orbital controls and the hand-drawn navigation glyphs.
+/// One cold-line language for controls and the hand-drawn navigation glyphs.
 enum AeonOrbit {
-    static let stroke: CGFloat = 1.125
-    static let line = StrokeStyle(lineWidth: stroke, lineCap: .round, lineJoin: .round)
-    static let title = AeonTheme.ColorToken.bone
-    static let ink = AeonTheme.ColorToken.bone
-    static let secondary = AeonTheme.ColorToken.boneSecondary
-    static let activeFill = AeonTheme.ColorToken.bone.opacity(0.12)
+    static let stroke: CGFloat = 1
+    static let line = StrokeStyle(lineWidth: stroke, lineCap: .butt, lineJoin: .miter)
+    static let title = AeonTheme.ColorToken.primary
+    static let ink = AeonTheme.ColorToken.primary
+    static let secondary = AeonTheme.ColorToken.secondary
+    static let activeFill = Color.clear
     static let supportingFont = AeonTheme.FontToken.ui(.subheadline, weight: .regular)
 }
 
-/// A capsule perimeter with complete overlapping ovals, never a stack of pill buttons.
-/// `action` reserves narrow end chambers; `equal` fits any number of control options.
-struct AeonSegmentedCapsule: Shape {
-    enum Layout { case action, equal }
-    enum Part { case outline, chamber(Int), knob }
-    var chamberCount = 3
-    var layout: Layout = .action
-    var endWidth: CGFloat = 42
-    var part: Part = .outline
-    var knobPosition: CGFloat = 0
-
-    var animatableData: CGFloat {
-        get { knobPosition }
-        set { knobPosition = newValue }
-    }
-
+/// Four viewfinder ticks; no enclosing shape, radius, or fill.
+struct AeonReticleMark: Shape {
+    var pressed = false
     func path(in bounds: CGRect) -> Path {
-        let rect = bounds.insetBy(dx: AeonOrbit.stroke / 2, dy: AeonOrbit.stroke / 2)
-        guard rect.width > 0, rect.height > 0 else { return Path() }
-        let count = max(2, chamberCount)
-        let outer = Path(roundedRect: rect, cornerRadius: rect.height / 2)
-        if layout == .equal {
-            // Every option has the same oval. Only its fill/ink changes when selected.
-            // Visual chambers stay inside the non-overlapping rectangular touch cells.
-            switch part {
-            case .outline:
-                var path = outer
-                for index in 0..<count {
-                    path.addEllipse(in: equalChamberFrame(at: index, in: bounds))
-                }
-                return path
-            case .chamber(let index):
-                guard (0..<count).contains(index) else { return Path() }
-                return Path(ellipseIn: equalChamberFrame(at: index, in: bounds))
-            case .knob:
-                let first = equalChamberFrame(at: 0, in: bounds)
-                return Path(ellipseIn: first.offsetBy(
-                    dx: min(1, max(0, knobPosition)) * bounds.width / CGFloat(count), dy: 0
-                ))
-            }
-        }
-        let cell = rect.width / CGFloat(count)
-        let oval: (Int) -> CGRect = { index in
-            if self.layout == .action && count == 3 {
-                let inset = min(self.endWidth + 4, rect.width * 0.25)
-                return rect.insetBy(dx: inset, dy: 0)
-            }
-            return CGRect(x: rect.minX + CGFloat(index) * cell - cell * 0.08,
-                          y: rect.minY, width: cell * 1.16, height: rect.height)
-        }
-        switch part {
-        case .outline:
-            var path = outer
-            if count == 2 {
-                path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-                path.addCurve(to: CGPoint(x: rect.midX, y: rect.maxY),
-                              control1: CGPoint(x: rect.midX - rect.height * 0.15, y: rect.minY + rect.height * 0.3),
-                              control2: CGPoint(x: rect.midX + rect.height * 0.15, y: rect.maxY - rect.height * 0.3))
-            } else {
-                for index in 1..<(count - 1) { path.addEllipse(in: oval(index)) }
-            }
-            return path
-        case .knob:
-            let inset = rect.height * 0.12
-            let width = max(0, cell - inset * 2)
-            return Path(ellipseIn: CGRect(x: rect.minX + inset + min(1, max(0, knobPosition)) * cell,
-                                         y: rect.minY + inset, width: width, height: rect.height - inset * 2))
-        case .chamber(let index):
-            guard (0..<count).contains(index) else { return Path() }
-            if count == 2 {
-                return endChamber(in: rect, boundary: rect.midX, right: index == 1)
-            }
-            if index > 0 && index < count - 1 { return Path(ellipseIn: oval(index)) }
-            let adjacent = oval(index == 0 ? 1 : count - 2)
-            return lens(in: rect, oval: adjacent, right: index == count - 1)
-        }
-    }
-
-    /// Shared geometry for equal-option controls and their regression tests.
-    func equalChamberFrame(at index: Int, in bounds: CGRect) -> CGRect {
-        let count = max(2, chamberCount)
-        guard (0..<count).contains(index), bounds.width > 0, bounds.height > 0 else { return .zero }
-        let cellWidth = bounds.width / CGFloat(count)
-        return CGRect(x: bounds.minX + CGFloat(index) * cellWidth, y: bounds.minY,
-                      width: cellWidth, height: bounds.height)
-            .insetBy(dx: min(3, cellWidth / 4), dy: min(4, bounds.height / 4))
-    }
-
-    private func endChamber(in rect: CGRect, boundary: CGFloat, right: Bool) -> Path {
-        let half = CGRect(x: right ? boundary : rect.minX, y: rect.minY,
-                          width: right ? rect.maxX - boundary : boundary - rect.minX, height: rect.height)
-        // Only the selected half is shaded; the traveling oval remains a separate stroke.
-        return Path(roundedRect: half.insetBy(dx: 1, dy: 1), cornerRadius: min(half.width, half.height) / 2)
-    }
-
-    private func lens(in rect: CGRect, oval: CGRect, right: Bool) -> Path {
-        // Follow one outside end and the adjacent oval's inner half. No whole-control fill.
-        let r = min(rect.height / 2, rect.width / 2)
-        let sign: CGFloat = right ? -1 : 1
-        let end = right ? rect.maxX : rect.minX
-        let cap = end + sign * r
-        let join = oval.midX
-        let tip = right ? oval.maxX : oval.minX
-        let k: CGFloat = 0.5522847498
+        let length = min(pressed ? 14 : 12, max(6, bounds.height * 0.22))
+        let insetX: CGFloat = 8, insetY: CGFloat = 6
+        let left = bounds.minX + insetX, right = bounds.maxX - insetX
+        let top = bounds.minY + insetY, bottom = bounds.maxY - insetY
         var path = Path()
-        path.move(to: CGPoint(x: join, y: rect.minY))
-        path.addLine(to: CGPoint(x: cap, y: rect.minY))
-        path.addCurve(to: CGPoint(x: end, y: rect.midY),
-                      control1: CGPoint(x: cap - sign * r * k, y: rect.minY),
-                      control2: CGPoint(x: end, y: rect.midY - r * k))
-        path.addCurve(to: CGPoint(x: cap, y: rect.maxY),
-                      control1: CGPoint(x: end, y: rect.midY + r * k),
-                      control2: CGPoint(x: cap - sign * r * k, y: rect.maxY))
-        path.addLine(to: CGPoint(x: join, y: rect.maxY))
-        path.addCurve(to: CGPoint(x: tip, y: rect.midY),
-                      control1: CGPoint(x: join + (tip - join) * k, y: rect.maxY),
-                      control2: CGPoint(x: tip, y: rect.midY + rect.height * k / 2))
-        path.addCurve(to: CGPoint(x: join, y: rect.minY),
-                      control1: CGPoint(x: tip, y: rect.midY - rect.height * k / 2),
-                      control2: CGPoint(x: join + (tip - join) * k, y: rect.minY))
-        path.closeSubpath()
+        path.move(to: CGPoint(x: left, y: top + length)); path.addLine(to: CGPoint(x: left, y: top)); path.addLine(to: CGPoint(x: left + length, y: top))
+        path.move(to: CGPoint(x: right - length, y: top)); path.addLine(to: CGPoint(x: right, y: top)); path.addLine(to: CGPoint(x: right, y: top + length))
+        path.move(to: CGPoint(x: left, y: bottom - length)); path.addLine(to: CGPoint(x: left, y: bottom)); path.addLine(to: CGPoint(x: left + length, y: bottom))
+        path.move(to: CGPoint(x: right - length, y: bottom)); path.addLine(to: CGPoint(x: right, y: bottom)); path.addLine(to: CGPoint(x: right, y: bottom - length))
         return path
     }
 }
@@ -290,18 +182,12 @@ struct AeonButtonStyle: ButtonStyle {
         .foregroundStyle(destructive ? AeonTheme.ColorToken.danger : AeonOrbit.ink)
         .contentShape(Rectangle())
         .background {
-            if tier == .filled && configuration.isPressed {
-                AeonSegmentedCapsule(part: .chamber(1)).fill(AeonOrbit.activeFill)
-            } else if tier == .hairline && configuration.isPressed {
-                Rectangle().fill(AeonOrbit.activeFill)
-            }
+            Color.clear
         }
         .overlay {
-            if tier == .filled {
-                AeonSegmentedCapsule().stroke(AeonOrbit.ink.opacity(0.82), style: AeonOrbit.line)
-            } else if tier == .hairline {
-                Rectangle().stroke(destructive ? AeonTheme.ColorToken.danger.opacity(0.72) : AeonOrbit.ink.opacity(0.4),
-                                   style: AeonOrbit.line)
+            if tier != .bare {
+                AeonReticleMark(pressed: configuration.isPressed)
+                    .stroke(destructive ? AeonTheme.ColorToken.danger : AeonOrbit.ink.opacity(tier == .filled ? 1 : 0.48), style: AeonOrbit.line)
             }
         }
         .opacity(isEnabled ? 1 : 0.42)
@@ -320,24 +206,12 @@ struct AeonToggleStyle: ToggleStyle {
                     configuration.label
                     Spacer(minLength: AeonTheme.Space.small)
                 }
-                ZStack {
-                    AeonSegmentedCapsule(chamberCount: 2, layout: .equal,
-                                         part: .chamber(configuration.isOn ? 1 : 0))
-                        .fill(AeonOrbit.activeFill)
-                    AeonSegmentedCapsule(chamberCount: 2, layout: .equal)
-                        .stroke(AeonOrbit.ink.opacity(0.4), style: AeonOrbit.line)
-                    AeonSegmentedCapsule(chamberCount: 2, layout: .equal, part: .knob,
-                                         knobPosition: configuration.isOn ? 1 : 0)
-                        .stroke(AeonOrbit.ink, style: AeonOrbit.line)
-                    HStack(spacing: 0) {
-                        Text("OFF").frame(maxWidth: .infinity)
-                            .foregroundStyle(configuration.isOn ? AeonOrbit.secondary : AeonOrbit.ink)
-                        Text("ON").frame(maxWidth: .infinity)
-                            .foregroundStyle(configuration.isOn ? AeonOrbit.ink : AeonOrbit.secondary)
-                    }
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(AeonOrbit.ink.opacity(0.85))
+                HStack(spacing: AeonTheme.Space.small) {
+                    Text("OFF").foregroundStyle(configuration.isOn ? AeonOrbit.secondary : AeonOrbit.ink)
+                    Text("ON").foregroundStyle(configuration.isOn ? AeonOrbit.ink : AeonOrbit.secondary)
+                        .overlay { if configuration.isOn { AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line) } }
                 }
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
                 .frame(width: 112, height: 44)
                 .frame(minHeight: AeonTheme.Space.minimumTarget)
             }
@@ -385,16 +259,13 @@ struct AeonSegment<Value: Hashable>: View {
                     .accessibilityIdentifier(identifier(value))
                 }
             }
-            .background {
-                if let index = values.firstIndex(of: selection) {
-                    AeonSegmentedCapsule(chamberCount: values.count, layout: .equal, part: .chamber(index))
-                        .fill(AeonOrbit.activeFill)
-                }
-            }
             .overlay {
-                AeonSegmentedCapsule(chamberCount: values.count, layout: .equal)
-                    .stroke(AeonOrbit.ink.opacity(0.72), style: AeonOrbit.line)
-                    .allowsHitTesting(false)
+                if let index = values.firstIndex(of: selection) {
+                    AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line)
+                        .frame(width: cellWidth, height: 48)
+                        .offset(x: -geometry.size.width / 2 + cellWidth * (CGFloat(index) + 0.5))
+                        .allowsHitTesting(false)
+                }
             }
         }
         .frame(height: 48)
@@ -448,8 +319,8 @@ struct AeonArtwork: View {
             if let image { image.resizable().scaledToFill() }
             else { AeonGhostDisc().padding(size * 0.13) }
         }
-        .frame(width: size, height: size).clipShape(Circle())
-        .overlay(Circle().stroke(AeonOrbit.ink.opacity(0.28), style: AeonOrbit.line))
+        .frame(width: size, height: size).clipped()
+        .overlay(Rectangle().stroke(AeonOrbit.ink.opacity(0.28), style: AeonOrbit.line))
     }
 }
 
@@ -643,8 +514,7 @@ struct AeonImportSheet: View {
             }
             .padding(AeonTheme.Space.regular).frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
             .contentShape(Rectangle())
-            .overlay(RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
-                .stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
+            .overlay(AeonReticleMark().stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
         }
         .buttonStyle(.plain).accessibilityIdentifier(identifier)
     }
