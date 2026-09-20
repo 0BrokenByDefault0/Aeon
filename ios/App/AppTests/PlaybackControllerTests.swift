@@ -81,9 +81,10 @@ final class PlaybackControllerTests: XCTestCase {
         coordinator.deferLoadCompletion = true
         let controller = PlaybackController(coordinator: coordinator)
         let track = CatalogTrack(
-            id: "track-2", albumID: "album", title: "Second", artist: "Artist",
-            trackNumber: 2, discNumber: 1, duration: 120,
-            mediaReference: .documents(relativePath: "Music/track-2.m4a")
+            id: "track-2", albumID: "album", sequence: 2, discNumber: 1, trackNumber: 2,
+            title: "Second", artist: "Artist", duration: 120, byteCount: 32,
+            mediaReference: .documents(relativePath: "Music/track-2.m4a"),
+            importedAt: Date(timeIntervalSince1970: 2)
         )
 
         controller.loadAndPlay(
