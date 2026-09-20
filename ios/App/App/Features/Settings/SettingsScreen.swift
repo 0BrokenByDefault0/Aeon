@@ -224,6 +224,26 @@ struct SettingsScreen: View {
         .rowDivider(showsDivider).accessibilityIdentifier(identifier)
     }
 
+    private var eraseLabel: some View {
+        Text("Erase everything").font(AeonTheme.FontToken.ui(.callout, weight: .regular))
+            .foregroundStyle(AeonTheme.ColorToken.textPrimary).fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var eraseButton: some View {
+        Button { eraseText = ""; erasePresented = true } label: {
+            AeonGlyph(kind: .erase)
+                .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).foregroundStyle(AeonTheme.ColorToken.danger)
+        // The target lives on the Button, not only on its label: a hidden decorative
+        // label gives the Button no frame to derive an activation point from, which is
+        // what the navigation buttons already avoid.
+        .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+        .contentShape(Rectangle())
+        .accessibilityLabel("Erase everything").accessibilityIdentifier("aeon.settings.erase")
+    }
+
     private func note(_ value: String) -> some View {
         Text(value).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
     }
@@ -242,22 +262,22 @@ struct SettingsScreen: View {
             settingsNavigationRow(title: "Diagnostics", value: "EXPORT", detail: nil,
                                   identifier: "aeon.settings.diagnostics", glyph: .export, action: { controller.exportDiagnostics() })
             VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                HStack {
-                    Text("Erase everything").font(AeonTheme.FontToken.ui(.callout, weight: .regular))
-                        .foregroundStyle(AeonTheme.ColorToken.textPrimary).fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: AeonTheme.Space.small)
-                    Button { eraseText = ""; erasePresented = true } label: {
-                        AeonGlyph(kind: .erase)
-                            .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                            .contentShape(Rectangle())
+                // At accessibility sizes the label alone is wider than the row, so a
+                // side-by-side layout pushes the 44pt target past the container's trailing
+                // edge: the button still exists but has no valid activation point. Stack
+                // the two instead of making them compete for the same line.
+                if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        eraseLabel
+                        eraseButton
                     }
-                    .buttonStyle(.plain).foregroundStyle(AeonTheme.ColorToken.danger)
-                    // The target lives on the Button, not only on its label: a hidden
-                    // decorative label gives the Button no frame to derive an activation
-                    // point from, which is what the navigation buttons already avoid.
-                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                    .contentShape(Rectangle())
-                    .accessibilityLabel("Erase everything").accessibilityIdentifier("aeon.settings.erase")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack {
+                        eraseLabel
+                        Spacer(minLength: AeonTheme.Space.small)
+                        eraseButton
+                    }
                 }
                 note("Albums, audio, playlists, and the log — the sky goes dark.")
             }
