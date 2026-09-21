@@ -69,6 +69,41 @@ final class PlaybackStateStoreTests: XCTestCase {
         XCTAssertNoThrow(try lines.forEach { _ = try JSONDecoder().decode(DiagnosticEntry.self, from: Data($0.utf8)) })
     }
 
+    func testDiagnosticsRetainDSPAndNativeFailureAcrossReloadWithoutRouteIdentity() throws {
+        let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
+        let log = DiagnosticsLog(url: url)
+        let route = RouteDescriptor(kind: .bluetooth, name: "Private headphones", persistentID: "private-uid",
+                                    sampleRate: 48_000, channelCount: 2)
+        let output = OutputFormatDescriptor(sampleRate: 48_000, channelCount: 2, route: route,
+            processingSampleRate: 48_000, effectivePreampDB: -7, unavailableFilters: 1,
+            dspLatency: 128.0 / 48_000, overloadCount: 4)
+        try log.record(eventCode: "PLAYBACK_ERROR", outputFormat: output, recoverable: true,
+                       failureCode: "engine_start_failed", failureDetail: "engine_start:NSOSStatusErrorDomain:-10868")
+        let entry = try XCTUnwrap(DiagnosticsLog(url: url).entries().first)
+        XCTAssertEqual(entry.failureCode, "engine_start_failed")
+        XCTAssertEqual(entry.failureDetail, "engine_start:NSOSStatusErrorDomain:-10868")
+        XCTAssertNotNil(entry.buildIdentity)
+        XCTAssertEqual(entry.outputFormat?.processingSampleRate, 48_000)
+        XCTAssertEqual(entry.outputFormat?.effectivePreampDB, -7)
+        XCTAssertEqual(entry.outputFormat?.unavailableFilters, 1)
+        XCTAssertEqual(entry.outputFormat?.dspLatency, 128.0 / 48_000)
+        XCTAssertEqual(entry.outputFormat?.overloadCount, 4)
+        XCTAssertNil(entry.outputFormat?.route.persistentID)
+        XCTAssertFalse(try String(contentsOf: url).contains("Private headphones"))
+    }
+
+    func testDiagnosticsRejectFreeformNativeErrorsAndDecodeOldEntries() throws {
+        let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
+        let log = DiagnosticsLog(url: url)
+        try log.record(eventCode: "PLAYBACK_ERROR", failureDetail: "engine_start:/private/song.mp3:-1")
+        XCTAssertNil(log.entries().first?.failureDetail)
+        XCTAssertFalse(try String(contentsOf: url).contains("song"))
+        let old = DiagnosticEntry.fixture(eventCode: "ENGINE_START", trackID: nil)
+        XCTAssertNil(old.failureCode)
+        XCTAssertNil(old.failureDetail)
+        XCTAssertNil(old.buildIdentity)
+    }
+
     func testDiagnosticsAreBoundedByUTF8Bytes() throws {
         let url = temporaryDirectory().appendingPathComponent("audio.jsonl")
         let log = DiagnosticsLog(url: url, maxEntryCount: 20, maxByteCount: 300)

@@ -100,6 +100,19 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     func configure() throws {
         guard !isConfigured else { return }
 
+        // AU effects do not negotiate sample-rate conversion between their buses.
+        // In particular our AU's initial 48 kHz output must not be left paired
+        // with a mixer/native EQ input that still has its initial 44.1 kHz format.
+        // Own one floating-point processing format; the program mixer converts
+        // each source, and the main mixer accommodates the actual output route.
+        let output = outputFormatProvider?() ?? engine.outputNode.inputFormat(forBus: 0)
+        guard output.sampleRate.isFinite, output.sampleRate > 0,
+              (1...8).contains(output.channelCount),
+              let processing = AVAudioFormat(standardFormatWithSampleRate: output.sampleRate,
+                                             channels: output.channelCount) else {
+            throw AudioEngineGraphError.invalidSchedulingFormat
+        }
+
         engine.attach(playerA)
         engine.attach(playerB)
         engine.attach(programMixer)
@@ -110,16 +123,16 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         playerA.volume = dspSettings.referenceBypass ? 1 : replayGainA
         playerB.volume = dspSettings.referenceBypass ? 1 : replayGainB
         engine.mainMixerNode.outputVolume = dspSettings.referenceBypass ? 1 : masterVolume
-        applyEQBands()
         equalizer.bypass = dspSettings.referenceBypass || !eqEnabled
 
         engine.connect(playerA, to: programMixer, fromBus: 0, toBus: 0, format: nil)
         engine.connect(playerB, to: programMixer, fromBus: 0, toBus: 1, format: nil)
-        engine.connect(programMixer, to: equalizer, format: nil)
-        engine.connect(equalizer, to: dspNode, format: nil)
-        engine.connect(dspNode, to: engine.mainMixerNode, format: nil)
+        engine.connect(programMixer, to: equalizer, format: processing)
+        engine.connect(equalizer, to: dspNode, format: processing)
+        engine.connect(dspNode, to: engine.mainMixerNode, format: processing)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         isConfigured = true
+        applyEQBands()
         try applyDSP()
         installPendingSpectrumTap()
     }
@@ -154,7 +167,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             player.scheduleFile(file, at: nil, completionHandler: nil)
         }
 
-        if !engine.isRunning { try engine.start() }
+        try startEngineIfNeeded()
         player.play()
     }
 
@@ -258,7 +271,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func startScheduledPlayback() throws {
         guard scheduleHostOrigin == nil else { return }
-        if !engine.isRunning { try engine.start() }
+        try startEngineIfNeeded()
         // Establish one future anchor only after BOTH files have been opened and
         // scheduled. This is startup lead time, never silence between queue items.
         let origin = mach_absolute_time() + AVAudioTime.hostTime(forSeconds: 0.1)
@@ -267,6 +280,17 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             if let frame = scheduledStarts[slot] {
                 player(for: slot).play(at: try scheduledTime(outputFrame: frame, origin: origin))
             }
+        }
+    }
+
+    private func startEngineIfNeeded() throws {
+        guard !engine.isRunning else { return }
+        do { try engine.start() }
+        catch {
+            // Keep a path-free native error through the scheduler's failure wrapper.
+            let native = error as NSError
+            throw QueueSchedulerError.operation(trackID: nil,
+                reason: "engine_start:\(native.domain):\(native.code)")
         }
     }
 
@@ -357,7 +381,11 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         let rate = processingSampleRate ?? 48_000
         let parameters = ParametricDSP.parameters(user: eqBands, enabled: eqEnabled, settings: dspSettings,
             rate: rate, replayGain: Double(max(replayGainA, replayGainB)))
-        if lastDSPParameters == parameters.data { return }
+        if lastDSPParameters == parameters.data {
+            effectivePreamp = parameters.preamp
+            unavailableFilters = parameters.unavailable
+            return
+        }
         guard let unit = dspNode.auAudioUnit as? AeonDSPAudioUnit, unit.submitParameters(parameters.data) else {
             throw DSPError.invalid("DSP parameter queue is busy; the previous settings remain active.")
         }

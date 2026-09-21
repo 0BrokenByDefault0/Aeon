@@ -9,6 +9,9 @@ struct DiagnosticEntry: Codable, Equatable {
     let route: RouteDescriptor?
     let recoverable: Bool?
     let fileExtension: String?
+    let failureCode: String?
+    let failureDetail: String?
+    let buildIdentity: String?
 
     fileprivate init(
         timestamp: Date,
@@ -18,7 +21,10 @@ struct DiagnosticEntry: Codable, Equatable {
         outputFormat: OutputFormatDescriptor?,
         route: RouteDescriptor?,
         recoverable: Bool?,
-        fileExtension: String?
+        fileExtension: String?,
+        failureCode: String? = nil,
+        failureDetail: String? = nil,
+        buildIdentity: String? = nil
     ) {
         self.timestamp = timestamp
         self.eventCode = eventCode
@@ -28,6 +34,9 @@ struct DiagnosticEntry: Codable, Equatable {
         self.route = route
         self.recoverable = recoverable
         self.fileExtension = fileExtension
+        self.failureCode = failureCode
+        self.failureDetail = failureDetail
+        self.buildIdentity = buildIdentity
     }
 }
 
@@ -38,6 +47,15 @@ final class DiagnosticsLog {
     private let fileManager: FileManager
     private let lock = NSLock()
     private var ring: [DiagnosticEntry]
+    private static let currentBuildIdentity: String = {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "local"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "local"
+        let manifest = Bundle.main.url(forResource: "Aeon-validation", withExtension: "txt")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        let commit = manifest.components(separatedBy: .newlines)
+            .first { $0.hasPrefix("Commit: ") }.map { String($0.dropFirst(8)) } ?? "local"
+        return "\(version):\(build):\(commit)"
+    }()
 
     init(
         url: URL,
@@ -65,6 +83,8 @@ final class DiagnosticsLog {
         route: RouteDescriptor? = nil,
         recoverable: Bool? = nil,
         filePath: String? = nil,
+        failureCode: String? = nil,
+        failureDetail: String? = nil,
         timestamp: Date = Date()
     ) throws {
         let entry = DiagnosticEntry(
@@ -75,7 +95,10 @@ final class DiagnosticsLog {
             outputFormat: outputFormat.map(Self.sanitize),
             route: route.map(Self.sanitize),
             recoverable: recoverable,
-            fileExtension: Self.safeExtension(from: filePath)
+            fileExtension: Self.safeExtension(from: filePath),
+            failureCode: failureCode.map(Self.sanitize),
+            failureDetail: Self.safeFailureDetail(failureDetail),
+            buildIdentity: Self.sanitize(Self.currentBuildIdentity)
         )
 
         lock.lock()
@@ -144,6 +167,15 @@ final class DiagnosticsLog {
         return value
     }
 
+    private static func safeFailureDetail(_ value: String?) -> String? {
+        // Retain only our structured native startup code. Never export NSError
+        // descriptions/userInfo, which may contain filenames or personal metadata.
+        guard let value,
+              value.range(of: #"^engine_start:[A-Za-z0-9_.-]{1,100}:-?[0-9]{1,12}$"#,
+                          options: .regularExpression) != nil else { return nil }
+        return value
+    }
+
     private static func sanitize(_ value: SourceFormatDescriptor) -> SourceFormatDescriptor {
         SourceFormatDescriptor(
             codec: canonicalFormat(value.codec, allowed: ["aac", "aiff", "alac", "flac", "mp3", "ogg", "opus", "pcm", "wav"]),
@@ -176,7 +208,12 @@ final class DiagnosticsLog {
         OutputFormatDescriptor(
             sampleRate: value.sampleRate,
             channelCount: value.channelCount,
-            route: sanitize(value.route)
+            route: sanitize(value.route),
+            processingSampleRate: value.processingSampleRate,
+            effectivePreampDB: value.effectivePreampDB,
+            unavailableFilters: value.unavailableFilters,
+            dspLatency: value.dspLatency,
+            overloadCount: value.overloadCount
         )
     }
 
@@ -189,7 +226,10 @@ final class DiagnosticsLog {
             outputFormat: value.outputFormat.map(sanitize),
             route: value.route.map(sanitize),
             recoverable: value.recoverable,
-            fileExtension: safeExtension(from: value.fileExtension.map { "file.\($0)" })
+            fileExtension: safeExtension(from: value.fileExtension.map { "file.\($0)" }),
+            failureCode: value.failureCode.map(sanitize),
+            failureDetail: safeFailureDetail(value.failureDetail),
+            buildIdentity: value.buildIdentity.map(sanitize)
         )
     }
 }

@@ -171,3 +171,29 @@ Native signal tests are after IPA upload. The current DSP-specific iteration
 selects changed audio graph/model/coordinator/queue tests plus Sky tests, avoiding
 unrelated navigation screenshots; the prior navigation assertion remains unresolved
 and is not hidden or marked passed. All normal full selectors remain available.
+
+## Device diagnostic follow-up — 2026-09-21
+
+The owner export covers 19:11:50–19:14:07 UTC: 158 entries, twelve playback errors,
+ten source opens of one 48 kHz stereo MP3 on the speaker, and no successful PLAY
+event. It has no build identity or error reasons, so neither the installed SHA nor
+the exact failure can be recovered. EQ_CHANGED/DSP_CHANGED only establish accepted
+commands, not rendered audio. No Sky evidence is present.
+
+`AudioEngineGraph.configure` now assigns one explicit Float32 processing format
+to program mixer -> native EQ -> custom DSP -> main mixer. Previously implicit
+connections could leave the custom AU's initial 48 kHz output different from its
+input; that AU deliberately rejects mismatched formats at resource allocation.
+This is a source-level startup correction, not a confirmed diagnosis of every
+reported error. Native startup domain/status now survive the scheduler wrapper.
+`DiagnosticsLog` retains the numeric DSP fields it previously dropped, an optional
+failure code and whitelisted native startup status, and the bundled source/build
+identity. Route names/UIDs and arbitrary NSError text remain excluded.
+
+Added native tests for unmodified production bus allocation at 44.1/48/96 kHz,
+error classification, old diagnostic decoding and privacy-preserving round trips.
+The offline impulse fixture no longer rewires effect buses to conceal production
+negotiation defects. These new native tests await an authorized native pass; the
+existing pass-specific CI guard remains intact. A replacement Release IPA is
+required before treating this source as the current review build. Physical startup,
+rendered DSP response and the earlier unresolved requirements remain unverified.

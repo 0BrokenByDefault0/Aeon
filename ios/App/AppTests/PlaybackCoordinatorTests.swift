@@ -63,6 +63,17 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertFalse(harness.scheduler.isPlaying)
     }
 
+    func testNativeStartupFailureIsDistinguishedFromMediaOpenFailure() throws {
+        let harness = try CoordinatorHarness()
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.a).get()
+        harness.scheduler.playError = .operation(trackID: nil, reason: "engine_start:NSOSStatusErrorDomain:-10868")
+        let result = harness.command(harness.coordinator.play)
+        XCTAssertEqual(result.failure?.code, "engine_start_failed")
+        XCTAssertEqual(result.failure?.trackID, "A")
+        XCTAssertEqual(try harness.state().intent, .paused)
+    }
+
     func testLateLoadCompletionCannotReplaceNewerTrack() throws {
         let media = ControlledMediaInfo()
         let harness = try CoordinatorHarness(mediaInfo: media)

@@ -3,6 +3,21 @@ import XCTest
 @testable import App
 
 final class AudioEngineGraphTests: XCTestCase {
+    func testProductionDSPBusFormatsAllocateAtSupportedRates() throws {
+        for rate in [44_100.0, 48_000, 96_000] {
+            let graph = AudioEngineGraph(outputFormatProvider: {
+                AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2)
+            })
+            try graph.configure()
+            let unit = graph.dspNode.auAudioUnit
+            XCTAssertEqual(unit.inputBusses[0].format.sampleRate, rate)
+            XCTAssertEqual(unit.outputBusses[0].format.sampleRate, rate)
+            XCTAssertEqual(unit.inputBusses[0].format, unit.outputBusses[0].format)
+            try unit.allocateRenderResources()
+            unit.deallocateRenderResources()
+        }
+    }
+
     func testOfflineUnityPathKeepsFramesAndNullsBelowMinus100DBFS() throws {
         let input = (0..<16_384).map { index -> Float in
             let time = Double(index) / 48_000
@@ -50,11 +65,9 @@ final class AudioEngineGraphTests: XCTestCase {
         let graph = makeGraph()
         let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2))
         try graph.configure()
-        // Explicit same-rate processor fixture; no source decoding or hardware claim.
+        // Use production effect connections; fixture-side rewiring hid negotiation
+        // defects in configure(). This remains an offline, not hardware, test.
         graph.engine.connect(graph.playerA, to: graph.programMixer, fromBus: 0, toBus: 0, format: format)
-        graph.engine.connect(graph.programMixer, to: graph.equalizer, format: format)
-        graph.engine.connect(graph.equalizer, to: graph.dspNode, format: format)
-        graph.engine.connect(graph.dspNode, to: graph.engine.mainMixerNode, format: format)
         try graph.setEQ(enabled: enabled, bands: bands)
         try graph.engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 1_024)
         XCTAssertEqual(graph.outputDescriptor().processingSampleRate, 48_000)

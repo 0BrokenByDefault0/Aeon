@@ -905,7 +905,13 @@ final class PlaybackCoordinator {
         completion: PlaybackCommandCompletion?
     ) {
         let failure = (error as? PlaybackFailure) ?? Self.failure(for: error, trackID: trackID ?? self.trackID)
-        try? diagnostics.record(eventCode: "PLAYBACK_ERROR", trackID: failure.trackID, recoverable: failure.recoverable)
+        let detail: String?
+        if let schedulerError = error as? QueueSchedulerError,
+           case .operation(_, let reason) = schedulerError { detail = reason }
+        else { detail = nil }
+        try? diagnostics.record(eventCode: "PLAYBACK_ERROR", trackID: failure.trackID,
+            sourceFormat: sourceFormat, outputFormat: graph.outputDescriptor(), route: route,
+            recoverable: failure.recoverable, failureCode: failure.code, failureDetail: detail)
         callbackQueue.async { [weak self] in
             guard let self else { return }
             delegate?.playbackCoordinator(self, didFail: failure, version: version)
@@ -968,7 +974,10 @@ final class PlaybackCoordinator {
                 case .playable: code = "media_open_failed"
                 }
                 return PlaybackFailure(code: code, message: "Media is unavailable", recoverable: true, trackID: id)
-            case .operation(let id, _):
+            case .operation(let id, let reason):
+                if reason.hasPrefix("engine_start:") {
+                    return PlaybackFailure(code: "engine_start_failed", message: "Audio output could not start (\(reason)).", recoverable: true, trackID: id ?? trackID)
+                }
                 return PlaybackFailure(code: "media_open_failed", message: "Could not prepare media", recoverable: true, trackID: id ?? trackID)
             }
         }
