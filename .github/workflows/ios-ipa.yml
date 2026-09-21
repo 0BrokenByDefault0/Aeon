@@ -45,11 +45,12 @@ jobs:
       # replacement must never proceed after that stage times out. A new owner-
       # authorized pass can explicitly remove/update this checkpoint guard.
       - name: Honor prior pass timeout before consuming more build usage
+        id: prior_pass
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY_GUARD'
-          import io, json, os, urllib.request, zipfile
+          import datetime, io, json, os, urllib.request, zipfile
           base = 'https://api.github.com/repos/0BrokenByDefault0/Aeon'
           def get(path):
               request = urllib.request.Request(base + path, headers={
@@ -60,6 +61,18 @@ jobs:
           run = json.loads(get('/actions/runs/35630477895'))
           if run['status'] != 'completed':
               raise SystemExit('Prior native stage is not complete; no second stage or polling started.')
+          if run.get('conclusion') == 'cancelled':
+              jobs = json.loads(get('/actions/runs/35630477895/jobs'))['jobs']
+              job = next(j for j in jobs if any(s['name'] == 'Run focused native validation' for s in j['steps']))
+              stage = next(s for s in job['steps'] if s['name'] == 'Run focused native validation')
+              parse = lambda value: datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+              elapsed = (parse(job['completed_at']) - parse(stage['started_at'])).total_seconds()
+              if not 0 <= elapsed < 600:
+                  raise SystemExit('Prior cancellation did not establish an in-budget stop; owner decision required.')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+                  output.write('native_blocked=true\n')
+              print(f'Prior stage cancelled after {elapsed:.1f}s. Compile replacement only; no fresh native budget.')
+              raise SystemExit(0)
           artifacts = json.loads(get('/actions/runs/35630477895/artifacts'))['artifacts']
           item = next((a for a in artifacts if a['name'] == 'Aeon-fast-native-validation-35630477895'), None)
           if item is None:
@@ -162,13 +175,15 @@ jobs:
         env:
           AREAS: ${{ steps.plan.outputs.areas }}
           NATIVE_REQUIRED: ${{ steps.plan.outputs.native_required }}
+          NATIVE_BLOCKED: ${{ steps.prior_pass.outputs.native_blocked }}
           NATIVE_SKIPPED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_native }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/aeon-fast"
           app="$RUNNER_TEMP/AeonDerivedData/Build/Products/Release-iphoneos/App.app"
           test -d "$app"
-          if [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
+          if [[ "${NATIVE_BLOCKED:-false}" == "true" ]]; then native_result="NOT RUN; prior native stage cancelled, no fresh budget started"
+          elif [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
           elif [[ "$NATIVE_REQUIRED" == "true" ]]; then native_result="PENDING; runs on one iPhone simulator after IPA upload"
           else native_result="NOT REQUIRED for configuration-only change"; fi
           manifest="$RUNNER_TEMP/aeon-fast/Aeon-validation.txt"
@@ -213,7 +228,7 @@ jobs:
       - name: Run focused native validation
         timeout-minutes: 11
         id: native
-        if: ${{ always() && steps.upload_ipa.outcome == 'success' && steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
+        if: ${{ always() && steps.upload_ipa.outcome == 'success' && steps.prior_pass.outputs.native_blocked != 'true' && steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
         shell: bash
         env:
           ROUTE_KIND: ${{ steps.plan.outputs.route_kind }}
@@ -241,6 +256,7 @@ jobs:
         env:
           NATIVE_OUTCOME: ${{ steps.native.outcome }}
           NATIVE_REQUIRED: ${{ steps.plan.outputs.native_required }}
+          NATIVE_BLOCKED: ${{ steps.prior_pass.outputs.native_blocked }}
           NATIVE_SKIPPED: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_native }}
           IPA_URL: ${{ steps.upload_ipa.outputs.artifact-url }}
         run: |
@@ -250,7 +266,8 @@ jobs:
             failure) native_result="FAILED; uploaded IPA remains available for iteration" ;;
             cancelled) native_result="CANCELLED; uploaded IPA is not native-validated" ;;
             *)
-              if [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
+              if [[ "${NATIVE_BLOCKED:-false}" == "true" ]]; then native_result="NOT RUN; prior native stage cancelled, no fresh budget started"
+          elif [[ "$NATIVE_SKIPPED" == "true" ]]; then native_result="SKIPPED by manual request"
               elif [[ "$NATIVE_REQUIRED" != "true" ]]; then native_result="NOT REQUIRED for configuration-only change"
               else native_result="NOT RUN; uploaded IPA is not native-validated"; fi ;;
           esac
