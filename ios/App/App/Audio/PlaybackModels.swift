@@ -170,6 +170,14 @@ struct OutputFormatDescriptor: Codable, Equatable {
     let sampleRate: Double
     let channelCount: Int
     let route: RouteDescriptor
+    let processingSampleRate: Double?
+
+    init(sampleRate: Double, channelCount: Int, route: RouteDescriptor, processingSampleRate: Double? = nil) {
+        self.sampleRate = sampleRate
+        self.channelCount = channelCount
+        self.route = route
+        self.processingSampleRate = processingSampleRate
+    }
 }
 
 struct EQBand: Codable, Equatable {

@@ -403,8 +403,15 @@ final class AudioEngineGraph: QueueSchedulingGraph {
                 name: output?.portName ?? "Unknown output",
                 sampleRate: sampleRate,
                 channelCount: channelCount
-            )
+            ),
+            processingSampleRate: processingSampleRate
         )
+    }
+
+    private var processingSampleRate: Double? {
+        guard isConfigured else { return nil }
+        let rate = equalizer.inputFormat(forBus: 0).sampleRate
+        return rate.isFinite && rate > 0 ? rate : nil
     }
 
     func rebuild() throws {
@@ -527,7 +534,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
                 name: output?.portName ?? "Unknown output",
                 sampleRate: sampleRate,
                 channelCount: channelCount
-            )
+            ),
+            processingSampleRate: processingSampleRate
         )
     }
 

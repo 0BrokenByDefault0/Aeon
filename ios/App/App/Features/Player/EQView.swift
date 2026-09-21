@@ -26,6 +26,7 @@ struct EQView: View {
             header
             presets
             bandEditor
+            audioPath
         }
         .padding(.top, AeonTheme.Space.large)
         .overlay(alignment: .top) {
@@ -173,6 +174,61 @@ struct EQView: View {
             return Self.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: 0) }
         }
         return bands
+    }
+
+    private var audioPath: some View {
+        DisclosureGroup("Audio path") {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                let state = playback.snapshot
+                let source = state?.sourceFormat
+                let output = state?.outputFormat
+                pathRow("Source", [source?.codec, source?.container].compactMap { $0 }.joined(separator: " / "))
+                pathRow("Source rate", rateLabel(source?.sampleRate))
+                pathRow("Source precision", sourceBitDepth(source))
+                pathRow("Processing rate", rateLabel(output?.processingSampleRate))
+                pathRow("Output rate", rateLabel(output?.route.sampleRate))
+                pathRow("Route", output?.route.name ?? "Unknown")
+                pathRow("User EQ", state?.eqEnabled == true ? "On" : "Bypassed")
+                pathRow("Normalization", state?.replayGainMode.spokenLabel ?? "Off")
+                if state?.replayGainMode != .off, let preamp = state?.replayGainPreampDB {
+                    pathRow("ReplayGain preamp", "\(db(preamp)) dB · metadata-dependent")
+                }
+                let headroom = state?.eqEnabled == true ? AudioEngineGraph.headroomDB(for: state?.eqBands ?? []) : 0
+                pathRow("EQ preamp", "\(db(headroom)) dB")
+                pathRow("Output protection", "No validated limiter")
+                Text("EQ preamp is a headroom estimate, not peak protection. Output rate describes the active audio path; DAC resolution and Bluetooth codec are not exposed here.")
+                    .font(AeonTheme.FontToken.ui(.caption))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, AeonTheme.Space.small)
+        }
+        .font(AeonTheme.FontToken.ui(.callout))
+        .foregroundStyle(AeonTheme.ColorToken.bone)
+        .tint(AeonOrbit.ink)
+        .accessibilityIdentifier("aeon.player.audio-path")
+    }
+
+    private func pathRow(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title).foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+            Spacer(minLength: 16)
+            Text(value.isEmpty ? "Unknown" : value).multilineTextAlignment(.trailing)
+        }
+        .font(AeonTheme.FontToken.ui(.caption))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func rateLabel(_ rate: Double?) -> String {
+        guard let rate, rate.isFinite, rate > 0 else { return "Unknown" }
+        return String(format: "%.1f kHz", rate / 1_000)
+    }
+
+    private func sourceBitDepth(_ source: SourceFormatDescriptor?) -> String {
+        guard let codec = source?.codec,
+              codec.hasPrefix("pcm") || ["alac", "flac"].contains(codec),
+              let depth = source?.bitDepth, depth > 0 else { return "Unknown / not applicable" }
+        return "\(depth)-bit"
     }
 
     private var selectedPreset: String? {
