@@ -474,12 +474,14 @@ final class AeonScreenMatrixTests: XCTestCase {
 
     private func capture(_ app: XCUIApplication, name: String) {
         XCTAssertEqual(app.webViews.count, 0, "\(name) must remain a native SwiftUI surface")
+        var navigationButtons: [XCUIElement] = []
         if name.hasPrefix("definitive-") || name.hasPrefix("corrective-sky-") {
             if app.images["aeon.sky.canvas"].exists && !app.buttons["aeon.player.close"].exists {
                 for destination in ["sky", "library", "playlists", "settings"] {
                     let button = app.buttons["aeon.navigation.\(destination)"]
                     XCTAssertTrue(button.waitForExistence(timeout: 5))
                     XCTAssertTrue(button.isHittable, "Sky navigation must remain available: \(destination)")
+                    navigationButtons.append(button)
                 }
             }
         }
@@ -487,7 +489,18 @@ final class AeonScreenMatrixTests: XCTestCase {
         // capture avoids the simulator's rotated app-frame cropping in landscape.
         let frame = app.windows.firstMatch.frame
         let screenshot = frame.width > frame.height ? XCUIScreen.main.screenshot() : app.screenshot()
-        let attachment = XCTAttachment(screenshot: screenshot)
+        let renderedImage = screenshot.image
+        for button in navigationButtons {
+            let anchor = CGPoint(x: button.frame.midX - frame.minX, y: button.frame.midY - frame.minY)
+            XCTAssertGreaterThan(luminousCorePixels(in: renderedImage, at: anchor), 8,
+                                 "The captured dock must render \(button.identifier), not just expose a hit target")
+        }
+        guard let png = renderedImage.pngData() else {
+            XCTFail("Native capture could not be encoded: \(name)")
+            return
+        }
+        // Attach the exact pixels inspected above, without a second deferred screen snapshot.
+        let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
