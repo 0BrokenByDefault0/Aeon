@@ -135,12 +135,6 @@ struct NowPlayingView: View {
             let maximum: CGFloat = dynamicTypeSize.isAccessibilitySize ? 220 : 280
             let size = min(maximum, max(176, geometry.size.width - 72))
             ZStack {
-                // The record on the stage is marked by the same reticle that marks every
-                // other current choice. A circle drawn around square artwork read as a
-                // leftover from the pre-square geometry.
-                AeonReticleMark()
-                    .stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line)
-                    .frame(width: size + 40, height: size + 36)
                 AeonArtwork(image: presentation.artwork, size: size)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -184,7 +178,8 @@ struct NowPlayingView: View {
     }
 
     private func seek(presentation: PlayerPresentation, snapshot: PlaybackSnapshot) -> some View {
-        let value = seekPreview ?? snapshot.position
+        let rawValue = seekPreview ?? snapshot.position
+        let value = min(max(rawValue.isFinite ? rawValue : 0, 0), presentation.duration)
         return VStack(spacing: AeonTheme.Space.xSmall) {
             AeonHorizontalRangeControl(
                 value: value,
@@ -193,14 +188,14 @@ struct NowPlayingView: View {
                 valueLabel: time(value),
                 onChanged: { seekPreview = $0 },
                 onEnded: {
-                    seekPreview = nil
-                    playback.seek(to: $0)
+                    seekPreview = $0
+                    playback.seek(to: $0) { seekPreview = nil }
                 }
             )
             HStack {
                 Text(time(value))
                 Spacer()
-                Text("−" + time(max(0, presentation.duration - value)))
+                Text(presentation.duration > value ? "−" + time(presentation.duration - value) : "0:00")
             }
             .font(AeonTheme.FontToken.metric(.caption2))
             .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
@@ -214,16 +209,12 @@ struct NowPlayingView: View {
                 AeonFeedback.transport()
                 playback.toggle()
             } label: {
-                ZStack {
-                    AeonReticleField().fill(AeonOrbit.activeFill)
-                    AeonReticleMark().stroke(AeonOrbit.ink, style: AeonOrbit.line)
-                    AeonGlyph(kind: snapshot.intent == .playing ? .pause : .play)
-                        .frame(width: 30, height: 30)
-                }
+                AeonGlyph(kind: snapshot.intent == .playing ? .pause : .play)
+                    .scaleEffect(1.4)
                 .frame(width: 72, height: 72)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AeonTransportButtonStyle())
             .accessibilityLabel(snapshot.intent == .playing ? "Pause" : "Play")
             .accessibilityIdentifier("aeon.player.primary-toggle")
             transportButton(.next, label: "Next track", identifier: "aeon.player.next-full", action: playback.next)
@@ -240,16 +231,16 @@ struct NowPlayingView: View {
     @ViewBuilder
     private func queueControlContent(snapshot: PlaybackSnapshot) -> some View {
         secondaryTransportButton(
-            glyph: .shuffle, title: "Shuffle", active: false,
-            accessibilityLabel: "Shuffle upcoming tracks",
+            glyph: .shuffle, title: "Shuffle Up Next", active: false,
+            accessibilityLabel: "Shuffle Up Next",
             identifier: "aeon.player.shuffle", action: playback.shuffleUpcoming
         )
         secondaryTransportButton(
             glyph: .repeatTrack,
-            title: snapshot.repeatMode == .off ? "Repeat" : (snapshot.repeatMode == .one ? "Repeat one" : "Repeat all"),
+            title: snapshot.repeatMode == .one ? "1" : "",
             active: snapshot.repeatMode != .off,
-            accessibilityLabel: "Repeat mode",
-            accessibilityValue: snapshot.repeatMode.rawValue,
+            accessibilityLabel: "Repeat",
+            accessibilityValue: snapshot.repeatMode.rawValue.capitalized,
             identifier: "aeon.player.repeat", action: playback.cycleRepeatMode
         )
         secondaryTransportButton(
@@ -372,12 +363,14 @@ struct NowPlayingView: View {
         } label: {
             HStack(spacing: AeonTheme.Space.small) {
                 AeonGlyph(kind: glyph).frame(width: 22, height: 22)
-                Text(title).font(AeonTheme.FontToken.utility).lineLimit(1)
+                if title == "1" {
+                    Text("1").font(AeonTheme.FontToken.metric(.caption2, weight: .bold))
+                }
             }
             .foregroundStyle(active ? AeonOrbit.ink : AeonOrbit.secondary)
             .padding(.horizontal, AeonTheme.Space.small)
             .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget)
-            .background(active ? AeonOrbit.activeFill : .clear)
+
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -388,10 +381,11 @@ struct NowPlayingView: View {
     }
 
     private func detailLine(label: String, value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: AeonTheme.Space.medium) {
-            AeonLabel(text: label).frame(width: 64, alignment: .leading)
+        VStack(alignment: .leading, spacing: 5) {
+            AeonLabel(text: label)
             Text(value)
                 .font(AeonTheme.FontToken.metric(.caption))
+                .fixedSize(horizontal: false, vertical: true)
                 .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         }
     }
@@ -481,5 +475,15 @@ private struct AeonHorizontalRangeControl: View {
     private func value(at x: CGFloat, width: CGFloat) -> Double {
         let fraction = min(1, max(0, Double(x / max(1, width))))
         return range.lowerBound + fraction * (range.upperBound - range.lowerBound)
+    }
+}
+
+/// A transport press is momentary feedback, never a selected-target frame.
+struct AeonTransportButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(AeonOrbit.ink)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .opacity(configuration.isPressed ? 0.72 : 1)
     }
 }

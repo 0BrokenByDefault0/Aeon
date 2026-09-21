@@ -400,10 +400,11 @@ private struct AeonReadyShell: View {
                             )
                         }
                     }
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topTrailing)
                 }
             }
         }
-        .animation(.easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
+        .animation(reduceMotion || AeonTestOverrides.reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
         .onReceive(container.$libraryImportResult) { result in
             guard let result, result.importedTracks > 0 || !result.skippedDuplicateAlbums.isEmpty else { return }
             // An import is the one long-running thing the app does; confirm it in the hand.

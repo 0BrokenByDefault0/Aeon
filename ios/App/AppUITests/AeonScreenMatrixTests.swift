@@ -3,6 +3,7 @@ import XCTest
 
 final class AeonScreenMatrixTests: XCTestCase {
     func testDefinitiveSemanticReviewCaptures() {
+        var collectionCorePixels = 0
         let fixtures = [
             ("empty", 0, 0, 0), ("one", 1, 0, 0), ("one-focused", 1, 0, 0),
             ("three", 3, 1, 0), ("artist-focused", 3, 1, 0),
@@ -10,13 +11,29 @@ final class AeonScreenMatrixTests: XCTestCase {
             ("thirty-three", 33, 11, 2), ("planet-selected", 33, 11, 2)
         ]
         for (name, albums, artists, planets) in fixtures {
-            let app = launch(["-AeonSkyFixture", name])
+            let app = launch(["-AeonSkyFixture", name, "-AeonAccessibilityTesting"])
             let canvas = app.images["aeon.sky.canvas"]
             XCTAssertTrue(canvas.waitForExistence(timeout: 12))
             XCTAssertEqual(canvas.value as? String, "\(albums) albums, \(artists) artist constellations, \(planets) worlds")
-            if name == "one-focused" { XCTAssertTrue(app.staticTexts["Channel Orange"].exists) }
+            if name == "one-focused" {
+                let readout = app.descendants(matching: .any)["aeon.sky.star-selection"]
+                XCTAssertTrue(readout.exists)
+                XCTAssertTrue(readout.label.contains("Channel Orange"))
+            }
+            if name == "one" { collectionCorePixels = luminousCorePixels(in: canvas.screenshot().image) }
+            if name == "one-focused" {
+                let focusedPixels = luminousCorePixels(in: canvas.screenshot().image)
+                XCTAssertGreaterThan(focusedPixels, max(20, collectionCorePixels * 3),
+                                     "Focus must enlarge the rendered star, not merely change camera state")
+            }
             if name == "artist-focused" {
-                for title in ["Channel Orange", "Blonde", "Endless"] { XCTAssertTrue(app.staticTexts[title].exists, title) }
+                // Visual text is excluded from VoiceOver to avoid duplicating the
+                // semantic spatial elements. Assert those, then inspect native pixels.
+                for (index, title) in ["Channel Orange", "Blonde", "Endless"].enumerated() {
+                    let star = app.buttons["aeon.sky.accessibility.star.fixture-album-\(index)"]
+                    XCTAssertTrue(star.exists)
+                    XCTAssertTrue(star.label.contains(title), title)
+                }
             }
             capture(app, name: "definitive-\(name)")
             app.terminate()
@@ -39,8 +56,20 @@ final class AeonScreenMatrixTests: XCTestCase {
             XCTAssertTrue(band.isHittable)
         }
         capture(app, name: "definitive-eq-ten-bands")
+        let firstBand = app.descendants(matching: .any)["aeon.player.eq.band.31"]
+        let before = firstBand.value as? String
+        firstBand.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: firstBand.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)))
+        XCTAssertNotEqual(firstBand.value as? String, before)
+        app.buttons["aeon.player.eq.preset.flat"].tap()
+        for frequency in frequencies {
+            XCTAssertEqual(app.descendants(matching: .any)["aeon.player.eq.band.\(frequency)"].value as? String, "0 decibels")
+        }
         app.buttons["aeon.player.close"].tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: app.buttons["aeon.player.close"])], timeout: 5), .completed)
         app.buttons["aeon.player.open"].tap()
+        XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 5))
         let queue = app.buttons["aeon.player.queue.open"]
         scroll(in: app, until: queue)
         queue.tap()
@@ -51,6 +80,79 @@ final class AeonScreenMatrixTests: XCTestCase {
             XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 3), title)
         }
         capture(app, name: "definitive-track-actions")
+        app.buttons["ADD TO PLAYLIST"].tap()
+        let playlistName = app.textFields["Playlist name"]
+        XCTAssertTrue(playlistName.waitForExistence(timeout: 5))
+        playlistName.tap(); playlistName.typeText("Context Route")
+        app.buttons["CREATE AND ADD"].tap()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        app.buttons["SHOW ALBUM"].tap()
+        XCTAssertTrue(app.buttons["aeon.album.close"].waitForExistence(timeout: 5))
+    }
+
+    func testCorrectiveDeviceReviewCaptures() {
+        for fixture in ["populated", "thirty-three", "planet-medium", "planet-selected", "one-focused", "artist-focused"] {
+            let app = launch(["-AeonSkyFixture", fixture])
+            XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 12))
+            capture(app, name: "corrective-sky-\(fixture)")
+            app.terminate()
+        }
+        let app = launch(["-AeonPlaybackFixture", "loaded"])
+        XCTAssertTrue(app.buttons["aeon.player.open"].waitForExistence(timeout: 12))
+        app.buttons["aeon.player.open"].tap()
+        let repeatControl = app.buttons["aeon.player.repeat"]
+        scroll(in: app, until: repeatControl)
+        for mode in ["Off", "All", "One"] {
+            XCTAssertEqual(repeatControl.value as? String, mode)
+            capture(app, name: "corrective-repeat-\(mode.lowercased())")
+            repeatControl.tap()
+        }
+        XCTAssertEqual(repeatControl.value as? String, "Off")
+        app.buttons["aeon.player.queue.open"].tap()
+        let first = app.images["aeon.player.queue.drag.playback-fixture-track-2"]
+        let last = app.images["aeon.player.queue.drag.playback-fixture-track-3"]
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        capture(app, name: "corrective-up-next-before")
+        last.press(forDuration: 0.5, thenDragTo: first)
+        XCTAssertLessThan(last.frame.midY, first.frame.midY, "The drop must commit the previewed order")
+        capture(app, name: "corrective-up-next-reordered")
+        XCTAssertFalse(app.staticTexts["Upcoming queue reordered."].exists)
+        app.buttons["aeon.player.queue.close"].tap()
+        let output = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Clay's AirPods Pro #2")).firstMatch
+        scroll(in: app, until: output)
+        XCTAssertTrue(output.isHittable)
+        capture(app, name: "corrective-long-output-route")
+        app.buttons["aeon.player.close"].tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: app.buttons["aeon.player.close"])], timeout: 5), .completed)
+        app.buttons["aeon.player.open"].tap()
+        let artwork = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Artwork for The Silver Chamber")).firstMatch
+        XCTAssertTrue(artwork.waitForExistence(timeout: 5))
+        XCTAssertTrue(artwork.isHittable, "Reopening the player starts at its artwork")
+        capture(app, name: "corrective-player-reopened")
+    }
+
+    func testCompactAlbumDetailCaptures() {
+        for (fixture, options, name) in [
+            ("populated", [String](), "ordinary"),
+            ("long-title", [String](), "long-title"),
+            ("long-title", ["-AeonLargeTextTesting"], "long-title-large-text"),
+            ("long-title", ["-AeonAX5Testing"], "long-title-accessibility")
+        ] {
+            let app = launch(["-AeonLibraryFixture", fixture] + options)
+            app.buttons["aeon.navigation.library"].tap()
+            let album = app.buttons["aeon.library.album.library-fixture-album-12"]
+            scroll(in: app, until: album); album.tap()
+            XCTAssertTrue(app.buttons["aeon.album.close"].waitForExistence(timeout: 5))
+            capture(app, name: "corrective-album-\(name)")
+            XCTAssertFalse(app.buttons["aeon.album.edit"].exists, "Edit belongs in overflow")
+            let play = app.buttons["aeon.album.play"]
+            if options.isEmpty { XCTAssertTrue(play.isHittable) }
+            else { scroll(in: app, until: play); XCTAssertTrue(play.isHittable) }
+            XCTAssertTrue(app.buttons["aeon.album.find-in-sky"].exists)
+            app.terminate()
+        }
     }
 
     func testAppearanceAccessibilityAndSystemThemeMatrixRemainNativeAndDark() {
@@ -210,6 +312,8 @@ final class AeonScreenMatrixTests: XCTestCase {
             XCTAssertTrue(app.images["aeon.sky.canvas"].exists)
             capture(app, name: "screen-ipad-split")
         }
+        app.buttons["aeon.album.actions"].tap()
+        XCTAssertTrue(app.buttons["aeon.album.edit"].waitForExistence(timeout: 3))
         app.buttons["aeon.album.edit"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.album.editor"].waitForExistence(timeout: 5))
         capture(app, name: "screen-album-editor")
@@ -266,6 +370,24 @@ final class AeonScreenMatrixTests: XCTestCase {
     private func deviceName(for app: XCUIApplication) -> String {
         let frame = app.windows.firstMatch.frame
         return min(frame.width, frame.height) >= 700 ? "ipad" : "iphone"
+    }
+
+    private func luminousCorePixels(in image: UIImage) -> Int {
+        guard let source = image.cgImage else { return 0 }
+        let size = 64
+        let scale = CGFloat(source.width) / image.size.width
+        let crop = CGRect(x: CGFloat(source.width) / 2 - 32 * scale,
+                          y: CGFloat(source.height) / 2 - 32 * scale,
+                          width: 64 * scale, height: 64 * scale)
+        guard let core = source.cropping(to: crop) else { return 0 }
+        var pixels = [UInt8](repeating: 0, count: size * size * 4)
+        guard let context = CGContext(data: &pixels, width: size, height: size, bitsPerComponent: 8,
+                                      bytesPerRow: size * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
+        context.draw(core, in: CGRect(x: 0, y: 0, width: size, height: size))
+        return stride(from: 0, to: pixels.count, by: 4).filter {
+            Int(pixels[$0]) + Int(pixels[$0 + 1]) + Int(pixels[$0 + 2]) > 300
+        }.count
     }
 
     private func launch(_ arguments: [String]) -> XCUIApplication {

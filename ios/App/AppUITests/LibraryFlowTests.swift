@@ -34,6 +34,8 @@ final class LibraryFlowTests: XCTestCase {
         album.tap()
         XCTAssertTrue(app.buttons["aeon.album.play"].waitForExistence(timeout: 6))
         XCTAssertTrue(app.buttons["aeon.album.find-in-sky"].exists)
+        app.buttons["aeon.album.actions"].tap()
+        XCTAssertTrue(app.buttons["aeon.album.edit"].waitForExistence(timeout: 3))
         app.buttons["aeon.album.edit"].tap()
         let title = app.textFields["aeon.album.editor.title"]
         guard title.waitForExistence(timeout: 5) else {

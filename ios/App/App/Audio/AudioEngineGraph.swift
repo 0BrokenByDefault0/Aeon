@@ -240,8 +240,10 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         scheduledStarts[slot] = outputFrame
         if let origin = scheduleHostOrigin {
             let time = try scheduledTime(outputFrame: outputFrame, origin: origin)
-            guard time.hostTime > mach_absolute_time() else { throw AudioEngineGraphError.missedScheduleBoundary }
-            node.play(at: time)
+            // A queue edit at EOF can finish preparing just after the boundary.
+            // Start the replacement immediately without disturbing the current node.
+            if time.hostTime > mach_absolute_time() { node.play(at: time) }
+            else { node.play() }
         }
     }
 

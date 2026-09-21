@@ -16,6 +16,21 @@ final class QueueControllerTests: XCTestCase {
         XCTAssertEqual(coordinator.queueCalls[0].revision, 8)
     }
 
+    func testLastToFirstThenQueueActionsKeepOrderAndNoOpDoesNotCommit() {
+        let coordinator = QueueRecordingCoordinator(snapshot: makeSnapshot())
+        let controller = PlaybackController(coordinator: coordinator)
+        controller.accept(snapshot: coordinator.snapshot)
+        controller.moveUpcoming(fromOffsets: IndexSet(integer: 1), toOffset: 0)
+        XCTAssertEqual(coordinator.queueCalls.last?.items.map(\.trackID), ["past", "current", "last", "next"])
+        XCTAssertNil(controller.queueMessage)
+        controller.moveUpcoming(fromOffsets: IndexSet(integer: 0), toOffset: 0)
+        XCTAssertEqual(coordinator.queueCalls.count, 1)
+        controller.addToQueue(track("appended"))
+        controller.playNext(track("immediate"))
+        XCTAssertEqual(coordinator.queueCalls.last?.items.map(\.trackID), ["past", "current", "immediate", "last", "next", "appended"])
+        XCTAssertEqual(coordinator.queueCalls.last?.index, 1)
+    }
+
     func testClearUpcomingPinsHistoryAndCurrent() {
         let coordinator = QueueRecordingCoordinator(snapshot: makeSnapshot())
         let controller = PlaybackController(coordinator: coordinator)

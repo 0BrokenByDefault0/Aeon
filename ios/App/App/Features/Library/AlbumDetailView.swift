@@ -6,14 +6,16 @@ struct AlbumDetailView: View {
     let embedded: Bool
     let close: () -> Void
     let findInSky: (String) -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var editing = false
     @State private var confirmingDelete = false
 
     var body: some View {
+        GeometryReader { geometry in
         ScrollView {
-            VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
+            VStack(alignment: .leading, spacing: 22) {
                 header
-                hero
+                hero(width: geometry.size.width, height: geometry.size.height)
                 primaryActions
                 metadata
                 tracks
@@ -24,6 +26,7 @@ struct AlbumDetailView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
+        }
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
         .sheet(isPresented: $editing) {
             AlbumEditorView(controller: controller, album: controller.selectedAlbum ?? album)
@@ -55,7 +58,7 @@ struct AlbumDetailView: View {
             AeonBreadcrumb(text: "Album")
             Spacer(minLength: 0)
             Menu {
-                Button("EDIT") { editing = true }
+                Button("EDIT") { editing = true }.accessibilityIdentifier("aeon.album.edit")
                 Button("DELETE ALBUM", role: .destructive) { confirmingDelete = true }
             } label: {
                 AeonGlyph(kind: .more)
@@ -69,16 +72,17 @@ struct AlbumDetailView: View {
         }
     }
 
-    private var hero: some View {
-        VStack(spacing: AeonTheme.Space.large) {
+    private func hero(width: CGFloat, height: CGFloat) -> some View {
+        VStack(spacing: 19) {
             let image = album.artworkKey
                 .flatMap { controller.thumbnails[$0] }
                 .map { Image(uiImage: $0) }
-            AeonArtwork(image: image, size: embedded ? 230 : 300)
+            AeonArtwork(image: image, size: min(260, max(205, min(width * 0.60, height * 0.34))))
                 .frame(maxWidth: .infinity)
             VStack(spacing: 6) {
-                AeonDisplayText(album.title, size: 40, maximumLines: 3)
+                AeonDisplayText(album.title, size: album.title.count > 32 ? 32 : 35, maximumLines: dynamicTypeSize.isAccessibilitySize ? 8 : 3)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .accessibilityIdentifier("aeon.album.title")
                 Text(album.artist)
@@ -93,28 +97,32 @@ struct AlbumDetailView: View {
     }
 
     private var primaryActions: some View {
-        VStack(spacing: AeonTheme.Space.medium) {
-            HStack(spacing: AeonTheme.Space.small) {
-                Button("PLAY") { controller.playAlbum(id: album.id) }
-                    .buttonStyle(AeonButtonStyle(tier: .filled, leadingMark: .play, trailingMark: .disclosure))
+        VStack(spacing: 4) {
+            let layout = dynamicTypeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 4)) : AnyLayout(HStackLayout(spacing: 8))
+            layout {
+                Button { AeonFeedback.transport(); controller.playAlbum(id: album.id) } label: {
+                    HStack(spacing: 8) { AeonGlyph(kind: .play); Text("PLAY") }
+                        .padding(.horizontal, 12).frame(minHeight: 44)
+                }
+                    .buttonStyle(AeonTransportButtonStyle())
                     .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
                     .accessibilityIdentifier("aeon.album.play")
-                Button("FIND IN SKY") { findInSky(album.id) }
-                    .buttonStyle(AeonButtonStyle(tier: .hairline))
+                Button { findInSky(album.id) } label: {
+                    HStack(spacing: 8) { AeonGlyph(kind: .sky); Text("FIND IN SKY") }
+                        .padding(.horizontal, 12).frame(minHeight: 44)
+                }
+                    .buttonStyle(AeonTransportButtonStyle())
                     .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
                     .accessibilityIdentifier("aeon.album.find-in-sky")
             }
-            HStack(spacing: AeonTheme.Space.large) {
-                Button("EDIT") { editing = true }
-                    .buttonStyle(AeonButtonStyle(tier: .bare))
-                    .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
-                    .contentShape(Rectangle())
-                    .accessibilityIdentifier("aeon.album.edit")
-                playlistMenu
-            }
+            playlistMenu
+                .font(AeonTheme.FontToken.metric(.caption))
+
         }
+        .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
+        .frame(maxWidth: .infinity)
     }
 
     private var playlistMenu: some View {
@@ -152,7 +160,7 @@ struct AlbumDetailView: View {
             }
             metadataValue("TRACKS", "\(controller.selectedTracks.count)")
         }
-        .padding(.vertical, AeonTheme.Space.large)
+        .padding(.vertical, 14)
         .overlay(alignment: .top) {
             Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
         }

@@ -25,9 +25,11 @@ final class AeonAccessibilityTests: XCTestCase {
         scroll(in: app, until: album)
         album.tap()
         XCTAssertTrue(app.buttons["aeon.album.close"].waitForExistence(timeout: 6))
-        for id in ["aeon.album.close", "aeon.album.actions", "aeon.album.play", "aeon.album.find-in-sky", "aeon.album.edit"] {
+        for id in ["aeon.album.close", "aeon.album.actions", "aeon.album.play", "aeon.album.find-in-sky"] {
             assertMinimumTarget(app.descendants(matching: .any)[id])
         }
+        app.buttons["aeon.album.actions"].tap()
+        XCTAssertTrue(app.buttons["aeon.album.edit"].waitForExistence(timeout: 3))
         app.buttons["aeon.album.edit"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.album.editor"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.textFields["aeon.album.editor.title"].label.isEmpty)

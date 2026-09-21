@@ -44,6 +44,7 @@ extension QueueSchedulingGraph {
 
 final class QueueScheduler {
     private struct Prepared {
+        let id: UUID
         let index: Int
         let slot: AudioSlot
         let url: URL
@@ -184,6 +185,18 @@ final class QueueScheduler {
             let selectedIndex = items.isEmpty ? 0 : min(replacementIndex, items.count - 1)
             let preserveFrame = !items.isEmpty && !terminal && !reachedEnd &&
                 self.index.map { self.items[$0] == items[selectedIndex] } == true
+            // Upcoming-only edits keep the live node, timeline and playback intent intact.
+            if preserveFrame, let current, current.index == selectedIndex,
+               Array(self.items.prefix(selectedIndex + 1)) == Array(items.prefix(selectedIndex + 1)) {
+                let desiredNext = repeatMode == .one ? nil : items.dropFirst(selectedIndex + 1).first
+                let keepFollowing = following.map { self.items[$0.index] == desiredNext } ?? false
+                if !keepFollowing { discardFollowing() }
+                self.items = items
+                self.index = selectedIndex
+                self.revision = revision
+                if !keepFollowing { try prepareFollowing() }
+                return
+            }
             let retainedPosition = preserveFrame ? position : 0
             let exactFrame = preserveFrame ? retainedSourceFrame : nil
             try setQueue(items, index: selectedIndex, revision: revision)
@@ -218,14 +231,11 @@ final class QueueScheduler {
     func setRepeatMode(_ mode: RepeatMode) throws {
         try confined {
             guard repeatMode != mode else { return }
-            let resume = playing
-            capturePosition()
             repeatMode = mode
-            guard index != nil, current != nil || retainedSourceFrame != nil || position > 0 else { return }
-            try performing {
-                try prepare(position: position, exactFrame: retainedSourceFrame)
-                if resume { try start() }
-            }
+            // Policy applies to the next boundary. Never stop, seek or reschedule
+            // the current node merely because the user changed Repeat.
+            discardFollowing()
+            if current != nil { try prepareFollowing() }
         }
     }
 
@@ -287,6 +297,7 @@ final class QueueScheduler {
         outputRate = try graph.schedulingSampleRate()
         guard outputRate.isFinite, outputRate > 0 else { throw QueueSchedulerError.invalidAudioFormat }
         current = try prepareItem(index: index, slot: slot, position: position, outputFrame: 0, exactFrame: exactFrame)
+        if let current { self.position = min(position, Double(current.file.frameCount) / current.file.sampleRate) }
         try prepareFollowing()
     }
 
@@ -303,19 +314,21 @@ final class QueueScheduler {
             guard file.frameCount > 0, file.sampleRate.isFinite, file.sampleRate > 0 else {
                 throw QueueSchedulerError.invalidAudioFormat
             }
+            // The display can equal duration; a playable decoder frame must be < frameCount.
             let sourceFrame: Int64
             if let exactFrame {
-                guard exactFrame >= 0, exactFrame < file.frameCount else { throw QueueSchedulerError.invalidPosition }
-                sourceFrame = exactFrame
+                guard exactFrame >= 0, exactFrame <= file.frameCount else { throw QueueSchedulerError.invalidPosition }
+                sourceFrame = min(exactFrame, file.frameCount - 1)
             } else {
                 let requested = (position * file.sampleRate).rounded(.down)
-                guard requested.isFinite, requested >= 0, requested < Double(file.frameCount),
+                guard requested.isFinite, requested >= 0, requested <= Double(file.frameCount),
                       requested < Double(Int64.max) else { throw QueueSchedulerError.invalidPosition }
-                sourceFrame = Int64(requested)
+                sourceFrame = min(Int64(requested), file.frameCount - 1)
             }
             let end = try Self.outputBoundary(start: outputFrame, sourceFrames: file.frameCount - sourceFrame,
                                              sourceRate: file.sampleRate, outputRate: outputRate)
             let token = ScheduleToken(generation: generation)
+            let scheduleID = UUID()
             let replayGain = media.descriptor.replayGain ?? .empty
             graph.setReplayGain(
                 replayGainScalar(mode: replayGainMode, values: replayGain, preampDB: replayGainPreampDB),
@@ -324,16 +337,25 @@ final class QueueScheduler {
             try graph.schedule(slot: slot, sourceFrame: sourceFrame, outputFrame: outputFrame) { [weak self] in
                 guard let self else { return }
                 // Never resolve files, mutate nodes, or publish events on an audio callback.
-                self.serialization.async { [weak self] in self?.complete(index: index, slot: slot, token: token) }
+                self.serialization.async { [weak self] in
+                    guard let self, self.current?.id == scheduleID || self.following?.id == scheduleID else { return }
+                    self.complete(index: index, slot: slot, token: token)
+                }
             }
             return Prepared(
+                id: scheduleID,
                 index: index,
                 slot: slot,
                 url: url,
                 file: file,
                 sourceFrame: sourceFrame,
                 endOutputFrame: end,
-                sourceFormat: media.descriptor
+                sourceFormat: SourceFormatDescriptor(
+                    codec: media.descriptor.codec, container: media.descriptor.container,
+                    sampleRate: file.sampleRate, channelCount: media.descriptor.channelCount,
+                    bitDepth: media.descriptor.bitDepth,
+                    duration: Double(file.frameCount) / file.sampleRate,
+                    replayGain: media.descriptor.replayGain)
             )
         } catch {
             graph.closeScheduledFile(slot: slot)
@@ -341,6 +363,14 @@ final class QueueScheduler {
             if let error = error as? QueueSchedulerError { throw error }
             throw QueueSchedulerError.operation(trackID: item.trackID, reason: String(describing: error))
         }
+    }
+
+    private func discardFollowing() {
+        guard let obsolete = following else { return }
+        following = nil // Reject stop-triggered callbacks before closing the alternate node.
+        earlyCompletions.remove(obsolete.index)
+        graph.closeScheduledFile(slot: obsolete.slot)
+        resolver.release(obsolete.url)
     }
 
     private func prepareFollowing() throws {

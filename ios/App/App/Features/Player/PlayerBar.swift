@@ -29,7 +29,7 @@ struct PlayerPresentation {
             album: album,
             artist: track.artist.isEmpty ? album.artist : track.artist,
             artwork: image,
-            duration: max(0, track.duration ?? snapshot.sourceFormat?.duration ?? 0)
+            duration: max(0, snapshot.sourceFormat?.duration ?? track.duration ?? 0)
         )
     }
 }

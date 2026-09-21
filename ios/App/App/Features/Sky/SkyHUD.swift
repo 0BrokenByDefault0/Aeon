@@ -32,21 +32,23 @@ struct SkyHUD: View {
                 .accessibilityIdentifier("aeon.sky.altitude")
             Spacer(minLength: 0)
             if !controller.catalogue.stars.isEmpty {
-                if controller.camera.selectedID != nil || controller.camera.tier != .collection {
+                Group {
                     Button {
                         controller.showGalaxy(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
-                    } label: { hudAction(glyph: .sky) }
+                    } label: { hudAction(glyph: .overview) }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Return to collection")
                     .accessibilityIdentifier("aeon.sky.galaxy")
                 }
-                if controller.playingStarID != nil {
+                Group {
                     Button {
                         controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
-                    } label: { hudAction(glyph: .star) }
+                    } label: { hudAction(glyph: .locate) }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Locate playing album")
                     .accessibilityIdentifier("aeon.sky.locate-playing")
+                    .disabled(controller.playingStarID == nil)
+                    .opacity(controller.playingStarID == nil ? 0.35 : 1)
                 }
                 Menu {
                     Button("CAPTURE CURRENT VIEW") { controller.makeCapture(wide: false, viewport: viewportSize) }

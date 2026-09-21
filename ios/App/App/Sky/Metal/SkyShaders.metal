@@ -58,8 +58,8 @@ vertex SkyVertexOut skyInstanceVertex(
     float2 corner = corners[vertexID];
     float ringScale = (instance.flags & 0x100) != 0 ? 1.65 : 1.08;
     float audioScale = 1.0;
-    if ((instance.flags & 1) != 0) audioScale += uniforms.spectrum.x * 0.18;
-    if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.62;
+    if ((instance.flags & 1) != 0) audioScale += uniforms.spectrum.x * 0.04;
+    if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.06;
     if ((instance.flags & 0x1000) != 0) audioScale += (sin(uniforms.time * 1.15) + 1.0) * 0.035;
     bool backdrop = (instance.flags & 0x800) != 0;
     bool planet = (instance.flags & 2) != 0;
@@ -69,21 +69,25 @@ vertex SkyVertexOut skyInstanceVertex(
     float focus = smoothstep(1.5, 5.0, cameraScale);
     bool selected = (instance.flags & 0x4000) != 0;
     bool glow = (instance.flags & 1) != 0;
-    float radius = mix(instance.size * 0.72, instance.size, near);
+    // Catalogue cores have a point-space semantic minimum, independent of world zoom.
+    // 0x8000 is an album core/halo; backdrop particles never inherit this treatment.
+    bool album = (instance.flags & 0x8000) != 0;
+    float radius = album ? mix(3.6, 5.4, near) : instance.size;
+    if ((instance.flags & 0x200) != 0) radius *= 1.12;
     if (selected) radius = mix(3.3, 9.0, focus);
-    if (glow) radius = selected ? mix(12.0, 56.0, focus) : radius * 3.8;
+    if (glow) radius = selected ? mix(12.0, 56.0, focus) : mix(9.0, 17.0, near);
     if (backdrop) radius = instance.size;
-    if (planet) radius = clamp(instance.size * cameraScale, 8.0, min(uniforms.viewport.x, uniforms.viewport.y) / pixelsPerPoint * 0.34) * ringScale;
+    if (planet) radius = clamp(instance.size * cameraScale, 10.0, min(uniforms.viewport.x, uniforms.viewport.y) / pixelsPerPoint * 0.34) * ringScale;
     float2 pixelOffset = corner * radius * pixelsPerPoint * audioScale;
     float2 ndcOffset = float2(pixelOffset.x / (uniforms.viewport.x * 0.5),
                               -pixelOffset.y / (uniforms.viewport.y * 0.5));
     SkyVertexOut out;
-    float2 backdropOffset = float2(fract(uniforms.center.x * instance.turbulence * 0.00009), fract(uniforms.center.y * instance.turbulence * 0.00009));
+    float2 backdropOffset = float2(fract(-uniforms.center.x * instance.turbulence * 0.00009), fract(uniforms.center.y * instance.turbulence * 0.00009));
     float2 backdropPosition = fract(instance.position + backdropOffset) * 2.0 - 1.0;
     out.position = float4((backdrop ? backdropPosition : worldToNDC(instance.position, uniforms)) + ndcOffset, 0, 1);
     out.uv = corner * 0.5 + 0.5;
     out.color0 = instance.color0;
-    if (!backdrop && !planet) out.color0.a *= mix(0.66, 1.0, near);
+
     out.color1 = instance.color1;
     out.color2 = instance.color2;
     out.flags = instance.flags;
@@ -122,6 +126,14 @@ fragment float4 skyStarFragment(SkyVertexOut in [[stage_in]]) {
         float haze = pow(max(0.0, 1.0 - radius), 3.2) * in.color0.a;
         return float4(in.color0.rgb, haze);
     }
+    if ((in.flags & 0x8000) != 0) {
+        float core = 1.0 - smoothstep(0.25, 0.66, radius);
+        float corona = exp(-radius * radius * 5.5) * 0.18;
+        float2 axis = abs(in.uv * 2.0 - 1.0);
+        float rays = exp(-min(axis.x, axis.y) * 48.0) * pow(max(0.0, 1.0 - radius), 2.0) * 0.18;
+        return float4(mix(in.color0.rgb, float3(1.0), core * 0.30),
+                      in.color0.a * min(1.0, core + corona + rays));
+    }
     float core = smoothstep(1.0, 0.05, radius);
     float spike = max(smoothstep(0.08, 0.0, abs(in.uv.x - 0.5)),
                       smoothstep(0.08, 0.0, abs(in.uv.y - 0.5))) * smoothstep(1.0, 0.0, radius);
@@ -158,25 +170,44 @@ fragment float4 skyPlanetFragment(SkyVertexOut in [[stage_in]]) {
     float3 light = normalize(float3(-0.65, 0.45, 0.55));
     float illumination = max(0.0, dot(n, light));
     float3 sample = n * 3.5 + in.turbulence;
-    float noise = skyNoise(sample) * 0.58 + skyNoise(sample * 2.1) * 0.28;
-    // Fine detail fades with the pixel footprint; tiny worlds use only major structure.
+    float large = skyNoise(sample);
+    float medium = skyNoise(sample * 2.3 + large);
     float detail = 1.0 - smoothstep(0.015, 0.08, fwidth(p.x));
-    noise += skyNoise(sample * 6.8) * 0.14 * detail;
-    bool gas = fmod(in.turbulence, 3.0) < 1.0;
-    float pattern = gas ? 0.5 + 0.5 * sin(p.y * 28.0 + noise * 5.0) : smoothstep(0.27, 0.75, noise);
+    float fine = detail > 0.01 ? skyNoise(sample * 12.0 + medium * 2.0) : 0.5;
+    float noise = large * 0.57 + medium * 0.30 + fine * 0.13;
+    float family = fmod(in.turbulence, 4.0);
+    float pattern;
+    if (family < 1.0) {
+        float latitude = p.y + (large - 0.5) * 0.32 + (medium - 0.5) * 0.10;
+        float bands = sin(latitude * 25.0 + n.x * 3.5 + large * 4.0);
+        float ribbons = sin(latitude * 49.0 + medium * 3.0) * detail;
+        float storm = exp(-length((p - float2(0.25, -0.2)) * float2(3.0, 8.0))) * medium;
+        pattern = saturate(0.5 + bands * 0.30 + ribbons * 0.12 + storm * 0.3);
+    } else if (family < 2.0) {
+        pattern = smoothstep(0.33, 0.67, noise);
+    } else if (family < 3.0) {
+        pattern = smoothstep(0.42, 0.57, large + medium * 0.18);
+    } else {
+        pattern = saturate(0.4 + abs(n.y) * 0.4 + (medium - 0.5) * 0.5);
+    }
     float3 base = mix(in.color0.rgb, in.color1.rgb, pattern);
-    base = mix(base, in.color2.rgb, smoothstep(0.62, 0.82, noise) * 0.7);
-    float3 surface = base * (0.035 + 0.94 * illumination) * (0.82 + noise * 0.32);
-    float rim = pow(1.0 - max(0.0, n.z), 3.5) * (0.16 + illumination * 0.7);
-    surface += float3(0.28, 0.48, 0.72) * rim;
-    float atmosphere = exp(-abs(r - 1.0) * 52.0) * 0.27;
+    base = mix(base, in.color2.rgb, smoothstep(0.63, 0.81, noise) * 0.55);
+    float lambert = dot(n, light);
+    float terminator = smoothstep(-0.12, 0.18, lambert);
+    float relief = mix(1.0, 0.87 + fine * 0.23, detail);
+    float3 surface = base * (0.065 + 0.88 * illumination * terminator) * relief;
+    float atmosphereStrength = family < 2.0 ? 0.12 : 0.23;
+    float3 atmosphereTint = normalize(mix(in.color1.rgb, float3(0.35, 0.50, 0.70), 0.55));
+    float rim = pow(1.0 - max(0.0, n.z), 4.5) * (0.12 + illumination * 0.55);
+    surface += atmosphereTint * rim * atmosphereStrength;
+    float atmosphere = exp(-abs(r - 1.0) * 58.0) * atmosphereStrength;
     float ring = 0;
     if ((in.flags & 0x100) != 0) {
         float ellipse = length(float2(p.x / 1.52, (p.y + p.x * 0.18) / 0.30));
         ring = smoothstep(0.75, 0.82, ellipse) * (1.0 - smoothstep(1.0, 1.05, ellipse));
         if (p.y < 0 && r < 1.0) ring = 0;
     }
-    float3 color = surface * sphere + float3(0.19, 0.34, 0.56) * atmosphere + mix(in.color1.rgb, float3(0.65), 0.5) * ring * 0.4;
+    float3 color = surface * sphere + atmosphereTint * atmosphere + mix(in.color1.rgb, float3(0.65), 0.5) * ring * 0.4;
     return float4(color, max(max(sphere, atmosphere), ring * 0.72) * in.color0.a);
 }
 

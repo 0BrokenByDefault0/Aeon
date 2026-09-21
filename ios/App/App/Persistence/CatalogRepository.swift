@@ -80,6 +80,25 @@ final class CatalogRepository {
         notifyObservers()
     }
 
+    /// Incremental adoption extends a proven album without replacing its metadata,
+    /// existing track identities, listening history or playlist references.
+    func appendTracks(_ tracks: [CatalogTrack], toAlbumID albumID: String) throws {
+        try validateID(albumID)
+        for track in tracks { try validate(track, expectedAlbumID: albumID) }
+        try database.transaction {
+            guard try recordExists(table: "albums", id: albumID) else {
+                throw CatalogRepositoryError.missingReference(albumID)
+            }
+            for track in tracks {
+                guard try !recordExists(table: "tracks", id: track.id) else {
+                    throw CatalogRepositoryError.duplicateStableID(track.id)
+                }
+                try insert(track)
+            }
+        }
+        notifyObservers()
+    }
+
     func updateAlbumAndSky(
         _ album: CatalogAlbum,
         records: [SkyRecord],

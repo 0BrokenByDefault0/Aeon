@@ -263,6 +263,7 @@ struct AppServices {
         }
         try catalog.insertAlbum(album, tracks: tracks)
         let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
+        let route = RouteDescriptor(kind: .bluetooth, name: "Clay's AirPods Pro #2", sampleRate: 48000, channelCount: 2)
         try stateStore.save(PlaybackSnapshot(
             version: 0,
             trackID: tracks[0].id,
@@ -276,9 +277,9 @@ struct AppServices {
             masterVolume: 0.9,
             eqEnabled: false,
             eqBands: EQView.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: 0) },
-            route: nil,
-            sourceFormat: nil,
-            outputFormat: nil,
+            route: route,
+            sourceFormat: SourceFormatDescriptor(codec: "pcm", container: "wav", sampleRate: 48000, channelCount: 1, bitDepth: 16, duration: 8),
+            outputFormat: OutputFormatDescriptor(sampleRate: 48000, channelCount: 2, route: route),
             timestamp: date
         ))
     }

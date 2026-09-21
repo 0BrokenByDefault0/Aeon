@@ -38,7 +38,7 @@ private struct AeonTestEnvironment: ViewModifier {
         content
             .environment(
                 \.dynamicTypeSize,
-                arguments.contains("-AeonAX5Testing") ? .accessibility5 : dynamicTypeSize
+                arguments.contains("-AeonAX5Testing") ? .accessibility5 : (arguments.contains("-AeonLargeTextTesting") ? .xxxLarge : dynamicTypeSize)
             )
             .environment(
                 \.colorScheme,

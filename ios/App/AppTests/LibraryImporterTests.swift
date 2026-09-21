@@ -242,7 +242,7 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(update.unchangedFiles, 2)
         XCTAssertEqual(update.enumeratedFiles, 3, "enumeration is cheap; only the new file enters readers")
         XCTAssertEqual(reader.callCount - tagReadsAfterInitial, 2, "only the new file should receive tag and artwork reads")
-        XCTAssertEqual(probe.callCount - probesAfterInitial, 2, "only the new file should be decoded and verified")
+        XCTAssertEqual(probe.callCount - probesAfterInitial, 1, "only the new adopted file is probed; unchanged files never enter the decoder")
         XCTAssertEqual(try repository.albumCount(), 3)
     }
 
@@ -309,7 +309,7 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(expensive.filter { !$0.artwork }.count, 12)
         XCTAssertEqual(expensive.filter(\.artwork).count, 12)
         XCTAssertEqual(Set(expensive.map(\.name)), Set(files.suffix(12).map(\.lastPathComponent)))
-        XCTAssertEqual(probe.callCount - probes, 24)
+        XCTAssertEqual(probe.callCount - probes, 12)
     }
 
     func testFailedModifiedFileRetriesWithoutInvalidatingUnchangedIndex() async throws {
@@ -332,6 +332,29 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(reader.callCount, count + 1)
         let settled = try await makeImporter(reader: reader, probe: StubProbe()).adoptMusicLibrary()
         XCTAssertEqual(settled.unchangedFiles, 2)
+    }
+
+    func testPartialNewAlbumResumesIntoTheSameAlbumWithoutReprocessingCommittedTracks() async throws {
+        let first = mediaStore.documentsMusicRoot.appendingPathComponent("Artist/Record/01 First.wav")
+        let second = mediaStore.documentsMusicRoot.appendingPathComponent("Artist/Record/02 Second.wav")
+        try writeAudio(first); try writeAudio(second)
+        let reader = StubTagReader(values: [:])
+        let initial = try await makeImporter(reader: reader, probe: StubProbe(failures: [second.lastPathComponent])).adoptMusicLibrary()
+        XCTAssertEqual(initial.importedAlbums, 1)
+        XCTAssertEqual(initial.importedTracks, 1)
+        XCTAssertEqual(initial.failedFiles.count, 1)
+        let albumID = try XCTUnwrap(repository.albumPage().first?.id)
+        let firstID = try XCTUnwrap(repository.tracks(albumID: albumID).first?.id)
+        let reads = reader.callCount
+        let retry = try await makeImporter(reader: reader, probe: StubProbe()).adoptMusicLibrary()
+        XCTAssertEqual(retry.unchangedFiles, 1)
+        XCTAssertEqual(retry.importedTracks, 1)
+        XCTAssertEqual(retry.importedAlbums, 0)
+        XCTAssertEqual(reader.callCount, reads + 1)
+        XCTAssertEqual(try repository.albumCount(), 1)
+        let tracks = try repository.tracks(albumID: albumID)
+        XCTAssertEqual(tracks.count, 2)
+        XCTAssertEqual(tracks.first?.id, firstID)
     }
 
     func testAdoptRescanRelinksMovedAlbumWithoutChangingTrackIdentity() async throws {

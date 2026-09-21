@@ -29,6 +29,19 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertNil(controller.failure)
     }
 
+    func testSuccessfulTransportClearsRecoveredFailureButRefreshDoesNot() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 3, trackID: "track", intent: .playing)
+        let controller = PlaybackController(coordinator: coordinator)
+        controller.accept(snapshot: coordinator.state!)
+        controller.accept(failure: PlaybackFailure(code: "position_invalid", message: "Playback position is invalid",
+                                                   recoverable: true, trackID: "track"), version: 3)
+        controller.applicationDidEnterForeground()
+        XCTAssertNotNil(controller.failure, "Observation alone is not evidence of recovery")
+        controller.play()
+        XCTAssertNil(controller.failure)
+    }
+
     func testSupersededCommandFailureIsNotShown() {
         let controller = PlaybackController(coordinator: ControllerCoordinator())
         controller.accept(snapshot: snapshot(version: 3, trackID: "current"))
@@ -119,6 +132,26 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertEqual(coordinator.seekPositions, [19.25])
     }
 
+    func testPlayFromHereEstablishesSourceOrderAndStartsSelectedTrack() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: nil)
+        coordinator.deferLoadCompletion = true
+        let controller = PlaybackController(coordinator: coordinator)
+        let source = ["first", "second", "third"].enumerated().map { index, id in
+            CatalogTrack(id: id, albumID: "album", sequence: index + 1, discNumber: 1, trackNumber: index + 1,
+                         title: id, artist: "Artist", duration: 120, byteCount: 32,
+                         mediaReference: .documents(relativePath: "Music/\(id).m4a"), importedAt: Date(timeIntervalSince1970: 1))
+        }
+        let queue = source.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
+        controller.loadAndPlay(track: source[1], queue: queue, index: 1)
+        XCTAssertEqual(coordinator.loadedTrackID, "second")
+        XCTAssertEqual(coordinator.loadedQueue?.map(\.trackID), ["first", "second", "third"])
+        XCTAssertEqual(coordinator.loadedIndex, 1)
+        XCTAssertEqual(coordinator.playCount, 0)
+        coordinator.completeDeferredLoad(with: snapshot(version: 2, trackID: "second"))
+        XCTAssertEqual(coordinator.playCount, 1)
+    }
+
     private func snapshot(version: UInt64, trackID: String?, intent: PlaybackIntent = .paused) -> PlaybackSnapshot {
         PlaybackSnapshot(
             version: version,
@@ -150,6 +183,9 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     private(set) var nextCount = 0
     private(set) var seekPositions: [TimeInterval] = []
     var deferLoadCompletion = false
+    private(set) var loadedTrackID: String?
+    private(set) var loadedQueue: [QueueItem]?
+    private(set) var loadedIndex: Int?
     private var pendingLoadCompletion: PlaybackCommandCompletion?
 
     func initialize(completion: @escaping PlaybackCommandCompletion) {
@@ -158,6 +194,7 @@ private final class ControllerCoordinator: PlaybackCoordinating {
     }
 
     func load(trackID: String, mediaRef: MediaReference, queue: [QueueItem]?, index: Int?, completion: @escaping PlaybackCommandCompletion) {
+        loadedTrackID = trackID; loadedQueue = queue; loadedIndex = index
         if deferLoadCompletion { pendingLoadCompletion = completion }
         else { completion(state.map(Result.success) ?? .failure(failure)) }
     }

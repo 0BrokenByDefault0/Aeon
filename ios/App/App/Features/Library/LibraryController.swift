@@ -371,7 +371,7 @@ final class LibraryController: ObservableObject {
     }
 
     private func seedFixtureIfNeeded() {
-        guard Self.fixtureName() == "populated", (try? repository.albumCount()) == 0 else { return }
+        guard ["populated", "long-title"].contains(Self.fixtureName() ?? ""), (try? repository.albumCount()) == 0 else { return }
         let artists = ["Arden Vale", "Black Static", "Cinder Atlas", "Dawn Index"]
         let genres = ["Ambient", "Electronic", "Hip-Hop", "Soul"]
         let records: [(CatalogAlbum, [CatalogTrack])] = (1...12).map { index in
@@ -380,7 +380,7 @@ final class LibraryController: ObservableObject {
             let album = CatalogAlbum(
                 id: albumID,
                 sequence: Int64(index),
-                title: index == 12 ? "Glass Archive" : "Signal \(index)",
+                title: index == 12 ? (Self.fixtureName() == "long-title" ? "Lil Uzi Vert Vs. The World 2 (Sessions)" : "Glass Archive") : "Signal \(index)",
                 artist: artists[(index - 1) % artists.count],
                 year: index == 3 ? "" : "\(2012 + index)",
                 genre: genres[(index - 1) % genres.count],

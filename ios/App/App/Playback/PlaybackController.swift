@@ -103,15 +103,20 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
                 self.accept(result)
             case .success(let loaded):
                 self.accept(snapshot: loaded)
-                self.coordinator.play { [weak self] playResult in self?.accept(playResult) }
+                self.coordinator.play { [weak self] playResult in self?.accept(playResult, clearsFailure: true) }
             }
         }
     }
 
-    func play() { coordinator.play { [weak self] result in self?.accept(result) } }
+    func play() { coordinator.play { [weak self] result in self?.accept(result, clearsFailure: true) } }
     func pause() { coordinator.pause { [weak self] result in self?.accept(result) } }
-    func toggle() { coordinator.toggle { [weak self] result in self?.accept(result) } }
-    func seek(to seconds: Double) { coordinator.seek(seconds: seconds) { [weak self] result in self?.accept(result) } }
+    func toggle() { coordinator.toggle { [weak self] result in self?.accept(result, clearsFailure: true) } }
+    func seek(to seconds: Double, completion: (() -> Void)? = nil) {
+        coordinator.seek(seconds: seconds) { [weak self] result in
+            self?.accept(result, clearsFailure: true)
+            completion?()
+        }
+    }
     func next() { coordinator.next { [weak self] result in self?.accept(result) } }
     func previous() { coordinator.previous { [weak self] result in self?.accept(result) } }
     func setQueue(_ items: [QueueItem], index: Int, revision: UInt64) {
@@ -152,7 +157,7 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
         let insertion = min(upcoming.count, max(0, toOffset - removedBeforeDestination))
         upcoming.insert(contentsOf: moved, at: insertion)
         let revised = Array(snapshot.queue.prefix(currentIndex + 1)) + upcoming
-        commitQueue(revised, currentIndex: currentIndex, message: "Upcoming queue reordered.")
+        commitQueue(revised, currentIndex: currentIndex, message: nil)
     }
 
     func clearUpcoming() {
@@ -274,14 +279,16 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
         self.failure = failure
     }
 
-    private func accept(_ result: Result<PlaybackSnapshot, PlaybackFailure>) {
+    private func accept(_ result: Result<PlaybackSnapshot, PlaybackFailure>, clearsFailure: Bool = false) {
         switch result {
-        case .success(let snapshot): accept(snapshot: snapshot)
+        case .success(let snapshot):
+            if clearsFailure, snapshot.version >= latestVersion, failure?.recoverable == true { failure = nil }
+            accept(snapshot: snapshot)
         case .failure(let failure): accept(failure: failure, version: latestVersion)
         }
     }
 
-    private func commitQueue(_ items: [QueueItem], currentIndex: Int, message: String) {
+    private func commitQueue(_ items: [QueueItem], currentIndex: Int, message: String?) {
         guard let snapshot, snapshot.queueRevision < .max, items != snapshot.queue else { return }
         queueMessage = message
         setQueue(items, index: currentIndex, revision: snapshot.queueRevision + 1)

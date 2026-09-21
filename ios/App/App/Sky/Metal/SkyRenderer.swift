@@ -54,6 +54,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private var animateSelection = true
     private var spectrum = SpectrumLevels.zero
     private var camera = SkyCameraState.home
+    private var backdropBuffer: MTLBuffer?
     private var starBuffer: MTLBuffer?
     private var glowBuffer: MTLBuffer?
     private let backdrop: [GPUInstance] = SkyRenderer.makeBackdrop()
@@ -140,11 +141,12 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             center: SIMD2(Float(camera.centerX), Float(camera.centerY)),
             viewport: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)),
             scale: Float(camera.scale) * screenScale,
-            time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)),
+            time: animateSelection ? Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)) : 0,
             spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, screenScale)
         )
-        encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: glowCount, uniforms: &uniforms)
+        encodeInstances(encoder, pipeline: starPipeline, buffer: backdropBuffer, count: backdrop.count, uniforms: &uniforms)
         encodeLines(encoder, buffer: lineBuffer, count: lineCount, uniforms: &uniforms)
+        encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: glowCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: starPipeline, buffer: starBuffer, count: starCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: planetPipeline, buffer: planetBuffer, count: planetCount, uniforms: &uniforms)
         encoder.endEncoding()
@@ -161,7 +163,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             let selected = star.albumID == selectedID
             let related = members.contains(star.albumID)
             let playing = star.albumID == playingStarID
-            let alpha: Float = selectedID == nil || selected || related ? 1 : 0.24
+            let alpha: Float = selectedID == nil || selected || related ? 1 : (playing ? 0.82 : 0.40)
             let temperatures: [SIMD3<Float>] = [
                 SIMD3(0.67, 0.80, 1), SIMD3(0.86, 0.92, 1), SIMD3(1, 0.91, 0.73)
             ]
@@ -175,17 +177,18 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             return GPUInstance(
                 position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)),
                 color0: color, color1: color, color2: color, size: related ? 3.4 : 2.7,
-                flags: (selected ? 0x4000 : 0) | (playing ? 0x200 : 0)
+                flags: 0x8000 | (selected ? 0x4000 : 0) | (playing ? 0x200 : 0)
                     | (selected && animateSelection ? 0x1000 : 0), turbulence: 0
             )
         }
         // Exactly one luminous core per real album. Glows share that core's anchor.
-        starBuffer = makeBuffer(backdrop + albumInstances)
-        starCount = backdrop.count + albumInstances.count
+        if backdropBuffer == nil { backdropBuffer = makeBuffer(backdrop) }
+        starBuffer = makeBuffer(albumInstances)
+        starCount = albumInstances.count
         let glows = albumInstances.map { instance -> GPUInstance in
             var glow = instance
             glow.flags |= 1
-            glow.color0.w *= (instance.flags & 0x4000) != 0 ? 0.42 : 0.16
+            glow.color0.w *= (instance.flags & 0x4000) != 0 ? 0.42 : ((instance.flags & 0x200) != 0 ? 0.30 : 0.20)
             return glow
         }
         glowBuffer = makeBuffer(glows)
@@ -258,7 +261,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             let alpha: Float = bright ? 0.82 : (index.isMultiple(of: 5) ? 0.50 : 0.24)
             let color = index.isMultiple(of: 7) ? SIMD4<Float>(1, 0.85, 0.69, alpha) : SIMD4<Float>(0.76, 0.85, 1, alpha)
             return GPUInstance(position: SIMD2(x, y), color0: color, color1: color, color2: color,
-                               size: radius, flags: 0x800, turbulence: bright ? 0.65 : 0.15)
+                               size: radius, flags: 0x800 | (bright ? 0x1000 : 0), turbulence: bright ? 0.65 : 0.15)
         }
         let dust = (0..<32).map { index -> GPUInstance in
             let a = SkyStableHash.mix(UInt64(index) &+ 0xAE0D)

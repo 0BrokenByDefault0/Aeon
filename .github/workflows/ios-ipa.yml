@@ -34,7 +34,7 @@ concurrency:
 jobs:
   ipa:
     runs-on: macos-latest
-    timeout-minutes: 60
+    timeout-minutes: 80
     steps:
       - uses: actions/checkout@v4
         with:
@@ -191,6 +191,8 @@ jobs:
             -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalDockBoundsAfterAX5EmptyStateNavigation \
             -only-testing:AppUITests/AeonScreenMatrixTests/testCapturesSkyEmptyImportUnchartedConstellationAndPlanetStates \
             -only-testing:AppUITests/AeonScreenMatrixTests/testDefinitiveSemanticReviewCaptures \
+            -only-testing:AppUITests/AeonScreenMatrixTests/testCorrectiveDeviceReviewCaptures \
+            -only-testing:AppUITests/AeonScreenMatrixTests/testCompactAlbumDetailCaptures \
             > "$RUNNER_TEMP/aeon-ui-review/review.log" 2>&1
           result=$?
           set -e
@@ -209,6 +211,25 @@ jobs:
           printf 'Aeon native simulator UI review\nCommit: %s\nRun: %s\nUI review: %s\nPhysical-device acceptance: NOT RUN\nRelease status: ITERATION ONLY\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$REVIEW_OUTCOME" > "$root/review-manifest.txt"
           test -d "$root/review.xcresult"
           xcrun xcresulttool export attachments --path "$root/review.xcresult" --output-path "$root/screenshots"
+
+      - name: Capture compact album review
+        id: compact_review
+        if: ${{ always() && steps.ui_review.outcome != 'skipped' && steps.upload_ipa.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; print(next(r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and "iOS" in r["name"]))')
+          compact=$(xcrun simctl create "Aeon Compact Review" com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation "$runtime")
+          root="$RUNNER_TEMP/aeon-ui-review"
+          set +e
+          AEON_IOS_SIMULATOR_ID="$compact" AEON_IOS_DERIVED_DATA_PATH="$RUNNER_TEMP/AeonDerivedData" AEON_IOS_RESULT_BUNDLE_PATH="$root/compact.xcresult" \
+            node scripts/test-ios.mjs --family=iphone -only-testing:AppUITests/AeonScreenMatrixTests/testCompactAlbumDetailCaptures > "$root/compact.log" 2>&1
+          result=$?
+          set -e
+          mkdir -p "$root/compact-screenshots"
+          xcrun xcresulttool export attachments --path "$root/compact.xcresult" --output-path "$root/compact-screenshots"
+          grep -E 'error:|XCTAssert|Test Case .* (failed|passed)' "$root/compact.log" | tail -n 40 || true
+          exit "$result"
 
       - name: Upload orbital UI screenshots
         if: ${{ always() && steps.ui_review.outcome != 'skipped' && steps.upload_ipa.outcome == 'success' }}

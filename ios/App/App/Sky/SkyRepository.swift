@@ -213,7 +213,9 @@ final class SkyRepository {
                 importedAt: star.importedAt,
                 placedAt: star.placedAt,
                 isUncharted: star.isUncharted,
-                magnitude: star.magnitude
+                magnitude: star.magnitude,
+                title: star.title,
+                spectralColor: star.spectralColor
             )
             occupied.insert(replacement)
         }

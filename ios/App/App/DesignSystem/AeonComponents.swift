@@ -97,7 +97,7 @@ enum AeonGlyphKind {
     case sky, library, playlists, settings, star, arrow, files, folder
     case disclosure, picker, export, add, refresh
     case play, pause, next, previous, search, close, more, erase, shuffle, repeatTrack
-    case volumeLow, volumeHigh, grip, check
+    case volumeLow, volumeHigh, grip, check, overview, locate
 }
 
 /// Always decorative. An interactive parent owns the accessibility element, its label
@@ -133,6 +133,12 @@ private struct AeonGlyphPath: Shape {
                                       width: r*2*rect.width/24, height: r*2*rect.height/24))
         }
         switch kind {
+        case .overview:
+            circle(12,12,8); circle(12,12,2)
+            line([(2,12),(5,12)]); line([(19,12),(22,12)])
+            line([(12,2),(12,5)]); line([(12,19),(12,22)])
+        case .locate:
+            line([(4,10),(21,3),(14,21),(11,13),(4,10)])
         case .star:
             line([(12,2),(14.3,9.7),(22,12),(14.3,14.3),(12,22),(9.7,14.3),(2,12),(9.7,9.7),(12,2)])
         case .sky:

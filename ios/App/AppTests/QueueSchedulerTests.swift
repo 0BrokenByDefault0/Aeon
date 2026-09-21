@@ -14,10 +14,100 @@ final class QueueSchedulerTests: XCTestCase {
         let completion = try XCTUnwrap(graph.schedules.first?.completion)
         try scheduler.replaceQueue([a, c], index: 0, revision: 2)
         completion()
-        XCTAssertGreaterThan(scheduler.currentGeneration, old)
+        XCTAssertEqual(scheduler.currentGeneration, old, "Upcoming edits preserve the current schedule")
         XCTAssertEqual(scheduler.preparedNextTrackID, "c")
         XCTAssertEqual(scheduler.currentTrackID, "a")
         XCTAssertEqual(scheduler.queueRevision, 2)
+    }
+
+    func testRepeatChangesOnlyFutureScheduleAtMidTrackAndEOF() throws {
+        for frame: Int64 in [1100, 2399, 2400] {
+            let (scheduler, graph, _) = try makeScheduler([a, b])
+            try scheduler.play()
+            graph.framesBySlot[.a] = frame
+            let generation = scheduler.currentGeneration
+            let oldNext = graph.schedules[1].completion
+            for mode: RepeatMode in [.all, .one, .off] {
+                try scheduler.setRepeatMode(mode)
+                XCTAssertEqual(scheduler.currentGeneration, generation)
+                XCTAssertEqual(scheduler.currentTrackID, "a")
+                XCTAssertEqual(scheduler.currentPosition, Double(frame) / 48000, accuracy: 0.000001)
+                XCTAssertTrue(scheduler.isPlaying)
+                XCTAssertEqual(graph.schedules.filter { $0.slot == .a }.count, 1)
+                XCTAssertEqual(scheduler.preparedNextTrackID, mode == .one ? nil : "b")
+            }
+            oldNext() // A discarded alternate-node callback must not complete its replacement.
+            XCTAssertEqual(scheduler.currentTrackID, "a")
+            graph.schedules[0].completion()
+            XCTAssertEqual(scheduler.currentTrackID, "b")
+            XCTAssertTrue(scheduler.isPlaying)
+        }
+    }
+
+    func testSeekToDecodedEOFUsesLastPlayableFrameAndRefreshIsSafe() throws {
+        let (scheduler, graph, _) = try makeScheduler([a])
+        try scheduler.play()
+        try scheduler.seek(seconds: 2400.0 / 48000)
+        XCTAssertEqual(graph.schedules.last?.sourceFrame, 2399)
+        graph.elapsedFrames = 1
+        XCTAssertEqual(scheduler.currentPosition, 0.05, accuracy: 0.000001)
+        graph.schedules.last?.completion()
+        XCTAssertFalse(scheduler.isPlaying)
+        XCTAssertEqual(scheduler.currentPosition, 0.05, accuracy: 0.000001)
+    }
+
+    func testRepeatOneCompletionRestartsFromZeroNotRetainedEOF() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b])
+        try scheduler.play()
+        try scheduler.setRepeatMode(.one)
+        graph.framesBySlot[.a] = 2400
+        graph.schedules[0].completion()
+        XCTAssertFalse(scheduler.isPlaying)
+        // These are the coordinator's Repeat One completion commands.
+        try scheduler.seek(seconds: 0)
+        try scheduler.play()
+        XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
+        XCTAssertEqual(scheduler.currentIndex, 0)
+        XCTAssertNil(scheduler.preparedNextTrackID)
+    }
+
+    func testUpcomingReorderPreservesLiveNodeAndPreparedSuccessor() throws {
+        let d = QueueItem(trackID: "d", albumID: "album", mediaRef: .native(relativePath: "d.wav"))
+        for playing in [false, true] {
+            let (scheduler, graph, _) = try makeScheduler([a, b, c, d])
+            try scheduler.prepareCurrent(position: 1000.0 / 48000)
+            if playing { try scheduler.play() }
+            let generation = scheduler.currentGeneration
+            let position = scheduler.currentPosition
+            try scheduler.replaceQueue([a, d, b, c], index: 0, revision: 2)
+            XCTAssertEqual(scheduler.queueItems.map(\.trackID), ["a", "d", "b", "c"])
+            XCTAssertEqual(scheduler.currentGeneration, generation)
+            XCTAssertEqual(scheduler.currentPosition, position, accuracy: 0.000001)
+            XCTAssertEqual(scheduler.currentIndex, 0)
+            XCTAssertEqual(scheduler.isPlaying, playing)
+            XCTAssertEqual(scheduler.preparedNextTrackID, "d")
+            XCTAssertEqual(graph.schedules.filter { $0.slot == .a }.count, 1)
+            try scheduler.replaceQueue([a, b, c, d], index: 0, revision: 3)
+            XCTAssertEqual(scheduler.preparedNextTrackID, "b")
+            XCTAssertEqual(scheduler.currentGeneration, generation)
+        }
+    }
+
+    func testReorderedSuccessorIsTheActualHandoffAndUnchangedNextIsRetained() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b, c])
+        try scheduler.play()
+        graph.framesBySlot[.a] = 2399
+        let firstCompletion = graph.schedules[0].completion
+        try scheduler.replaceQueue([a, c, b], index: 0, revision: 2)
+        XCTAssertEqual(scheduler.preparedNextTrackID, "c")
+        XCTAssertEqual(scheduler.currentPosition, 2399.0 / 48000, accuracy: 0.000001)
+        let scheduleCount = graph.schedules.count
+        try scheduler.replaceQueue([a, c], index: 0, revision: 3)
+        XCTAssertEqual(graph.schedules.count, scheduleCount, "Removing a later item keeps the same prepared successor")
+        firstCompletion()
+        XCTAssertEqual(scheduler.currentTrackID, "c")
+        XCTAssertEqual(scheduler.currentIndex, 1)
+        XCTAssertTrue(scheduler.isPlaying)
     }
 
     func testNextIsScheduledAtExactOutputBoundaryBeforePlaybackStarts() throws {

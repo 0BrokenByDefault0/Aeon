@@ -1,5 +1,5 @@
 import SwiftUI
-import UniformTypeIdentifiers
+import UIKit
 
 struct QueueView: View {
     @ObservedObject var playback: PlaybackController
@@ -9,25 +9,19 @@ struct QueueView: View {
     var showArtist: (String) -> Void = { _ in }
     @State private var naming = false
     @State private var playlistName = ""
-    @State private var draggedOffset: Int?
-    @State private var dropOffset: Int?
 
     var body: some View {
         AeonSheet {
-            ScrollView {
-                VStack(alignment: .leading, spacing: AeonTheme.Space.section) {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
                     header
                     actions
                     if naming { namingForm }
-                    if let message = playback.queueMessage {
-                        status(message)
-                    }
-                    queueRows
+                    if let message = playback.queueMessage { status(message) }
                 }
                 .padding(.horizontal, AeonTheme.Space.edge)
-                .padding(.bottom, AeonTheme.Space.section)
+                queueRows
             }
-            .scrollIndicators(.hidden)
         }
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
         .onDisappear { playback.clearQueueMessage() }
@@ -122,17 +116,16 @@ struct QueueView: View {
         if let snapshot = playback.snapshot,
            let currentIndex = snapshot.queueIndex,
            snapshot.queue.indices.contains(currentIndex) {
-            VStack(alignment: .leading, spacing: 0) {
-                AeonLabel(text: "Playing").padding(.bottom, AeonTheme.Space.small)
-                queueRow(snapshot.queue[currentIndex], position: currentIndex + 1, current: true, offset: nil)
-                if !upcomingItems.isEmpty {
-                    AeonLabel(text: "Upcoming")
-                        .padding(.top, AeonTheme.Space.section)
-                        .padding(.bottom, AeonTheme.Space.small)
-                    ForEach(Array(upcomingItems.enumerated()), id: \.offset) { offset, item in
-                        queueRow(item, position: currentIndex + offset + 2, current: false, offset: offset)
-                    }
+            QueueNativeList(
+                items: Array(snapshot.queue.suffix(from: currentIndex)),
+                revision: snapshot.queueRevision,
+                move: { source, destination in
+                    playback.moveUpcoming(fromOffsets: IndexSet(integer: source),
+                                          toOffset: source < destination ? destination + 1 : destination)
                 }
+            ) { item, row, current in
+                queueRow(item, position: currentIndex + row + 1, current: current,
+                         offset: current ? nil : row - 1)
             }
         } else {
             AeonEmptyState(
@@ -165,7 +158,6 @@ struct QueueView: View {
             guard let value, !value.isEmpty else { return nil }
             return value
         }.joined(separator: " · ")
-        let isDropTarget = offset.map { dropOffset == $0 } ?? false
 
         return HStack(spacing: AeonTheme.Space.medium) {
             Text(current ? "NOW" : String(format: "%02d", position))
@@ -204,73 +196,119 @@ struct QueueView: View {
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                     .frame(width: 45, height: 45)
                     .contentShape(Rectangle())
-                    .onDrag {
-                        draggedOffset = offset
-                        return NSItemProvider(object: String(offset) as NSString)
-                    }
-                    // One element for the whole 44pt target, carrying the image trait the
-                    // handle used to get for free from a filled SF Symbol. Assistive
-                    // technology and XCUITest both address it as an image.
                     .accessibilityElement()
                     .accessibilityAddTraits(.isImage)
                     .accessibilityLabel("Reorder \(title)")
                     .accessibilityHint("Drag to a new position")
                     .accessibilityIdentifier("aeon.player.queue.drag.\(item.trackID)")
+                    .accessibilityAction(named: "Move Up") {
+                        if offset > 0 { playback.moveUpcoming(fromOffsets: IndexSet(integer: offset), toOffset: offset - 1) }
+                    }
+                    .accessibilityAction(named: "Move Down") {
+                        if offset + 1 < upcomingItems.count {
+                            playback.moveUpcoming(fromOffsets: IndexSet(integer: offset), toOffset: offset + 2)
+                        }
+                    }
             }
         }
         .padding(.vertical, AeonTheme.Space.small)
-        .padding(.horizontal, isDropTarget ? AeonTheme.Space.small : 0)
         .frame(minHeight: 62)
-        .background {
-            if isDropTarget {
-                RoundedRectangle(cornerRadius: AeonTheme.Radius.compact, style: .continuous)
-                    .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.78))
-            }
-        }
         .overlay(alignment: .bottom) {
-            if !isDropTarget {
-                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
-            }
+            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
         }
-        .opacity(draggedOffset == offset ? 0.55 : 1)
-        .onDrop(
-            of: [UTType.text],
-            delegate: QueueDropDelegate(
-                targetOffset: offset,
-                draggedOffset: $draggedOffset,
-                dropOffset: $dropOffset,
-                playback: playback
-            )
-        )
     }
 }
 
-private struct QueueDropDelegate: DropDelegate {
-    let targetOffset: Int?
-    @Binding var draggedOffset: Int?
-    @Binding var dropOffset: Int?
-    let playback: PlaybackController
+/// UIKit owns the lifted row, insertion preview, edge scrolling and cancellation.
+/// Its data-source move callback commits once on release; no audio edits during drag.
+private struct QueueNativeList<Row: View>: UIViewRepresentable {
+    let items: [QueueItem]
+    let revision: UInt64
+    let move: (Int, Int) -> Void
+    let row: (QueueItem, Int, Bool) -> Row
 
-    func dropEntered(info: DropInfo) { dropOffset = targetOffset }
-
-    func dropExited(info: DropInfo) {
-        if dropOffset == targetOffset { dropOffset = nil }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeUIView(context: Context) -> UICollectionView {
+        var configuration = UICollectionLayoutListConfiguration(appearance: .plain)
+        configuration.backgroundColor = .clear
+        configuration.showsSeparators = false
+        let view = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: configuration))
+        view.backgroundColor = .clear
+        view.contentInset = UIEdgeInsets(top: 0, left: 16, bottom: 24, right: 16)
+        view.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "track")
+        view.dataSource = context.coordinator
+        view.delegate = context.coordinator
+        view.addGestureRecognizer(UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.drag(_:))))
+        return view
     }
-
-    func performDrop(info: DropInfo) -> Bool {
-        defer {
-            draggedOffset = nil
-            dropOffset = nil
+    func updateUIView(_ view: UICollectionView, context: Context) {
+        let changed = context.coordinator.parent.items != items || context.coordinator.parent.revision != revision
+        context.coordinator.parent = self
+        if changed {
+            view.cancelInteractiveMovement()
+            context.coordinator.dragging = false
+            context.coordinator.draft = items
+            view.reloadData()
         }
-        guard let source = draggedOffset, let target = targetOffset, source != target else { return false }
-        playback.moveUpcoming(
-            fromOffsets: IndexSet(integer: source),
-            toOffset: source < target ? target + 1 : target
-        )
-        return true
     }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+    final class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegate {
+        var parent: QueueNativeList
+        var draft: [QueueItem]
+        var dragging = false
+        var preview: IndexPath?
+        init(_ parent: QueueNativeList) { self.parent = parent; draft = parent.items }
+        func numberOfSections(in collectionView: UICollectionView) -> Int { 2 }
+        func collectionView(_ view: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+            section == 0 ? min(1, draft.count) : max(0, draft.count - 1)
+        }
+        func collectionView(_ view: UICollectionView, cellForItemAt path: IndexPath) -> UICollectionViewCell {
+            let cell = view.dequeueReusableCell(withReuseIdentifier: "track", for: path)
+            let index = path.section == 0 ? 0 : path.item + 1
+            cell.contentConfiguration = UIHostingConfiguration {
+                parent.row(draft[index], index, path.section == 0)
+            }.margins(.all, 0)
+            cell.backgroundColor = .clear
+            return cell
+        }
+        func collectionView(_ view: UICollectionView, canMoveItemAt path: IndexPath) -> Bool { path.section == 1 }
+        func collectionView(_ view: UICollectionView, moveItemAt source: IndexPath, to destination: IndexPath) {
+            guard source.section == 1, destination.section == 1, source != destination else { return }
+            let moved = draft.remove(at: source.item + 1)
+            draft.insert(moved, at: destination.item + 1)
+            parent.move(source.item, destination.item)
+            AeonFeedback.activated()
+        }
+        func collectionView(_ view: UICollectionView, targetIndexPathForMoveFromItemAt original: IndexPath,
+                            toProposedIndexPath proposed: IndexPath) -> IndexPath {
+            let target = proposed.section == 0 ? IndexPath(item: 0, section: 1) : proposed
+            if preview != target { preview = target; AeonFeedback.selectionChanged() }
+            return target
+        }
+        @objc func drag(_ gesture: UILongPressGestureRecognizer) {
+            guard let view = gesture.view as? UICollectionView else { return }
+            let point = gesture.location(in: view)
+            switch gesture.state {
+            case .began:
+                guard let path = view.indexPathForItem(at: point), path.section == 1,
+                      let frame = view.layoutAttributesForItem(at: path)?.frame,
+                      point.x >= frame.maxX - 55 else { return }
+                view.cellForItem(at: path)?.backgroundColor = UIColor(white: 0.09, alpha: 1)
+                dragging = view.beginInteractiveMovementForItem(at: path)
+                if dragging { AeonFeedback.selectionChanged() }
+            case .changed:
+                if dragging { view.updateInteractiveMovementTargetPosition(point) }
+            case .ended:
+                if dragging { view.endInteractiveMovement() }
+                for cell in view.visibleCells { cell.backgroundColor = .clear }
+                dragging = false; preview = nil
+            case .cancelled, .failed:
+                view.cancelInteractiveMovement()
+                for cell in view.visibleCells { cell.backgroundColor = .clear }
+                dragging = false; preview = nil
+            default: break
+            }
+        }
+    }
 }
 
 enum TrackActionSheet: String, Identifiable {
@@ -421,6 +459,7 @@ private struct TrackInfoSheet: View {
 
     var body: some View {
         AeonSheet {
+            ScrollView {
             VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                 AeonDisplayText(track.title, size: 32, maximumLines: 3).foregroundStyle(AeonOrbit.title)
                 VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
@@ -432,8 +471,9 @@ private struct TrackInfoSheet: View {
                 Button("DONE") { dismiss() }.buttonStyle(AeonButtonStyle(tier: .filled))
             }
             .padding(AeonTheme.Space.edge)
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     private func detail(_ label: String, _ value: String) -> some View {

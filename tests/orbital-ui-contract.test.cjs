@@ -149,7 +149,8 @@ test('player controls reuse the orbital system without changing preset gains or 
   assert.match(eq, /playback\.setEQ\(enabled: true, bands: bands\)/);
   const stage = player.split('private func artworkStage')[1].split('private func metadata')[0];
   assert.doesNotMatch(stage, /Circle\(\)/);
-  assert.match(stage, /AeonReticleMark\(\)/);
+  assert.doesNotMatch(stage, /AeonReticleMark\(\)/);
+  assert.doesNotMatch(player, /AeonReticleField\(\)/);
   assert.match(player, /playback\.seek\(to: \$0\)/);
   assert.match(native, /orbital-eq-presets-closeup/);
 });

@@ -65,6 +65,7 @@ struct SkyScreen: View {
             }
             .background(AeonTheme.ColorToken.void)
         }
+        .ignoresSafeArea(.container)
         .sheet(isPresented: $importSheetPresented) {
             AeonImportSheet(selectFiles: importFiles, adoptLibrary: adoptLibrary)
         }
@@ -179,7 +180,7 @@ struct SkyScreen: View {
         let x = min(viewport.width - halfWidth - 12, max(halfWidth + 12, point.x))
         let preferredY = controller.selectedConstellation == nil ? point.y + height : point.y - height
         let minimumY = readableInsets.top + 112
-        let maximumY = viewport.height - readableInsets.bottom - 112
+        let maximumY = viewport.height - readableInsets.bottom - 70
         return CGPoint(x: x, y: min(maximumY, max(minimumY, preferredY)))
     }
 
@@ -199,7 +200,7 @@ private struct SkyLabelOverlay: View {
                     // 0.14 on pure black is below the threshold of legibility; region names
                     // were effectively invisible even with Sky contrast turned on, because
                     // the flag was never plumbed through from Settings.
-                    .foregroundStyle(AeonTheme.ColorToken.primary.opacity(highContrast ? 1 : (label.isRegion ? 0.34 : 0.52)))
+                    .foregroundStyle(AeonTheme.ColorToken.primary.opacity(highContrast ? 1 : (label.isRegion ? 0.62 : 0.84)))
                     .position(label.position)
                     .transition(.opacity)
             }
@@ -214,7 +215,7 @@ private struct SkyLabelOverlay: View {
         var obstacles: [CGRect] = []
         for planet in controller.catalogue.planets {
             let point = camera.screenPoint(for: planet.coordinate, viewport: resolvedViewport)
-            let radius = CGFloat(max(8, min(Double(viewport.width) * 0.34, 28 * camera.scale)))
+            let radius = CGFloat(max(10, min(Double(viewport.width) * 0.34, 28 * camera.scale)))
             obstacles.append(CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
             if camera.selectedID == nil {
                 candidates.append(.init(id: planet.id, text: planet.name, anchor: CGPoint(x: point.x, y: point.y + radius), isRegion: true))
@@ -285,7 +286,7 @@ enum SkyLabelLayout {
         var occupied: [CGRect] = obstacles
         var placed: [Placed] = []
         for candidate in candidates {
-            let width = min(220, max(54, CGFloat(candidate.text.count) * 7.5))
+            let width = min(220, max(54, CGFloat(candidate.text.count) * (candidate.isRegion ? 9.2 : 7.5) + 8))
             let size = CGSize(width: width, height: candidate.isRegion ? 28 : 22)
             let distance: CGFloat = candidate.isRegion ? 34 : 26
             let offsets = [

@@ -255,6 +255,7 @@ private struct EQBandControl: View {
         .accessibilityAdjustableAction { direction in
             onTouch()
             onChange(min(12, max(-12, gain + (direction == .increment ? 1 : -1))))
+            onEnd()
         }
     }
 

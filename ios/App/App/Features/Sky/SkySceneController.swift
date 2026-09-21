@@ -42,7 +42,9 @@ final class SkySceneController: ObservableObject {
             catalogue = (try? repository.catalogue()) ?? .empty
             camera = (try? repository.camera()) ?? .home
         }
-        if Self.fixtureName() == "planet-selected", let planet = catalogue.planets.first {
+        if Self.fixtureName() == "planet-medium", let planet = catalogue.planets.first {
+            camera = SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y), scale: 1.8, selectedID: planet.id)
+        } else if Self.fixtureName() == "planet-selected", let planet = catalogue.planets.first {
             camera = SkyCameraState.planetFocus(planet, viewport: SkyViewport(size: viewportSize))
         } else if ["album-selected", "one-focused"].contains(Self.fixtureName() ?? ""), let star = catalogue.stars.first {
             camera = SkyCameraState.albumFocus(star.coordinate, id: star.albumID)
@@ -148,10 +150,7 @@ final class SkySceneController: ObservableObject {
     }
 
     func accessibilityLabel(for star: SkyStar, region: String) -> String {
-        guard let album = try? catalog.album(id: star.albumID) else {
-            return "Album \(star.albumID), \(star.artistName), in \(region)"
-        }
-        return "\(album.title), \(album.artist), album in \(region), \(album.genre)"
+        "\(star.title ?? star.albumID), \(star.artistName), album in \(region)"
     }
 
     func setCamera(_ value: SkyCameraState, persist: Bool = false) {
@@ -190,6 +189,7 @@ final class SkySceneController: ObservableObject {
     }
 
     func select(_ target: SkyHitTarget?) {
+        if target != nil, target?.id != camera.selectedID { AeonFeedback.selectionChanged() }
         var updated = camera
         updated.selectedID = target?.id
         setCamera(updated, persist: true)
@@ -351,7 +351,7 @@ final class SkySceneController: ObservableObject {
         }
         let planets = catalogue.planets.map {
             SkyHitCandidate(target: .planet($0.id), coordinate: $0.coordinate,
-                            visualRadius: CGFloat(max(8, min(Double(min(viewportSize.width, viewportSize.height)) * 0.34, 28 * camera.scale))))
+                            visualRadius: CGFloat(max(10, min(Double(min(viewportSize.width, viewportSize.height)) * 0.34, 28 * camera.scale))))
         }
         let starMap = Dictionary(uniqueKeysWithValues: catalogue.stars.map { ($0.albumID, $0.coordinate) })
         let constellations = catalogue.constellations.compactMap { constellation -> SkyHitCandidate? in
@@ -411,7 +411,7 @@ final class SkySceneController: ObservableObject {
         case "three", "artist-focused": count = 3
         case "fourteen": count = 14
         case "fifteen": count = 15
-        case "thirty-three", "planet-selected": count = 33
+        case "thirty-three", "planet-selected", "planet-medium": count = 33
         case "small", "playing", "album-selected", "uncharted": count = 48
         case "populated": count = 120
         case "1000": count = 1_000
@@ -423,7 +423,7 @@ final class SkySceneController: ObservableObject {
         albums.reserveCapacity(count)
         for index in 0..<count {
             let artist = count <= 3 ? "Frank Ocean" : (name == "uncharted" ? "Unknown \(index)" : "Artist \(index / 3)")
-            let genre = name == "uncharted" ? "" : genres[index % genres.count]
+            let genre = count <= 3 ? "R&B" : (name == "uncharted" ? "" : genres[(index / 3) % genres.count])
             albums.append(SkyAlbumInput(
                 id: "fixture-album-\(index)",
                 sequence: Int64(index + 1),

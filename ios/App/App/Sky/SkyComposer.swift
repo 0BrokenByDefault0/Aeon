@@ -16,7 +16,7 @@ struct SkyComposer {
         let existingByAlbum = Dictionary(uniqueKeysWithValues: existing.stars.map { ($0.albumID, $0) })
         let placements = regionPlacements(for: ordered)
         var stars: [SkyStar] = []
-        var occupied = SpatialIndex(points: existing.stars.filter { !$0.isUncharted }.map(\.coordinate))
+        var occupied = SpatialIndex(points: existing.stars.map(\.coordinate))
         let existingAnchors = Dictionary(grouping: existing.stars, by: \.artistKey).compactMapValues(\.last)
         var latestStars = existingAnchors
 
@@ -55,7 +55,7 @@ struct SkyComposer {
         }
 
         let constellations = makeConstellations(stars: stars)
-        let regions = makeRegions(stars: stars)
+        let regions = makeRegions(stars: stars, albums: ordered)
         let planets = makePlanets(albums: ordered, stars: stars, existing: existing.planets)
         return SkyCatalogue(regions: regions, constellations: constellations, stars: stars, planets: planets)
     }
@@ -176,12 +176,19 @@ struct SkyComposer {
         }
     }
 
-    private func makeRegions(stars: [SkyStar]) -> [SkyRegion] {
-        Dictionary(grouping: stars, by: \.regionID).map { id, values in
+    private func makeRegions(stars: [SkyStar], albums: [SkyAlbumInput]) -> [SkyRegion] {
+        var names: [String: String] = [:]
+        for album in albums {
+            for genre in [album.genre, album.canonicalArtistGenre].compactMap({ $0 }) where !genre.isEmpty {
+                let key = Self.regionID(SkyStableHash.normalized(genre))
+                if names[key] == nil { names[key] = genre.trimmingCharacters(in: .whitespacesAndNewlines) }
+            }
+        }
+        return Dictionary(grouping: stars, by: \.regionID).map { id, values in
             let name: String
             if id == SkyRegionIdentity.uncharted { name = "Uncharted" }
             else if id == SkyRegionIdentity.variousArtists { name = "Various Artists" }
-            else { name = id.dropFirst("region:".count).replacingOccurrences(of: "-", with: " ").capitalized }
+            else { name = names[id] ?? id.dropFirst("region:".count).replacingOccurrences(of: "-", with: " ").capitalized }
             return SkyRegion(
                 id: id,
                 name: name,
