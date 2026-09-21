@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: aeon-fast-ipa-${{ github.ref }}
@@ -39,6 +40,36 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # This pass already owns run 35630477895's native budget. A queued compile
+      # replacement must never proceed after that stage times out. A new owner-
+      # authorized pass can explicitly remove/update this checkpoint guard.
+      - name: Honor prior pass timeout before consuming more build usage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY_GUARD'
+          import io, json, os, urllib.request, zipfile
+          base = 'https://api.github.com/repos/0BrokenByDefault0/Aeon'
+          def get(path):
+              request = urllib.request.Request(base + path, headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                  'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return response.read()
+          run = json.loads(get('/actions/runs/35630477895'))
+          if run['status'] != 'completed':
+              raise SystemExit('Prior native stage is not complete; no second stage or polling started.')
+          artifacts = json.loads(get('/actions/runs/35630477895/artifacts'))['artifacts']
+          item = next((a for a in artifacts if a['name'] == 'Aeon-fast-native-validation-35630477895'), None)
+          if item is None:
+              raise SystemExit('Prior stage evidence unavailable; stopped rather than assuming success.')
+          with zipfile.ZipFile(io.BytesIO(get('/actions/artifacts/' + str(item['id']) + '/zip'))) as archive:
+              report = json.loads(archive.read('deadline.json'))
+          if report.get('timed_out'):
+              raise SystemExit('Prior 600-second native stage timed out. WORK STOPPED; owner decision required.')
+          print('Prior stage completed within its deadline; replacement compilation may proceed.')
+          PY_GUARD
 
       - uses: actions/setup-node@v4
         with:
