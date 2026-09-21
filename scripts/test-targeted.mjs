@@ -110,6 +110,9 @@ function plan(args){
   if(!['iphone','ipad','all'].includes(family))throw new Error(`Unsupported simulator family: ${family}`);
   const configOnly=areas.length===0;
   const dspIteration=files.some(file=>/^ios\/App\/App\/Audio\/(ParametricDSP\.swift|AeonDSPAudioUnit\.mm|AeonDSPKernel\.hpp)$/.test(file));
+  // This corrective DSP iteration also requires Sky coexistence/material evidence,
+  // including a compile replacement whose previous push has not delivered an IPA.
+  if(dspIteration&&!areas.includes('sky'))areas.push('sky');
   const focusedDSP=['ParametricDSPTests','AudioEngineGraphTests','PlaybackModelsTests','QueueSchedulerTests','QueueControllerTests','PlaybackCoordinatorTests'];
   const nativeFor=area=>area==='playback'&&dspIteration?focusedDSP:routes[area].native;
   const commands=tier==='cheap'
