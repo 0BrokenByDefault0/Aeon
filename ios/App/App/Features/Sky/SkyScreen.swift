@@ -124,23 +124,6 @@ struct SkyScreen: View {
     @ViewBuilder private func selectionFocus(viewport: CGSize) -> some View {
         if let planet = controller.selectedPlanet {
             planetMarker(planet, viewport: viewport)
-        } else if let star = controller.selectedStar, let readout = controller.selectedAlbumReadout {
-            marker(
-                at: controller.camera.screenPoint(for: star.coordinate, viewport: SkyViewport(size: viewport)),
-                title: readout.title,
-                subtitle: readout.subtitle,
-                viewport: viewport,
-                identifier: "aeon.sky.star-selection"
-            )
-        } else if let center = controller.selectedConstellationCenter,
-                  let readout = controller.selectedConstellationReadout {
-            marker(
-                at: controller.camera.screenPoint(for: center, viewport: SkyViewport(size: viewport)),
-                title: readout.title,
-                subtitle: readout.subtitle,
-                viewport: viewport,
-                identifier: "aeon.sky.constellation-selection"
-            )
         }
     }
 
@@ -178,25 +161,6 @@ struct SkyScreen: View {
         .accessibilityIdentifier("aeon.sky.planet-selection")
     }
 
-    private func marker(at point: CGPoint, title: String, subtitle: String, viewport: CGSize, identifier: String) -> some View {
-        ZStack {
-            VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
-                AeonDisplayText(title, size: 26, maximumLines: 2)
-                    .foregroundStyle(AeonTheme.ColorToken.primary)
-                Text(subtitle)
-                    .font(AeonTheme.FontToken.secondary)
-                    .foregroundStyle(AeonTheme.ColorToken.secondary)
-            }
-            .padding(.horizontal, AeonTheme.Space.small).padding(.vertical, AeonTheme.Space.xSmall)
-            .frame(maxWidth: Self.readoutMaximumWidth, alignment: .leading)
-            .shadow(color: .black.opacity(0.55), radius: 16)
-            .position(focusReadoutPosition(for: point, viewport: viewport, height: controller.selectedConstellation == nil ? 100 : 162))
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier(identifier)
-        .allowsHitTesting(false)
-    }
-
     private func focusReadoutPosition(for point: CGPoint, viewport: CGSize, height: CGFloat) -> CGPoint {
         let halfWidth = Self.readoutMaximumWidth / 2
         let x = min(viewport.width - halfWidth - 12, max(halfWidth + 12, point.x))
@@ -218,7 +182,8 @@ private struct SkyLabelOverlay: View {
             ForEach(labels) { label in
                 Text(label.text).font(.system(size: label.isRegion ? 12 : 12, weight: .medium, design: label.isRegion ? .monospaced : .default))
                     .lineLimit(1).frame(width: label.frame.width, height: label.frame.height)
-                    .tracking(label.isRegion ? 1.6 : 0.8)
+                    .tracking(label.isRegion ? 1.4 : 0.1)
+                    .opacity(label.opacity)
                     // 0.14 on pure black is below the threshold of legibility; region names
                     // were effectively invisible even with Sky contrast turned on, because
                     // the flag was never plumbed through from Settings.
@@ -240,33 +205,33 @@ private struct SkyLabelOverlay: View {
             let radius = controller.planetBodyRadius(planet) * CGFloat(planet.resolvedMaterial.ringExtent)
             obstacles.append(CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
         }
-        if let selected = controller.selectedConstellation {
-            for id in selected.albumIDs {
-                guard let star = starByID[id] else { continue }
-                candidates.append(.init(id: id, text: star.title ?? id,
-                                        anchor: camera.screenPoint(for: star.coordinate, viewport: resolvedViewport), isRegion: false))
+        // Selection never overrides distance disclosure. In particular a selected album
+        // must not pin a large title card or suppress artist/genre names on zoom-out.
+        let disclosure = SkyDisclosure(scale: camera.scale)
+        if disclosure.region > 0 {
+            for region in controller.catalogue.regions {
+                let points = controller.catalogue.stars.filter { $0.regionID == region.id }.map(\.coordinate)
+                guard !points.isEmpty else { continue }
+                let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
+                                      y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count)))
+                candidates.append(.init(id: "region-" + region.id, text: region.name.uppercased(),
+                    anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true, opacity: disclosure.region))
             }
-        } else if controller.selectedStar == nil && controller.selectedPlanet == nil {
-            if camera.scale < 0.65 {
-                for region in controller.catalogue.regions.prefix(4) {
-                    let points = controller.catalogue.stars.filter { $0.regionID == region.id }.map(\.coordinate)
-                    guard !points.isEmpty else { continue }
-                    let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
-                                          y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count)))
-                    candidates.append(.init(id: region.id, text: region.name.uppercased(),
-                                            anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true))
-                }
-            } else if camera.scale < 1.6 {
-                for artist in controller.catalogue.constellations {
-                    guard let star = starByID[artist.albumIDs[0]] else { continue }
-                    candidates.append(.init(id: artist.id, text: artist.artistName,
-                                            anchor: camera.screenPoint(for: star.coordinate, viewport: resolvedViewport), isRegion: false))
-                }
-            } else {
-                for star in controller.catalogue.stars {
-                    candidates.append(.init(id: star.id, text: star.title ?? star.albumID,
-                                            anchor: camera.screenPoint(for: star.coordinate, viewport: resolvedViewport), isRegion: false))
-                }
+        }
+        if disclosure.artist > 0 {
+            for artist in controller.catalogue.constellations {
+                let members = artist.albumIDs.compactMap { starByID[$0]?.coordinate }
+                guard !members.isEmpty else { continue }
+                let center = SkyPoint(x: Int32(members.map { Int64($0.x) }.reduce(0, +) / Int64(members.count)),
+                                      y: Int32(members.map { Int64($0.y) }.reduce(0, +) / Int64(members.count)))
+                candidates.append(.init(id: "artist-" + artist.id, text: artist.artistName,
+                    anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: false, opacity: disclosure.artist))
+            }
+        }
+        if disclosure.album > 0 {
+            for star in controller.catalogue.stars {
+                candidates.append(.init(id: "album-" + star.id, text: star.title ?? star.albumID,
+                    anchor: camera.screenPoint(for: star.coordinate, viewport: resolvedViewport), isRegion: false, opacity: disclosure.album))
             }
         }
         for star in controller.catalogue.stars {
@@ -275,6 +240,7 @@ private struct SkyLabelOverlay: View {
         }
         let visible = candidates.filter { CGRect(origin: .zero, size: viewport).contains($0.anchor) }
             .sorted {
+                if $0.opacity != $1.opacity { return $0.opacity > $1.opacity }
                 let left = hypot($0.anchor.x - viewport.width / 2, $0.anchor.y - viewport.height / 2)
                 let right = hypot($1.anchor.x - viewport.width / 2, $1.anchor.y - viewport.height / 2)
                 return left == right ? $0.id < $1.id : left < right
@@ -284,12 +250,29 @@ private struct SkyLabelOverlay: View {
     }
 }
 
+struct SkyDisclosure {
+    let region: Double
+    let artist: Double
+    let album: Double
+    init(scale: Double) {
+        func fade(_ low: Double, _ high: Double) -> Double {
+            let t = min(1, max(0, (scale - low) / (high - low)))
+            return t * t * (3 - 2 * t)
+        }
+        // Retain the approved 0.65 and 1.6 centers; crossfade around them.
+        region = 1 - fade(0.57, 0.73)
+        album = fade(1.44, 1.76)
+        artist = (1 - region) * (1 - album)
+    }
+}
+
 enum SkyLabelLayout {
     struct Candidate: Identifiable, Equatable {
         let id: String
         let text: String
         let anchor: CGPoint
         let isRegion: Bool
+        var opacity: Double = 1
     }
 
     struct Placed: Identifiable, Equatable {
@@ -298,6 +281,7 @@ enum SkyLabelLayout {
         let position: CGPoint
         let frame: CGRect
         let isRegion: Bool
+        var opacity: Double = 1
     }
 
     static func place(_ candidates: [Candidate], viewport: CGSize, obstacles: [CGRect] = [], usableBounds: CGRect? = nil) -> [Placed] {
@@ -326,7 +310,7 @@ enum SkyLabelLayout {
             occupied.append(frame)
             placed.append(Placed(
                 id: candidate.id, text: candidate.text,
-                position: CGPoint(x: frame.midX, y: frame.midY), frame: frame, isRegion: candidate.isRegion
+                position: CGPoint(x: frame.midX, y: frame.midY), frame: frame, isRegion: candidate.isRegion, opacity: candidate.opacity
             ))
         }
         return placed

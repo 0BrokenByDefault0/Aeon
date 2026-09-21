@@ -202,10 +202,17 @@ fragment float4 skyPlanetFragment(SkyVertexOut in [[stage_in]]) {
     float3 local = float3(planetRotate(n.xy, in.orientation.x), n.z);
     local.xz = planetRotate(local.xz, in.orientation.z);
     float3 sample = local * 3.2 + in.turbulence;
+    // Domain-warped strata: broad sculpted folds, secondary eddies, then fine ridges.
+    // Work is bounded and detail fades before it aliases at discovery distance.
     float large = skyNoise(sample);
-    float medium = skyNoise(sample * 2.7 + large * 0.8);
+    float3 warp = float3(large, skyNoise(sample + 19.7), skyNoise(sample - 8.3));
+    float3 folded = sample + (warp - 0.5) * 2.8;
+    float medium = skyNoise(folded * 2.7);
     float lod = 1.0 - smoothstep(0.012, 0.065, fwidth(p.x));
-    float fine = lod > 0.01 ? skyNoise(sample * 11.0 + medium) : 0.5;
+    float fine = lod > 0.01 ? skyNoise(folded * 11.0 + medium) : 0.5;
+    float strataPhase = folded.y * 9.0 + medium * 10.0 + fine * 0.65 * lod;
+    float strata = 0.5 + 0.5 * sin(strataPhase);
+    float ridge = pow(strata, 9.0);
     float3 dark = planetLinear(in.color0.rgb);
     float3 middle = planetLinear(in.color1.rgb);
     float3 pale = planetLinear(in.color2.rgb);
@@ -213,27 +220,35 @@ fragment float4 skyPlanetFragment(SkyVertexOut in [[stage_in]]) {
     float emission = 0, specularMask = 0;
     float cloud = 0;
     if (in.family == 0) { // Ocean, opalescent cloud shelves and controlled water glints.
-        float land = smoothstep(0.48, 0.60, large + medium * 0.16);
-        albedo = mix(dark, middle, land * 0.85);
-        float vapor = skyNoise(sample * 1.7 + float3(in.orientation.z * 0.24, 0.2, 0));
-        cloud = smoothstep(0.50, 0.76, vapor + medium * 0.13) * in.surface.x;
+        // Nacre: deep turquoise basins between opalescent, raised shell-like folds.
+        float basin = smoothstep(0.28, 0.72, medium + large * 0.22);
+        float pearl = smoothstep(0.42, 0.87, strata) * (0.3 + 0.7 * basin);
+        float iridescence = 0.5 + 0.5 * sin(strataPhase * 0.38 + local.x * 4.0);
+        float3 shell = mix(pale, planetLinear(float3(0.78, 0.52, 0.68)), iridescence * 0.42);
+        albedo = mix(dark * 0.5, middle * 1.25, smoothstep(0.2, 0.8, medium));
+        albedo = mix(albedo, shell, pearl * 0.92);
+        albedo *= 0.64 + 0.50 * strata; // crevice occlusion, without global exposure changes
+        albedo += middle * ridge * 0.45;
+        cloud = smoothstep(0.68, 0.87, skyNoise(sample * 1.4 + float3(in.orientation.z * 0.2, 1, 0))) * 0.22;
         albedo = mix(albedo, pale, cloud);
-        specularMask = (1.0 - land) * (1.0 - cloud);
+        specularMask = 0.18 + 0.7 * (1.0 - pearl);
+        emission = ridge * (1.0 - daylight) * 0.12;
     } else if (in.family == 1) { // Copper giant: sheared bands and a single oval storm.
-        float latitude = local.y + (large - 0.5) * 0.16;
+        float latitude = local.y + (large - 0.5) * 0.24 + (medium - 0.5) * 0.055;
         float band = 0.5 + 0.5 * sin(latitude * 31.0 + medium * 2.4);
         float2 stormPoint = (local.xy - float2(0.30, -0.24)) * float2(3.8, 8.0);
         float stormRadius = length(stormPoint);
         float storm = (1.0 - smoothstep(0.55, 1.3, stormRadius)) * smoothstep(0.05, 0.28, local.z);
         float swirl = 0.5 + 0.5 * sin(stormRadius * 16.0 + atan2(stormPoint.y, stormPoint.x) * 2.0);
-        albedo = mix(dark, middle, 0.18 + band * 0.82);
+        albedo = mix(dark, middle, 0.12 + band * 0.88) * (0.78 + strata * 0.32);
         albedo = mix(albedo, pale, smoothstep(0.70, 0.96, band) * 0.6);
         albedo = mix(albedo, mix(dark, pale, swirl * 0.45), storm * 0.86);
     } else if (in.family == 2) { // Fractured ice plates, glassy ridges and sparse blue seams.
-        float ridge = abs(sin((local.x + local.y * 0.7) * 17.0 + large * 7.0));
+        float ridge = abs(sin((folded.x + folded.y * 0.7) * 8.0 + medium * 3.0));
         float fractures = (1.0 - smoothstep(0.025, 0.09, ridge)) * (0.4 + 0.6 * medium);
         albedo = mix(middle, pale, smoothstep(0.28, 0.7, large));
-        albedo = mix(albedo, dark, fractures * 0.8);
+        albedo = mix(albedo, dark, fractures * 0.9);
+        albedo *= 0.76 + 0.30 * smoothstep(0.12, 0.5, ridge);
         specularMask = smoothstep(0.5, 0.8, medium) * 0.35;
     } else if (in.family == 3) { // Rough charcoal plates and sparse connected hot fissures.
         float seam = abs(large - 0.52 + (medium - 0.5) * 0.16);
@@ -248,19 +263,25 @@ fragment float4 skyPlanetFragment(SkyVertexOut in [[stage_in]]) {
         albedo = mix(dark, middle, smoothstep(0.42, 0.68, large + medium * 0.12));
         cloud = smoothstep(0.62, 0.82, medium) * in.surface.x;
         albedo = mix(albedo, middle * 1.3, cloud);
+        albedo *= 0.7 + 0.5 * strata;
         float polar = exp(-pow((abs(local.y) - 0.72) * 15.0, 2.0));
         float curtain = pow(0.5 + 0.5 * sin(atan2(local.z, local.x) * 23.0 + medium * 5.0), 3.0);
         emission = polar * curtain * in.surface.z * (0.35 + 0.65 * (1.0 - daylight));
     }
     float relief = 1.0 + (fine - 0.5) * 0.18 * lod * in.surface.y;
-    float3 surface = albedo * (0.14 + max(0.0, lambert) * 0.92 * daylight) * relief;
-    float highlight = pow(max(0.0, dot(n, normalize(light + float3(0, 0, 1)))),
+    // Screen derivatives give the folds real relief under the common light, not a tinted noise decal.
+    float reliefHeight = in.family == 0 ? strata * 0.09 : (in.family == 2 ? strata * 0.035 : medium * 0.025);
+    float3 reliefNormal = normalize(n + float3(-dfdx(reliefHeight) / max(fwidth(p.x), 0.002),
+                                               dfdy(reliefHeight) / max(fwidth(p.y), 0.002), 0) * lod * 0.3);
+    float reliefLight = max(0.0, dot(reliefNormal, light));
+    float3 surface = albedo * (0.11 + reliefLight * 1.12 * daylight) * relief;
+    float highlight = pow(max(0.0, dot(reliefNormal, normalize(light + float3(0, 0, 1)))),
                           mix(100.0, 12.0, in.surface.y));
     surface += float3(0.8, 0.9, 1.0) * highlight * specularMask * 0.42 * daylight;
     surface += pale * emission;
     float limb = pow(1.0 - max(0.0, n.z), 3.5);
     float3 air = planetLinear(in.atmosphere.rgb);
-    surface += air * limb * in.atmosphere.w * (0.28 + 0.72 * daylight);
+    surface += air * limb * in.atmosphere.w * (0.65 + 1.3 * daylight);
     float atmosphere = exp(-max(0.0, r - 1.0) * 52.0) * (1.0 - body) * in.atmosphere.w;
     atmosphere *= (1.0 - smoothstep(1.05, 1.08, r)) * (0.35 + 0.65 * daylight);
     float alpha = max(body, atmosphere);

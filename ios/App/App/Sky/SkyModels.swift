@@ -147,7 +147,8 @@ struct SkyPlanet: Codable, Equatable, Identifiable, Sendable {
     // changes reward identity, formation context, coordinates or legacy descriptor.
     var material: PlanetMaterialDescriptor? = nil
     var resolvedMaterial: PlanetMaterialDescriptor {
-        material ?? .make(worldID: id, seed: seed, index: index)
+        if let material, material.version >= 3 { return material }
+        return .make(worldID: id, seed: seed, index: index)
     }
 
     func vibrancy(using albums: [SkyAlbumInput]) -> UInt8 {
@@ -202,7 +203,7 @@ struct PlanetMaterialDescriptor: Codable, Equatable, Sendable {
         ]
         let i = Int(family.rawValue)
         let phase = Float(SkyStableHash.mix(seed) & 0xffff) / 65535
-        return Self(version: 2, worldID: worldID, seed: seed, family: family,
+        return Self(version: 3, worldID: worldID, seed: seed, family: family,
                     palette: palettes[i], cloudCover: [0.55, 0.9, 0.12, 0, 0.3, 0.35][i],
                     roughness: [0.18, 0.9, 0.42, 0.95, 0.75, 0.7][i],
                     atmosphere: [0.23, 0.16, 0.14, 0.06, 0.1, 0.3][i],

@@ -104,6 +104,17 @@ final class SkyCameraTests: XCTestCase {
         )
     }
 
+    func testDisclosureReversesWithoutSelectionOverridesOrDarkIntervals() {
+        XCTAssertEqual(SkyDisclosure(scale: 0.4).region, 1)
+        XCTAssertEqual(SkyDisclosure(scale: 1).artist, 1)
+        XCTAssertEqual(SkyDisclosure(scale: 2).album, 1)
+        for scale in stride(from: 0.3, through: 2.2, by: 0.02) {
+            let state = SkyDisclosure(scale: scale)
+            XCTAssertEqual(state.region + state.artist + state.album, 1, accuracy: 0.000001)
+            XCTAssertGreaterThanOrEqual(max(state.region, state.artist, state.album), 0.5)
+        }
+    }
+
     func testSkyLabelPlacementKeepsReadoutsOnscreenAndCollisionFree() {
         let candidates = (0..<8).map { index in
             SkyLabelLayout.Candidate(
