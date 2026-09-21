@@ -41,6 +41,23 @@ policy, reference-path measurements, gapless timeline evidence, queue/transport
 corrections, audio-path reporting and diagnostics all remain outstanding.
 Existing audio implementation and user settings are unchanged in milestone A.
 
+## Continuation from the delivered `cc7f90e3` IPA
+
+Current baseline is `codex/luminous-worlds-hifi` at
+`cc7f90e30cd195d5ce0b20440f4cc19cd4f33476`, not either older discovery branch.
+Run 35613756451 compiled and uploaded the IPA successfully. Its native stage
+completed with 28 passing unit tests and six failed UI dismissal assertions;
+this was an assertion failure, not a timeout. All six checked immediately
+after a single tap, which waits for double-tap recognition to fail.
+
+The continuation retains those empty-sky dismissal assertions with a three-second
+predicate wait, adds an explicit CLOSE action to selected planet details,
+interrupts camera flights for every direct gesture, and announces the actual
+planet name to VoiceOver even when visually unselected. Selection alone still
+controls visible planet names. Audio and camera disclosure thresholds are unchanged.
+Cheap targeted Sky checks passed (22 tests plus syntax) in 6.251 seconds.
+Replacement Release compilation and native interaction results remain pending.
+
 ## Owner review for milestone A
 
 Zoom with nothing selected: genre, artist, album, then back. Select and clear a

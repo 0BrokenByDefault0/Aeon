@@ -25,7 +25,12 @@ final class SkyInteractionTests: XCTestCase {
         add(selected)
         // Clear in empty sky; the large ring/glow envelope must not capture this.
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.4)).tap()
-        XCTAssertFalse(app.descendants(matching: .any)["aeon.sky.planet-selection"].exists)
+        // A single tap is delivered only after double-tap recognition fails.
+        // Keep the dismissal requirement, allowing the gesture's bounded delay.
+        let dismissed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: app.descendants(matching: .any)["aeon.sky.planet-selection"])
+        XCTAssertEqual(XCTWaiter.wait(for: [dismissed], timeout: 3), .completed)
     }
 
     func testSmallSkyLaunchesAndCameraAcceptsPanAndPinch() {

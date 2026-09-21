@@ -101,7 +101,7 @@ final class SkyAccessibilityView: UIView {
         }
         for planet in controller.catalogue.planets {
             let element = Element(accessibilityContainer: self)
-            element.accessibilityLabel = "World \(planet.index)"
+            element.accessibilityLabel = planet.name
             element.accessibilityHint = "Collection landmark, \(planet.index * SkyComposer.albumsPerPlanet)-album milestone. Activate to focus."
             element.accessibilityTraits = controller.camera.selectedID == planet.id ? [.button, .selected] : .button
             element.accessibilityIdentifier = "aeon.sky.accessibility.planet.\(planet.id)"

@@ -78,11 +78,12 @@ struct SkyMetalView: UIViewRepresentable {
             doubleTap.numberOfTapsRequired = 2
             let hold = UILongPressGestureRecognizer(target: self, action: #selector(hold(_:)))
             hold.minimumPressDuration = 0.6
-            pan.delegate = self
-            pinch.delegate = self
             singleTap.require(toFail: hold)
             singleTap.require(toFail: doubleTap)
-            [pan, pinch, singleTap, doubleTap, hold].forEach(view.addGestureRecognizer)
+            [pan, pinch, singleTap, doubleTap, hold].forEach {
+                $0.delegate = self
+                view.addGestureRecognizer($0)
+            }
         }
 
         func gestureRecognizer(
