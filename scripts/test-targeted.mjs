@@ -1,4 +1,5 @@
 import {spawnSync} from 'node:child_process';
+import {enforceValidationBudget} from './validation-budget.mjs';
 
 const areaNames=['import','playback','library','sky','chrome','playlists','settings'];
 
@@ -34,6 +35,8 @@ const routes={
 };
 
 const pathRules=[
+  [/^ios\/App\/AppTests\/(PlanetModel|SkyCamera|SkyComposer|SkyHitTesting)Tests\.swift$/,['sky']],
+  [/^ios\/App\/AppUITests\/SkyInteractionTests\.swift$/,['sky']],
   [/^ios\/App\/App\/Import\//,['import']],
   [/^ios\/App\/App\/Migration\//,['import','library']],
   [/^ios\/App\/App\/(Audio|Playback)\//,['playback']],
@@ -76,7 +79,7 @@ function selectAreas(files){
       for(const area of areas)selected.add(area);
     }
     if(!matched&&(/^(ios\/|package(?:-lock)?\.json$|capacitor\.config\.json$)/.test(file)))broad=true;
-    if(/^scripts\/(?!test-targeted\.mjs$)/.test(file))broad=true;
+    if(/^scripts\/(?!test-targeted\.mjs$|test-ios\.mjs$|validation-(?:budget\.mjs|deadline\.py)$)/.test(file))broad=true;
   }
   return broad?areaNames:[...selected];
 }
@@ -107,6 +110,7 @@ function plan(args){
   const commands=tier==='cheap'
     ?uniqueCommands([
       ['npm','run','check'],
+      ['node','--test','tests/validation-deadline.test.cjs','tests/ios-test-runner.test.cjs','tests/targeted-tests.test.cjs'],
       ...(configOnly?[["node","--test","tests/ios-test-runner.test.cjs","tests/targeted-tests.test.cjs"]]:areas.flatMap(area=>routes[area].cheap))
     ])
     :areas.length?[['node','scripts/test-ios.mjs',`--family=${family}`,...new Set(areas.flatMap(area=>routes[area].native).map(name=>`-only-testing:${name.endsWith('Tests')&&['ImportPickerPresentationTests','PlayerNavigationTests','PlaybackFlowTests','LibraryFlowTests','SkyInteractionTests','AdaptiveChromeTests','AeonAccessibilityTests','AeonScreenMatrixTests','SettingsFlowTests'].includes(name)?'AppUITests':'AppTests'}/${name}`))]]:[];
@@ -130,6 +134,8 @@ console.log(`Targeted areas: ${selected.areas.join(', ')||'configuration only'}`
 console.log(`Tier: ${selected.tier}${selected.tier==='native'?` (${selected.family})`:''}`);
 for(const command of selected.commands)console.log(`  ${display(command)}`);
 if(args.includes('--list'))process.exit(0);
+
+enforceValidationBudget(`${selected.tier} targeted validation`);
 
 for(const command of selected.commands){
   const result=spawnSync(command[0],command.slice(1),{stdio:'inherit',env:process.env});

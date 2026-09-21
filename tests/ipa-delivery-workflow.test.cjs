@@ -49,16 +49,16 @@ function execute(name, context) {
 }
 
 test('cheap checks, device build, packaging, and upload precede native execution', () => {
-  const names = ['Run cheap targeted checks', 'Build unsigned app', 'Package and label unsigned IPA', 'Upload fast IPA', 'Publish IPA download link', 'Capture orbital UI review', 'Run focused native validation'];
+  const names = ['Run cheap targeted checks', 'Build unsigned app', 'Package and label unsigned IPA', 'Upload fast IPA', 'Publish IPA download link', 'Run focused native validation'];
   const positions = names.map(name => workflow.indexOf(step(name)));
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
-  // Both native entry points must follow artifact publication.
+  // The single bounded native entry point follows artifact publication.
   const early = workflow.slice(0, positions[5]);
   for (const line of early.split('\n').filter(line => line.includes('--tier=native'))) {
     assert.match(line, /--(?:json|list)\b/, 'Pre-upload native routing may only inspect the plan');
   }
   assert.doesNotMatch(early, /(?:npm run test:.*native|node scripts\/test-ios\.mjs|xcodebuild[^\n]*\btest(?:-without-building)?\b)/);
-  for (const name of ['Capture orbital UI review', 'Run focused native validation']) {
+  for (const name of ['Run focused native validation']) {
     assert.match(step(name), /steps\.upload_ipa\.outcome == 'success'/);
   }
 });

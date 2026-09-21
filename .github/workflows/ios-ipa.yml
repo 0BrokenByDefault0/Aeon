@@ -85,9 +85,12 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
-          node --test tests/ipa-delivery-workflow.test.cjs
-          node --test tests/orbital-ui-contract.test.cjs
-          node scripts/test-targeted.mjs "${route[@]}" --tier=cheap
+          python3 scripts/validation-deadline.py --stage "cheap pre-IPA checks" -- bash -c '
+            set -euo pipefail
+            node --test tests/ipa-delivery-workflow.test.cjs tests/validation-deadline.test.cjs
+            node --test tests/orbital-ui-contract.test.cjs
+            node scripts/test-targeted.mjs "$@" --tier=cheap
+          ' -- "${route[@]}"
 
       - name: Sync native project
         run: npx cap sync ios
@@ -104,6 +107,7 @@ jobs:
         run: pod install
 
       - name: Build unsigned app
+        timeout-minutes: 35
         shell: bash
         working-directory: ios/App
         env:
@@ -140,6 +144,7 @@ jobs:
           {
             printf 'Aeon fast iteration IPA\n'
             printf 'Commit: %s\nAreas: %s\n' "$GITHUB_SHA" "$AREAS"
+            printf 'Build timestamp (UTC): %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             printf 'Build run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
             printf 'Cheap targeted checks: PASSED\nFocused native validation: %s\n' "$native_result"
             printf 'Deep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\n'
@@ -174,78 +179,8 @@ jobs:
         run: |
           printf '\n## Fast IPA available\n[Download the unsigned iteration IPA](%s)\n\nNative validation is reported separately below; do not wait for it to download the IPA.\n' "$IPA_URL" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Capture orbital UI review
-        id: ui_review
-        if: ${{ steps.upload_ipa.outcome == 'success' && steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
-        shell: bash
-        env:
-          AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
-          AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/aeon-ui-review/review.xcresult
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aeon-ui-review"
-          set +e
-          node scripts/test-ios.mjs --family=iphone \
-            -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalUIReviewEmptyScreensAndControls \
-            -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalUIReviewSkyWithOneAlbum \
-            -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalDockBoundsAfterAX5EmptyStateNavigation \
-            -only-testing:AppUITests/AeonScreenMatrixTests/testCapturesSkyEmptyImportUnchartedConstellationAndPlanetStates \
-            -only-testing:AppUITests/AeonScreenMatrixTests/testDefinitiveSemanticReviewCaptures \
-            -only-testing:AppUITests/AeonScreenMatrixTests/testCorrectiveDeviceReviewCaptures \
-            -only-testing:AppUITests/AeonScreenMatrixTests/testCompactAlbumDetailCaptures \
-            > "$RUNNER_TEMP/aeon-ui-review/review.log" 2>&1
-          result=$?
-          set -e
-          grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)' "$RUNNER_TEMP/aeon-ui-review/review.log" | tail -n 100 || true
-          exit "$result"
-
-      - name: Export orbital UI screenshots
-        if: ${{ always() && steps.ui_review.outcome != 'skipped' && steps.upload_ipa.outcome == 'success' }}
-        shell: bash
-        env:
-          REVIEW_OUTCOME: ${{ steps.ui_review.outcome }}
-        run: |
-          set -euo pipefail
-          root="$RUNNER_TEMP/aeon-ui-review"
-          mkdir -p "$root/screenshots"
-          printf 'Aeon native simulator UI review\nCommit: %s\nRun: %s\nUI review: %s\nPhysical-device acceptance: NOT RUN\nRelease status: ITERATION ONLY\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$REVIEW_OUTCOME" > "$root/review-manifest.txt"
-          test -d "$root/review.xcresult"
-          xcrun xcresulttool export attachments --path "$root/review.xcresult" --output-path "$root/screenshots"
-
-      - name: Capture compact album review
-        id: compact_review
-        if: ${{ always() && steps.ui_review.outcome != 'skipped' && steps.upload_ipa.outcome == 'success' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          runtime=$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; print(next(r["identifier"] for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and "iOS" in r["name"]))')
-          compact=$(xcrun simctl create "Aeon Compact Review" com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation "$runtime")
-          root="$RUNNER_TEMP/aeon-ui-review"
-          set +e
-          AEON_IOS_SIMULATOR_ID="$compact" AEON_IOS_DERIVED_DATA_PATH="$RUNNER_TEMP/AeonDerivedData" AEON_IOS_RESULT_BUNDLE_PATH="$root/compact.xcresult" \
-            node scripts/test-ios.mjs --family=iphone -only-testing:AppUITests/AeonScreenMatrixTests/testCompactAlbumDetailCaptures > "$root/compact.log" 2>&1
-          result=$?
-          set -e
-          mkdir -p "$root/compact-screenshots"
-          xcrun xcresulttool export attachments --path "$root/compact.xcresult" --output-path "$root/compact-screenshots"
-          grep -E 'error:|XCTAssert|Test Case .* (failed|passed)' "$root/compact.log" | tail -n 40 || true
-          exit "$result"
-
-      - name: Upload orbital UI screenshots
-        if: ${{ always() && steps.ui_review.outcome != 'skipped' && steps.upload_ipa.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Aeon-orbital-ui-review-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/aeon-ui-review/screenshots
-            ${{ runner.temp }}/aeon-ui-review/compact-screenshots
-            ${{ runner.temp }}/aeon-ui-review/review-manifest.txt
-            ${{ runner.temp }}/aeon-ui-review/review.log
-            ${{ runner.temp }}/aeon-ui-review/compact.log
-          if-no-files-found: error
-          retention-days: 14
-
       - name: Run focused native validation
+        timeout-minutes: 11
         id: native
         if: ${{ always() && steps.upload_ipa.outcome == 'success' && steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
         shell: bash
@@ -259,7 +194,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/aeon-fast"
           if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
           set +e
-          node scripts/test-targeted.mjs "${route[@]}" --tier=native --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
+          python3 scripts/validation-deadline.py --stage "post-IPA native validation" --report "$RUNNER_TEMP/aeon-fast/deadline.json" -- node scripts/test-targeted.mjs "${route[@]}" --tier=native --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
           result=$?
           set -e
           {
@@ -288,6 +223,9 @@ jobs:
               elif [[ "$NATIVE_REQUIRED" != "true" ]]; then native_result="NOT REQUIRED for configuration-only change"
               else native_result="NOT RUN; uploaded IPA is not native-validated"; fi ;;
           esac
+          if [[ -f "$RUNNER_TEMP/aeon-fast/deadline.json" ]] && python3 -c 'import json,sys; sys.exit(not json.load(open(sys.argv[1]))["timed_out"])' "$RUNNER_TEMP/aeon-fast/deadline.json"; then
+            native_result="TIMEOUT at 600 seconds; work stopped; owner decision required"
+          fi
           {
             printf 'Aeon post-upload validation\nCommit: %s\n' "$GITHUB_SHA"
             printf 'IPA artifact: %s\nFocused native validation: %s\n' "$IPA_URL" "$native_result"
@@ -305,6 +243,8 @@ jobs:
             ${{ runner.temp }}/aeon-fast/Aeon-native-validation.txt
             ${{ runner.temp }}/aeon-fast/native-summary.txt
             ${{ runner.temp }}/aeon-fast/native.log
+            ${{ runner.temp }}/aeon-fast/deadline.json
+            ${{ runner.temp }}/aeon-fast/*.xcresult
           if-no-files-found: warn
           retention-days: 14
 
@@ -317,4 +257,14 @@ jobs:
             ${{ runner.temp }}/aeon-fast/native-summary.txt
             ${{ runner.temp }}/aeon-fast/*.xcresult
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Preserve Release compile evidence
+        if: ${{ always() }}
+        timeout-minutes: 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aeon-release-compile-${{ github.run_id }}
+          path: ${{ runner.temp }}/aeon-fast/xcodebuild.log
+          if-no-files-found: ignore
           retention-days: 7

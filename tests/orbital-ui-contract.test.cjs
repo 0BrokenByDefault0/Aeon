@@ -118,15 +118,16 @@ test('prior native navigation assertions remain byte-for-byte intact', () => {
   assert.match(native, /XCTAttachment\(screenshot: element\.screenshot\(\)\)/);
 });
 
-test('UI evidence follows IPA delivery and does not prevent broader native checks', () => {
-  const names = ['Publish IPA download link', 'Capture orbital UI review', 'Export orbital UI screenshots', 'Upload orbital UI screenshots', 'Run focused native validation'];
+test('native evidence shares one bounded post-IPA stage with no later review retries', () => {
+  const names = ['Publish IPA download link', 'Run focused native validation', 'Report post-upload native validation', 'Upload native validation report'];
   const positions = names.map(name => workflow.indexOf(`- name: ${name}`));
   assert.ok(positions.every(p => p >= 0));
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
-  assert.match(workflow, /id: native\n        if: \$\{\{ always\(\) && steps\.upload_ipa\.outcome == 'success'/);
-  assert.match(workflow, /xcresulttool export attachments --path/);
-  assert.match(workflow, /Commit: %s/);
-  assert.doesNotMatch(workflow, /continue-on-error/);
+  assert.match(workflow, /validation-deadline.py --stage "post-IPA native validation"/);
+  assert.match(workflow, /timeout-minutes: 11/);
+  assert.doesNotMatch(workflow, /Capture compact album review|Capture orbital UI review|continue-on-error/);
+  assert.match(workflow, /deadline.json/);
+  assert.match(workflow, /TIMEOUT at 600 seconds; work stopped/);
 });
 
 

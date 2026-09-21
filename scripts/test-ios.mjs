@@ -1,5 +1,8 @@
 import {spawnSync} from 'node:child_process';
 import {readFileSync,readdirSync} from 'node:fs';
+import {enforceValidationBudget} from './validation-budget.mjs';
+
+enforceValidationBudget('native validation including preparation and result collection');
 
 const copy=spawnSync('npx',['--no-install','cap','copy','ios'],{stdio:'inherit'});
 if(copy.error)throw copy.error;
@@ -103,6 +106,10 @@ for(const device of destinations){
       ...(derivedData?['-derivedDataPath',derivedData]:[]),
       ...(evidence?['-resultBundlePath',evidence]:[]),
       'test',
+      '-parallel-testing-enabled', 'NO',
+      '-test-timeouts-enabled', 'YES',
+      '-default-test-execution-time-allowance', '600',
+      '-maximum-test-execution-time-allowance', '600',
       ...shard.arguments
     ],{stdio:'inherit'});
     if(result.error)throw result.error;
