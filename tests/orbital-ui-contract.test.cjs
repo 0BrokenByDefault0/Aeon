@@ -140,14 +140,14 @@ test('switch row activation wraps the label, spacer, and traveling knob in one b
   assert.match(native, /changedToggle\.tap\(\)[\s\S]*?waitForValue\(changedToggle, equalTo: original/);
 });
 
-test('player controls reuse the orbital system without changing preset gains or actions', () => {
+test('player controls reuse the orbital system with the approved modest tonal presets and actions', () => {
   const eq = source('Features/Player/EQView');
   const player = source('Features/Player/NowPlayingView');
   assert.doesNotMatch(eq, /\bCapsule\(|toggleStyle\(\.switch\)/);
   assert.doesNotMatch(player, /\bCapsule\(/);
   assert.match(eq, /AeonToggleStyle\(showsLabel: false\)/);
   assert.match(eq, /values: Self\.presets\.map\(\\\.name\)/);
-  assert.match(eq, /Preset\(name: "BASS RITUAL", gains: \[9, 8, 6, 3, 0, -1, 0, 0, 1, 2\]\)/);
+  assert.match(eq, /static let presets = TonalPreset.factory/);
   assert.match(eq, /playback\.setEQ\(enabled: true, bands: bands\)/);
   const stage = player.split('private func artworkStage')[1].split('private func metadata')[0];
   assert.doesNotMatch(stage, /Circle\(\)/);

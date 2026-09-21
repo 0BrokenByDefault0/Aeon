@@ -1,31 +1,33 @@
 import SwiftUI
 
 struct EQView: View {
-    struct Preset: Identifiable {
-        let name: String
-        let gains: [Double]
-        var id: String { name }
-    }
-
-    static let frequencies: [Double] = [31, 62, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000]
-    static let presets: [Preset] = [
-        Preset(name: "FLAT", gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
-        Preset(name: "BASS RITUAL", gains: [9, 8, 6, 3, 0, -1, 0, 0, 1, 2]),
-        Preset(name: "VOCAL CULT", gains: [-2, -1, 0, 2, 4, 5, 4, 2, 0, -1]),
-        Preset(name: "AIRWAVE", gains: [0, 0, 0, 0, 0, 1, 2, 4, 6, 7]),
-        Preset(name: "TUNNEL", gains: [5, 4, 1, -3, -5, -5, -3, 0, 3, 4])
-    ]
+    static let frequencies = TonalPreset.frequencies
+    static let presets = TonalPreset.factory
 
     @ObservedObject var playback: PlaybackController
     @State private var activeBand: Int?
     @State private var draftBands: [EQBand]?
     @State private var manualEdit = false
+    @State private var inspectedBand = 0
+    @State private var presetName = ""
+    @State private var showInspector = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
             header
             presets
             bandEditor
+            if showInspector {
+                EQBandInspector(band: currentBands[inspectedBand]) { band in
+                    var bands = currentBands; bands[inspectedBand] = band
+                    draftBands = bands; manualEdit = true
+                    playback.setEQ(enabled: playback.snapshot?.eqEnabled ?? true, bands: bands)
+                }.id(currentBands[inspectedBand].id)
+            }
+            EQResponseView(bands: currentBands, rate: playback.snapshot?.outputFormat?.processingSampleRate ?? 48_000)
+                .frame(height: 84)
+            savedPresets
+            DeviceCorrectionView(playback: playback)
             audioPath
         }
         .padding(.top, AeonTheme.Space.large)
@@ -54,7 +56,7 @@ struct EQView: View {
     private var headerCopy: some View {
         VStack(alignment: .leading, spacing: 4) {
             AeonLabel(text: "Equalizer")
-            Text("Ten bands · ±12 dB")
+            Text("Ten parametric bands · ±12 dB")
                 .font(AeonTheme.FontToken.secondary)
                 .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         }
@@ -87,16 +89,20 @@ struct EQView: View {
                 ),
                 label: { name in
                     switch name {
-                    case "BASS RITUAL": return "BASS"
-                    case "VOCAL CULT": return "VOICE"
-                    case "AIRWAVE": return "AIR"
-                    default: return name
+                    case "Bass lift": return "BASS +"
+                    case "Bass reduction": return "BASS −"
+                    case "Less low-mid": return "LOW MID"
+                    case "Gentle presence": return "PRESENCE"
+                    case "Softer treble": return "TREBLE"
+                    default: return name.uppercased()
                     }
                 },
                 identifier: { "aeon.player.eq.preset.\($0.lowercased().replacingOccurrences(of: " ", with: "-"))" },
                 spokenLabel: { $0 }
             )
             .accessibilityIdentifier("aeon.player.eq.presets")
+            Text(Self.presets.first { $0.name == selectedPreset }?.detail ?? "Modified / custom curve")
+                .font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
         }
     }
 
@@ -106,7 +112,7 @@ struct EQView: View {
                 AeonLabel(text: "Bands")
                 Spacer()
                 if let activeBand {
-                    Text("\(frequencyLabel(Self.frequencies[activeBand]))  \(db(currentBands[activeBand].gainDB)) dB")
+                    Text("\(frequencyLabel(currentBands[activeBand].frequency))  \(db(currentBands[activeBand].gainDB)) dB")
                         .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
                         .foregroundStyle(AeonTheme.ColorToken.bone)
                         .monospacedDigit()
@@ -135,23 +141,14 @@ struct EQView: View {
                             Rectangle().fill(AeonTheme.ColorToken.rule.opacity(0.55)).frame(height: 1)
                         }
                         .frame(height: 166)
-                        Path { path in
-                            for index in Self.frequencies.indices {
-                                let point = CGPoint(x: geometry.size.width * (CGFloat(index) + 0.5) / 10,
-                                                    y: CGFloat(12 - currentBands[index].gainDB) / 24 * 160 + 3)
-                                if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
-                            }
-                        }
-                        .stroke(AeonOrbit.ink.opacity(0.30), lineWidth: 1)
-                        .allowsHitTesting(false)
                         HStack(alignment: .top, spacing: 0) {
                             ForEach(Self.frequencies.indices, id: \.self) { index in
                                 EQBandControl(
-                                    frequency: Self.frequencies[index],
+                                    frequency: currentBands[index].frequency,
                                     gain: currentBands[index].gainDB,
                                     plotHeight: 166,
                                     active: activeBand == index,
-                                    onTouch: { activeBand = index },
+                                    onTouch: { activeBand = index; inspectedBand = index },
                                     onEnd: { activeBand = nil },
                                     onChange: { updateBand(index: index, gain: $0) }
                                 )
@@ -165,13 +162,22 @@ struct EQView: View {
                 .accessibilityIdentifier("aeon.player.eq.bands")
                 .accessibilityHint("All ten equalizer bands are visible and individually adjustable")
             }
+            HStack {
+                Button(showInspector ? "CLOSE BAND EDITOR" : "EDIT BAND \(inspectedBand + 1)") { showInspector.toggle() }
+                Spacer()
+                Menu("BAND \(inspectedBand + 1)") {
+                    ForEach(0..<10, id: \.self) { index in
+                        Button("Band \(index+1) · \(frequencyLabel(currentBands[index].frequency)) Hz") { inspectedBand = index; showInspector = true }
+                    }
+                }
+            }.font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonOrbit.ink)
         }
     }
 
     private var currentBands: [EQBand] {
         if let draftBands, draftBands.count == Self.frequencies.count { return draftBands }
         guard let bands = playback.snapshot?.eqBands, bands.count == Self.frequencies.count else {
-            return Self.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: 0) }
+            return TonalPreset.flat
         }
         return bands
     }
@@ -193,10 +199,15 @@ struct EQView: View {
                 if state?.replayGainMode != .off, let preamp = state?.replayGainPreampDB {
                     pathRow("ReplayGain preamp", "\(db(preamp)) dB · metadata-dependent")
                 }
-                let headroom = state?.eqEnabled == true ? AudioEngineGraph.headroomDB(for: state?.eqBands ?? []) : 0
-                pathRow("EQ preamp", "\(db(headroom)) dB")
-                pathRow("Output protection", "No validated limiter")
-                Text("EQ preamp is a headroom estimate, not peak protection. Output rate describes the active audio path; DAC resolution and Bluetooth codec are not exposed here.")
+                pathRow("Device correction", state?.dsp.activeCorrection?.name ?? "Off")
+                pathRow("Reference bypass", state?.dsp.referenceBypass == true ? "On · intentional DSP off" : "Off")
+                let headroom = output?.effectivePreampDB ?? 0
+                pathRow("Effective preamp", "\(db(headroom)) dB")
+                pathRow("Output protection", state?.dsp.referenceBypass == true ? "Bypassed" : "On · −1 dBFS sample peak")
+                pathRow("DSP latency", String(format: "%.2f ms", (output?.dspLatency ?? 0) * 1000))
+                pathRow("Overload samples", "\(output?.overloadCount ?? 0)")
+                if let count = output?.unavailableFilters, count > 0 { Text("\(count) requested filters exceed this route’s Nyquist limit and are temporarily bypassed.").foregroundStyle(.orange) }
+                Text("Sample-peak protection is not true-peak protection. Route conversion can change reconstructed peaks. Reference bypass keeps the 128-frame DSP delay. DAC resolution and Bluetooth codec are not exposed.")
                     .font(AeonTheme.FontToken.ui(.caption))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -233,22 +244,46 @@ struct EQView: View {
 
     private var selectedPreset: String? {
         guard !manualEdit else { return nil }
-        let gains = currentBands.map(\.gainDB)
-        return Self.presets.first { preset in
-            zip(preset.gains, gains).allSatisfy { abs($0 - $1) < 0.001 }
-        }?.name
+        return Self.presets.first { $0.bands == currentBands }?.name
     }
 
-    private func select(_ preset: Preset) {
-        let bands = zip(Self.frequencies, preset.gains).map { EQBand(frequency: $0, q: 1, gainDB: $1) }
-        manualEdit = false
-        draftBands = bands
+    private func select(_ preset: TonalPreset) {
+        let bands = preset.bands
+        manualEdit = false; draftBands = bands
+        var settings = playback.snapshot?.dsp ?? .init(); settings.presetID = preset.id
+        playback.setDSP(settings)
         playback.setEQ(enabled: true, bands: bands)
+    }
+
+    private var savedPresets: some View {
+        DisclosureGroup("Saved curves") {
+            VStack(alignment: .leading, spacing: 10) {
+                Menu("CHOOSE SAVED CURVE") {
+                    ForEach(playback.snapshot?.dsp.savedPresets ?? []) { preset in Button(preset.name) { select(preset) } }
+                }
+                TextField("Curve name", text: $presetName).textFieldStyle(.roundedBorder)
+                HStack {
+                    Button("SAVE COPY") {
+                        var settings = playback.snapshot?.dsp ?? .init()
+                        let preset = TonalPreset(name: presetName, detail: "Owner curve", bands: currentBands)
+                        settings.savedPresets.append(preset); settings.presetID = preset.id
+                        playback.setDSP(settings)
+                    }.disabled(presetName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("RENAME") {
+                        var settings = playback.snapshot?.dsp ?? .init()
+                        if let index = settings.savedPresets.firstIndex(where: { $0.id == settings.presetID }) {
+                            settings.savedPresets[index].name = presetName; playback.setDSP(settings)
+                        }
+                    }.disabled(presetName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("RESET") { select(Self.presets[0]) }
+                }.font(AeonTheme.FontToken.metric(.caption2))
+            }.padding(.top, 8)
+        }.tint(AeonOrbit.ink).foregroundStyle(AeonOrbit.ink)
     }
 
     private func updateBand(index: Int, gain: Double) {
         var bands = currentBands
-        bands[index] = EQBand(frequency: bands[index].frequency, q: bands[index].q, gainDB: min(12, max(-12, gain)))
+        bands[index].gainDB = min(12, max(-12, gain))
         manualEdit = true
         draftBands = bands
         playback.setEQ(enabled: playback.snapshot?.eqEnabled ?? true, bands: bands)

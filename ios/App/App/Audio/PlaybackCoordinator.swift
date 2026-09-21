@@ -62,12 +62,14 @@ extension QueueScheduler: PlaybackScheduling {}
 protocol PlaybackGraphControlling: AnyObject {
     func setMasterVolume(_ linear: Float)
     func setReplayGain(_ scalar: Float, slot: AudioSlot)
+    func setDSP(_ settings: DSPSettings) throws
     func setEQ(enabled: Bool, bands: [EQBand]) throws
     func outputDescriptor() -> OutputFormatDescriptor
     func rebuild() throws
 }
 
 extension PlaybackGraphControlling {
+    func setDSP(_ settings: DSPSettings) throws {}
     func rebuild() throws {}
 }
 
@@ -181,6 +183,7 @@ final class PlaybackCoordinator {
     private var masterVolume: Double
     private var eqEnabled: Bool
     private var eqBands: [EQBand]
+    private var dsp: DSPSettings
     private var repeatMode: RepeatMode
     private var route: RouteDescriptor?
     private var sourceFormat: SourceFormatDescriptor?
@@ -222,6 +225,8 @@ final class PlaybackCoordinator {
         masterVolume = restored?.masterVolume ?? 1
         eqEnabled = restored?.eqEnabled ?? false
         eqBands = restored?.eqBands ?? []
+        dsp = restored?.dsp ?? .init()
+        dsp.correctionEnabled = false // only an explicitly bound identifiable endpoint may recall
         repeatMode = restored?.repeatMode ?? .off
         route = restored?.route
         sourceFormat = restored?.sourceFormat
@@ -271,6 +276,7 @@ final class PlaybackCoordinator {
                 }
                 graph.setMasterVolume(Float(masterVolume))
                 try graph.setEQ(enabled: eqEnabled, bands: eqBands)
+                recallCorrectionForCurrentRoute()
                 // Relaunch restores continuity but never surprises the user with autoplay.
                 intent = .paused
                 outputFormat = graph.outputDescriptor()
@@ -470,6 +476,23 @@ final class PlaybackCoordinator {
         }
     }
 
+    func setDSP(_ settings: DSPSettings, completion: @escaping PlaybackCommandCompletion) {
+        command(completion: completion) { [self] in
+            guard initialized else { throw CoordinatorError.notInitialized }
+            guard settings.version == 1, settings.trimDB.isFinite, (-24...0).contains(settings.trimDB),
+                  settings.profiles.count <= 32, settings.savedPresets.count <= 32 else {
+                throw DSPError.invalid("Use −24…0 dB trim and at most 32 saved profiles/presets.")
+            }
+            for profile in settings.profiles { try CorrectionImport.validate(profile) }
+            for preset in settings.savedPresets { try ParametricDSP.validate(preset.bands) }
+            if settings.correctionEnabled && settings.correction == nil { throw DSPError.invalid("Select a correction profile first.") }
+            try graph.setDSP(settings)
+            dsp = settings
+            outputFormat = graph.outputDescriptor()
+            return try publish(eventCode: "DSP_CHANGED")
+        }
+    }
+
     func setEQ(enabled: Bool, bands: [EQBand], completion: @escaping PlaybackCommandCompletion) {
         command(completion: completion) { [self] in
             guard initialized else { throw CoordinatorError.notInitialized }
@@ -477,6 +500,7 @@ final class PlaybackCoordinator {
             try graph.setEQ(enabled: enabled, bands: bands)
             eqEnabled = enabled
             eqBands = bands
+            outputFormat = graph.outputDescriptor()
             return try publish(eventCode: "EQ_CHANGED")
         }
     }
@@ -487,6 +511,7 @@ final class PlaybackCoordinator {
             if eqEnabled == enabled { return currentSnapshot() }
             try graph.setEQ(enabled: enabled, bands: eqBands)
             eqEnabled = enabled
+            outputFormat = graph.outputDescriptor()
             return try publish(eventCode: "EQ_CHANGED")
         }
     }
@@ -497,6 +522,7 @@ final class PlaybackCoordinator {
             if eqBands == bands { return currentSnapshot() }
             try graph.setEQ(enabled: eqEnabled, bands: bands)
             eqBands = bands
+            outputFormat = graph.outputDescriptor()
             return try publish(eventCode: "EQ_CHANGED")
         }
     }
@@ -566,6 +592,16 @@ final class PlaybackCoordinator {
         }
     }
 
+    private func recallCorrectionForCurrentRoute() {
+        let currentRoute = graph.outputDescriptor().route
+        dsp.correctionEnabled = false
+        if [.bluetooth, .airPlay].contains(currentRoute.kind), let id = currentRoute.persistentID,
+           !id.isEmpty, let profile = dsp.routeBindings[id], dsp.profiles.contains(where: { $0.id == profile }) {
+            dsp.correctionID = profile; dsp.correctionEnabled = true
+        }
+        try? graph.setDSP(dsp)
+    }
+
     func handleAudioSessionEvent(_ event: AudioSessionEvent) {
         switch event {
         case .interruptionBegan:
@@ -575,6 +611,7 @@ final class PlaybackCoordinator {
         case .routeChanged(_, _, let action):
             transportQueue.async { [weak self] in
                 guard let self, initialized else { return }
+                recallCorrectionForCurrentRoute()
                 if action == .pauseAndRebuild {
                     if scheduler.isPlaying { scheduler.pause() }
                     syncSchedulerState()
@@ -802,6 +839,7 @@ final class PlaybackCoordinator {
             eqEnabled: eqEnabled,
             eqBands: eqBands,
             repeatMode: repeatMode,
+            dsp: dsp,
             route: route,
             sourceFormat: sourceFormat,
             outputFormat: outputFormat,
@@ -889,6 +927,7 @@ final class PlaybackCoordinator {
 
     private func applyReplayGain() {
         scheduler.setReplayGain(mode: replayGainMode, preampDB: replayGainPreampDB)
+        outputFormat = graph.outputDescriptor()
     }
 
     private enum CoordinatorError: Error {
@@ -907,6 +946,9 @@ final class PlaybackCoordinator {
     }
 
     private static func failure(for error: Error, trackID: String?) -> PlaybackFailure {
+        if let error = error as? DSPError {
+            return PlaybackFailure(code: "dsp_parameters", message: error.localizedDescription, recoverable: true, trackID: trackID)
+        }
         if let schedulerError = error as? QueueSchedulerError {
             switch schedulerError {
             case .emptyQueue:

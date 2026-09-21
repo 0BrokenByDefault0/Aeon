@@ -30,7 +30,7 @@ final class PlaybackModelsTests: XCTestCase {
         XCTAssertEqual(Set(object.keys), Set([
             "schemaVersion", "version", "trackID", "queueRevision", "queue", "queueIndex",
             "position", "intent", "replayGainMode", "replayGainPreampDB", "masterVolume",
-            "eqEnabled", "eqBands", "repeatMode", "route", "sourceFormat", "outputFormat", "timestamp"
+            "eqEnabled", "eqBands", "repeatMode", "route", "sourceFormat", "outputFormat", "timestamp", "dsp"
         ]))
         XCTAssertEqual(object["schemaVersion"] as? Int, 1)
         XCTAssertEqual(object["trackID"] as? String, "t1")

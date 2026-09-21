@@ -22,12 +22,18 @@ protocol PlaybackCoordinating: AnyObject {
     func setVolume(_ value: Float, completion: @escaping PlaybackCommandCompletion)
     func setReplayGainMode(_ mode: ReplayGainMode, completion: @escaping PlaybackCommandCompletion)
     func setReplayGainPreamp(_ db: Double, completion: @escaping PlaybackCommandCompletion)
+    func setDSP(_ settings: DSPSettings, completion: @escaping PlaybackCommandCompletion)
     func setEQ(enabled: Bool, bands: [EQBand], completion: @escaping PlaybackCommandCompletion)
     func setRepeatMode(_ mode: RepeatMode, completion: @escaping PlaybackCommandCompletion)
     func getState(completion: @escaping (PlaybackSnapshot) -> Void)
 }
 
 extension PlaybackCoordinator: PlaybackCoordinating {}
+extension PlaybackCoordinating {
+    func setDSP(_ settings: DSPSettings, completion: @escaping PlaybackCommandCompletion) {
+        completion(.failure(PlaybackFailure(code: "DSP_UNAVAILABLE", message: "DSP is unavailable in this fixture.", recoverable: true, trackID: nil)))
+    }
+}
 
 protocol QueuePlaylistPersisting: AnyObject {
     @discardableResult
@@ -129,6 +135,10 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     func setReplayGainPreamp(_ db: Double) {
         coordinator.setReplayGainPreamp(db) { [weak self] result in self?.accept(result) }
     }
+    func setDSP(_ settings: DSPSettings) {
+        coordinator.setDSP(settings) { [weak self] result in self?.accept(result) }
+    }
+
     func setEQ(enabled: Bool, bands: [EQBand]) {
         coordinator.setEQ(enabled: enabled, bands: bands) { [weak self] result in self?.accept(result) }
     }
@@ -458,6 +468,12 @@ final class PlaybackFixtureCoordinator: PlaybackCoordinating {
         publish(completion)
     }
 
+    func setDSP(_ settings: DSPSettings, completion: @escaping PlaybackCommandCompletion) {
+        state.dsp = settings
+        state.version += 1
+        completion(.success(state.snapshot()))
+    }
+
     func setEQ(enabled: Bool, bands: [EQBand], completion: @escaping PlaybackCommandCompletion) {
         state.eqEnabled = enabled
         state.eqBands = bands
@@ -497,6 +513,7 @@ private struct FixtureState {
     var masterVolume: Double
     var eqEnabled: Bool
     var eqBands: [EQBand]
+    var dsp: DSPSettings
     var repeatMode: RepeatMode
     var route: RouteDescriptor?
     var sourceFormat: SourceFormatDescriptor?
@@ -517,6 +534,7 @@ private struct FixtureState {
         masterVolume = snapshot.masterVolume
         eqEnabled = snapshot.eqEnabled
         eqBands = snapshot.eqBands
+        dsp = snapshot.dsp
         repeatMode = snapshot.repeatMode
         route = snapshot.route
         sourceFormat = snapshot.sourceFormat
@@ -540,6 +558,7 @@ private struct FixtureState {
             eqEnabled: eqEnabled,
             eqBands: eqBands,
             repeatMode: repeatMode,
+            dsp: dsp,
             route: route,
             sourceFormat: sourceFormat,
             outputFormat: outputFormat,

@@ -133,6 +133,11 @@
 		A65000000000000000000001 /* AudioIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000011 /* AudioIntegrationTests.swift */; };
 		A65000000000000000000002 /* AeonAccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000012 /* AeonAccessibilityTests.swift */; };
 		A65000000000000000000003 /* AeonScreenMatrixTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65000000000000000000013 /* AeonScreenMatrixTests.swift */; };
+		D2CBD892E9A24380167B1EFD /* AeonDSPAudioUnit.mm in Sources */ = {isa = PBXBuildFile; fileRef = FC69A4BA7A8480230C4B68C4 /* AeonDSPAudioUnit.mm */; };
+		86446C0F60C06ADE6DE39A4A /* ParametricDSP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95B9DF85F90D5913A32FDCAD /* ParametricDSP.swift */; };
+		D5EE894B545D20D2E479F859 /* CorrectionImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = B14A1D33BBA9C35E96E5535A /* CorrectionImport.swift */; };
+		EEAAA5E0777D5A1BA68AD7F8 /* ParametricControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0D077795CC5AC330D638F6 /* ParametricControls.swift */; };
+		BEA012340000000000000002 /* ParametricDSPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEA012340000000000000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -286,6 +291,14 @@
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
 		EA415E4B71310C82A009E840 /* Pods-AppTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-AppTests.release.xcconfig"; path = "Pods/Target Support Files/Pods-AppTests/Pods-AppTests.release.xcconfig"; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
+		FC69A4BA7A8480230C4B68C4 /* AeonDSPAudioUnit.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = Audio/AeonDSPAudioUnit.mm; sourceTree = "<group>"; };
+		9F7E40A233CCDD51697E1049 /* AeonDSPAudioUnit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Audio/AeonDSPAudioUnit.h; sourceTree = "<group>"; };
+		CA6D414C378710BD03900E6D /* AeonDSPKernel.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = Audio/AeonDSPKernel.hpp; sourceTree = "<group>"; };
+		F63BA872061815C05452D773 /* Aeon-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Audio/Aeon-Bridging-Header.h; sourceTree = "<group>"; };
+		95B9DF85F90D5913A32FDCAD /* ParametricDSP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio/ParametricDSP.swift; sourceTree = "<group>"; };
+		B14A1D33BBA9C35E96E5535A /* CorrectionImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Audio/CorrectionImport.swift; sourceTree = "<group>"; };
+		6D0D077795CC5AC330D638F6 /* ParametricControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Features/Player/ParametricControls.swift; sourceTree = "<group>"; };
+		BEA012340000000000000001 /* ParametricDSPTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParametricDSPTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -367,6 +380,13 @@
 				A59000000000000000000012 /* AppContainer.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				6D0D077795CC5AC330D638F6 /* ParametricControls.swift */,
+				B14A1D33BBA9C35E96E5535A /* CorrectionImport.swift */,
+				95B9DF85F90D5913A32FDCAD /* ParametricDSP.swift */,
+				F63BA872061815C05452D773 /* Aeon-Bridging-Header.h */,
+				CA6D414C378710BD03900E6D /* AeonDSPKernel.hpp */,
+				9F7E40A233CCDD51697E1049 /* AeonDSPAudioUnit.h */,
+				FC69A4BA7A8480230C4B68C4 /* AeonDSPAudioUnit.mm */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
@@ -397,6 +417,7 @@
 				A53000000000000000000014 /* MetadataProbeTests.swift */,
 				A54000000000000000000013 /* ReplayGainAndEQTests.swift */,
 				A54000000000000000000014 /* AudioEngineGraphTests.swift */,
+				BEA012340000000000000001 /* ParametricDSPTests.swift */,
 				A55000000000000000000012 /* QueueSchedulerTests.swift */,
 				A56000000000000000000012 /* PlaybackCoordinatorTests.swift */,
 				A58000000000000000000013 /* LegacyDataAccessTests.swift */,
@@ -842,6 +863,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				EEAAA5E0777D5A1BA68AD7F8 /* ParametricControls.swift in Sources */,
+				D5EE894B545D20D2E479F859 /* CorrectionImport.swift in Sources */,
+				86446C0F60C06ADE6DE39A4A /* ParametricDSP.swift in Sources */,
+				D2CBD892E9A24380167B1EFD /* AeonDSPAudioUnit.mm in Sources */,
 				A59000000000000000000001 /* AeonApp.swift in Sources */,
 				A59000000000000000000002 /* AppContainer.swift in Sources */,
 				A59000000000000000000003 /* AeonRootView.swift in Sources */,
@@ -922,6 +947,7 @@
 				A53000000000000000000004 /* MetadataProbeTests.swift in Sources */,
 				A54000000000000000000003 /* ReplayGainAndEQTests.swift in Sources */,
 				A54000000000000000000004 /* AudioEngineGraphTests.swift in Sources */,
+				BEA012340000000000000002 /* ParametricDSPTests.swift in Sources */,
 				A55000000000000000000002 /* QueueSchedulerTests.swift in Sources */,
 				A56000000000000000000002 /* PlaybackCoordinatorTests.swift in Sources */,
 				A58000000000000000000003 /* LegacyDataAccessTests.swift in Sources */,
@@ -1110,6 +1136,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 50;
 				INFOPLIST_FILE = App/Info.plist;
+				SWIFT_OBJC_BRIDGING_HEADER = "App/Audio/Aeon-Bridging-Header.h";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 5.0;
@@ -1132,6 +1159,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 50;
 				INFOPLIST_FILE = App/Info.plist;
+				SWIFT_OBJC_BRIDGING_HEADER = "App/Audio/Aeon-Bridging-Header.h";
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = 5.0;

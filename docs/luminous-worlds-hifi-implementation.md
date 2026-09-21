@@ -122,3 +122,52 @@ reward world and check that its complete name appears only when selected. Compar
 available worlds at discovery and close range. Show/hide the mini-player, rotate
 where supported, and try larger text. Confirm playback and import behavior are
 preserved. An unsigned IPA needs the owner's signing/install workflow.
+
+## Corrective DSP / material continuation
+
+The zoom-out recording exposed a selected-title override in SkyScreen. Removed the
+26-point selected album/artist cards; selected and unselected objects now share the
+same 0.65 / 1.6 distance hierarchy, with opacity crossfades. Planet names remain
+selection-only. Artist labels use actual member centroids; no catalogue moves.
+Metal material v3 adds warped sculpted nacre folds, crevice occlusion and relief
+lighting, with family-specific detail and no backdrop/exposure change. IDs/seeds
+and reward positions are retained. Art acceptance requires rendered/device review.
+
+Audio path: A/B source with optional ReplayGain -> program mixer -> retained native
+EQ for unedited legacy bands -> Aeon parametric Audio Unit (one attenuation, ten
+correction filters then ten modern user filters, final trim, linked sample-peak
+lookahead protection) -> attenuating main mixer -> native route. The C++ renderer
+has fixed storage, double filter state, a triple-buffer parameter mailbox, 512-frame
+state warmup and 1024-frame equal-gain transition. No allocation, lock, file access
+or Swift callback in this renderer. Ordinary DSP changes do not rebuild the graph.
+Legacy native bands retain their historical octave conversion until explicit edit;
+new version 2 filters use digital RBJ Q, including shelf resonance. The correction
+and modern user cascade uses the coefficients plotted by the response view.
+
+One shared preamp uses the minimum of imported recommended preamp and combined
+response attenuation (2049 log samples, endpoints and narrow-peak refinement),
+including positive ReplayGain and a 1 dB margin when boost is present. Trim is
+attenuation only. The final protective stage has no positive app gain after it.
+Its fixed latency is 128 frames and is reported by the AU and audio-path UI.
+Protection is sample-peak at -1 dBFS, not true-peak. Reference bypass retains only
+the delay and native conversion, disabling intentional EQ/correction/RG/gain and
+protection. The always-available safety stage may attenuate hot flat material;
+reference bypass explicitly disables it. Hardware volume remains system-owned.
+
+Added six modest exact-filter factory presets, save-copy/rename/reset, ten-band
+frequency/Q/type/enable inspector, response plotting, separate correction import
+and preview, owner headphone/speaker tonal profiles, measured-speaker import,
+endpoint binding only by explicit owner choice for system-identified Bluetooth or
+AirPlay endpoints. Unmatched/analog/USB endpoints never inherit an unrelated curve.
+Imports accept a strict documented Equalizer APO/AutoEq subset or versioned JSON,
+64 KiB maximum and ten filters; invalid input leaves live DSP unchanged. Parse is
+on a worker. Above-Nyquist requested values remain saved and are reported; preview
+blocks application of an incomplete imported profile on the current route.
+
+A verified redistributable bundled named-model catalogue, validated true-peak
+limiting, explicit converter replacement and hardware-route qualification remain
+open. No AutoEq measurement curves were redistributed without dataset permission.
+Native signal tests are after IPA upload. The current DSP-specific iteration
+selects changed audio graph/model/coordinator/queue tests plus Sky tests, avoiding
+unrelated navigation screenshots; the prior navigation assertion remains unresolved
+and is not hidden or marked passed. All normal full selectors remain available.

@@ -39,6 +39,10 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private(set) var playerB: AVAudioPlayerNode
     private(set) var programMixer: AVAudioMixerNode
     private(set) var equalizer: AVAudioUnitEQ
+    private(set) var dspNode: AVAudioUnitEffect
+    private var dspSettings = DSPSettings()
+    private var effectivePreamp: Double = 0
+    private var unavailableFilters = 0
 
     private var files: [AudioSlot: AVAudioFile] = [:]
     private var isConfigured = false
@@ -61,6 +65,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         playerB = AVAudioPlayerNode()
         programMixer = AVAudioMixerNode()
         equalizer = AVAudioUnitEQ(numberOfBands: AudioEngineGraph.maximumEQBands)
+        dspNode = AeonDSPAudioUnit.makeNode()
         equalizer.bypass = true
         self.outputFormatProvider = outputFormatProvider
     }
@@ -98,20 +103,23 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         engine.attach(playerB)
         engine.attach(programMixer)
         engine.attach(equalizer)
+        engine.attach(dspNode)
 
         programMixer.outputVolume = 1
-        playerA.volume = replayGainA
-        playerB.volume = replayGainB
-        engine.mainMixerNode.outputVolume = masterVolume
+        playerA.volume = dspSettings.referenceBypass ? 1 : replayGainA
+        playerB.volume = dspSettings.referenceBypass ? 1 : replayGainB
+        engine.mainMixerNode.outputVolume = dspSettings.referenceBypass ? 1 : masterVolume
         applyEQBands()
-        equalizer.bypass = !eqEnabled
+        equalizer.bypass = dspSettings.referenceBypass || !eqEnabled
 
         engine.connect(playerA, to: programMixer, fromBus: 0, toBus: 0, format: nil)
         engine.connect(playerB, to: programMixer, fromBus: 0, toBus: 1, format: nil)
         engine.connect(programMixer, to: equalizer, format: nil)
-        engine.connect(equalizer, to: engine.mainMixerNode, format: nil)
+        engine.connect(equalizer, to: dspNode, format: nil)
+        engine.connect(dspNode, to: engine.mainMixerNode, format: nil)
         engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
         isConfigured = true
+        try applyDSP()
         installPendingSpectrumTap()
     }
 
@@ -317,28 +325,52 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func setMasterVolume(_ linear: Float) {
         masterVolume = linear.isFinite && (0...1).contains(linear) ? linear : 1
-        if isConfigured { engine.mainMixerNode.outputVolume = masterVolume }
+        if isConfigured { engine.mainMixerNode.outputVolume = dspSettings.referenceBypass ? 1 : masterVolume }
     }
 
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {
-        let transparentScalar = scalar.isFinite && scalar >= 0 ? scalar : 1
+        let transparentScalar = scalar.isFinite && (0...16).contains(scalar) ? scalar : 1
         switch slot {
         case .a:
             replayGainA = transparentScalar
-            playerA.volume = transparentScalar
+            playerA.volume = dspSettings.referenceBypass ? 1 : transparentScalar
         case .b:
             replayGainB = transparentScalar
-            playerB.volume = transparentScalar
+            playerB.volume = dspSettings.referenceBypass ? 1 : transparentScalar
         }
+        // ReplayGain changes also update the shared headroom before the scheduled source starts.
+        try? applyDSP()
+    }
+
+    func setDSP(_ settings: DSPSettings) throws {
+        let old = dspSettings
+        dspSettings = settings
+        do { try applyDSP() } catch { dspSettings = old; throw error }
+        applyEQBands()
+        playerA.volume = settings.referenceBypass ? 1 : replayGainA
+        playerB.volume = settings.referenceBypass ? 1 : replayGainB
+        engine.mainMixerNode.outputVolume = settings.referenceBypass ? 1 : masterVolume
+    }
+
+    private func applyDSP() throws {
+        let rate = processingSampleRate ?? 48_000
+        let parameters = ParametricDSP.parameters(user: eqBands, enabled: eqEnabled, settings: dspSettings,
+            rate: rate, replayGain: Double(max(replayGainA, replayGainB)))
+        guard let unit = dspNode.auAudioUnit as? AeonDSPAudioUnit, unit.submitParameters(parameters.data) else {
+            throw DSPError.invalid("DSP parameter queue is busy; the previous settings remain active.")
+        }
+        effectivePreamp = parameters.preamp
+        unavailableFilters = parameters.unavailable
     }
 
     func setEQ(enabled: Bool, bands: [EQBand]) throws {
         try validateEQBands(bands)
-        eqEnabled = enabled
-        eqBands = bands
+        let previousEnabled = eqEnabled, previousBands = eqBands
+        eqEnabled = enabled; eqBands = bands
+        do { try applyDSP() } catch { eqEnabled = previousEnabled; eqBands = previousBands; throw error }
         if isConfigured {
             applyEQBands()
-            equalizer.bypass = !enabled
+            equalizer.bypass = dspSettings.referenceBypass || !enabled
         }
     }
 
@@ -401,10 +433,15 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             route: RouteDescriptor(
                 kind: routeKind(for: output?.portType),
                 name: output?.portName ?? "Unknown output",
+                persistentID: output?.uid,
                 sampleRate: sampleRate,
                 channelCount: channelCount
             ),
-            processingSampleRate: processingSampleRate
+            processingSampleRate: processingSampleRate,
+            effectivePreampDB: effectivePreamp,
+            unavailableFilters: unavailableFilters,
+            dspLatency: dspNode.auAudioUnit.latency,
+            overloadCount: (dspNode.auAudioUnit as? AeonDSPAudioUnit)?.overloadCount
         )
     }
 
@@ -422,12 +459,14 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         engine.detach(playerB)
         engine.detach(programMixer)
         engine.detach(equalizer)
+        engine.detach(dspNode)
 
         engine = AVAudioEngine()
         playerA = AVAudioPlayerNode()
         playerB = AVAudioPlayerNode()
         programMixer = AVAudioMixerNode()
         equalizer = AVAudioUnitEQ(numberOfBands: Self.maximumEQBands)
+        dspNode = AeonDSPAudioUnit.makeNode()
         isConfigured = false
         try configure()
     }
@@ -439,23 +478,14 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         }
     }
 
-    /// Makeup attenuation for the loudest boosted band.
-    ///
-    /// The presets reach +9 dB. Applied on top of a track already mastered near full
-    /// scale, with nothing downstream to catch it, that is guaranteed clipping at the
-    /// main mixer. Pulling `globalGain` down by the largest positive band gain keeps the
-    /// boosted band at unity instead of above it, so the EQ changes balance rather than
-    /// level. Bands that only cut need no compensation.
     static func headroomDB(for bands: [EQBand]) -> Double {
-        let loudest = bands.map(\.gainDB).max() ?? 0
-        guard loudest.isFinite, loudest > 0 else { return 0 }
-        // AVAudioUnitEQ clamps globalGain to -96...24 dB.
-        return -min(loudest, 24)
+        ParametricDSP.headroom(bands: bands, rate: 48_000)
     }
 
     private func applyEQBands() {
         for (index, filter) in equalizer.bands.enumerated() {
-            guard index < eqBands.count else {
+            guard index < eqBands.count, eqBands[index].version == 1, eqBands[index].enabled,
+                  eqBands[index].frequency < (processingSampleRate ?? 48_000) * 0.499 else {
                 filter.bypass = true
                 continue
             }
@@ -466,7 +496,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             filter.gain = Float(band.gainDB)
             filter.bypass = false
         }
-        equalizer.globalGain = eqEnabled ? Float(Self.headroomDB(for: eqBands)) : 0
+        equalizer.globalGain = 0
+        equalizer.bypass = dspSettings.referenceBypass || !eqEnabled
     }
 
     private func installPendingSpectrumTap() {
@@ -485,21 +516,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         guard bands.count <= Self.maximumEQBands else {
             throw AudioEngineGraphError.tooManyEQBands(bands.count)
         }
-        for (index, band) in bands.enumerated() {
-            guard band.frequency.isFinite, Self.validEQFrequency.contains(band.frequency) else {
-                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "frequency")
-            }
-            guard band.q.isFinite, band.q > 0 else {
-                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "q")
-            }
-            let bandwidth = Double(bandwidth(forQ: band.q))
-            guard bandwidth.isFinite, Self.validEQBandwidth.contains(bandwidth) else {
-                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "q")
-            }
-            guard band.gainDB.isFinite, Self.validEQGain.contains(band.gainDB) else {
-                throw AudioEngineGraphError.invalidEQBand(index: index, parameter: "gainDB")
-            }
-        }
+        try ParametricDSP.validate(bands)
     }
 
     private func scheduleSegments(
@@ -532,10 +549,15 @@ final class AudioEngineGraph: QueueSchedulingGraph {
             route: RouteDescriptor(
                 kind: routeKind(for: output?.portType),
                 name: output?.portName ?? "Unknown output",
+                persistentID: output?.uid,
                 sampleRate: sampleRate,
                 channelCount: channelCount
             ),
-            processingSampleRate: processingSampleRate
+            processingSampleRate: processingSampleRate,
+            effectivePreampDB: effectivePreamp,
+            unavailableFilters: unavailableFilters,
+            dspLatency: dspNode.auAudioUnit.latency,
+            overloadCount: (dspNode.auAudioUnit as? AeonDSPAudioUnit)?.overloadCount
         )
     }
 

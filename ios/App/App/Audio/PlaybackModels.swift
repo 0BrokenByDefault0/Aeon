@@ -162,6 +162,7 @@ struct SourceFormatDescriptor: Codable, Equatable {
 struct RouteDescriptor: Codable, Equatable {
     let kind: AudioRouteKind
     let name: String
+    var persistentID: String? = nil
     let sampleRate: Double?
     let channelCount: Int?
 }
@@ -171,19 +172,61 @@ struct OutputFormatDescriptor: Codable, Equatable {
     let channelCount: Int
     let route: RouteDescriptor
     let processingSampleRate: Double?
+    var effectivePreampDB: Double?
+    var unavailableFilters: Int?
+    var dspLatency: Double?
+    var overloadCount: UInt64?
 
-    init(sampleRate: Double, channelCount: Int, route: RouteDescriptor, processingSampleRate: Double? = nil) {
+    init(sampleRate: Double, channelCount: Int, route: RouteDescriptor, processingSampleRate: Double? = nil, effectivePreampDB: Double? = nil, unavailableFilters: Int? = nil, dspLatency: Double? = nil, overloadCount: UInt64? = nil) {
         self.sampleRate = sampleRate
         self.channelCount = channelCount
         self.route = route
         self.processingSampleRate = processingSampleRate
+        self.effectivePreampDB = effectivePreampDB; self.unavailableFilters = unavailableFilters
+        self.dspLatency = dspLatency; self.overloadCount = overloadCount
     }
 }
 
-struct EQBand: Codable, Equatable {
-    let frequency: Double
-    let q: Double
-    let gainDB: Double
+enum EQFilterType: String, Codable, CaseIterable, Identifiable {
+    case bell, lowShelf, highShelf, highPass, lowPass
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .bell: return "Bell"
+        case .lowShelf: return "Low shelf"
+        case .highShelf: return "High shelf"
+        case .highPass: return "Low cut · 12 dB/oct"
+        case .lowPass: return "High cut · 12 dB/oct"
+        }
+    }
+}
+
+struct EQBand: Codable, Equatable, Identifiable {
+    var frequency: Double
+    var q: Double
+    var gainDB: Double
+    var id: String
+    var enabled: Bool
+    var type: EQFilterType
+    var version: Int
+
+    init(frequency: Double, q: Double, gainDB: Double, id: String? = nil,
+         enabled: Bool = true, type: EQFilterType = .bell, version: Int = 1) {
+        self.frequency = frequency; self.q = q; self.gainDB = gainDB
+        self.id = id ?? "band-\(frequency)"; self.enabled = enabled; self.type = type; self.version = version
+    }
+    private enum CodingKeys: String, CodingKey { case frequency, q, gainDB, id, enabled, type, version }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        frequency = try c.decode(Double.self, forKey: .frequency)
+        q = try c.decode(Double.self, forKey: .q)
+        gainDB = try c.decode(Double.self, forKey: .gainDB)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? "band-\(frequency)"
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        type = try c.decodeIfPresent(EQFilterType.self, forKey: .type) ?? .bell
+        // Keep historical native octave-width semantics until an explicit edit/reset.
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+    }
 }
 
 struct PlaybackSnapshot: Codable, Equatable {
@@ -201,6 +244,7 @@ struct PlaybackSnapshot: Codable, Equatable {
     let eqEnabled: Bool
     let eqBands: [EQBand]
     let repeatMode: RepeatMode
+    var dsp: DSPSettings = .init()
     let route: RouteDescriptor?
     let sourceFormat: SourceFormatDescriptor?
     let outputFormat: OutputFormatDescriptor?
@@ -209,7 +253,7 @@ struct PlaybackSnapshot: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, version, trackID, queueRevision, queue, queueIndex, position, intent
         case replayGainMode, replayGainPreampDB, masterVolume, eqEnabled, eqBands, repeatMode
-        case route, sourceFormat, outputFormat, timestamp
+        case route, sourceFormat, outputFormat, timestamp, dsp
     }
 
     init(
@@ -227,6 +271,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         eqEnabled: Bool,
         eqBands: [EQBand],
         repeatMode: RepeatMode = .off,
+        dsp: DSPSettings = .init(),
         route: RouteDescriptor?,
         sourceFormat: SourceFormatDescriptor?,
         outputFormat: OutputFormatDescriptor?,
@@ -246,6 +291,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         self.eqEnabled = eqEnabled
         self.eqBands = eqBands
         self.repeatMode = repeatMode
+        self.dsp = dsp
         self.route = route
         self.sourceFormat = sourceFormat
         self.outputFormat = outputFormat
@@ -268,6 +314,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         eqEnabled = try container.decode(Bool.self, forKey: .eqEnabled)
         eqBands = try container.decode([EQBand].self, forKey: .eqBands)
         repeatMode = try container.decodeIfPresent(RepeatMode.self, forKey: .repeatMode) ?? .off
+        dsp = try container.decodeIfPresent(DSPSettings.self, forKey: .dsp) ?? .init()
         route = try container.decodeIfPresent(RouteDescriptor.self, forKey: .route)
         sourceFormat = try container.decodeIfPresent(SourceFormatDescriptor.self, forKey: .sourceFormat)
         outputFormat = try container.decodeIfPresent(OutputFormatDescriptor.self, forKey: .outputFormat)
@@ -290,6 +337,7 @@ struct PlaybackSnapshot: Codable, Equatable {
         try container.encode(eqEnabled, forKey: .eqEnabled)
         try container.encode(eqBands, forKey: .eqBands)
         try container.encode(repeatMode, forKey: .repeatMode)
+        try container.encode(dsp, forKey: .dsp)
         try container.encode(route, forKey: .route)
         try container.encode(sourceFormat, forKey: .sourceFormat)
         try container.encode(outputFormat, forKey: .outputFormat)

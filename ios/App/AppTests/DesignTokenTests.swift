@@ -173,17 +173,16 @@ extension DesignTokenTests {
         XCTAssertEqual(AeonOrbit.stroke, 1)
     }
 
-    @objc func testEqualizerBoostsAreCompensatedSoTheyCannotClip() {
+    @objc func testEqualizerCombinedResponseIncludesOverlappingBoosts() {
         let flat = (0..<10).map { EQBand(frequency: Double(31 << $0), q: 1, gainDB: 0) }
         XCTAssertEqual(AudioEngineGraph.headroomDB(for: flat), 0, accuracy: 0.0001)
 
-        let bassRitual = EQView.presets.first { $0.name == "BASS RITUAL" }
-        XCTAssertNotNil(bassRitual)
-        let boosted = zip(EQView.frequencies, bassRitual?.gains ?? []).map {
-            EQBand(frequency: $0.0, q: 1, gainDB: $0.1)
-        }
-        // +9 dB of boost must be answered by -9 dB of makeup, or the main mixer clips.
-        XCTAssertEqual(AudioEngineGraph.headroomDB(for: boosted), -9, accuracy: 0.0001)
+        let bassLift = EQView.presets.first { $0.name == "Bass lift" }
+        XCTAssertNotNil(bassLift)
+        XCTAssertEqual(AudioEngineGraph.headroomDB(for: bassLift?.bands ?? []), -3, accuracy: 0.01)
+        let overlap = [EQBand(frequency: 1000, q: 1, gainDB: 6, version: 2),
+                       EQBand(frequency: 1000, q: 1, gainDB: 6, version: 2)]
+        XCTAssertEqual(AudioEngineGraph.headroomDB(for: overlap), -13, accuracy: 0.01)
 
         let cutOnly = EQView.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: -6) }
         XCTAssertEqual(AudioEngineGraph.headroomDB(for: cutOnly), 0, accuracy: 0.0001)

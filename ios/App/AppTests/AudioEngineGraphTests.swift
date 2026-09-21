@@ -14,14 +14,14 @@ final class AudioEngineGraphTests: XCTestCase {
         XCTAssertLessThan(residual, 0.00001, "Same-rate float32 app path, zero alignment offset")
     }
 
-    func testOfflineLegacyBellMatchesIndependentLowFrequencyReference() throws {
+    func testOfflineParametricBellMatchesIndependentReference() throws {
         var impulse = [Float](repeating: 0, count: 16_384)
         impulse[0] = 0.25
         let rendered = try renderOffline(impulse,
-            bands: [EQBand(frequency: 1_000, q: 1, gainDB: 6)], enabled: true)
+            bands: [EQBand(frequency: 1_000, q: 1, gainDB: 6, version: 2)], enabled: true)
         // Independent RBJ bell calculation (https://www.w3.org/TR/audio-eq-cookbook/),
         // not the production width/gain helper.
-        // Scope: 48 kHz, 1 kHz bell, Q=1, +6 dB, existing -6 dB makeup.
+        // Scope: 48 kHz, 1 kHz bell, Q=1, +6 dB, combined -7 dB headroom.
         // This is not evidence for near-Nyquist filters or device output.
         let a = pow(10.0, 6.0 / 40)
         let omega = 2 * Double.pi * 1_000 / 48_000
@@ -41,7 +41,7 @@ final class AudioEngineGraphTests: XCTestCase {
                 imaginary -= Double(sample) * sin(w * Double(index))
             }
             let measured = 20 * log10(hypot(real, imaginary) / 0.25)
-            let expected = 20 * log10(magnitude(numerator, at: w) / magnitude(denominator, at: w)) - 6
+            let expected = 20 * log10(magnitude(numerator, at: w) / magnitude(denominator, at: w)) - 7
             XCTAssertEqual(measured, expected, accuracy: 0.1, "\(frequency) Hz")
         }
     }
@@ -53,15 +53,16 @@ final class AudioEngineGraphTests: XCTestCase {
         // Explicit same-rate processor fixture; no source decoding or hardware claim.
         graph.engine.connect(graph.playerA, to: graph.programMixer, fromBus: 0, toBus: 0, format: format)
         graph.engine.connect(graph.programMixer, to: graph.equalizer, format: format)
-        graph.engine.connect(graph.equalizer, to: graph.engine.mainMixerNode, format: format)
+        graph.engine.connect(graph.equalizer, to: graph.dspNode, format: format)
+        graph.engine.connect(graph.dspNode, to: graph.engine.mainMixerNode, format: format)
         try graph.setEQ(enabled: enabled, bands: bands)
         try graph.engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 1_024)
         XCTAssertEqual(graph.outputDescriptor().processingSampleRate, 48_000)
         defer { graph.engine.stop(); graph.engine.disableManualRenderingMode() }
-        let source = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(input.count)))
+        let source = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(input.count + 128)))
         source.frameLength = source.frameCapacity
         for channel in 0..<2 {
-            for index in input.indices { source.floatChannelData![channel][index] = input[index] }
+            for index in 0..<input.count+128 { source.floatChannelData![channel][index] = index < input.count ? input[index] : 0 }
         }
         graph.playerA.scheduleBuffer(source)
         try graph.engine.start()
@@ -71,8 +72,8 @@ final class AudioEngineGraphTests: XCTestCase {
         result.reserveCapacity(input.count)
         var unavailable = 0
         var channelResidual: Float = 0
-        while result.count < input.count {
-            let requested = AVAudioFrameCount(min(1_024, input.count - result.count))
+        while result.count < input.count + 128 {
+            let requested = AVAudioFrameCount(min(1_024, input.count + 128 - result.count))
             let status = try graph.engine.renderOffline(requested, to: buffer)
             if status == .cannotDoInCurrentContext, unavailable < 8 { unavailable += 1; continue }
             guard status == .success, buffer.frameLength == requested else {
@@ -87,7 +88,7 @@ final class AudioEngineGraphTests: XCTestCase {
             }
         }
         XCTAssertLessThanOrEqual(channelResidual, 0.000001)
-        return result
+        return Array(result.dropFirst(128)) // AU-reported, fixed 128-frame lookahead alignment
     }
 
     func testUnconfiguredGraphStartsTransparent() {
@@ -113,7 +114,8 @@ final class AudioEngineGraphTests: XCTestCase {
         XCTAssertTrue(connects(graph.engine, graph.playerA, to: graph.programMixer))
         XCTAssertTrue(connects(graph.engine, graph.playerB, to: graph.programMixer))
         XCTAssertTrue(connects(graph.engine, graph.programMixer, to: graph.equalizer))
-        XCTAssertTrue(connects(graph.engine, graph.equalizer, to: graph.engine.mainMixerNode))
+        XCTAssertTrue(connects(graph.engine, graph.equalizer, to: graph.dspNode))
+        XCTAssertTrue(connects(graph.engine, graph.dspNode, to: graph.engine.mainMixerNode))
         XCTAssertTrue(connects(graph.engine, graph.engine.mainMixerNode, to: graph.engine.outputNode))
     }
 
