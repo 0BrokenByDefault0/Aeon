@@ -474,7 +474,20 @@ final class AeonScreenMatrixTests: XCTestCase {
 
     private func capture(_ app: XCUIApplication, name: String) {
         XCTAssertEqual(app.webViews.count, 0, "\(name) must remain a native SwiftUI surface")
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        if name.hasPrefix("definitive-") || name.hasPrefix("corrective-sky-") {
+            if app.images["aeon.sky.canvas"].exists && !app.buttons["aeon.player.close"].exists {
+                for destination in ["sky", "library", "playlists", "settings"] {
+                    let button = app.buttons["aeon.navigation.\(destination)"]
+                    XCTAssertTrue(button.waitForExistence(timeout: 5))
+                    XCTAssertTrue(button.isHittable, "Sky navigation must remain available: \(destination)")
+                }
+            }
+        }
+        // App-scoped portrait capture resolves the app's composited layers. Full-screen
+        // capture avoids the simulator's rotated app-frame cropping in landscape.
+        let frame = app.windows.firstMatch.frame
+        let screenshot = frame.width > frame.height ? XCUIScreen.main.screenshot() : app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
