@@ -238,8 +238,10 @@ jobs:
           name: Aeon-orbital-ui-review-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/aeon-ui-review/screenshots
+            ${{ runner.temp }}/aeon-ui-review/compact-screenshots
             ${{ runner.temp }}/aeon-ui-review/review-manifest.txt
             ${{ runner.temp }}/aeon-ui-review/review.log
+            ${{ runner.temp }}/aeon-ui-review/compact.log
           if-no-files-found: error
           retention-days: 14
 

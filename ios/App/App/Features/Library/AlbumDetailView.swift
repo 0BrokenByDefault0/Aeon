@@ -115,6 +115,7 @@ struct AlbumDetailView: View {
                     .buttonStyle(AeonTransportButtonStyle())
                     .frame(minWidth: AeonTheme.Space.minimumTarget, minHeight: AeonTheme.Space.minimumTarget)
                     .contentShape(Rectangle())
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                     .accessibilityIdentifier("aeon.album.find-in-sky")
             }
             playlistMenu
@@ -151,7 +152,10 @@ struct AlbumDetailView: View {
     }
 
     private var metadata: some View {
-        HStack(alignment: .top, spacing: AeonTheme.Space.section) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: AeonTheme.Space.section))
+        return layout {
             if !album.year.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 metadataValue("YEAR", album.year)
             }

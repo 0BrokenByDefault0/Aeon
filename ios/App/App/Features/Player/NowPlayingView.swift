@@ -195,7 +195,7 @@ struct NowPlayingView: View {
             HStack {
                 Text(time(value))
                 Spacer()
-                Text(presentation.duration > value ? "−" + time(presentation.duration - value) : "0:00")
+                Text(presentation.duration - value >= 1 ? "−" + time(presentation.duration - value) : "0:00")
             }
             .font(AeonTheme.FontToken.metric(.caption2))
             .foregroundStyle(AeonTheme.ColorToken.boneSecondary)

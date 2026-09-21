@@ -232,9 +232,15 @@ private struct QueueNativeList<Row: View>: UIViewRepresentable {
         var configuration = UICollectionLayoutListConfiguration(appearance: .plain)
         configuration.backgroundColor = .clear
         configuration.showsSeparators = false
-        let view = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: configuration))
+        let layout = UICollectionViewCompositionalLayout { _, environment in
+            let section = NSCollectionLayoutSection.list(using: configuration, layoutEnvironment: environment)
+            // Section insets reduce row width; scroll-view insets alone clip trailing controls.
+            section.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
+            return section
+        }
+        let view = UICollectionView(frame: .zero, collectionViewLayout: layout)
         view.backgroundColor = .clear
-        view.contentInset = UIEdgeInsets(top: 0, left: 16, bottom: 24, right: 16)
+        view.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 24, right: 0)
         view.register(UICollectionViewCell.self, forCellWithReuseIdentifier: "track")
         view.dataSource = context.coordinator
         view.delegate = context.coordinator
@@ -276,6 +282,18 @@ private struct QueueNativeList<Row: View>: UIViewRepresentable {
             let moved = draft.remove(at: source.item + 1)
             draft.insert(moved, at: destination.item + 1)
             parent.move(source.item, destination.item)
+            // UIKit moves existing cells; refresh their ordinal and accessibility actions
+            // against the settled draft without replacing the lifted-row animation.
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view else { return }
+                for path in view.indexPathsForVisibleItems {
+                    let index = path.section == 0 ? 0 : path.item + 1
+                    guard self.draft.indices.contains(index) else { continue }
+                    view.cellForItem(at: path)?.contentConfiguration = UIHostingConfiguration {
+                        self.parent.row(self.draft[index], index, path.section == 0)
+                    }.margins(.all, 0)
+                }
+            }
             AeonFeedback.activated()
         }
         func collectionView(_ view: UICollectionView, targetIndexPathForMoveFromItemAt original: IndexPath,

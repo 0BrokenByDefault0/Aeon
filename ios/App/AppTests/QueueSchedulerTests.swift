@@ -44,6 +44,20 @@ final class QueueSchedulerTests: XCTestCase {
         }
     }
 
+    func testFailedFutureRepeatPreparationLeavesCurrentAudioAndPolicyIntact() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b], rejected: .unsupported(reason: "decoder"))
+        try scheduler.setRepeatMode(.one)
+        try scheduler.play()
+        graph.framesBySlot[.a] = 1200
+        XCTAssertThrowsError(try scheduler.setRepeatMode(.off))
+        XCTAssertTrue(scheduler.isPlaying)
+        XCTAssertEqual(scheduler.currentPosition, 0.025, accuracy: 0.000001)
+        XCTAssertEqual(graph.schedules.filter { $0.slot == .a }.count, 1)
+        // Policy rollback prevents the failed successor from breaking Repeat One's restart.
+        try scheduler.seek(seconds: 0)
+        XCTAssertNil(scheduler.preparedNextTrackID)
+    }
+
     func testSeekToDecodedEOFUsesLastPlayableFrameAndRefreshIsSafe() throws {
         let (scheduler, graph, _) = try makeScheduler([a])
         try scheduler.play()

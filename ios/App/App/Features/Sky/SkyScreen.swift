@@ -37,7 +37,8 @@ struct SkyScreen: View {
                         SkyHUD(controller: controller, importProgress: importProgress, viewportSize: geometry.size,
                                showCensus: showHUD, reduceMotionOverride: reduceMotionOverride)
                             .padding(.horizontal, edge)
-                            .padding(.top, max(AeonTheme.Space.small, geometry.safeAreaInsets.top))
+                            // The full-bleed geometry has no safe inset; use the root's measurement.
+                            .padding(.top, max(AeonTheme.Space.small, readableInsets.top))
                             .padding(.bottom, max(AeonTheme.Space.small, readableInsets.bottom))
                         if controller.catalogue.stars.isEmpty {
                             VStack {
@@ -65,13 +66,10 @@ struct SkyScreen: View {
             }
             .background(AeonTheme.ColorToken.void)
             .onAppear {
-                controller.updateFocusInsets(top: geometry.safeAreaInsets.top + 44, bottom: readableInsets.bottom)
+                controller.updateFocusInsets(top: readableInsets.top + 44, bottom: readableInsets.bottom)
             }
             .onChange(of: readableInsets) { insets in
-                controller.updateFocusInsets(top: geometry.safeAreaInsets.top + 44, bottom: insets.bottom)
-            }
-            .onChange(of: geometry.safeAreaInsets) { insets in
-                controller.updateFocusInsets(top: insets.top + 44, bottom: readableInsets.bottom)
+                controller.updateFocusInsets(top: insets.top + 44, bottom: insets.bottom)
             }
         }
         .ignoresSafeArea(.container)

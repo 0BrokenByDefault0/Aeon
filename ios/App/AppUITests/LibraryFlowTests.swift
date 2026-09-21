@@ -43,15 +43,14 @@ final class LibraryFlowTests: XCTestCase {
             return
         }
         title.tap()
-        title.press(forDuration: 1)
-        let selectAll = app.menuItems["Select All"]
-        guard selectAll.waitForExistence(timeout: 3) else {
-            fail("Could not select the original title for replacement", in: app)
+        guard let originalTitle = title.value as? String, originalTitle == "Glass Archive" else {
+            fail("The editor did not load the original fixture title", in: app)
             return
         }
-        selectAll.tap()
         let renamedTitle = "Glass Archive Revised"
-        title.typeText(renamedTitle)
+        // The short fixture title ends before the field's tap point. Replace it
+        // through the keyboard rather than depending on a transient Select All menu.
+        title.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: originalTitle.count) + renamedTitle)
         guard title.value as? String == renamedTitle else {
             fail("Title entry failed before Save; actual value: \(String(describing: title.value))", in: app)
             return

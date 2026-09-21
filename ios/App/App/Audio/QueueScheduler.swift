@@ -231,11 +231,15 @@ final class QueueScheduler {
     func setRepeatMode(_ mode: RepeatMode) throws {
         try confined {
             guard repeatMode != mode else { return }
+            let previousMode = repeatMode
             repeatMode = mode
             // Policy applies to the next boundary. Never stop, seek or reschedule
             // the current node merely because the user changed Repeat.
             if mode == .one { discardFollowing() }
-            else if current != nil, following == nil { try prepareFollowing() }
+            else if current != nil, following == nil {
+                do { try prepareFollowing() }
+                catch { repeatMode = previousMode; throw error }
+            }
         }
     }
 

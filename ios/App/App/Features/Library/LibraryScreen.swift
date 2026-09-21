@@ -8,6 +8,7 @@ struct LibraryScreen: View {
     let adoptLibrary: () -> Void
     let findInSky: (String, Bool) -> Void
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.aeonReadableInsets) private var readableInsets
     @State private var importSheetPresented = false
@@ -23,6 +24,7 @@ struct LibraryScreen: View {
             if let album = controller.selectedAlbum {
                 AlbumDetailView(controller: controller, album: album, embedded: false, close: controller.dismissAlbum,
                                 findInSky: { id in controller.dismissAlbum(); findInSky(id, effectiveReduceMotion) })
+                    .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
         }
         .sheet(isPresented: $importSheetPresented) { AeonImportSheet(selectFiles: importFiles, adoptLibrary: adoptLibrary) }

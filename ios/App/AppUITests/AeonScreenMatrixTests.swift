@@ -20,11 +20,19 @@ final class AeonScreenMatrixTests: XCTestCase {
                 XCTAssertTrue(readout.exists)
                 XCTAssertTrue(readout.label.contains("Channel Orange"))
             }
-            if name == "one" { collectionCorePixels = luminousCorePixels(in: canvas.screenshot().image) }
-            if name == "one-focused" {
-                let focusedPixels = luminousCorePixels(in: canvas.screenshot().image)
-                XCTAssertGreaterThan(focusedPixels, max(20, collectionCorePixels * 3),
-                                     "Focus must enlarge the rendered star, not merely change camera state")
+            if name == "one" || name == "one-focused" {
+                let star = app.buttons["aeon.sky.accessibility.star.fixture-album-0"]
+                XCTAssertTrue(star.exists)
+                let anchor = CGPoint(x: star.frame.midX - canvas.frame.minX,
+                                     y: star.frame.midY - canvas.frame.minY)
+                let corePixels = luminousCorePixels(in: canvas.screenshot().image, at: anchor)
+                if name == "one" {
+                    collectionCorePixels = corePixels
+                    XCTAssertGreaterThan(corePixels, 0, "The collection star must be visibly represented")
+                } else {
+                    XCTAssertGreaterThan(corePixels, max(20, collectionCorePixels * 3),
+                                         "Focus must enlarge the rendered star, not merely change camera state")
+                }
             }
             if name == "artist-focused" {
                 // Visual text is excluded from VoiceOver to avoid duplicating the
@@ -95,6 +103,9 @@ final class AeonScreenMatrixTests: XCTestCase {
         for fixture in ["populated", "thirty-three", "planet-medium", "planet-selected", "one-focused", "artist-focused"] {
             let app = launch(["-AeonSkyFixture", fixture])
             XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 12))
+            let overview = app.buttons["aeon.sky.galaxy"]
+            XCTAssertGreaterThanOrEqual(overview.frame.minY, app.statusBars.firstMatch.frame.maxY,
+                                       "Sky utilities must clear the status bar")
             capture(app, name: "corrective-sky-\(fixture)")
             app.terminate()
         }
@@ -113,11 +124,20 @@ final class AeonScreenMatrixTests: XCTestCase {
         let first = app.images["aeon.player.queue.drag.playback-fixture-track-2"]
         let last = app.images["aeon.player.queue.drag.playback-fixture-track-3"]
         XCTAssertTrue(first.waitForExistence(timeout: 5))
+        XCTAssertLessThanOrEqual(first.frame.maxX, app.windows.firstMatch.frame.maxX - 8,
+                                 "The entire queue drag target must fit inside the sheet")
         capture(app, name: "corrective-up-next-before")
         last.press(forDuration: 0.5, thenDragTo: first)
         XCTAssertLessThan(last.frame.midY, first.frame.midY, "The drop must commit the previewed order")
         capture(app, name: "corrective-up-next-reordered")
         XCTAssertFalse(app.staticTexts["Upcoming queue reordered."].exists)
+        app.buttons["aeon.player.queue.close"].tap()
+        app.buttons["aeon.player.queue.open"].tap()
+        XCTAssertTrue(last.waitForExistence(timeout: 5))
+        XCTAssertLessThan(last.frame.midY, first.frame.midY, "Reopening must use the committed queue order")
+        let secondPosition = app.staticTexts["aeon.player.queue.position.2"]
+        XCTAssertEqual(secondPosition.frame.midY, last.frame.midY, accuracy: 1,
+                       "Queue ordinals and Move Up/Down actions must follow the reordered rows")
         app.buttons["aeon.player.queue.close"].tap()
         let output = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Clay's AirPods Pro #2")).firstMatch
         scroll(in: app, until: output)
@@ -134,6 +154,7 @@ final class AeonScreenMatrixTests: XCTestCase {
     }
 
     func testCompactAlbumDetailCaptures() {
+        var ordinaryTitleHeight: CGFloat = 0
         for (fixture, options, name) in [
             ("populated", [String](), "ordinary"),
             ("long-title", [String](), "long-title"),
@@ -146,6 +167,12 @@ final class AeonScreenMatrixTests: XCTestCase {
             scroll(in: app, until: album); album.tap()
             XCTAssertTrue(app.buttons["aeon.album.close"].waitForExistence(timeout: 5))
             capture(app, name: "corrective-album-\(name)")
+            let title = app.staticTexts["aeon.album.title"]
+            if name == "long-title" { ordinaryTitleHeight = title.frame.height }
+            if name == "long-title-accessibility" {
+                XCTAssertGreaterThan(title.frame.height, ordinaryTitleHeight * 1.2,
+                                     "The accessibility fixture must actually scale the album title")
+            }
             XCTAssertFalse(app.buttons["aeon.album.edit"].exists, "Edit belongs in overflow")
             let play = app.buttons["aeon.album.play"]
             if options.isEmpty { XCTAssertTrue(play.isHittable) }
@@ -372,12 +399,12 @@ final class AeonScreenMatrixTests: XCTestCase {
         return min(frame.width, frame.height) >= 700 ? "ipad" : "iphone"
     }
 
-    private func luminousCorePixels(in image: UIImage) -> Int {
+    private func luminousCorePixels(in image: UIImage, at anchor: CGPoint) -> Int {
         guard let source = image.cgImage else { return 0 }
         let size = 64
         let scale = CGFloat(source.width) / image.size.width
-        let crop = CGRect(x: CGFloat(source.width) / 2 - 32 * scale,
-                          y: CGFloat(source.height) / 2 - 32 * scale,
+        let crop = CGRect(x: (anchor.x - 32) * scale,
+                          y: (anchor.y - 32) * scale,
                           width: 64 * scale, height: 64 * scale)
         guard let core = source.cropping(to: crop) else { return 0 }
         var pixels = [UInt8](repeating: 0, count: size * size * 4)

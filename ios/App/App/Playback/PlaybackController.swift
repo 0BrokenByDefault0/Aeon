@@ -254,7 +254,12 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
         didPublish snapshot: PlaybackSnapshot,
         events: [PlaybackCoordinatorEvent]
     ) {
-        Task { @MainActor [weak self] in self?.accept(snapshot: snapshot) }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            if events.contains(.engineRecovered), snapshot.version >= latestVersion,
+               snapshot.intent == .playing, failure?.recoverable == true { failure = nil }
+            accept(snapshot: snapshot)
+        }
     }
 
     nonisolated func playbackCoordinator(
