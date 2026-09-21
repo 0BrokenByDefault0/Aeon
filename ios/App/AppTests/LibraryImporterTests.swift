@@ -232,7 +232,7 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(try repository.albumCount(), 2)
 
         let indexedRescan = try await importer.adoptMusicLibrary()
-        XCTAssertEqual(indexedRescan.enumeratedFiles, 0, "unchanged album folders should be reused from the directory index")
+        XCTAssertEqual(indexedRescan.enumeratedFiles, 2, "cheap file attributes must catch in-place edits that do not touch the folder")
         XCTAssertEqual(indexedRescan.unchangedFiles, 2)
 
         try writeAudio(third)
@@ -240,7 +240,7 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(update.importedAlbums, 1)
         XCTAssertEqual(update.importedTracks, 1)
         XCTAssertEqual(update.unchangedFiles, 2)
-        XCTAssertEqual(update.enumeratedFiles, 1, "only the newly added album folder should enumerate audio files")
+        XCTAssertEqual(update.enumeratedFiles, 3, "enumeration is cheap; only the new file enters readers")
         XCTAssertEqual(reader.callCount - tagReadsAfterInitial, 2, "only the new file should receive tag and artwork reads")
         XCTAssertEqual(probe.callCount - probesAfterInitial, 2, "only the new file should be decoded and verified")
         XCTAssertEqual(try repository.albumCount(), 3)
@@ -261,7 +261,10 @@ final class LibraryImporterTests: XCTestCase {
         let reads = reader.callCount
         let probes = probe.callCount
 
-        try Data("audio changed".utf8).write(to: file, options: .atomic)
+        let writer = try FileHandle(forWritingTo: file)
+        try writer.seekToEnd()
+        try writer.write(contentsOf: Data(" changed".utf8))
+        try writer.close()
         let modified = try await importer.adoptMusicLibrary()
         XCTAssertEqual(modified.updatedTracks, 1)
         XCTAssertEqual(modified.importedAlbums, 0)
@@ -274,6 +277,61 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertEqual(missing.missingFiles, 1)
         XCTAssertEqual(try repository.albumCount(), 1)
         XCTAssertNotNil(try repository.track(id: track.id))
+    }
+
+    func testFiveHundredUnchangedFilesNeverReenterMetadataOrArtworkPipeline() async throws {
+        var tags: [String: AudioTags] = [:]
+        var files: [URL] = []
+        for index in 0..<512 {
+            let album = index < 500 ? index / 10 : 50
+            let file = mediaStore.documentsMusicRoot.appendingPathComponent("Artist/Album \(album)/Track \(index).wav")
+            files.append(file)
+            tags[file.lastPathComponent] = AudioTags(title: "Track \(index)", artist: "Artist", albumArtist: nil,
+                album: "Album \(album)", year: nil, genre: "Ambient", trackNumber: index + 1, discNumber: 1, artworkData: nil)
+            if index < 500 { try writeAudio(file) }
+        }
+        let reader = StubTagReader(values: tags)
+        let probe = StubProbe()
+        let importer = makeImporter(reader: reader, probe: probe)
+        let initial = try await importer.adoptMusicLibrary()
+        XCTAssertEqual(initial.importedTracks, 500)
+        let before = reader.calls
+        let probes = probe.callCount
+        for file in files.suffix(12) { try writeAudio(file) }
+        // A fresh importer proves the short circuit comes from persistent state.
+        let next = try await makeImporter(reader: reader, probe: probe).adoptMusicLibrary()
+        XCTAssertEqual(next.enumeratedFiles, 512)
+        XCTAssertEqual(next.unchangedFiles, 500)
+        XCTAssertEqual(next.importedTracks, 12)
+        XCTAssertEqual(next.importedAlbums, 1)
+        XCTAssertTrue(next.failedFiles.isEmpty)
+        let expensive = Array(reader.calls.dropFirst(before.count))
+        XCTAssertEqual(expensive.filter { !$0.artwork }.count, 12)
+        XCTAssertEqual(expensive.filter(\.artwork).count, 12)
+        XCTAssertEqual(Set(expensive.map(\.name)), Set(files.suffix(12).map(\.lastPathComponent)))
+        XCTAssertEqual(probe.callCount - probes, 24)
+    }
+
+    func testFailedModifiedFileRetriesWithoutInvalidatingUnchangedIndex() async throws {
+        let good = mediaStore.documentsMusicRoot.appendingPathComponent("Stable/01 Good.wav")
+        let changed = mediaStore.documentsMusicRoot.appendingPathComponent("Changed/01 Changed.wav")
+        try writeAudio(good); try writeAudio(changed)
+        let reader = StubTagReader(values: [:])
+        _ = try await makeImporter(reader: reader, probe: StubProbe()).adoptMusicLibrary()
+        let writer = try FileHandle(forWritingTo: changed)
+        try writer.seekToEnd(); try writer.write(contentsOf: Data(" edited".utf8)); try writer.close()
+        reader.failures = [changed.lastPathComponent]
+        let failed = try await makeImporter(reader: reader, probe: StubProbe()).adoptMusicLibrary()
+        XCTAssertEqual(failed.unchangedFiles, 1)
+        XCTAssertEqual(failed.failedFiles.count, 1)
+        let count = reader.callCount
+        reader.failures = []
+        let retry = try await makeImporter(reader: reader, probe: StubProbe()).adoptMusicLibrary()
+        XCTAssertEqual(retry.unchangedFiles, 1)
+        XCTAssertEqual(retry.updatedTracks, 1)
+        XCTAssertEqual(reader.callCount, count + 1)
+        let settled = try await makeImporter(reader: reader, probe: StubProbe()).adoptMusicLibrary()
+        XCTAssertEqual(settled.unchangedFiles, 2)
     }
 
     func testAdoptRescanRelinksMovedAlbumWithoutChangingTrackIdentity() async throws {
@@ -331,9 +389,13 @@ final class LibraryImporterTests: XCTestCase {
 private final class StubTagReader: AudioTagReading {
     let values: [String: AudioTags]
     private(set) var callCount = 0
+    private(set) var calls: [(name: String, artwork: Bool)] = []
+    var failures: Set<String> = []
     init(values: [String: AudioTags]) { self.values = values }
     func read(url: URL, includeArtwork: Bool) async throws -> AudioTags {
         callCount += 1
+        calls.append((url.lastPathComponent, includeArtwork))
+        if failures.contains(url.lastPathComponent) { throw CocoaError(.fileReadCorruptFile) }
         var value = values[url.lastPathComponent] ?? AudioTags(title: nil)
         if !includeArtwork { value.artworkData = nil }
         return value

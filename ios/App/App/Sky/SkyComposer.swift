@@ -15,18 +15,19 @@ struct SkyComposer {
         try validate(ordered)
         let existingByAlbum = Dictionary(uniqueKeysWithValues: existing.stars.map { ($0.albumID, $0) })
         let placements = regionPlacements(for: ordered)
-        var stars = existing.stars
+        var stars: [SkyStar] = []
         var occupied = SpatialIndex(points: existing.stars.filter { !$0.isUncharted }.map(\.coordinate))
         let existingAnchors = Dictionary(grouping: existing.stars, by: \.artistKey).compactMapValues(\.last)
         var latestStars = existingAnchors
 
-        for album in ordered where existingByAlbum[album.id] == nil {
+        for album in ordered {
             let artistKey = Self.artistKey(for: album)
             let placement = placements[artistKey] ?? .uncharted
             let coordinate: SkyPoint
-            if placement == .uncharted {
-                coordinate = unchartedCoordinate(albumID: album.id)
-            } else if let prior = existingAnchors[artistKey] ?? latestStars[artistKey] {
+            if let stable = existingByAlbum[album.id] {
+                // Metadata changes relationships, never unrelated coordinates.
+                coordinate = stable.coordinate
+            } else if let prior = latestStars[artistKey] {
                 coordinate = nearbyCoordinate(albumID: album.id, anchor: prior.coordinate, occupied: &occupied)
             } else {
                 coordinate = outwardCoordinate(album: album, occupied: &occupied)
@@ -39,9 +40,11 @@ struct SkyComposer {
                 regionID: placement.regionID,
                 coordinate: coordinate,
                 importedAt: album.importedAt,
-                placedAt: album.importedAt,
+                placedAt: existingByAlbum[album.id]?.placedAt ?? album.importedAt,
                 isUncharted: placement == .uncharted,
-                magnitude: placement == .uncharted ? min(album.magnitude, 40) : album.magnitude
+                magnitude: placement == .uncharted ? min(album.magnitude, 40) : album.magnitude,
+                title: album.title,
+                spectralColor: album.artworkSamples.first
             ))
             latestStars[artistKey] = stars.last
         }
@@ -108,12 +111,16 @@ struct SkyComposer {
     }
 
     private func outwardCoordinate(album: SkyAlbumInput, occupied: inout SpatialIndex) -> SkyPoint {
-        let start = max(1, Int(album.sequence))
+        let regionSeed = SkyStableHash.value(SkyStableHash.normalized(album.canonicalArtistGenre ?? album.genre))
+        let angle = Double(regionSeed % 6283) / 1000
+        let regionCenter = SkyPoint(x: Int32(cos(angle) * 640), y: Int32(sin(angle) * 640))
+        let start = max(1, Int(album.sequence)) + Int(SkyStableHash.value(Self.artistKey(for: album)) % 64)
         for attempt in 0..<100_000 {
             var point = Self.squareSpiral(index: start + attempt)
             let orientation = Int(SkyStableHash.value(Self.artistKey(for: album)) & 7)
             point = Self.orient(point, orientation: orientation)
             point = SkyPoint(x: point.x * Self.starSpacing, y: point.y * Self.starSpacing)
+            point.x += regionCenter.x; point.y += regionCenter.y
             if occupied.insertIfClear(point, minimumDistance: Self.starSpacing / 2) { return point }
         }
         preconditionFailure("Deterministic sky placement exhausted")
@@ -142,7 +149,7 @@ struct SkyComposer {
     }
 
     private func makeConstellations(stars: [SkyStar]) -> [SkyConstellation] {
-        Dictionary(grouping: stars.filter { !$0.isUncharted && $0.regionID != SkyRegionIdentity.variousArtists }, by: \.artistKey)
+        Dictionary(grouping: stars.filter { $0.regionID != SkyRegionIdentity.variousArtists }, by: \.artistKey)
             .values
             .compactMap { unordered in
                 let values = unordered.sorted { $0.sequence == $1.sequence ? $0.albumID < $1.albumID : $0.sequence < $1.sequence }

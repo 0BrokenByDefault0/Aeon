@@ -30,7 +30,7 @@ final class PlaybackFlowTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(locate.frame.minY, close.frame.maxY)
 
         let bands = app.descendants(matching: .any)["aeon.player.eq.bands"]
-        scrollUntilHittable(bands, in: app)
+        app.buttons["aeon.player.eq.open"].tap()
         XCTAssertTrue(bands.waitForExistence(timeout: 4))
         XCTAssertTrue(bands.isHittable)
         let frequencies = [31, 62, 125, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000]

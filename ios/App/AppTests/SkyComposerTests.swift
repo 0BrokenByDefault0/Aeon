@@ -91,7 +91,7 @@ final class SkyComposerTests: XCTestCase {
 
         for old in first.stars {
             XCTAssertEqual(rebuilt.stars.first { $0.albumID == old.albumID }?.coordinate, old.coordinate)
-            XCTAssertEqual(rebuilt.stars.first { $0.albumID == old.albumID }?.regionID, old.regionID)
+            XCTAssertEqual(rebuilt.stars.first { $0.albumID == old.albumID }?.regionID, "region:different")
         }
         let added = try XCTUnwrap(rebuilt.stars.first { $0.albumID == "album-3" })
         let anchor = try XCTUnwrap(first.stars.first { $0.albumID == "album-1" })
@@ -111,15 +111,40 @@ final class SkyComposerTests: XCTestCase {
         XCTAssertTrue(forward.regions.first { $0.id == SkyRegionIdentity.uncharted }?.isUncharted == true)
     }
 
-    func testAlbumConstellationIsDeterministicAndLocal() {
-        let center = SkyPoint(x: 500, y: -700)
-        let first = SkyAlbumConstellation.points(albumID: "album-9", center: center)
-        let second = SkyAlbumConstellation.points(albumID: "album-9", center: center)
+    @MainActor
+    func testExactSemanticFixturesContainOnlyOwnedAlbumStars() throws {
+        for (name, stars, artists, planets) in [
+            ("empty", 0, 0, 0), ("one", 1, 0, 0), ("one-focused", 1, 0, 0),
+            ("three", 3, 1, 0), ("fourteen", 14, 5, 0),
+            ("fifteen", 15, 5, 1), ("thirty-three", 33, 11, 2)
+        ] {
+            let sky = try SkySceneController.fixture(named: name)
+            XCTAssertEqual(sky.stars.count, stars, name)
+            XCTAssertEqual(sky.constellations.count, artists, name)
+            XCTAssertEqual(sky.planets.count, planets, name)
+            let owned = Set(sky.stars.map(\.albumID))
+            for artist in sky.constellations {
+                XCTAssertGreaterThanOrEqual(artist.albumIDs.count, 2)
+                XCTAssertTrue(Set(artist.albumIDs).isSubset(of: owned))
+                XCTAssertLessThanOrEqual(artist.figureSegments.count, artist.albumIDs.count - 1)
+                for edge in artist.figureSegments {
+                    XCTAssertTrue(artist.albumIDs.contains(edge.fromAlbumID))
+                    XCTAssertTrue(artist.albumIDs.contains(edge.toAlbumID))
+                    let from = try XCTUnwrap(sky.stars.first { $0.id == edge.fromAlbumID })
+                    let to = try XCTUnwrap(sky.stars.first { $0.id == edge.toAlbumID })
+                    XCTAssertLessThanOrEqual(distanceSquared(from.coordinate, to.coordinate), 256 * 256)
+                }
+            }
+        }
+    }
 
-        XCTAssertEqual(first, second)
-        XCTAssertEqual(first.first, center)
-        XCTAssertEqual(first.count, 6)
-        XCTAssertTrue(first.allSatisfy { distanceSquared($0, center) <= UInt64(18 * 18 * 2) })
+    func testRemovalAndArtistEditsUpdateRelationshipsWithoutMovingStars() throws {
+        let composer = SkyComposer()
+        let first = try composer.compose(albums: (1...3).map { album($0, artist: "Artist", genre: "R&B") })
+        let changed = try composer.compose(albums: [album(1, artist: "Other", genre: "Jazz"), album(2, artist: "Artist", genre: "R&B")], preserving: first)
+        XCTAssertEqual(changed.stars.count, 2)
+        XCTAssertTrue(changed.constellations.isEmpty)
+        for star in changed.stars { XCTAssertEqual(star.coordinate, first.stars.first { $0.id == star.id }?.coordinate) }
     }
 
     func testRepositoryBackfillPersistsStarsAndIsANoOpWhenRepeated() throws {

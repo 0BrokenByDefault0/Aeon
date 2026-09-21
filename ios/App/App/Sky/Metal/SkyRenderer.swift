@@ -45,14 +45,11 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private let glowPipeline: MTLRenderPipelineState
     private let linePipeline: MTLRenderPipelineState
     private let planetPipeline: MTLRenderPipelineState
-    private let selectedPlanetPipeline: MTLRenderPipelineState
-    private let generator = PlanetTextureGenerator()
 
     private var stars: [SkyStar] = []
     private var planets: [SkyPlanet] = []
     private var constellations: [SkyConstellation] = []
     private var selectedID: String?
-    private var renderedTier: SkyZoomTier?
     private var playingStarID: String?
     private var animateSelection = true
     private var spectrum = SpectrumLevels.zero
@@ -62,13 +59,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private let backdrop: [GPUInstance] = SkyRenderer.makeBackdrop()
     private var lineBuffer: MTLBuffer?
     private var planetBuffer: MTLBuffer?
-    private var selectedPlanetBuffer: MTLBuffer?
-    private var selectedPlanetTexture: MTLTexture?
     private var starCount = 0
     private var glowCount = 0
     private var lineCount = 0
     private var planetCount = 0
-    private var selectedPlanetCount = 0
     private(set) var stats = SkyRendererStats()
 
     init?(view: MTKView) {
@@ -80,8 +74,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
               let starFragment = library.makeFunction(name: "skyStarFragment"),
               let glowFragment = library.makeFunction(name: "skyGlowFragment"),
               let lineFragment = library.makeFunction(name: "skyLineFragment"),
-              let planetFragment = library.makeFunction(name: "skyPlanetFragment"),
-              let textureFragment = library.makeFunction(name: "skyPlanetTextureFragment") else { return nil }
+              let planetFragment = library.makeFunction(name: "skyPlanetFragment") else { return nil }
         self.device = device
         commandQueue = queue
         do {
@@ -89,7 +82,6 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             glowPipeline = try Self.pipeline(device: device, view: view, vertex: vertex, fragment: glowFragment, additive: true)
             linePipeline = try Self.pipeline(device: device, view: view, vertex: lineVertex, fragment: lineFragment, additive: true)
             planetPipeline = try Self.pipeline(device: device, view: view, vertex: vertex, fragment: planetFragment, additive: false)
-            selectedPlanetPipeline = try Self.pipeline(device: device, view: view, vertex: vertex, fragment: textureFragment, additive: false)
         } catch { return nil }
         super.init()
         view.device = device
@@ -111,11 +103,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     ) {
         let catalogueChanged = stars != catalogue.stars || planets != catalogue.planets || constellations != catalogue.constellations || starBuffer == nil
         let selectionChanged = selectedID != camera.selectedID || self.playingStarID != playingStarID || self.animateSelection != animateSelection
-        let tierChanged = renderedTier != camera.tier
         let spectrumChanged = self.spectrum != spectrum
         self.camera = camera
         self.spectrum = spectrum
-        guard catalogueChanged || selectionChanged || tierChanged || spectrumChanged else { return }
+        guard catalogueChanged || selectionChanged || spectrumChanged else { return }
         if catalogueChanged {
             stars = catalogue.stars
             planets = catalogue.planets
@@ -123,10 +114,9 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             stats.catalogueUploads += 1
         }
         selectedID = camera.selectedID
-        renderedTier = camera.tier
         self.playingStarID = playingStarID
         self.animateSelection = animateSelection
-        if catalogueChanged || selectionChanged || tierChanged {
+        if catalogueChanged || selectionChanged {
             rebuildStaticLineBuffer()
             rebuildSelectionBuffers()
             stats.selectionUploads += 1
@@ -151,22 +141,12 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             viewport: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)),
             scale: Float(camera.scale) * screenScale,
             time: Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)),
-            spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, 0)
+            spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, screenScale)
         )
         encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: glowCount, uniforms: &uniforms)
         encodeLines(encoder, buffer: lineBuffer, count: lineCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: starPipeline, buffer: starBuffer, count: starCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: planetPipeline, buffer: planetBuffer, count: planetCount, uniforms: &uniforms)
-        if let selectedPlanetTexture {
-            encoder.setFragmentTexture(selectedPlanetTexture, index: 0)
-            encodeInstances(
-                encoder,
-                pipeline: selectedPlanetPipeline,
-                buffer: selectedPlanetBuffer,
-                count: selectedPlanetCount,
-                uniforms: &uniforms
-            )
-        }
         encoder.endEncoding()
         commandBuffer.present(drawable)
         commandBuffer.commit()
@@ -175,202 +155,86 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     }
 
     private func rebuildSelectionBuffers() {
-        let selectedPlanet = planets.first { $0.id == selectedID }
-        let selectedStarID = stars.first { $0.albumID == selectedID }?.albumID
-        let selectedConstellation = constellations.first { constellation in
-            constellation.id == selectedID
-                || (selectedStarID.map { constellation.albumIDs.contains($0) } ?? false)
-        }
-        let constellationMemberIDs = Set(selectedConstellation?.albumIDs ?? [])
-        let planetMemberIDs = Set(selectedPlanet?.members.map(\.albumID) ?? [])
-        let hasSelection = selectedPlanet != nil || selectedStarID != nil || selectedConstellation != nil
-        let playingCoordinate = stars.first { $0.albumID == playingStarID }?.coordinate
-        let tier = camera.tier
+        let artist = constellations.first { $0.id == selectedID }
+        let members = Set(artist?.albumIDs ?? [])
         let albumInstances = stars.map { star in
-            let isPlanetMember = planetMemberIDs.contains(star.albumID)
-            let isConstellationMember = constellationMemberIDs.contains(star.albumID)
-            let isSelectedStar = star.albumID == selectedStarID
-            let isHighlighted = isPlanetMember || isConstellationMember || isSelectedStar
-            let isPlaying = star.albumID == playingStarID
-            let nearPlaying: Bool
-            if let playingCoordinate {
-                let dx = Double(star.coordinate.x) - Double(playingCoordinate.x)
-                let dy = Double(star.coordinate.y) - Double(playingCoordinate.y)
-                nearPlaying = dx * dx + dy * dy <= 810_000
-            } else {
-                nearPlaying = false
-            }
-            let baseAlpha: Float
-            let baseSize: Float
-            switch tier {
-            case .collection: (baseAlpha, baseSize) = (0.48, 2.6)
-            case .system: (baseAlpha, baseSize) = (0.70, 3.6)
-            case .album: (baseAlpha, baseSize) = (0.88, 4.8)
-            case .focus: (baseAlpha, baseSize) = (1, 5.2)
-            }
-            let alpha: Float = (!hasSelection || isHighlighted ? baseAlpha : baseAlpha * 0.18)
-            let classes: [SIMD4<Float>] = [
-                SIMD4(0.66, 0.76, 1, alpha), SIMD4(0.84, 0.89, 1, alpha),
-                SIMD4(0.96, 0.95, 1, alpha), SIMD4(1, 0.91, 0.77, alpha), SIMD4(1, 0.79, 0.54, alpha)
+            let selected = star.albumID == selectedID
+            let related = members.contains(star.albumID)
+            let playing = star.albumID == playingStarID
+            let alpha: Float = selectedID == nil || selected || related ? 1 : 0.24
+            let temperatures: [SIMD3<Float>] = [
+                SIMD3(0.67, 0.80, 1), SIMD3(0.86, 0.92, 1), SIMD3(1, 0.91, 0.73)
             ]
-            let color = classes[Int(SkyStableHash.value(star.albumID) % UInt64(classes.count))]
+            var rgb = temperatures[Int(SkyStableHash.value(star.albumID) % 3)]
+            if let sample = star.spectralColor {
+                // A spectral influence, not literal saturated artwork colour.
+                let artwork = SIMD3(Float(sample.red), Float(sample.green), Float(sample.blue)) / 255
+                rgb = rgb * 0.72 + artwork * 0.28
+            }
+            let color = SIMD4(rgb.x, rgb.y, rgb.z, alpha)
             return GPUInstance(
                 position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)),
-                color0: color,
-                color1: color,
-                color2: color,
-                // Also drawable pixels, and multiplied by `albumScale` (0.70-2.20) in the
-                // shader. Kept clear of the backdrop's largest layer at every zoom so a
-                // charted album always outranks decoration.
-                size: isSelectedStar ? 8.5 : (isConstellationMember ? baseSize + 1.2 : baseSize + (isPlaying ? 1 : 0)),
-                flags: (isPlaying ? 0x200 : 0) | (nearPlaying ? 0x400 : 0)
-                    | (isHighlighted && animateSelection ? 0x1000 : 0),
-                turbulence: 0
+                color0: color, color1: color, color2: color, size: related ? 3.4 : 2.7,
+                flags: (selected ? 0x4000 : 0) | (playing ? 0x200 : 0)
+                    | (selected && animateSelection ? 0x1000 : 0), turbulence: 0
             )
         }
-        let albumFigureInstances: [GPUInstance]
-        if let selectedStarID,
-           tier == .focus,
-           let selected = stars.first(where: { $0.albumID == selectedStarID }) {
-            albumFigureInstances = SkyAlbumConstellation.points(albumID: selectedStarID, center: selected.coordinate)
-                .dropFirst()
-                .enumerated()
-                .map { index, point in
-                    let strength: Float = index.isMultiple(of: 2) ? 1 : 0.82
-                    return GPUInstance(
-                        position: SIMD2(Float(point.x), Float(point.y)),
-                        color0: SIMD4(0.76, 0.86, 1, strength),
-                        color1: SIMD4(0.76, 0.86, 1, strength),
-                        color2: SIMD4(0.76, 0.86, 1, strength),
-                        size: index.isMultiple(of: 2) ? 5.4 : 4.2,
-                        flags: animateSelection ? 0x1000 : 0,
-                        turbulence: 0
-                    )
-                }
-        } else {
-            albumFigureInstances = []
-        }
-        let starInstances = backdrop + albumInstances + albumFigureInstances
-        starCount = starInstances.count
-        starBuffer = makeBuffer(starInstances)
-        let glows = (albumInstances + albumFigureInstances).map {
-            var value = $0
-            value.size *= 3.6
-            value.color0 *= SIMD4<Float>(0.42, 0.45, 0.55, 0.2)
-            value.flags |= 1
-            return value
+        // Exactly one luminous core per real album. Glows share that core's anchor.
+        starBuffer = makeBuffer(backdrop + albumInstances)
+        starCount = backdrop.count + albumInstances.count
+        let glows = albumInstances.map { instance -> GPUInstance in
+            var glow = instance
+            glow.flags |= 1
+            glow.color0.w *= (instance.flags & 0x4000) != 0 ? 0.42 : 0.16
+            return glow
         }
         glowBuffer = makeBuffer(glows)
         glowCount = glows.count
-
-        rebuildPlanetBuffers()
-        guard let selected = selectedPlanet else {
-            selectedPlanetBuffer = nil
-            selectedPlanetTexture = nil
-            selectedPlanetCount = 0
-            return
-        }
-        selectedPlanetBuffer = makeBuffer([planetInstance(selected, selected: true)])
-        selectedPlanetCount = 1
-        selectedPlanetTexture = makeTexture(for: selected)
+        let worlds = planets.map { planetInstance($0, selected: $0.id == selectedID) }
+        planetBuffer = makeBuffer(worlds)
+        planetCount = worlds.count
     }
 
     private func rebuildStaticLineBuffer() {
         let starByID = Dictionary(uniqueKeysWithValues: stars.map { ($0.albumID, $0) })
-        let selectedStarID = stars.first { $0.albumID == selectedID }?.albumID
-        let selectedConstellationID = constellations.first { constellation in
-            constellation.id == selectedID
-                || (selectedStarID.map { constellation.albumIDs.contains($0) } ?? false)
-        }?.id
         var lines: [GPULine] = []
-        lines.reserveCapacity(constellations.reduce(0) { $0 + $1.figureSegments.count * 2 })
         for constellation in constellations {
-            let selected = constellation.id == selectedConstellationID
-            switch camera.tier {
-            case .collection: continue
-            case .system where !selected: continue
-            case .focus where !selected: continue
-            default: break
-            }
+            let selected = constellation.id == selectedID
+            let alpha: Float = selected ? 0.48 : (selectedID == nil ? 0.18 : 0.035)
             for segment in constellation.figureSegments {
                 guard let from = starByID[segment.fromAlbumID], let to = starByID[segment.toAlbumID] else { continue }
-                let dx = Int64(from.coordinate.x) - Int64(to.coordinate.x)
-                let dy = Int64(from.coordinate.y) - Int64(to.coordinate.y)
-                guard dx * dx + dy * dy <= Int64(SkyComposer.starSpacing * 4) * Int64(SkyComposer.starSpacing * 4) else { continue }
-                let alpha: Float = selected ? 0.58 : (selectedConstellationID == nil ? 0.17 : 0.06)
-                let color = SIMD4<Float>(selected ? 0.72 : 0.49, selected ? 0.80 : 0.56, selected ? 0.96 : 0.68, alpha)
-                lines.append(GPULine(position: SIMD2(Float(from.coordinate.x), Float(from.coordinate.y)), color: color))
-                lines.append(GPULine(position: SIMD2(Float(to.coordinate.x), Float(to.coordinate.y)), color: color))
-            }
-        }
-        if camera.tier == .focus,
-           let selectedStarID,
-           let selected = stars.first(where: { $0.albumID == selectedStarID }) {
-            let points = SkyAlbumConstellation.points(albumID: selectedStarID, center: selected.coordinate)
-            let color = SIMD4<Float>(0.70, 0.80, 0.98, 0.52)
-            for (fromIndex, toIndex) in SkyAlbumConstellation.segments {
-                guard points.indices.contains(fromIndex), points.indices.contains(toIndex) else { continue }
-                let from = points[fromIndex], to = points[toIndex]
-                lines.append(GPULine(position: SIMD2(Float(from.x), Float(from.y)), color: color))
-                lines.append(GPULine(position: SIMD2(Float(to.x), Float(to.y)), color: color))
+                let dx = Double(from.coordinate.x) - Double(to.coordinate.x)
+                let dy = Double(from.coordinate.y) - Double(to.coordinate.y)
+                guard dx * dx + dy * dy <= pow(Double(SkyComposer.starSpacing * 4), 2) else { continue }
+                let color = SIMD4<Float>(0.64, 0.73, 0.85, alpha)
+                // Length in the existing padding lets the shader attenuate edges before
+                // they can become enormous rays. Selected artists can resolve at any scale.
+                let detail = SIMD2<Float>(Float(hypot(dx, dy)), selected ? 1 : 0)
+                lines.append(GPULine(position: SIMD2(Float(from.coordinate.x), Float(from.coordinate.y)),
+                                     positionPadding: detail, color: color))
+                lines.append(GPULine(position: SIMD2(Float(to.coordinate.x), Float(to.coordinate.y)),
+                                     positionPadding: detail, color: color))
             }
         }
         lineCount = lines.count
         lineBuffer = makeBuffer(lines)
     }
 
-    private func rebuildPlanetBuffers() {
-        let unselected = planets.filter { $0.id != selectedID }.map { planetInstance($0, selected: false) }
-        planetCount = unselected.count
-        planetBuffer = makeBuffer(unselected)
-    }
-
     private func planetInstance(_ planet: SkyPlanet, selected: Bool) -> GPUInstance {
         let colors = planet.descriptor.bandColors
-        let size: Float
-        if selected {
-            size = 46
-        } else {
-            switch camera.tier {
-            case .collection: size = 30
-            case .system: size = 34
-            case .album, .focus: size = 38
-            }
-        }
         func vector(_ index: Int) -> SIMD4<Float> {
             let color = colors.isEmpty ? SkyColor(red: 120, green: 132, blue: 150) : colors[index % colors.count]
-            return SIMD4(Float(color.red) / 255, Float(color.green) / 255, Float(color.blue) / 255, 1)
+            return SIMD4(Float(color.red) / 255, Float(color.green) / 255, Float(color.blue) / 255,
+                         selectedID == nil || selected ? 1 : 0.38)
         }
+        // The analytic sphere uses the persisted descriptor at every LOD. No bitmap
+        // upscale, texture swap, or CPU texture generation in a camera transaction.
         return GPUInstance(
             position: SIMD2(Float(planet.coordinate.x), Float(planet.coordinate.y)),
-            color0: vector(0),
-            color1: vector(1),
-            color2: vector(2),
-            size: size,
-            flags: UInt32(selected ? 3 : 2) | (planet.descriptor.hasRings ? 0x100 : 0),
-            turbulence: Float(planet.descriptor.turbulence) / 1024
+            color0: vector(0), color1: vector(1), color2: vector(2), size: 28,
+            flags: 2 | (planet.descriptor.hasRings ? 0x100 : 0),
+            turbulence: Float(planet.seed % 10007) / 100
         )
-    }
-
-    private func makeTexture(for planet: SkyPlanet) -> MTLTexture? {
-        let bytes = generator.rgbaTexture(seed: planet.seed, descriptor: planet.descriptor)
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .rgba8Unorm,
-            width: PlanetTextureGenerator.width,
-            height: PlanetTextureGenerator.height,
-            mipmapped: false
-        )
-        descriptor.usage = MTLTextureUsage.shaderRead
-        guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
-        bytes.withUnsafeBytes { source in
-            texture.replace(
-                region: MTLRegionMake2D(0, 0, PlanetTextureGenerator.width, PlanetTextureGenerator.height),
-                mipmapLevel: 0,
-                withBytes: source.baseAddress!,
-                bytesPerRow: PlanetTextureGenerator.width * 4
-            )
-        }
-        return texture
     }
 
     private func makeBuffer<Element>(_ values: [Element]) -> MTLBuffer? {
@@ -382,37 +246,29 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     }
 
     private static func makeBackdrop() -> [GPUInstance] {
-        // Fixed seed: this is one sky, not a fresh decorative scatter every launch.
-        //
-        // `size` is a half-extent in DRAWABLE PIXELS, not points, because the shader
-        // divides by `uniforms.viewport`, which is `view.drawableSize`. The first pass
-        // used 0.45-0.95, which is a third of a point on a 3x screen: the whole backdrop
-        // rasterised to almost nothing and a small library looked like a rendering
-        // failure rather than a sky. These values are sized for 2x/3x devices.
-        let stars = (0..<2_200).map { index in
+        let stars = (0..<3_200).map { index -> GPUInstance in
             let a = SkyStableHash.mix(UInt64(index) &+ 0xAE01)
             let b = SkyStableHash.mix(a)
-            let layer = index % 3
-            let x = Float(a & 0xffff) / Float(0xffff)
-            let y = Float(b & 0xffff) / Float(0xffff)
-            let radius: Float = layer == 0 ? 1.3 : (layer == 1 ? 1.9 : 2.7)
-            let alpha: Float = layer == 0 ? 0.20 : (layer == 1 ? 0.32 : 0.46)
-            return GPUInstance(position: SIMD2(x, y), color0: SIMD4(0.91, 0.93, 0.96, alpha),
-                               color1: SIMD4(0.91, 0.93, 0.96, alpha), color2: SIMD4(0.91, 0.93, 0.96, alpha),
-                               size: radius, flags: 0x800, turbulence: Float(layer + 1) * 0.25)
-        }
-        let haze = (0..<180).map { index in
-            let a = SkyStableHash.mix(UInt64(index) &+ 0xAE0D)
-            let b = SkyStableHash.mix(a)
-            let x = Float(a & 0xffff) / Float(0xffff)
-            let y = Float(b & 0xffff) / Float(0xffff)
-            let cool = index.isMultiple(of: 3)
-            let color = cool ? SIMD4<Float>(0.25, 0.37, 0.62, 0.026) : SIMD4<Float>(0.62, 0.34, 0.28, 0.018)
+            let x = Float(a & 0xffff) / 65535
+            var y = Float(b & 0xffff) / 65535
+            // A loose inclined dust lane adds density, not a uniform dot texture.
+            if index > 2300 { y = fmod(x * 0.55 + 0.18 + y * 0.22, 1) }
+            let bright = index.isMultiple(of: 137)
+            let radius: Float = bright ? 1.65 : (index.isMultiple(of: 5) ? 0.85 : 0.48)
+            let alpha: Float = bright ? 0.82 : (index.isMultiple(of: 5) ? 0.50 : 0.24)
+            let color = index.isMultiple(of: 7) ? SIMD4<Float>(1, 0.85, 0.69, alpha) : SIMD4<Float>(0.76, 0.85, 1, alpha)
             return GPUInstance(position: SIMD2(x, y), color0: color, color1: color, color2: color,
-                               size: Float(18 + Int(a % 34)), flags: 0x800 | 0x2000,
-                               turbulence: Float(index % 4 + 1) * 0.13)
+                               size: radius, flags: 0x800, turbulence: bright ? 0.65 : 0.15)
         }
-        return haze + stars
+        let dust = (0..<32).map { index -> GPUInstance in
+            let a = SkyStableHash.mix(UInt64(index) &+ 0xAE0D)
+            let x = Float(a & 0xffff) / 65535
+            let y = x * 0.55 + 0.20 + Float((a >> 16) & 255) / 1800
+            let color = index.isMultiple(of: 4) ? SIMD4<Float>(0.36, 0.24, 0.19, 0.075) : SIMD4<Float>(0.16, 0.24, 0.39, 0.085)
+            return GPUInstance(position: SIMD2(x, y), color0: color, color1: color, color2: color,
+                               size: Float(65 + a % 80), flags: 0x800 | 0x2000, turbulence: 0.08)
+        }
+        return dust + stars
     }
 
     private func encodeInstances(

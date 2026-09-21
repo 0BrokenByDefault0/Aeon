@@ -102,12 +102,12 @@ final class SkyAccessibilityView: UIView {
         for planet in controller.catalogue.planets {
             let element = Element(accessibilityContainer: self)
             element.accessibilityLabel = "World \(planet.index)"
-            element.accessibilityHint = "Planet formed from albums \((planet.index - 1) * 20 + 1) through \(planet.index * 20). Activate to select."
+            element.accessibilityHint = "Collection landmark, \(planet.index * SkyComposer.albumsPerPlanet)-album milestone. Activate to focus."
             element.accessibilityTraits = controller.camera.selectedID == planet.id ? [.button, .selected] : .button
             element.accessibilityIdentifier = "aeon.sky.accessibility.planet.\(planet.id)"
             let point = controller.camera.screenPoint(for: planet.coordinate, viewport: viewport)
             element.accessibilityFrameInContainerSpace = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
-            element.action = { [weak controller] in controller?.select(.planet(planet.id)); return true }
+            element.action = { [weak controller] in controller?.locate(id: planet.id, reduceMotion: UIAccessibility.isReduceMotionEnabled); return true }
             elements.append(element)
         }
         orderedElements = elements
@@ -136,7 +136,7 @@ final class SkyAccessibilityView: UIView {
         element.accessibilityIdentifier = "aeon.sky.accessibility.star.\(star.albumID)"
         let point = controller.camera.screenPoint(for: star.coordinate, viewport: viewport)
         element.accessibilityFrameInContainerSpace = CGRect(x: point.x - 22, y: point.y - 22, width: 44, height: 44)
-        element.action = { [weak controller] in controller?.select(.star(star.albumID)); return true }
+        element.action = { [weak controller] in controller?.locate(id: star.albumID, reduceMotion: UIAccessibility.isReduceMotionEnabled); return true }
         return element
     }
 

@@ -13,7 +13,7 @@ struct SkyHUD: View {
         VStack(spacing: 0) {
             topControls
             Spacer()
-            if showCensus || importProgress != nil { censusStrip }
+            if (showCensus && !controller.catalogue.stars.isEmpty) || importProgress != nil { censusStrip }
         }
         .onAppear { announcedTier = controller.camera.tier }
         .onChange(of: controller.camera.tier) { tier in

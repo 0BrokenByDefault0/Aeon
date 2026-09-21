@@ -191,6 +191,7 @@ struct QueueView: View {
                     playback: playback,
                     showAlbum: { close(); showAlbum(item.albumID) },
                     showArtist: { close(); showArtist(artist) },
+                    removeTitle: "REMOVE FROM QUEUE",
                     remove: offset == nil ? nil : { playback.removeFromQueue(at: position - 1) }
                 ) {
                     AeonGlyph(kind: .more)
@@ -201,7 +202,7 @@ struct QueueView: View {
             if let offset {
                 AeonGlyph(kind: .grip)
                     .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
-                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+                    .frame(width: 45, height: 45)
                     .contentShape(Rectangle())
                     .onDrag {
                         draggedOffset = offset
@@ -285,6 +286,7 @@ struct TrackActionMenu<Label: View>: View {
     let playFromHere: (() -> Void)?
     let showAlbum: (() -> Void)?
     let showArtist: (() -> Void)?
+    let removeTitle: String
     let remove: (() -> Void)?
     let label: Label
     @State private var presentedSheet: TrackActionSheet?
@@ -296,6 +298,7 @@ struct TrackActionMenu<Label: View>: View {
         playFromHere: (() -> Void)? = nil,
         showAlbum: (() -> Void)? = nil,
         showArtist: (() -> Void)? = nil,
+        removeTitle: String = "REMOVE FROM PLAYLIST",
         remove: (() -> Void)? = nil,
         @ViewBuilder label: () -> Label
     ) {
@@ -305,6 +308,7 @@ struct TrackActionMenu<Label: View>: View {
         self.playFromHere = playFromHere
         self.showAlbum = showAlbum
         self.showArtist = showArtist
+        self.removeTitle = removeTitle
         self.remove = remove
         self.label = label()
     }
@@ -316,11 +320,12 @@ struct TrackActionMenu<Label: View>: View {
             Button("ADD TO PLAYLIST") { presentedSheet = .playlist }
             if let showAlbum { Button("SHOW ALBUM", action: showAlbum) }
             if let showArtist, !track.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Button("SHOW ARTIST", action: showArtist)
+                // Aeon currently has artist search, not an artist detail destination.
+                Button("FIND ARTIST", action: showArtist)
             }
             Button("TRACK INFO") { presentedSheet = .info }
             if let playFromHere { Button("PLAY FROM HERE", action: playFromHere) }
-            if let remove { Button("REMOVE", role: .destructive, action: remove) }
+            if let remove { Button(removeTitle, role: .destructive, action: remove) }
         } label: { label }
         .sheet(item: $presentedSheet) { destination in
             switch destination {
@@ -331,6 +336,7 @@ struct TrackActionMenu<Label: View>: View {
             }
         }
         .accessibilityLabel("Actions for \(track.title)")
+        .accessibilityIdentifier("aeon.track.actions.\(track.id)")
     }
 }
 

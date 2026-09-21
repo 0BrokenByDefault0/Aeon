@@ -3,6 +3,22 @@ import XCTest
 @testable import App
 
 final class PlanetModelTests: XCTestCase {
+    func testExactMilestonesAndAppendStability() throws {
+        let albums = makeAlbums(count: 33)
+        var previous = SkyCatalogue.empty
+        for count in [0, 1, 14, 15, 29, 30, 33] {
+            let next = try SkyComposer().compose(albums: Array(albums.prefix(count)), preserving: previous)
+            XCTAssertEqual(next.planets.count, count / 15)
+            for planet in previous.planets {
+                let retained = try XCTUnwrap(next.planets.first { $0.id == planet.id })
+                XCTAssertEqual(retained.seed, planet.seed)
+                XCTAssertEqual(retained.coordinate, planet.coordinate)
+                XCTAssertEqual(retained.descriptor, planet.descriptor)
+            }
+            for star in previous.stars { XCTAssertEqual(next.stars.first { $0.id == star.id }?.coordinate, star.coordinate) }
+            previous = next
+        }
+    }
     private struct TextureFixture: Decodable {
         let seed: UInt64
         let colors: [[UInt8]]

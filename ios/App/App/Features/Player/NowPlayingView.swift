@@ -20,6 +20,7 @@ struct NowPlayingView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var queuePresented = false
     @State private var seekPreview: Double?
+    @State private var requestedSection: NowPlayingSection?
 
     var body: some View {
         AeonGlass {
@@ -74,6 +75,12 @@ struct NowPlayingView: View {
                         }
                     }
                     .scrollIndicators(.hidden)
+                    .accessibilityIdentifier("aeon.player.scroll")
+                    .onChange(of: requestedSection) { section in
+                        guard let section else { return }
+                        proxy.scrollTo(section, anchor: .top)
+                        requestedSection = nil
+                    }
                     .onAppear {
                         guard let initialSection else { return }
                         DispatchQueue.main.async { proxy.scrollTo(initialSection, anchor: .top) }
@@ -105,6 +112,12 @@ struct NowPlayingView: View {
             }
             AeonBreadcrumb(text: "Now Playing")
             Spacer(minLength: 0)
+            Button("EQ") { requestedSection = .equalizer }
+                .font(AeonTheme.FontToken.metric(.caption))
+                .frame(width: 44, height: 44)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Show equalizer")
+                .accessibilityIdentifier("aeon.player.eq.open")
             Button(action: close) {
                 AeonGlyph(kind: .close)
                     .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
@@ -139,6 +152,10 @@ struct NowPlayingView: View {
 
     private func metadata(presentation: PlayerPresentation) -> some View {
         VStack(spacing: AeonTheme.Space.small) {
+            Text(playback.snapshot?.intent == .playing ? "PLAYING" : "PAUSED")
+                .font(AeonTheme.FontToken.metric(.caption2))
+                .tracking(1.4)
+                .foregroundStyle(AeonOrbit.secondary)
             AeonDisplayText(presentation.track.title, size: 36, maximumLines: 2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(AeonOrbit.title)

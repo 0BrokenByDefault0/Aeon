@@ -22,6 +22,7 @@ final class SkySceneController: ObservableObject {
     private var ceremonyTask: Task<Void, Never>?
     private var cameraTask: Task<Void, Never>?
     private var viewportSize = CGSize(width: 390, height: 844)
+    private var navigationBounds: [SkyPoint] = []
 
     init(
         repository: SkyRepository,
@@ -42,17 +43,20 @@ final class SkySceneController: ObservableObject {
             camera = (try? repository.camera()) ?? .home
         }
         if Self.fixtureName() == "planet-selected", let planet = catalogue.planets.first {
-            camera = SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y), scale: 5.6, selectedID: planet.id)
-        } else if Self.fixtureName() == "album-selected", let star = catalogue.stars.first {
+            camera = SkyCameraState.planetFocus(planet, viewport: SkyViewport(size: viewportSize))
+        } else if ["album-selected", "one-focused"].contains(Self.fixtureName() ?? ""), let star = catalogue.stars.first {
+            camera = SkyCameraState.albumFocus(star.coordinate, id: star.albumID)
+        } else if Self.fixtureName() == "artist-focused", let artist = catalogue.constellations.first {
             camera = SkyCameraState.focusFraming(
-                points: SkyAlbumConstellation.points(albumID: star.albumID, center: star.coordinate),
-                viewport: SkyViewport(size: CGSize(width: 390, height: 844))
+                points: catalogue.stars.filter { artist.albumIDs.contains($0.albumID) }.map(\.coordinate),
+                viewport: SkyViewport(size: viewportSize)
             )
-            camera.selectedID = star.albumID
+            camera.selectedID = artist.id
         } else if Self.fixtureName() == "playing", let star = catalogue.stars.first {
             playingStarID = star.albumID
             nowPlayingText = "now burning · Signal 1 · Artist 0"
         }
+        updateNavigationBounds()
         playbackObservation = playback.$snapshot.sink { [weak self] snapshot in
             self?.acceptPlayback(trackID: snapshot?.trackID)
         }
@@ -98,20 +102,12 @@ final class SkySceneController: ObservableObject {
 
     var selectedAlbumTitle: String? {
         guard let star = selectedStar else { return nil }
-        return (try? catalog.album(id: star.albumID))?.title ?? star.albumID
+        return star.title ?? star.albumID
     }
 
     var selectedAlbumReadout: (title: String, subtitle: String)? {
         guard let star = selectedStar else { return nil }
-        let album = try? catalog.album(id: star.albumID)
-        let title = album?.title ?? star.albumID
-        let region = catalogue.regions.first { $0.id == star.regionID }?.name
-        let details = [album?.artist ?? star.artistName, album?.genre, region]
-            .compactMap { value -> String? in
-                guard let value, !value.isEmpty else { return nil }
-                return value
-            }
-        return (title, details.joined(separator: " · "))
+        return (star.title ?? star.albumID, star.artistName)
     }
 
     var selectedConstellationReadout: (title: String, subtitle: String)? {
@@ -124,8 +120,8 @@ final class SkySceneController: ObservableObject {
     var selectedPlanetReadout: (title: String, subtitle: String)? {
         guard let planet = selectedPlanet else { return nil }
         return (
-            planet.systemName,
-            "Albums \(planet.albumRange.lowerBound)–\(planet.albumRange.upperBound) · \(planet.members.count) records"
+            planet.name,
+            "Collection world · \(planet.index * SkyComposer.albumsPerPlanet)-album milestone"
         )
     }
 
@@ -165,6 +161,29 @@ final class SkySceneController: ObservableObject {
         if persist, Self.fixtureName() == nil { try? repository.save(camera: camera) }
     }
 
+    func interruptFlight() {
+        cameraTask?.cancel()
+        cameraCrossfade = false
+    }
+
+    func zoom(by factor: Double, anchor: CGPoint, viewport: SkyViewport, persist: Bool) {
+        let collection = SkyCameraState.framing(points: navigationBounds, viewport: viewport)
+        let minimum = max(SkyCameraState.minimumScale, collection.scale * 0.4)
+        let next = max(minimum, min(SkyCameraState.maximumScale, camera.scale * factor))
+        setCamera(camera.zoomed(by: next / camera.scale, anchor: anchor, viewport: viewport), persist: persist)
+    }
+
+    private func updateNavigationBounds() {
+        let points = catalogue.stars.map(\.coordinate) + catalogue.planets.map(\.coordinate)
+        guard let first = points.first else { navigationBounds = []; return }
+        var low = first, high = first
+        for point in points.dropFirst() {
+            low.x = min(low.x, point.x); low.y = min(low.y, point.y)
+            high.x = max(high.x, point.x); high.y = max(high.y, point.y)
+        }
+        navigationBounds = [low, high]
+    }
+
     func updateViewport(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         viewportSize = size
@@ -180,19 +199,13 @@ final class SkySceneController: ObservableObject {
         let viewport = SkyViewport(size: viewportSize)
         let target: SkyCameraState
         if let star = catalogue.stars.first(where: { $0.albumID == id }) {
-            target = SkyCameraState.focusFraming(
-                points: SkyAlbumConstellation.points(albumID: star.albumID, center: star.coordinate),
-                viewport: viewport
-            )
+            target = SkyCameraState.albumFocus(star.coordinate, id: id)
         } else if let planet = catalogue.planets.first(where: { $0.id == id }) {
-            target = SkyCameraState(
-                centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y),
-                scale: 5.6, selectedID: id
-            )
+            target = SkyCameraState.planetFocus(planet, viewport: viewport)
         } else if let constellation = catalogue.constellations.first(where: { $0.id == id }) {
             let memberPoints = catalogue.stars.filter { constellation.albumIDs.contains($0.albumID) }.map(\.coordinate)
             guard !memberPoints.isEmpty else { return }
-            target = SkyCameraState.focusFraming(points: memberPoints, viewport: viewport, targetFraction: 0.40)
+            target = SkyCameraState.focusFraming(points: memberPoints, viewport: viewport)
         } else { return }
         var selectedTarget = target
         selectedTarget.selectedID = id
@@ -206,15 +219,6 @@ final class SkySceneController: ObservableObject {
             padding: 72
         )
         target.selectedID = nil
-        animateCamera(to: target, kind: reduceMotion ? .crossFade : .flight)
-    }
-
-    func exploreSelectedPlanet(reduceMotion: Bool) {
-        guard let planet = selectedPlanet else { return }
-        let memberIDs = Set(planet.members.map(\.albumID))
-        let points = catalogue.stars.filter { memberIDs.contains($0.albumID) }.map(\.coordinate) + [planet.coordinate]
-        var target = SkyCameraState.framing(points: points, viewport: SkyViewport(size: viewportSize), padding: 76)
-        target.selectedID = planet.id
         animateCamera(to: target, kind: reduceMotion ? .crossFade : .flight)
     }
 
@@ -243,10 +247,10 @@ final class SkySceneController: ObservableObject {
                     self.camera = SkyCameraState(
                         centerX: origin.centerX + (target.centerX - origin.centerX) * eased,
                         centerY: origin.centerY + (target.centerY - origin.centerY) * eased,
-                        scale: origin.scale + (target.scale - origin.scale) * eased,
+                        scale: exp(log(origin.scale) + (log(target.scale) - log(origin.scale)) * eased),
                         selectedID: target.selectedID
                     )
-                    try? await Task.sleep(nanoseconds: 30_000_000)
+                    try? await Task.sleep(nanoseconds: 16_000_000)
                 }
                 guard !Task.isCancelled, let self else { return }
                 if Self.fixtureName() == nil { try? self.repository.save(camera: self.camera) }
@@ -256,7 +260,7 @@ final class SkySceneController: ObservableObject {
 
     private func constrained(_ value: SkyCameraState) -> SkyCameraState {
         value.sanitized.constrained(
-            to: catalogue.stars.map(\.coordinate) + catalogue.planets.map(\.coordinate),
+            to: navigationBounds,
             viewport: SkyViewport(size: viewportSize)
         )
     }
@@ -271,6 +275,7 @@ final class SkySceneController: ObservableObject {
         let newConstellations = updated.constellations.count - catalogue.constellations.count
         let newPlanets = updated.planets.count - catalogue.planets.count
         catalogue = updated
+        updateNavigationBounds()
         if newPlanets > 0 { announce("A new world wakes") }
         else if newConstellations > 0 { announce("A constellation forms") }
     }
@@ -345,7 +350,8 @@ final class SkySceneController: ObservableObject {
             SkyHitCandidate(target: .star($0.albumID), coordinate: $0.coordinate, visualRadius: 6)
         }
         let planets = catalogue.planets.map {
-            SkyHitCandidate(target: .planet($0.id), coordinate: $0.coordinate, visualRadius: 24)
+            SkyHitCandidate(target: .planet($0.id), coordinate: $0.coordinate,
+                            visualRadius: CGFloat(max(8, min(Double(min(viewportSize.width, viewportSize.height)) * 0.34, 28 * camera.scale))))
         }
         let starMap = Dictionary(uniqueKeysWithValues: catalogue.stars.map { ($0.albumID, $0.coordinate) })
         let constellations = catalogue.constellations.compactMap { constellation -> SkyHitCandidate? in
@@ -398,10 +404,15 @@ final class SkySceneController: ObservableObject {
         return arguments[index + 1]
     }
 
-    private static func fixture(named name: String) throws -> SkyCatalogue {
+    static func fixture(named name: String) throws -> SkyCatalogue {
         let count: Int
         switch name {
-        case "small", "playing", "planet-selected", "album-selected", "uncharted": count = 48
+        case "one", "one-focused": count = 1
+        case "three", "artist-focused": count = 3
+        case "fourteen": count = 14
+        case "fifteen": count = 15
+        case "thirty-three", "planet-selected": count = 33
+        case "small", "playing", "album-selected", "uncharted": count = 48
         case "populated": count = 120
         case "1000": count = 1_000
         case "10000": count = 10_000
@@ -411,12 +422,12 @@ final class SkySceneController: ObservableObject {
         var albums: [SkyAlbumInput] = []
         albums.reserveCapacity(count)
         for index in 0..<count {
-            let artist = name == "uncharted" ? "Unknown \(index)" : "Artist \(index % 24)"
+            let artist = count <= 3 ? "Frank Ocean" : (name == "uncharted" ? "Unknown \(index)" : "Artist \(index / 3)")
             let genre = name == "uncharted" ? "" : genres[index % genres.count]
             albums.append(SkyAlbumInput(
                 id: "fixture-album-\(index)",
                 sequence: Int64(index + 1),
-                title: "Signal \(index + 1)",
+                title: count <= 3 ? ["Channel Orange", "Blonde", "Endless"][index] : "Signal \(index + 1)",
                 artist: artist,
                 genre: genre,
                 importedAt: Date(timeIntervalSince1970: TimeInterval(index + 1)),

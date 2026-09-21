@@ -15,7 +15,7 @@ struct SkyViewport: Equatable, Sendable {
 }
 
 struct SkyCameraState: Codable, Equatable, Sendable {
-    static let minimumScale = 0.16
+    static let minimumScale = 0.015
     static let maximumScale = 14.0
     static let home = SkyCameraState(centerX: 0, centerY: 0, scale: 0.72, selectedID: nil)
 
@@ -94,14 +94,13 @@ struct SkyCameraState: Codable, Equatable, Sendable {
             minX = min(minX, Double(point.x)); maxX = max(maxX, Double(point.x))
             minY = min(minY, Double(point.y)); maxY = max(maxY, Double(point.y))
         }
-        minX -= padding; maxX += padding; minY -= padding; maxY += padding
-        let halfWidth = Double(viewport.size.width) / (2 * scale)
-        let halfHeight = Double(viewport.size.height) / (2 * scale)
+        // Allow exploration past the content edge. Clamping the entire viewport inside
+        // the bounds used to recenter small collections during a perfectly valid pinch.
+        let margin = max(padding, Double(max(viewport.size.width, viewport.size.height)) / scale)
+        minX -= margin; maxX += margin; minY -= margin; maxY += margin
         var value = sanitized
-        value.centerX = minX + halfWidth > maxX - halfWidth
-            ? (minX + maxX) / 2 : min(maxX - halfWidth, max(minX + halfWidth, value.centerX))
-        value.centerY = minY + halfHeight > maxY - halfHeight
-            ? (minY + maxY) / 2 : min(maxY - halfHeight, max(minY + halfHeight, value.centerY))
+        value.centerX = min(maxX, max(minX, value.centerX))
+        value.centerY = min(maxY, max(minY, value.centerY))
         return value
     }
 
@@ -124,18 +123,27 @@ struct SkyCameraState: Codable, Equatable, Sendable {
         return SkyCameraState(
             centerX: (minX + maxX) / 2,
             centerY: (minY + maxY) / 2,
-            scale: min(Self.maximumScale, max(Self.minimumScale, min(widthScale, heightScale))),
+            scale: min(0.72, max(Self.minimumScale, min(widthScale, heightScale))),
             selectedID: nil
         )
     }
 
-    /// Frames a local celestial figure as the primary object instead of merely moving
-    /// it to the middle of the display. The longest projected edge lands at roughly
-    /// 35% of the shorter viewport dimension, inside the product's 25-45% focus range.
+    /// Only real artist members are framed as geometry. An album has no extent;
+    /// its single star's screen-space core and halo resolve in the shader.
+    static func albumFocus(_ point: SkyPoint, id: String) -> SkyCameraState {
+        SkyCameraState(centerX: Double(point.x), centerY: Double(point.y), scale: 5, selectedID: id)
+    }
+
+    static func planetFocus(_ planet: SkyPlanet, viewport: SkyViewport) -> SkyCameraState {
+        SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y),
+                       scale: Double(min(viewport.size.width, viewport.size.height)) * 0.55 / 56,
+                       selectedID: planet.id).sanitized
+    }
+
     static func focusFraming(
         points: [SkyPoint],
         viewport: SkyViewport,
-        targetFraction: Double = 0.35
+        targetFraction: Double = 0.45
     ) -> SkyCameraState {
         guard let first = points.first else { return .home }
         var minX = Double(first.x), maxX = minX
@@ -145,12 +153,12 @@ struct SkyCameraState: Codable, Equatable, Sendable {
             minY = min(minY, Double(point.y)); maxY = max(maxY, Double(point.y))
         }
         let longestEdge = max(1, max(maxX - minX, maxY - minY))
-        let usableShortEdge = Double(max(1, min(viewport.size.width, viewport.size.height) - 72))
-        let scale = usableShortEdge * min(0.45, max(0.25, targetFraction)) / longestEdge
+        let usableShortEdge = Double(max(1, min(viewport.size.width, viewport.size.height)))
+        let scale = usableShortEdge * min(0.55, max(0.35, targetFraction)) / longestEdge
         return SkyCameraState(
             centerX: (minX + maxX) / 2,
             centerY: (minY + maxY) / 2,
-            scale: min(Self.maximumScale, max(3.05, scale)),
+            scale: min(Self.maximumScale, max(Self.minimumScale, scale)),
             selectedID: nil
         )
     }

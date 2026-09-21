@@ -2,6 +2,57 @@ import UIKit
 import XCTest
 
 final class AeonScreenMatrixTests: XCTestCase {
+    func testDefinitiveSemanticReviewCaptures() {
+        let fixtures = [
+            ("empty", 0, 0, 0), ("one", 1, 0, 0), ("one-focused", 1, 0, 0),
+            ("three", 3, 1, 0), ("artist-focused", 3, 1, 0),
+            ("fourteen", 14, 5, 0), ("fifteen", 15, 5, 1),
+            ("thirty-three", 33, 11, 2), ("planet-selected", 33, 11, 2)
+        ]
+        for (name, albums, artists, planets) in fixtures {
+            let app = launch(["-AeonSkyFixture", name])
+            let canvas = app.images["aeon.sky.canvas"]
+            XCTAssertTrue(canvas.waitForExistence(timeout: 12))
+            XCTAssertEqual(canvas.value as? String, "\(albums) albums, \(artists) artist constellations, \(planets) worlds")
+            if name == "one-focused" { XCTAssertTrue(app.staticTexts["Channel Orange"].exists) }
+            if name == "artist-focused" {
+                for title in ["Channel Orange", "Blonde", "Endless"] { XCTAssertTrue(app.staticTexts[title].exists, title) }
+            }
+            capture(app, name: "definitive-\(name)")
+            app.terminate()
+        }
+        var app = launch(["-AeonLibraryFixture", "populated"])
+        app.buttons["aeon.navigation.library"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["aeon.library.screen"].waitForExistence(timeout: 8))
+        capture(app, name: "definitive-library")
+        app.terminate()
+        app = launch(["-AeonPlaybackFixture", "loaded"])
+        XCTAssertTrue(app.buttons["aeon.player.open"].waitForExistence(timeout: 12))
+        app.buttons["aeon.player.open"].tap()
+        XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 5))
+        capture(app, name: "definitive-now-playing")
+        app.buttons["aeon.player.eq.open"].tap()
+        let frequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+        for frequency in frequencies {
+            let band = app.descendants(matching: .any)["aeon.player.eq.band.\(frequency)"]
+            XCTAssertTrue(band.waitForExistence(timeout: 4))
+            XCTAssertTrue(band.isHittable)
+        }
+        capture(app, name: "definitive-eq-ten-bands")
+        app.buttons["aeon.player.close"].tap()
+        app.buttons["aeon.player.open"].tap()
+        let queue = app.buttons["aeon.player.queue.open"]
+        scroll(in: app, until: queue)
+        queue.tap()
+        let menu = app.buttons["aeon.track.actions.playback-fixture-track-2"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        for title in ["PLAY NEXT", "ADD TO QUEUE", "ADD TO PLAYLIST", "SHOW ALBUM", "TRACK INFO", "REMOVE FROM QUEUE"] {
+            XCTAssertTrue(app.buttons[title].waitForExistence(timeout: 3), title)
+        }
+        capture(app, name: "definitive-track-actions")
+    }
+
     func testAppearanceAccessibilityAndSystemThemeMatrixRemainNativeAndDark() {
         let cases: [(String, [String])] = [
             ("normal", []),
@@ -134,11 +185,11 @@ final class AeonScreenMatrixTests: XCTestCase {
         app = launch(["-AeonSkyFixture", "planet-selected"])
         XCTAssertTrue(app.descendants(matching: .any)["aeon.sky.planet-selection"].waitForExistence(timeout: 12))
         capture(app, name: "screen-planet-focus")
-        let explore = app.buttons["aeon.sky.planet.explore"]
-        XCTAssertTrue(explore.isHittable)
-        explore.tap()
+        let collection = app.buttons["aeon.sky.planet.galaxy"]
+        XCTAssertTrue(collection.isHittable)
+        collection.tap()
         Thread.sleep(forTimeInterval: 1)
-        capture(app, name: "screen-system-scale")
+        capture(app, name: "screen-return-to-collection")
     }
 
     func testCapturesLibraryGridListAlbumEditorAndIPadSplitStates() {

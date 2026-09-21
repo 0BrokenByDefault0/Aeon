@@ -320,7 +320,8 @@ final class LibraryImporter: @unchecked Sendable {
         if files.isEmpty {
             if scanPolicy == .adoptedMusicRoot {
                 try persistAdoptedIndex(
-                    files: discoveredFiles, directories: adoptedScan?.directories ?? [], previous: priorAdoptedIndex
+                    files: discoveredFiles, directories: adoptedScan?.directories ?? [], previous: priorAdoptedIndex,
+                    failed: Set(result.failedFiles.map { $0.standardizedFileURL.path })
                 )
             }
             progress(LibraryImportProgress(
@@ -419,7 +420,8 @@ final class LibraryImporter: @unchecked Sendable {
         try repository.removeSetting(forKey: cursorKey)
         if scanPolicy == .adoptedMusicRoot {
             try persistAdoptedIndex(
-                files: discoveredFiles, directories: adoptedScan?.directories ?? [], previous: priorAdoptedIndex
+                files: discoveredFiles, directories: adoptedScan?.directories ?? [], previous: priorAdoptedIndex,
+                    failed: Set(result.failedFiles.map { $0.standardizedFileURL.path })
             )
         }
         progress(LibraryImportProgress(
@@ -702,27 +704,30 @@ final class LibraryImporter: @unchecked Sendable {
         var plan = AdoptionPlan()
         var unused: [String: AdoptedImportIndex.Entry] = [:]
         for entry in index.entries { unused[entry.relativePath] = entry }
+        let presentPaths = Set(files.compactMap(\.relativePath))
+        // Only absent paths can be move sources. Equal size/date is not identity.
+        let missingByID = Dictionary(grouping: index.entries.filter {
+            !presentPaths.contains($0.relativePath) && $0.resourceIdentifier != nil
+        }, by: { $0.resourceIdentifier! })
         for file in files {
             guard let path = file.relativePath else { plan.new.append(file); continue }
             if let prior = unused.removeValue(forKey: path) {
                 if file.fileSize == prior.fileSize,
-                   timestampsMatch(file.modificationTime, prior.modificationTime) {
+                   timestampsMatch(file.modificationTime, prior.modificationTime),
+                   file.resourceIdentifier == prior.resourceIdentifier {
                     plan.unchanged.append((file, prior))
                 } else {
                     plan.modified.append((file, prior))
                 }
-                continue
-            }
-            let fallbackMatches = unused.values.filter {
-                $0.fileSize == file.fileSize && timestampsMatch($0.modificationTime, file.modificationTime)
-            }
-            if let identifier = file.resourceIdentifier,
-               let match = unused.values.first(where: { $0.resourceIdentifier == identifier }) {
-                unused.removeValue(forKey: match.relativePath)
-                plan.moved.append((file, match))
-            } else if fallbackMatches.count == 1, let match = fallbackMatches.first {
-                unused.removeValue(forKey: match.relativePath)
-                plan.moved.append((file, match))
+            } else if let identifier = file.resourceIdentifier,
+                      let matches = missingByID[identifier], matches.count == 1,
+                      let match = matches.first,
+                      unused.removeValue(forKey: match.relativePath) != nil {
+                if file.fileSize == match.fileSize && timestampsMatch(file.modificationTime, match.modificationTime) {
+                    plan.moved.append((file, match))
+                } else {
+                    plan.modified.append((file, match))
+                }
             } else {
                 plan.new.append(file)
             }
@@ -742,28 +747,27 @@ final class LibraryImporter: @unchecked Sendable {
     private func persistAdoptedIndex(
         files: [CollectedAudioFile],
         directories: [DirectorySnapshot],
-        previous: AdoptedImportIndex?
+        previous: AdoptedImportIndex?,
+        failed: Set<String>
     ) throws {
         let tracks = try adoptedTracksByRelativePath()
         var previousByPath: [String: AdoptedImportIndex.Entry] = [:]
         for entry in previous?.entries ?? [] { previousByPath[entry.relativePath] = entry }
         let currentPaths = Set(files.compactMap(\.relativePath))
-        let currentIdentifiers = Set(files.compactMap(\.resourceIdentifier))
-        let currentFingerprintCounts = Dictionary(grouping: files) { fileFingerprint($0) }.mapValues(\.count)
+        let currentIdentifiers = Set(files.filter { !failed.contains($0.url.standardizedFileURL.path) }.compactMap(\.resourceIdentifier))
         var entries = files.compactMap { file -> AdoptedImportIndex.Entry? in
             guard let path = file.relativePath else { return nil }
+            // Commit a new fingerprint only after that file succeeded. A failed changed
+            // file retains its old fingerprint, so the next scan will retry it.
+            if failed.contains(file.url.standardizedFileURL.path) { return previousByPath[path] }
             if let track = tracks[path] { return indexEntry(file: file, track: track, missing: false) }
             guard var prior = previousByPath[path] else { return nil }
-            prior.fileSize = file.fileSize
-            prior.modificationTime = file.modificationTime
-            prior.resourceIdentifier = file.resourceIdentifier
             prior.missing = false
             return prior
         }
         entries.append(contentsOf: (previous?.entries ?? []).filter {
             !currentPaths.contains($0.relativePath)
                 && ($0.resourceIdentifier == nil || !currentIdentifiers.contains($0.resourceIdentifier!))
-                && currentFingerprintCounts[indexFingerprint($0), default: 0] != 1
         }.map {
             var missing = $0
             missing.missing = true
@@ -833,15 +837,12 @@ final class LibraryImporter: @unchecked Sendable {
               let reference = mediaStore.adoptedDocumentReference(for: file.url) else { return false }
         try cancellation.check()
         try await materialize(file.url)
-        let tags = try await tagReader.read(url: file.url, includeArtwork: false)
+        _ = try await tagReader.read(url: file.url, includeArtwork: false)
         guard case .playable(let media) = metadataProbe.probe(url: file.url) else { return false }
-        let inferred = ImportGrouper.trackNumbers(from: file.url.lastPathComponent)
         try repository.updateTrack(CatalogTrack(
             id: track.id, albumID: track.albumID, sequence: track.sequence,
-            discNumber: tags.discNumber ?? inferred.disc ?? track.discNumber,
-            trackNumber: tags.trackNumber ?? inferred.track ?? track.trackNumber,
-            title: clean(tags.title) ?? track.title,
-            artist: clean(tags.artist) ?? track.artist,
+            discNumber: track.discNumber, trackNumber: track.trackNumber,
+            title: track.title, artist: track.artist,
             duration: media.descriptor.duration,
             byteCount: file.fileSize,
             mediaReference: reference,
@@ -866,46 +867,20 @@ final class LibraryImporter: @unchecked Sendable {
         "\(entry.fileSize):\(entry.modificationTime ?? -1)"
     }
 
-    /// Walks the directory tree but reuses indexed file metadata for unchanged leaf
-    /// folders. Adding one album therefore lists the hierarchy plus that album only;
-    /// existing album folders never re-enter the file/tag/probe pipeline.
+    /// Enumerate cheap prefetched file attributes. Directory mtimes cannot detect
+    /// in-place edits, so they must never stand in for file fingerprints. Unchanged
+    /// files are classified before tags, probes, artwork or audio are opened.
     private func collectAdoptedAudioFiles(
         root: URL,
         previous: AdoptedImportIndex?,
         cancellation: LibraryImportCancellation
     ) throws -> AdoptedScan {
-        let previousDirectories = Dictionary(
-            uniqueKeysWithValues: (previous?.directories ?? []).map { ($0.relativePath, $0) }
-        )
-        let previousEntries = Dictionary(grouping: previous?.entries.filter { !$0.missing } ?? []) {
-            ($0.relativePath as NSString).deletingLastPathComponent
-        }
         var scan = AdoptedScan(files: [], directories: [], enumeratedFiles: 0)
 
         func walk(_ directory: URL, relativePath: String) throws {
             try cancellation.check()
             let directoryValues = try? directory.resourceValues(forKeys: [.contentModificationDateKey])
             let modificationTime = directoryValues?.contentModificationDate?.timeIntervalSince1970
-            if let prior = previousDirectories[relativePath],
-               let priorModificationTime = prior.modificationTime,
-               let modificationTime,
-               !prior.containsDirectories,
-               timestampsMatch(priorModificationTime, modificationTime) {
-                for entry in previousEntries[relativePath] ?? [] {
-                    let url = root.appendingPathComponent(entry.relativePath, isDirectory: false)
-                    scan.files.append(CollectedAudioFile(
-                        url: url,
-                        batchLabel: url.deletingLastPathComponent().lastPathComponent,
-                        relativePath: entry.relativePath,
-                        fileSize: entry.fileSize,
-                        modificationTime: entry.modificationTime,
-                        resourceIdentifier: entry.resourceIdentifier
-                    ))
-                }
-                scan.directories.append(prior)
-                return
-            }
-
             let keys: [URLResourceKey] = [
                 .isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey,
                 .fileSizeKey, .contentModificationDateKey, .fileResourceIdentifierKey

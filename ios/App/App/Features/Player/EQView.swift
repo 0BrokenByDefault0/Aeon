@@ -18,6 +18,8 @@ struct EQView: View {
 
     @ObservedObject var playback: PlaybackController
     @State private var activeBand: Int?
+    @State private var draftBands: [EQBand]?
+    @State private var manualEdit = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
@@ -28,6 +30,9 @@ struct EQView: View {
         .padding(.top, AeonTheme.Space.large)
         .overlay(alignment: .top) {
             Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+        }
+        .onChange(of: playback.snapshot?.eqBands) { bands in
+            if activeBand == nil { draftBands = bands }
         }
     }
 
@@ -105,7 +110,7 @@ struct EQView: View {
                         .foregroundStyle(AeonTheme.ColorToken.bone)
                         .monospacedDigit()
                 } else {
-                    Text("+12 / 0 / −12 dB")
+                    Text(manualEdit ? "CUSTOM" : "+12 / 0 / −12 dB")
                         .font(AeonTheme.FontToken.metric(.caption2))
                         .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                 }
@@ -129,13 +134,24 @@ struct EQView: View {
                             Rectangle().fill(AeonTheme.ColorToken.rule.opacity(0.55)).frame(height: 1)
                         }
                         .frame(height: 166)
+                        Path { path in
+                            for index in Self.frequencies.indices {
+                                let point = CGPoint(x: geometry.size.width * (CGFloat(index) + 0.5) / 10,
+                                                    y: CGFloat(12 - currentBands[index].gainDB) / 24 * 160 + 3)
+                                if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+                            }
+                        }
+                        .stroke(AeonOrbit.ink.opacity(0.30), lineWidth: 1)
+                        .allowsHitTesting(false)
                         HStack(alignment: .top, spacing: 0) {
                             ForEach(Self.frequencies.indices, id: \.self) { index in
                                 EQBandControl(
                                     frequency: Self.frequencies[index],
                                     gain: currentBands[index].gainDB,
                                     plotHeight: 166,
+                                    active: activeBand == index,
                                     onTouch: { activeBand = index },
+                                    onEnd: { activeBand = nil },
                                     onChange: { updateBand(index: index, gain: $0) }
                                 )
                                 .frame(width: geometry.size.width / CGFloat(Self.frequencies.count))
@@ -144,6 +160,7 @@ struct EQView: View {
                     }
                 }
                 .frame(height: 190)
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("aeon.player.eq.bands")
                 .accessibilityHint("All ten equalizer bands are visible and individually adjustable")
             }
@@ -151,6 +168,7 @@ struct EQView: View {
     }
 
     private var currentBands: [EQBand] {
+        if let draftBands, draftBands.count == Self.frequencies.count { return draftBands }
         guard let bands = playback.snapshot?.eqBands, bands.count == Self.frequencies.count else {
             return Self.frequencies.map { EQBand(frequency: $0, q: 1, gainDB: 0) }
         }
@@ -158,6 +176,7 @@ struct EQView: View {
     }
 
     private var selectedPreset: String? {
+        guard !manualEdit else { return nil }
         let gains = currentBands.map(\.gainDB)
         return Self.presets.first { preset in
             zip(preset.gains, gains).allSatisfy { abs($0 - $1) < 0.001 }
@@ -166,12 +185,16 @@ struct EQView: View {
 
     private func select(_ preset: Preset) {
         let bands = zip(Self.frequencies, preset.gains).map { EQBand(frequency: $0, q: 1, gainDB: $1) }
+        manualEdit = false
+        draftBands = bands
         playback.setEQ(enabled: true, bands: bands)
     }
 
     private func updateBand(index: Int, gain: Double) {
         var bands = currentBands
-        bands[index] = EQBand(frequency: bands[index].frequency, q: bands[index].q, gainDB: gain)
+        bands[index] = EQBand(frequency: bands[index].frequency, q: bands[index].q, gainDB: min(12, max(-12, gain)))
+        manualEdit = true
+        draftBands = bands
         playback.setEQ(enabled: playback.snapshot?.eqEnabled ?? true, bands: bands)
     }
 
@@ -189,7 +212,9 @@ private struct EQBandControl: View {
     let frequency: Double
     let gain: Double
     let plotHeight: CGFloat
+    let active: Bool
     let onTouch: () -> Void
+    let onEnd: () -> Void
     let onChange: (Double) -> Void
 
     var body: some View {
@@ -202,8 +227,8 @@ private struct EQBandControl: View {
                         .frame(width: 2)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     Rectangle()
-                        .fill(AeonTheme.ColorToken.bone)
-                        .frame(width: min(18, max(10, geometry.size.width - 6)), height: 5)
+                        .fill(active ? AeonOrbit.ink : AeonTheme.ColorToken.bone)
+                        .frame(width: min(active ? 22 : 18, max(10, geometry.size.width - 6)), height: active ? 7 : 5)
                         .offset(y: fraction * max(0, geometry.size.height - 6))
                 }
                 .contentShape(Rectangle())
@@ -211,8 +236,9 @@ private struct EQBandControl: View {
                     .onChanged { gesture in
                         onTouch()
                         let fraction = min(1, max(0, gesture.location.y / max(1, geometry.size.height)))
-                        onChange(((12 - Double(fraction) * 24) * 2).rounded() / 2)
-                    })
+                        onChange(12 - Double(fraction) * 24)
+                    }
+                    .onEnded { _ in onEnd() })
             }
             .frame(maxWidth: .infinity, minHeight: plotHeight, maxHeight: plotHeight)
             Text(frequencyLabel)
@@ -223,7 +249,7 @@ private struct EQBandControl: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(frequencyLabel) gain")
+        .accessibilityLabel("\(Int(frequency)) hertz gain")
         .accessibilityValue("\(db(gain)) decibels")
         .accessibilityIdentifier("aeon.player.eq.band.\(Int(frequency))")
         .accessibilityAdjustableAction { direction in

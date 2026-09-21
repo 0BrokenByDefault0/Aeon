@@ -63,19 +63,34 @@ final class SkyCameraTests: XCTestCase {
         XCTAssertEqual(system.zoomedOutOneTier(anchor: viewport.center, viewport: viewport).scale, 2.4, accuracy: 0.0001)
     }
 
-    func testAlbumFocusProducesAVisibleProjectedFigure() {
+    func testArtistFocusFramesActualMembersAtAnyWorldExtent() {
         let viewport = SkyViewport(size: CGSize(width: 390, height: 844))
-        let points = SkyAlbumConstellation.points(albumID: "album-7", center: SkyPoint(x: 900, y: -340))
+        let points = [SkyPoint(x: 900, y: -340), SkyPoint(x: 1040, y: -280), SkyPoint(x: 960, y: -220)]
         let camera = SkyCameraState.focusFraming(points: points, viewport: viewport)
         let projected = points.map { camera.screenPoint(for: $0, viewport: viewport) }
         let width = projected.map(\.x).max()! - projected.map(\.x).min()!
         let height = projected.map(\.y).max()! - projected.map(\.y).min()!
         let focusSize = max(width, height)
-        let usableShortEdge = min(viewport.size.width, viewport.size.height) - 72
+        let usableShortEdge = min(viewport.size.width, viewport.size.height)
 
-        XCTAssertEqual(camera.tier, .focus)
-        XCTAssertGreaterThanOrEqual(focusSize, usableShortEdge * 0.25)
-        XCTAssertLessThanOrEqual(focusSize, usableShortEdge * 0.45 + 1)
+        XCTAssertGreaterThanOrEqual(focusSize, usableShortEdge * 0.35)
+        XCTAssertLessThanOrEqual(focusSize, usableShortEdge * 0.55)
+        XCTAssertGreaterThan(camera.scale, SkyCameraState.home.scale)
+    }
+
+    func testAlbumFocusKeepsOneAnchorAndClampDoesNotUndoPinch() {
+        let point = SkyPoint(x: 900, y: -340)
+        let viewport = SkyViewport(size: CGSize(width: 390, height: 844))
+        let focused = SkyCameraState.albumFocus(point, id: "one")
+        XCTAssertEqual(focused.screenPoint(for: point, viewport: viewport), viewport.center)
+        XCTAssertEqual(focused.scale, 5)
+        XCTAssertEqual(focused.selectedID, "one")
+        let anchor = CGPoint(x: 70, y: 280)
+        let before = focused.worldPoint(for: anchor, viewport: viewport)
+        let zoomed = focused.zoomed(by: 0.7, anchor: anchor, viewport: viewport).constrained(to: [point], viewport: viewport)
+        let after = zoomed.worldPoint(for: anchor, viewport: viewport)
+        XCTAssertEqual(before.x, after.x, accuracy: 0.0001)
+        XCTAssertEqual(before.y, after.y, accuracy: 0.0001)
     }
 
     func testInvalidPersistedCameraValuesRecoverToSafeBounds() {

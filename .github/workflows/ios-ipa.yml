@@ -34,7 +34,7 @@ concurrency:
 jobs:
   ipa:
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -190,6 +190,7 @@ jobs:
             -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalUIReviewSkyWithOneAlbum \
             -only-testing:AppUITests/AdaptiveChromeTests/testOrbitalDockBoundsAfterAX5EmptyStateNavigation \
             -only-testing:AppUITests/AeonScreenMatrixTests/testCapturesSkyEmptyImportUnchartedConstellationAndPlanetStates \
+            -only-testing:AppUITests/AeonScreenMatrixTests/testDefinitiveSemanticReviewCaptures \
             > "$RUNNER_TEMP/aeon-ui-review/review.log" 2>&1
           result=$?
           set -e

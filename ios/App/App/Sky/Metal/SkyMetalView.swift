@@ -33,6 +33,7 @@ struct SkyMetalView: UIViewRepresentable {
         context.coordinator.commitSelection = commitSelection
         context.coordinator.reduceMotion = effectiveReduceMotion
         controller.updateViewport(view.bounds.size)
+        view.accessibilityValue = "\(controller.catalogue.stars.count) albums, \(controller.catalogue.constellations.count) artist constellations, \(controller.catalogue.planets.count) worlds"
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
             camera: controller.camera,
@@ -78,7 +79,16 @@ struct SkyMetalView: UIViewRepresentable {
             pan.delegate = self
             pinch.delegate = self
             singleTap.require(toFail: hold)
+            singleTap.require(toFail: doubleTap)
             [pan, pinch, singleTap, doubleTap, hold].forEach(view.addGestureRecognizer)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            controller.interruptFlight()
+            return true
         }
 
         func gestureRecognizer(
@@ -124,12 +134,12 @@ struct SkyMetalView: UIViewRepresentable {
             // with simultaneous pan instead of repeatedly restoring a stale pinch-start camera.
             let incremental = gesture.scale / max(0.0001, lastPinchScale)
             lastPinchScale = gesture.scale
-            let camera = controller.camera.zoomed(
+            controller.zoom(
                 by: Double(incremental),
                 anchor: gesture.location(in: view),
-                viewport: viewport
+                viewport: viewport,
+                persist: gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed
             )
-            controller.setCamera(camera, persist: gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed)
         }
 
         @objc private func tap(_ gesture: UITapGestureRecognizer) {
