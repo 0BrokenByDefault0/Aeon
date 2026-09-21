@@ -15,7 +15,7 @@ struct EQBandInspector: View {
             Picker("Filter", selection: $type) { ForEach(EQFilterType.allCases) { Text($0.title).tag($0) } }.tint(AeonOrbit.ink)
             HStack {
                 field("Hz", text: $frequency)
-                field("Gain dB", text: $gain)
+                field("Gain dB", text: $gain).disabled(type == .highPass || type == .lowPass)
                 field("Q", text: $q)
             }
             Toggle("Band enabled", isOn: $enabled).toggleStyle(AeonToggleStyle())
@@ -23,7 +23,7 @@ struct EQBandInspector: View {
             HStack {
                 Button("APPLY") {
                     var edited = band
-                    edited.frequency = Double(frequency) ?? .nan; edited.gainDB = Double(gain) ?? .nan; edited.q = Double(q) ?? .nan
+                    edited.frequency = Double(frequency) ?? .nan; edited.gainDB = (type == .highPass || type == .lowPass) ? 0 : Double(gain) ?? .nan; edited.q = Double(q) ?? .nan
                     edited.type = type; edited.enabled = enabled; edited.version = 2
                     do { try ParametricDSP.validate([edited]); error = nil; apply(edited) }
                     catch { self.error = error.localizedDescription }

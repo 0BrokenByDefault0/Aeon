@@ -51,7 +51,14 @@ public:
     void process(float **data, int count, int frames) {
         if (transition == 0 && (middle.load(std::memory_order_acquire) & 4)) {
             front = middle.exchange(front, std::memory_order_acq_rel) & 3;
-            next = Bank{}; next.config = mailbox[front];
+            next = current;
+            const Configuration latest = mailbox[front];
+            for (int i = 0; i < filters; ++i) {
+                bool changed = i >= current.config.count || i >= latest.count;
+                for (int j = 0; j < 5; ++j) changed |= current.config.coefficients[i][j] != latest.coefficients[i][j];
+                if (changed) for (int c = 0; c < channels; ++c) next.state[c][i][0] = next.state[c][i][1] = 0;
+            }
+            next.config = latest;
             if (!started) { current = next; } else { transition = 1536; }
         }
         started = true;

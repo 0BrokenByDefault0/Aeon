@@ -13,6 +13,17 @@ int main() {
     for (int i=0;i<32768;++i) { assert(left[i+lookahead]==original[i]); assert(right[i+lookahead]==original[i]); }
     std::cout << "PASS float32 unity: exact equality, 32768 frames, 128-frame alignment\n";
 
+    Kernel uninterrupted, repeated;
+    Configuration slow; slow.count=1; slow.coefficients[0][0]=0.001; slow.coefficients[0][3]=-0.999;
+    uninterrupted.submit(slow); repeated.submit(slow);
+    for(int block=0;block<60;++block) {
+        float a[256],b[256]; for(int i=0;i<256;++i) a[i]=b[i]=0.3f;
+        repeated.submit(slow); float* x[]={a}; float* y[]={b};
+        uninterrupted.process(x,1,256); repeated.process(y,1,256);
+        for(int i=0;i<256;++i) assert(a[i]==b[i]);
+    }
+    std::cout << "PASS unchanged filter state remains sample-identical across repeated configurations\n";
+
     Kernel protection; Configuration protectedConfig; protectedConfig.protect=true;
     protection.prepare(48000); protection.submit(protectedConfig);
     double worst=0;

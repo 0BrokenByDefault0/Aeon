@@ -43,6 +43,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private var dspSettings = DSPSettings()
     private var effectivePreamp: Double = 0
     private var unavailableFilters = 0
+    private var lastDSPParameters: Data?
 
     private var files: [AudioSlot: AVAudioFile] = [:]
     private var isConfigured = false
@@ -356,9 +357,11 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         let rate = processingSampleRate ?? 48_000
         let parameters = ParametricDSP.parameters(user: eqBands, enabled: eqEnabled, settings: dspSettings,
             rate: rate, replayGain: Double(max(replayGainA, replayGainB)))
+        if lastDSPParameters == parameters.data { return }
         guard let unit = dspNode.auAudioUnit as? AeonDSPAudioUnit, unit.submitParameters(parameters.data) else {
             throw DSPError.invalid("DSP parameter queue is busy; the previous settings remain active.")
         }
+        lastDSPParameters = parameters.data
         effectivePreamp = parameters.preamp
         unavailableFilters = parameters.unavailable
     }
@@ -467,6 +470,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         programMixer = AVAudioMixerNode()
         equalizer = AVAudioUnitEQ(numberOfBands: Self.maximumEQBands)
         dspNode = AeonDSPAudioUnit.makeNode()
+        lastDSPParameters = nil
         isConfigured = false
         try configure()
     }
