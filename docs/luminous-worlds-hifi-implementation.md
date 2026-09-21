@@ -96,6 +96,25 @@ depth, unknown output information, DAC resolution and Bluetooth codec are not
 invented. This is diagnostic visibility, not implementation of the pending DSP
 bank/profile/protection requirements. No new processing is enabled by this view.
 
+## Next signal-measurement checkpoint (not yet executed)
+
+`AudioEngineGraphTests.swift` now contains native offline render fixtures for the
+actual player/program-mixer/EQ/main-mixer path configured at 48 kHz float32 stereo.
+The unity test requires unchanged frame count and a null residual below -100 dBFS
+at zero alignment offset. The bell test compares rendered impulse magnitudes to
+an independent RBJ calculation at 100, 250, 500, 1000, 2000 and 4000 Hz for a
+1 kHz, Q=1, +6 dB legacy bell with its existing -6 dB preamp. These are bounded
+processor tests, not evidence for decoding, near-Nyquist behavior, transport
+gaplessness, hardware, or output protection. They are prepared for the next
+post-IPA native stage and have not passed merely by being written.
+
+Profile provenance review pinned AutoEq revision
+`7ae0f56d53074872b028649617a22bbb4232feb7`. Its software MIT license and one
+oratory1990 HD 650 result were inspected. Separate measurement redistribution
+rights are not established by that inspection, so no named-model curve has been
+bundled or fabricated. The required verified offline headphone catalogue remains
+unresolved, alongside the import/profile/DSP implementation.
+
 ## Owner review for milestone A
 
 Zoom with nothing selected: genre, artist, album, then back. Select and clear a

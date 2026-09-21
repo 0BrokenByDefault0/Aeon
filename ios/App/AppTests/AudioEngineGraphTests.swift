@@ -3,6 +3,93 @@ import XCTest
 @testable import App
 
 final class AudioEngineGraphTests: XCTestCase {
+    func testOfflineUnityPathKeepsFramesAndNullsBelowMinus100DBFS() throws {
+        let input = (0..<16_384).map { index -> Float in
+            let time = Double(index) / 48_000
+            return Float(0.2 * sin(2 * .pi * 997 * time) + 0.1 * cos(2 * .pi * 7_013 * time))
+        }
+        let rendered = try renderOffline(input, bands: [], enabled: false)
+        XCTAssertEqual(rendered.count, input.count)
+        let residual = zip(rendered, input).map { abs($0 - $1) }.max() ?? 1
+        XCTAssertLessThan(residual, 0.00001, "Same-rate float32 app path, zero alignment offset")
+    }
+
+    func testOfflineLegacyBellMatchesIndependentLowFrequencyReference() throws {
+        var impulse = [Float](repeating: 0, count: 16_384)
+        impulse[0] = 0.25
+        let rendered = try renderOffline(impulse,
+            bands: [EQBand(frequency: 1_000, q: 1, gainDB: 6)], enabled: true)
+        // Independent RBJ bell calculation (https://www.w3.org/TR/audio-eq-cookbook/),
+        // not the production width/gain helper.
+        // Scope: 48 kHz, 1 kHz bell, Q=1, +6 dB, existing -6 dB makeup.
+        // This is not evidence for near-Nyquist filters or device output.
+        let a = pow(10.0, 6.0 / 40)
+        let omega = 2 * Double.pi * 1_000 / 48_000
+        let alpha = sin(omega) / 2
+        let numerator = [1 + alpha * a, -2 * cos(omega), 1 - alpha * a]
+        let denominator = [1 + alpha / a, -2 * cos(omega), 1 - alpha / a]
+        func magnitude(_ coefficients: [Double], at w: Double) -> Double {
+            let real = coefficients[0] + coefficients[1] * cos(w) + coefficients[2] * cos(2 * w)
+            let imaginary = -coefficients[1] * sin(w) - coefficients[2] * sin(2 * w)
+            return hypot(real, imaginary)
+        }
+        for frequency in [100.0, 250, 500, 1_000, 2_000, 4_000] {
+            let w = 2 * Double.pi * frequency / 48_000
+            var real = 0.0, imaginary = 0.0
+            for (index, sample) in rendered.enumerated() {
+                real += Double(sample) * cos(w * Double(index))
+                imaginary -= Double(sample) * sin(w * Double(index))
+            }
+            let measured = 20 * log10(hypot(real, imaginary) / 0.25)
+            let expected = 20 * log10(magnitude(numerator, at: w) / magnitude(denominator, at: w)) - 6
+            XCTAssertEqual(measured, expected, accuracy: 0.1, "\(frequency) Hz")
+        }
+    }
+
+    private func renderOffline(_ input: [Float], bands: [EQBand], enabled: Bool) throws -> [Float] {
+        let graph = makeGraph()
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2))
+        try graph.configure()
+        // Explicit same-rate processor fixture; no source decoding or hardware claim.
+        graph.engine.connect(graph.playerA, to: graph.programMixer, fromBus: 0, toBus: 0, format: format)
+        graph.engine.connect(graph.programMixer, to: graph.equalizer, format: format)
+        graph.engine.connect(graph.equalizer, to: graph.engine.mainMixerNode, format: format)
+        try graph.setEQ(enabled: enabled, bands: bands)
+        try graph.engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 1_024)
+        XCTAssertEqual(graph.outputDescriptor().processingSampleRate, 48_000)
+        defer { graph.engine.stop(); graph.engine.disableManualRenderingMode() }
+        let source = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(input.count)))
+        source.frameLength = source.frameCapacity
+        for channel in 0..<2 {
+            for index in input.indices { source.floatChannelData![channel][index] = input[index] }
+        }
+        graph.playerA.scheduleBuffer(source)
+        try graph.engine.start()
+        graph.playerA.play()
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1_024))
+        var result: [Float] = []
+        result.reserveCapacity(input.count)
+        var unavailable = 0
+        var channelResidual: Float = 0
+        while result.count < input.count {
+            let requested = AVAudioFrameCount(min(1_024, input.count - result.count))
+            let status = try graph.engine.renderOffline(requested, to: buffer)
+            if status == .cannotDoInCurrentContext, unavailable < 8 { unavailable += 1; continue }
+            guard status == .success, buffer.frameLength == requested else {
+                throw NSError(domain: "AeonOfflineFixture", code: Int(status.rawValue),
+                    userInfo: [NSLocalizedDescriptionKey: "Offline render did not return the requested frames"])
+            }
+            for index in 0..<Int(buffer.frameLength) {
+                let left = buffer.floatChannelData![0][index]
+                let right = buffer.floatChannelData![1][index]
+                channelResidual = max(channelResidual, abs(left - right))
+                result.append(left)
+            }
+        }
+        XCTAssertLessThanOrEqual(channelResidual, 0.000001)
+        return result
+    }
+
     func testUnconfiguredGraphStartsTransparent() {
         let graph = makeGraph()
 
