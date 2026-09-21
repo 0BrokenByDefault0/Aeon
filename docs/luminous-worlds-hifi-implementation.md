@@ -58,6 +58,29 @@ controls visible planet names. Audio and camera disclosure thresholds are unchan
 Cheap targeted Sky checks passed (22 tests plus syntax) in 6.251 seconds.
 Replacement Release compilation and native interaction results remain pending.
 
+## Queue / repeat vertical slice (not the completed DSP milestone)
+
+`PlaybackModels.swift` adds a persisted queue-occurrence ID, with decoding for
+older snapshots. `QueueView.swift` keys hosted rows by that identity so repeated
+tracks and reordered ordinal labels do not share a row's state. Queue edits
+reconcile the actual live occurrence after an EOF transition.
+
+`QueueScheduler.swift` prepares Repeat One and Repeat All successors on the
+existing A/B timeline, including wrap to the queue's first occurrence. These
+normal repeat boundaries no longer depend on a coordinator stop/seek/restart.
+The coordinator's recovery fallback remains in place. Tests check three-item
+wrap scheduling, Repeat One source-frame zero, unchanged current schedules,
+and duplicate-identity persistence. The integration test now observes each
+player's frame clock independently and invokes the current item's completion,
+not the newly prepared successor's callback.
+
+Cheap playback checks passed (30 tests plus syntax) in 4.843 seconds. Swift
+compilation and native tests are pending. These schedule checks are not measured
+gapless PCM, conversion, true-peak, or physical-device evidence. EQ, correction,
+limiting, conversion and audio-path UI work listed above remain outstanding.
+The targeted router now associates these three playback test files with playback,
+avoiding an unrelated all-area native run just because a regression test changed.
+
 ## Owner review for milestone A
 
 Zoom with nothing selected: genre, artist, album, then back. Select and clear a

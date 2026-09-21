@@ -105,10 +105,30 @@ enum MediaReference: Codable, Equatable {
     }
 }
 
-struct QueueItem: Codable, Equatable {
+struct QueueItem: Codable, Equatable, Identifiable {
+    let id: String
     let trackID: String
     let albumID: String
     let mediaRef: MediaReference
+
+    init(trackID: String, albumID: String, mediaRef: MediaReference, id: String = UUID().uuidString) {
+        self.id = id
+        self.trackID = trackID
+        self.albumID = albumID
+        self.mediaRef = mediaRef
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, trackID, albumID, mediaRef }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        // Legacy snapshots had no occurrence identity. Assign once on load; the
+        // coordinator's next normal snapshot write persists it without a rescan.
+        id = try values.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        trackID = try values.decode(String.self, forKey: .trackID)
+        albumID = try values.decode(String.self, forKey: .albumID)
+        mediaRef = try values.decode(MediaReference.self, forKey: .mediaRef)
+    }
 }
 
 struct SourceFormatDescriptor: Codable, Equatable {

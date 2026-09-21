@@ -180,7 +180,10 @@ final class QueueScheduler {
             // An edit of the selected item must not replay it when its native
             // timeline has already crossed EOF but its callback is still pending.
             let consumed = sameSelection ? (self.index ?? 0) - (previousIndex ?? 0) + (reachedEnd ? 1 : 0) : 0
-            let replacementIndex = index + consumed
+            let liveID = self.index.map { self.items[$0].id }
+            let reconciledIndex = sameSelection && !reachedEnd
+                ? items.firstIndex(where: { $0.id == liveID }) : nil
+            let replacementIndex = reconciledIndex ?? max(0, index + consumed)
             let terminal = sameSelection && replacementIndex >= items.count
             let selectedIndex = items.isEmpty ? 0 : min(replacementIndex, items.count - 1)
             let preserveFrame = !items.isEmpty && !terminal && !reachedEnd &&
@@ -188,7 +191,7 @@ final class QueueScheduler {
             // Upcoming-only edits keep the live node, timeline and playback intent intact.
             if preserveFrame, let current, current.index == selectedIndex,
                Array(self.items.prefix(selectedIndex + 1)) == Array(items.prefix(selectedIndex + 1)) {
-                let desiredNext = repeatMode == .one ? nil : items.dropFirst(selectedIndex + 1).first
+                let desiredNext = Self.successor(after: selectedIndex, count: items.count, mode: repeatMode).map { items[$0] }
                 let keepFollowing = following.map { self.items[$0.index] == desiredNext } ?? false
                 if !keepFollowing { discardFollowing() }
                 self.items = items
@@ -235,8 +238,11 @@ final class QueueScheduler {
             repeatMode = mode
             // Policy applies to the next boundary. Never stop, seek or reschedule
             // the current node merely because the user changed Repeat.
-            if mode == .one { discardFollowing() }
-            else if current != nil, following == nil {
+            if let current {
+                let desired = Self.successor(after: current.index, count: items.count, mode: mode)
+                if following?.index != desired { discardFollowing() }
+            }
+            if current != nil, following == nil {
                 do { try prepareFollowing() }
                 catch { repeatMode = previousMode; throw error }
             }
@@ -378,10 +384,16 @@ final class QueueScheduler {
     }
 
     private func prepareFollowing() throws {
-        guard repeatMode != .one else { return }
-        guard let current, items.indices.contains(current.index + 1) else { return }
-        following = try prepareItem(index: current.index + 1, slot: current.slot == .a ? .b : .a,
+        guard let current, let next = Self.successor(after: current.index, count: items.count, mode: repeatMode) else { return }
+        following = try prepareItem(index: next, slot: current.slot == .a ? .b : .a,
                                     position: 0, outputFrame: current.endOutputFrame)
+    }
+
+    static func successor(after index: Int, count: Int, mode: RepeatMode) -> Int? {
+        guard index >= 0, index < count else { return nil }
+        if mode == .one { return index }
+        if index + 1 < count { return index + 1 }
+        return mode == .all ? 0 : nil
     }
 
     private func applyReplayGain(to prepared: Prepared?) {

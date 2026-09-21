@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class QueueControllerTests: XCTestCase {
+    func testDuplicateTrackOccurrencesKeepIdentityWhenReorderedAndPersisted() throws {
+        let first = QueueItem(trackID: "duplicate", albumID: "album", mediaRef: .native(relativePath: "track.wav"))
+        let second = QueueItem(trackID: first.trackID, albumID: first.albumID, mediaRef: first.mediaRef)
+        XCTAssertNotEqual(first.id, second.id)
+        let moved = [second, first]
+        let restored = try JSONDecoder().decode([QueueItem].self, from: JSONEncoder().encode(moved))
+        XCTAssertEqual(restored.map(\.id), [second.id, first.id])
+        XCTAssertNotEqual(restored[0], restored[1])
+        let legacy = Data("""
+        [{"trackID":"duplicate","albumID":"album","mediaRef":{"type":"native","relativePath":"track.wav"}},
+         {"trackID":"duplicate","albumID":"album","mediaRef":{"type":"native","relativePath":"track.wav"}}]
+        """.utf8)
+        let migrated = try JSONDecoder().decode([QueueItem].self, from: legacy)
+        XCTAssertNotEqual(migrated[0].id, migrated[1].id)
+        XCTAssertEqual(try JSONDecoder().decode([QueueItem].self,
+            from: JSONEncoder().encode(migrated)), migrated)
+    }
+
     func testMoveReordersUpcomingOnlyAndSendsOneRevision() {
         let coordinator = QueueRecordingCoordinator(snapshot: makeSnapshot())
         let controller = PlaybackController(coordinator: coordinator)

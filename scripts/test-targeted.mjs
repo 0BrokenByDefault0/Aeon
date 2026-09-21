@@ -35,6 +35,7 @@ const routes={
 };
 
 const pathRules=[
+  [/^ios\/App\/AppTests\/(QueueScheduler|QueueController|AudioIntegration)Tests\.swift$/,['playback']],
   [/^ios\/App\/AppTests\/(PlanetModel|SkyCamera|SkyComposer|SkyHitTesting)Tests\.swift$/,['sky']],
   [/^ios\/App\/AppUITests\/SkyInteractionTests\.swift$/,['sky']],
   [/^ios\/App\/App\/Import\//,['import']],

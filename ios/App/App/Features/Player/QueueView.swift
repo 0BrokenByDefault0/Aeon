@@ -271,7 +271,7 @@ private struct QueueNativeList<Row: View>: UIViewRepresentable {
             let cell = view.dequeueReusableCell(withReuseIdentifier: "track", for: path)
             let index = path.section == 0 ? 0 : path.item + 1
             cell.contentConfiguration = UIHostingConfiguration {
-                parent.row(draft[index], index, path.section == 0)
+                parent.row(draft[index], index, path.section == 0).id(draft[index].id)
             }.margins(.all, 0)
             cell.backgroundColor = .clear
             return cell
@@ -290,7 +290,7 @@ private struct QueueNativeList<Row: View>: UIViewRepresentable {
                     let index = path.section == 0 ? 0 : path.item + 1
                     guard self.draft.indices.contains(index) else { continue }
                     view.cellForItem(at: path)?.contentConfiguration = UIHostingConfiguration {
-                        self.parent.row(self.draft[index], index, path.section == 0)
+                        self.parent.row(self.draft[index], index, path.section == 0).id(self.draft[index].id)
                     }.margins(.all, 0)
                 }
             }

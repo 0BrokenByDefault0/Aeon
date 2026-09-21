@@ -34,7 +34,7 @@ final class QueueSchedulerTests: XCTestCase {
                 XCTAssertEqual(scheduler.currentPosition, Double(frame) / 48000, accuracy: 0.000001)
                 XCTAssertTrue(scheduler.isPlaying)
                 XCTAssertEqual(graph.schedules.filter { $0.slot == .a }.count, 1)
-                XCTAssertEqual(scheduler.preparedNextTrackID, mode == .one ? nil : "b")
+                XCTAssertEqual(scheduler.preparedNextTrackID, mode == .one ? "a" : "b")
             }
             oldNext() // A discarded alternate-node callback must not complete its replacement.
             XCTAssertEqual(scheduler.currentTrackID, "a")
@@ -55,7 +55,7 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(graph.schedules.filter { $0.slot == .a }.count, 1)
         // Policy rollback prevents the failed successor from breaking Repeat One's restart.
         try scheduler.seek(seconds: 0)
-        XCTAssertNil(scheduler.preparedNextTrackID)
+        XCTAssertEqual(scheduler.preparedNextTrackID, "a")
     }
 
     func testSeekToDecodedEOFUsesLastPlayableFrameAndRefreshIsSafe() throws {
@@ -70,19 +70,34 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(scheduler.currentPosition, 0.05, accuracy: 0.000001)
     }
 
-    func testRepeatOneCompletionRestartsFromZeroNotRetainedEOF() throws {
+    func testRepeatOneIsPreparedAtExactBoundaryWithoutRestart() throws {
         let (scheduler, graph, _) = try makeScheduler([a, b])
         try scheduler.play()
         try scheduler.setRepeatMode(.one)
         graph.framesBySlot[.a] = 2400
         graph.schedules[0].completion()
-        XCTAssertFalse(scheduler.isPlaying)
-        // These are the coordinator's Repeat One completion commands.
-        try scheduler.seek(seconds: 0)
-        try scheduler.play()
+        XCTAssertTrue(scheduler.isPlaying)
+        XCTAssertTrue(graph.started)
         XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
+        XCTAssertEqual(graph.schedules.last?.outputFrame, 4800)
         XCTAssertEqual(scheduler.currentIndex, 0)
-        XCTAssertNil(scheduler.preparedNextTrackID)
+        XCTAssertEqual(scheduler.preparedNextTrackID, "a")
+    }
+
+    func testRepeatAllPreparesWrapBeforeFinalItemCompletes() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b, c])
+        try scheduler.setRepeatMode(.all)
+        try scheduler.play()
+        graph.schedules[0].completion()
+        XCTAssertEqual(scheduler.currentTrackID, "b")
+        graph.schedules[1].completion()
+        XCTAssertEqual(scheduler.currentTrackID, "c")
+        XCTAssertEqual(scheduler.preparedNextTrackID, "a")
+        XCTAssertEqual(graph.schedules.last?.outputFrame, 7200)
+        graph.schedules[2].completion()
+        XCTAssertEqual(scheduler.currentIndex, 0)
+        XCTAssertTrue(scheduler.isPlaying)
+        XCTAssertEqual(graph.schedules.map(\.outputFrame), [0, 2400, 4800, 7200, 9600])
     }
 
     func testUpcomingReorderPreservesLiveNodeAndPreparedSuccessor() throws {

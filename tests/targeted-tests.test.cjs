@@ -41,6 +41,15 @@ test('shared native infrastructure safely routes to every area',()=>{
   assert.deepEqual(result.areas,['import','playback','library','sky','chrome','playlists','settings']);
 });
 
+test('queue regression tests route to playback instead of the full native matrix',()=>{
+  const result=plan('--file=ios/App/AppTests/QueueSchedulerTests.swift',
+    '--file=ios/App/AppTests/QueueControllerTests.swift',
+    '--file=ios/App/AppTests/AudioIntegrationTests.swift','--tier=native');
+  assert.deepEqual(result.areas,['playback']);
+  assert(result.commands[0].includes('-only-testing:AppTests/QueueSchedulerTests'));
+  assert(!result.commands[0].includes('-only-testing:AppUITests/SkyInteractionTests'));
+});
+
 test('documentation-only changes use configuration checks and no native simulator',()=>{
   const cheap=plan('--file=docs/development-workflow.md');
   assert.equal(cheap.configOnly,true);
