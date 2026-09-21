@@ -385,9 +385,14 @@ final class AeonScreenMatrixTests: XCTestCase {
                                       bytesPerRow: size * 4, space: CGColorSpaceCreateDeviceRGB(),
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
         context.draw(core, in: CGRect(x: 0, y: 0, width: size, height: size))
-        return stride(from: 0, to: pixels.count, by: 4).filter {
-            Int(pixels[$0]) + Int(pixels[$0 + 1]) + Int(pixels[$0 + 2]) > 300
-        }.count
+        var litPixels = 0
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            let red = Int(pixels[offset])
+            let green = Int(pixels[offset + 1])
+            let blue = Int(pixels[offset + 2])
+            if red + green + blue > 300 { litPixels += 1 }
+        }
+        return litPixels
     }
 
     private func launch(_ arguments: [String]) -> XCUIApplication {

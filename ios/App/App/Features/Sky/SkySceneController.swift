@@ -183,6 +183,14 @@ final class SkySceneController: ObservableObject {
         navigationBounds = [low, high]
     }
 
+    private var focusTopInset: CGFloat = 0
+    private var focusBottomInset: CGFloat = 0
+
+    func updateFocusInsets(top: CGFloat, bottom: CGFloat) {
+        focusTopInset = max(0, top)
+        focusBottomInset = max(0, bottom)
+    }
+
     func updateViewport(_ size: CGSize) {
         guard size.width > 0, size.height > 0 else { return }
         viewportSize = size
@@ -196,7 +204,8 @@ final class SkySceneController: ObservableObject {
     }
 
     func locate(id: String, reduceMotion: Bool) {
-        let viewport = SkyViewport(size: viewportSize)
+        let viewport = SkyViewport(size: CGSize(width: viewportSize.width,
+            height: max(100, viewportSize.height - focusTopInset - focusBottomInset)))
         let target: SkyCameraState
         if let star = catalogue.stars.first(where: { $0.albumID == id }) {
             target = SkyCameraState.albumFocus(star.coordinate, id: id)
@@ -208,6 +217,9 @@ final class SkySceneController: ObservableObject {
             target = SkyCameraState.focusFraming(points: memberPoints, viewport: viewport)
         } else { return }
         var selectedTarget = target
+        // Flights frame the usable universe, above player/dock and below the HUD.
+        // Updating chrome insets alone never moves a freely manipulated camera.
+        selectedTarget.centerY += Double(focusBottomInset - focusTopInset) / (2 * selectedTarget.scale)
         selectedTarget.selectedID = id
         animateCamera(to: selectedTarget, kind: reduceMotion ? .crossFade : .flight)
     }

@@ -234,8 +234,8 @@ final class QueueScheduler {
             repeatMode = mode
             // Policy applies to the next boundary. Never stop, seek or reschedule
             // the current node merely because the user changed Repeat.
-            discardFollowing()
-            if current != nil { try prepareFollowing() }
+            if mode == .one { discardFollowing() }
+            else if current != nil, following == nil { try prepareFollowing() }
         }
     }
 

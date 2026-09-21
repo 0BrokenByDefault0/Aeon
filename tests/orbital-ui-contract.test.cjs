@@ -24,15 +24,16 @@ test('reticle marks replace capsule controls', () => {
   assert.match(components, /AeonGlyphPath\(kind: kind\)\.stroke\(style: AeonOrbit\.line\)/);
 });
 
-test('primary actions are unfilled at rest and wash only inside the ticks when pressed', () => {
+test('actions use continuous rules and retain momentary press feedback', () => {
   const style = components.split('struct AeonButtonStyle: ButtonStyle')[1].split('struct AeonToggleStyle')[0];
-  assert.match(style, /AeonReticleMark\(pressed: configuration\.isPressed\)/);
-  // Every fill in the style is gated on isPressed and scoped to the reticle field,
+  assert.doesNotMatch(style, /AeonReticleMark|AeonReticleField/);
+  assert.match(style, /Rectangle\(\)/);
+  // Every fill in the style is gated on isPressed and scoped to the action field,
   // so nothing is ever a filled shape at rest.
   for (const fill of style.match(/^.*\.fill\(.*$/gm) || []) {
-    assert.match(fill, /AeonReticleField\(\)\.fill\(AeonOrbit\.activeFill\)/, fill.trim());
+    assert.match(fill, /Rectangle\(\)\.fill\(AeonOrbit\.activeFill\)/, fill.trim());
   }
-  assert.match(style, /if tier != \.bare, configuration\.isPressed \{\s*AeonReticleField\(\)\.fill/);
+  assert.match(style, /if tier != \.bare, configuration\.isPressed \{\s*Rectangle\(\)\.fill/);
   // Primary actions keep the house marks by default; a transport action overrides them.
   assert.match(style, /var leadingMark: AeonGlyphKind = \.star/);
   assert.match(style, /var trailingMark: AeonGlyphKind = \.arrow/);

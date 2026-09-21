@@ -302,14 +302,14 @@ struct AeonButtonStyle: ButtonStyle {
         .foregroundStyle(destructive ? AeonTheme.ColorToken.danger : AeonOrbit.ink)
         .contentShape(Rectangle())
         .background {
-            // Pressed controls fill only the area the ticks enclose; at rest nothing is filled.
+            // Actions use a continuous rule; corner marks belong only to selected options.
             if tier != .bare, configuration.isPressed {
-                AeonReticleField().fill(AeonOrbit.activeFill)
+                Rectangle().fill(AeonOrbit.activeFill)
             }
         }
         .overlay {
             if tier != .bare {
-                AeonReticleMark(pressed: configuration.isPressed)
+                Rectangle()
                     .stroke(destructive ? AeonTheme.ColorToken.danger : AeonOrbit.ink.opacity(tier == .filled ? 1 : 0.48), style: AeonOrbit.line)
             }
         }

@@ -227,7 +227,9 @@ final class QueueSchedulerTests: XCTestCase {
         graph.framesBySlot = [.a: 2400, .b: 37]
         try scheduler.replaceQueue([a, b, c], index: 0, revision: 2)
         XCTAssertEqual(scheduler.currentTrackID, "b")
-        XCTAssertEqual(graph.schedules.suffix(2).first?.sourceFrame, 37)
+        XCTAssertEqual(scheduler.currentPosition, 37.0 / 48000, accuracy: 0.000001)
+        XCTAssertEqual(graph.schedules.filter { $0.slot == .b }.count, 1, "The already playing successor must not reopen")
+        XCTAssertEqual(graph.schedules.suffix(2).first?.sourceFrame, 0)
         XCTAssertEqual(scheduler.preparedNextTrackID, "c")
     }
 

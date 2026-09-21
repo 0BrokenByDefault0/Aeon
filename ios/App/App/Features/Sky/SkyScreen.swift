@@ -64,6 +64,15 @@ struct SkyScreen: View {
                 .transaction { $0.animation = nil }
             }
             .background(AeonTheme.ColorToken.void)
+            .onAppear {
+                controller.updateFocusInsets(top: geometry.safeAreaInsets.top + 44, bottom: readableInsets.bottom)
+            }
+            .onChange(of: readableInsets) { insets in
+                controller.updateFocusInsets(top: geometry.safeAreaInsets.top + 44, bottom: insets.bottom)
+            }
+            .onChange(of: geometry.safeAreaInsets) { insets in
+                controller.updateFocusInsets(top: insets.top + 44, bottom: readableInsets.bottom)
+            }
         }
         .ignoresSafeArea(.container)
         .sheet(isPresented: $importSheetPresented) {

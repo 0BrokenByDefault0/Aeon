@@ -263,7 +263,7 @@ final class PlaybackCoordinator {
                     try scheduler.setQueue(queue, index: index, revision: queueRevision)
                     try scheduler.prepareCurrent(position: position)
                     acceptedSchedulerGeneration = scheduler.currentGeneration
-                    trackID = scheduler.currentTrackID
+                    syncSchedulerState()
                 } else {
                     trackID = nil
                     queueIndex = nil
@@ -646,7 +646,7 @@ final class PlaybackCoordinator {
             self.trackID = trackID
             position = 0
             intent = .paused
-            self.sourceFormat = sourceFormat
+            self.sourceFormat = scheduler.currentSourceFormat ?? sourceFormat
             outputFormat = graph.outputDescriptor()
             route = outputFormat?.route
             let snapshot = try publish(eventCode: "SOURCE_OPENED")

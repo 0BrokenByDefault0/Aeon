@@ -49,7 +49,61 @@ final class AudioIntegrationTests: XCTestCase {
         XCTAssertEqual(scheduler.currentTrackID, current.trackID)
         XCTAssertEqual(scheduler.queueItems, [current, newNext])
         XCTAssertEqual(scheduler.queueRevision, 2)
-        XCTAssertTrue(graph.closedSlots.count >= 4)
+        XCTAssertEqual(graph.closedSlots.count, 3, "Seek closes both slots; upcoming replacement closes only the alternate")
+        XCTAssertEqual(scheduler.preparedNextTrackID, newNext.trackID)
+    }
+
+    func testActualSchedulerCoordinatorRepeatAndEOFMatrix() throws {
+        for mode: RepeatMode in [.off, .all, .one] {
+            let graph = IntegrationGraph(files: [
+                "first.wav": ScheduledAudioFile(frameCount: 48000, sampleRate: 48000),
+                "last.wav": ScheduledAudioFile(frameCount: 48000, sampleRate: 48000)
+            ])
+            let scheduler = makeScheduler(graph: graph)
+            let coordinator = PlaybackCoordinator(
+                scheduler: scheduler, graph: graph, stateStore: IntegrationStateStore(restored: nil),
+                diagnostics: DiagnosticsLog(url: temporaryDiagnosticsURL()), mediaInfo: IntegrationMediaInfo())
+            _ = try result(from: coordinator.initialize)
+            let queue = [item("first"), item("last")]
+            _ = try result { coordinator.load(trackID: "last", mediaRef: queue[1].mediaRef,
+                                              queue: queue, index: 1, completion: $0) }
+            _ = try result(from: coordinator.play)
+            graph.elapsedFrames = 12000
+            let observed = expectation(description: "mid-track observation")
+            coordinator.getState { state in
+                XCTAssertEqual(state.position, 0.25, accuracy: 0.000001)
+                observed.fulfill()
+            }
+            wait(for: [observed], timeout: 2)
+            let starts = graph.startCount
+            let changed = try result { coordinator.setRepeatMode(mode, completion: $0) }
+            XCTAssertEqual(changed.position, 0.25, accuracy: 0.000001)
+            XCTAssertEqual(graph.startCount, starts)
+            XCTAssertEqual(changed.trackID, "last")
+            let observer = IntegrationObserver()
+            coordinator.delegate = observer
+            let completed = expectation(description: "completion resolves \(mode)")
+            observer.onSnapshot = { state in
+                if mode == .off && state.intent == .paused || mode != .off && state.position == 0 {
+                    observer.onSnapshot = nil
+                    completed.fulfill()
+                }
+            }
+            graph.elapsedFrames = 48000
+            graph.schedules.last!.completion()
+            wait(for: [completed], timeout: 2)
+            let refreshed = expectation(description: "observational EOF refresh")
+            coordinator.getState { state in
+                XCTAssertEqual(state.trackID, mode == .all ? "first" : "last")
+                XCTAssertEqual(state.queueIndex, mode == .all ? 0 : 1)
+                XCTAssertEqual(state.intent, mode == .off ? .paused : .playing)
+                XCTAssertEqual(state.position, mode == .off ? 1 : 0, accuracy: 0.000001)
+                refreshed.fulfill()
+            }
+            wait(for: [refreshed], timeout: 2)
+            XCTAssertTrue(observer.failures.isEmpty)
+            if mode != .off { XCTAssertEqual(graph.schedules.last?.sourceFrame, 0) }
+        }
     }
 
     func testRestoreNeverAutoplaysAndEveryUnplayableClassRemainsExplicit() throws {
@@ -201,6 +255,7 @@ private final class IntegrationGraph: QueueSchedulingGraph, PlaybackGraphControl
     var rebuildCount = 0
     var startCount = 0
     var closedSlots: [AudioSlot] = []
+    var elapsedFrames: Int64 = 0
     private var started = false
 
     init(files: [String: ScheduledAudioFile]) { self.files = files }
@@ -226,8 +281,8 @@ private final class IntegrationGraph: QueueSchedulingGraph, PlaybackGraphControl
     }
 
     func startScheduledPlayback() throws { started = true; startCount += 1 }
-    func elapsedSourceFrames(slot: AudioSlot) -> Int64? { 0 }
-    func cancelScheduledPlayback() { started = false }
+    func elapsedSourceFrames(slot: AudioSlot) -> Int64? { elapsedFrames }
+    func cancelScheduledPlayback() { started = false; elapsedFrames = 0 }
     func closeScheduledFile(slot: AudioSlot) { closedSlots.append(slot) }
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {}
     func setMasterVolume(_ linear: Float) {}
@@ -262,4 +317,13 @@ private final class IntegrationMediaInfo: PlaybackMediaInfoProviding {
 private final class IntegrationSession: AudioSessionActivating {
     var activateCount = 0
     func activate() throws { activateCount += 1 }
+}
+
+private final class IntegrationObserver: PlaybackCoordinatorDelegate {
+    var onSnapshot: ((PlaybackSnapshot) -> Void)?
+    var failures: [PlaybackFailure] = []
+    func playbackCoordinator(_ coordinator: PlaybackCoordinator, didPublish snapshot: PlaybackSnapshot,
+                             events: [PlaybackCoordinatorEvent]) { onSnapshot?(snapshot) }
+    func playbackCoordinator(_ coordinator: PlaybackCoordinator, didFail failure: PlaybackFailure,
+                             version: UInt64) { failures.append(failure) }
 }

@@ -24,12 +24,13 @@ struct PlayerPresentation {
         } else {
             image = nil
         }
+        let duration = snapshot.sourceFormat?.duration ?? track.duration ?? 0
         return PlayerPresentation(
             track: track,
             album: album,
             artist: track.artist.isEmpty ? album.artist : track.artist,
             artwork: image,
-            duration: max(0, snapshot.sourceFormat?.duration ?? track.duration ?? 0)
+            duration: duration.isFinite ? max(0, duration) : 0
         )
     }
 }
