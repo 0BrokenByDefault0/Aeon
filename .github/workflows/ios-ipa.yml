@@ -304,6 +304,7 @@ jobs:
           path: |
             ${{ runner.temp }}/aeon-fast/Aeon-native-validation.txt
             ${{ runner.temp }}/aeon-fast/native-summary.txt
+            ${{ runner.temp }}/aeon-fast/native.log
           if-no-files-found: warn
           retention-days: 14
 

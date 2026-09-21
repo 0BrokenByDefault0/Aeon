@@ -261,6 +261,11 @@ extension AdaptiveChromeTests {
         defer { XCUIDevice.shared.orientation = .portrait }
         for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
             XCUIDevice.shared.orientation = orientation
+            let rotated = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                let frame = app.windows.firstMatch.frame
+                return orientation.isLandscape ? frame.width > frame.height : frame.height > frame.width
+            }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [rotated], timeout: 5), .completed)
             ensureNavigationVisible(in: app)
             app.buttons["aeon.navigation.playlists"].tap()
             ensureNavigationVisible(in: app)
@@ -315,6 +320,7 @@ extension AdaptiveChromeTests {
             vertical.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.82))
                 .press(forDuration: 0.01, thenDragTo: vertical.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.24)))
         }
+        if !element.isHittable { reviewCapture(app, name: "unreachable-control-full-screen") }
         assertHittable(element, in: app)
     }
     private func largestVerticalScroll(in app: XCUIApplication) -> XCUIElement? {
@@ -348,7 +354,12 @@ extension AdaptiveChromeTests {
         // Accessibility state can settle before a removal transition has finished drawing.
         // Allow the bounded chrome fade to complete before collecting visual evidence.
         Thread.sleep(forTimeInterval: 0.4)
-        let attachment = XCTAttachment(screenshot: element.screenshot())
+        let attachment: XCTAttachment
+        if element.elementType == .application {
+            attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        } else {
+            attachment = XCTAttachment(screenshot: element.screenshot())
+        }
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

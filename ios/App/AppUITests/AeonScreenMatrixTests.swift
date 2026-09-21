@@ -104,7 +104,10 @@ final class AeonScreenMatrixTests: XCTestCase {
             let app = launch(["-AeonSkyFixture", fixture])
             XCTAssertTrue(app.images["aeon.sky.canvas"].waitForExistence(timeout: 12))
             let overview = app.buttons["aeon.sky.galaxy"]
-            XCTAssertGreaterThanOrEqual(overview.frame.minY, app.statusBars.firstMatch.frame.maxY,
+            // Some simulator runtimes omit the system status bar from the app AX tree.
+            let statusBar = app.statusBars.firstMatch
+            let statusBottom = statusBar.exists ? statusBar.frame.maxY : app.windows.firstMatch.frame.minY + 20
+            XCTAssertGreaterThanOrEqual(overview.frame.minY, statusBottom,
                                        "Sky utilities must clear the status bar")
             capture(app, name: "corrective-sky-\(fixture)")
             app.terminate()
@@ -471,7 +474,7 @@ final class AeonScreenMatrixTests: XCTestCase {
 
     private func capture(_ app: XCUIApplication, name: String) {
         XCTAssertEqual(app.webViews.count, 0, "\(name) must remain a native SwiftUI surface")
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

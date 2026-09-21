@@ -231,16 +231,19 @@ struct SettingsScreen: View {
 
     private var eraseButton: some View {
         Button { eraseText = ""; erasePresented = true } label: {
-            AeonGlyph(kind: .erase)
-                .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-                .contentShape(Rectangle())
+            let layout = dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: AeonTheme.Space.small))
+                : AnyLayout(HStackLayout(spacing: AeonTheme.Space.small))
+            layout {
+                eraseLabel.frame(maxWidth: .infinity, alignment: .leading)
+                AeonGlyph(kind: .erase)
+                    .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
+            }
+            // The label and icon are one action, including at accessibility text sizes.
+            .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain).foregroundStyle(AeonTheme.ColorToken.danger)
-        // The target lives on the Button, not only on its label: a hidden decorative
-        // label gives the Button no frame to derive an activation point from, which is
-        // what the navigation buttons already avoid.
-        .frame(width: AeonTheme.Space.minimumTarget, height: AeonTheme.Space.minimumTarget)
-        .contentShape(Rectangle())
         .accessibilityLabel("Erase everything").accessibilityIdentifier("aeon.settings.erase")
     }
 
@@ -262,23 +265,7 @@ struct SettingsScreen: View {
             settingsNavigationRow(title: "Diagnostics", value: "EXPORT", detail: nil,
                                   identifier: "aeon.settings.diagnostics", glyph: .export, action: { controller.exportDiagnostics() })
             VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                // At accessibility sizes the label alone is wider than the row, so a
-                // side-by-side layout pushes the 44pt target past the container's trailing
-                // edge: the button still exists but has no valid activation point. Stack
-                // the two instead of making them compete for the same line.
-                if dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText {
-                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                        eraseLabel
-                        eraseButton
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    HStack {
-                        eraseLabel
-                        Spacer(minLength: AeonTheme.Space.small)
-                        eraseButton
-                    }
-                }
+                eraseButton
                 note("Albums, audio, playlists, and the log — the sky goes dark.")
             }
             .padding(.top, AeonTheme.Space.small)
