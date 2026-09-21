@@ -106,7 +106,8 @@ final class SkyRepository {
                 seed: planet.seed,
                 coordinate: planet.coordinate,
                 exclusionRadius: planet.exclusionRadius,
-                descriptor: planet.descriptor
+                descriptor: planet.descriptor,
+                material: planet.resolvedMaterial
             )
         }
         let preserved = SkyCatalogue(

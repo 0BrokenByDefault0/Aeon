@@ -13,6 +13,7 @@ struct SkyScreen: View {
     let commitSelection: (String) -> Void
     var isForeground = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var importSheetPresented = false
 
     var body: some View {
@@ -22,7 +23,9 @@ struct SkyScreen: View {
                 SkyMetalView(controller: controller,
                              reduceMotionOverride: effectiveReduceMotion || !isForeground,
                              commitSelection: commitSelection,
-                             isForeground: isForeground)
+                             isForeground: isForeground,
+                             usableSize: CGSize(width: geometry.size.width,
+                                height: max(1, geometry.size.height - readableInsets.top - 44 - readableInsets.bottom - accessibilityReserve)))
                     .opacity(controller.cameraCrossfade ? 0.28 : 1)
                     .animation(.linear(duration: 0.12), value: controller.cameraCrossfade)
                     .allowsHitTesting(isForeground)
@@ -66,10 +69,15 @@ struct SkyScreen: View {
             }
             .background(AeonTheme.ColorToken.void)
             .onAppear {
-                controller.updateFocusInsets(top: readableInsets.top + 44, bottom: readableInsets.bottom)
+                controller.updateViewport(geometry.size)
+                controller.updateFocusInsets(top: readableInsets.top + 44, bottom: readableInsets.bottom + accessibilityReserve)
             }
             .onChange(of: readableInsets) { insets in
-                controller.updateFocusInsets(top: insets.top + 44, bottom: insets.bottom)
+                controller.updateFocusInsets(top: insets.top + 44, bottom: insets.bottom + accessibilityReserve)
+            }
+            .onChange(of: geometry.size) { controller.updateViewport($0) }
+            .onChange(of: dynamicTypeSize) { _ in
+                controller.updateFocusInsets(top: readableInsets.top + 44, bottom: readableInsets.bottom + accessibilityReserve)
             }
         }
         .ignoresSafeArea(.container)
@@ -109,6 +117,8 @@ struct SkyScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("aeon.sky.empty")
     }
+
+    private var accessibilityReserve: CGFloat { dynamicTypeSize.isAccessibilitySize ? 100 : 0 }
     private var effectiveReduceMotion: Bool { reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion }
 
     @ViewBuilder private func selectionFocus(viewport: CGSize) -> some View {
@@ -157,7 +167,7 @@ struct SkyScreen: View {
             .frame(maxWidth: Self.readoutMaximumWidth, alignment: .leading)
             .shadow(color: .black.opacity(0.45), radius: 18)
             .position(focusReadoutPosition(for: point, viewport: viewport,
-                                          height: CGFloat(min(28 * controller.camera.scale, Double(viewport.width) * 0.34)) + 68))
+                                          height: controller.planetBodyRadius(planet) * CGFloat(planet.resolvedMaterial.ringExtent) + 68))
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("aeon.sky.planet-selection")
@@ -222,11 +232,8 @@ private struct SkyLabelOverlay: View {
         var obstacles: [CGRect] = []
         for planet in controller.catalogue.planets {
             let point = camera.screenPoint(for: planet.coordinate, viewport: resolvedViewport)
-            let radius = CGFloat(max(10, min(Double(viewport.width) * 0.34, 28 * camera.scale)))
+            let radius = controller.planetBodyRadius(planet) * CGFloat(planet.resolvedMaterial.ringExtent)
             obstacles.append(CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
-            if camera.selectedID == nil {
-                candidates.append(.init(id: planet.id, text: planet.name, anchor: CGPoint(x: point.x, y: point.y + radius), isRegion: true))
-            }
         }
         if let selected = controller.selectedConstellation {
             for id in selected.albumIDs {
@@ -267,7 +274,8 @@ private struct SkyLabelOverlay: View {
                 let right = hypot($1.anchor.x - viewport.width / 2, $1.anchor.y - viewport.height / 2)
                 return left == right ? $0.id < $1.id : left < right
             }
-        return SkyLabelLayout.place(Array(visible.prefix(camera.scale < 0.65 ? 5 : 10)), viewport: viewport, obstacles: obstacles)
+        return SkyLabelLayout.place(Array(visible.prefix(camera.scale < 0.65 ? 5 : 10)), viewport: viewport,
+                                    obstacles: obstacles, usableBounds: controller.usableSkyBounds)
     }
 }
 
@@ -287,8 +295,8 @@ enum SkyLabelLayout {
         let isRegion: Bool
     }
 
-    static func place(_ candidates: [Candidate], viewport: CGSize, obstacles: [CGRect] = []) -> [Placed] {
-        let bounds = CGRect(x: 8, y: 176, width: max(0, viewport.width - 16), height: max(0, viewport.height - 272))
+    static func place(_ candidates: [Candidate], viewport: CGSize, obstacles: [CGRect] = [], usableBounds: CGRect? = nil) -> [Placed] {
+        let bounds = (usableBounds ?? CGRect(origin: .zero, size: viewport)).insetBy(dx: 8, dy: 8)
         guard bounds.width > 0, bounds.height > 0 else { return [] }
         var occupied: [CGRect] = obstacles
         var placed: [Placed] = []

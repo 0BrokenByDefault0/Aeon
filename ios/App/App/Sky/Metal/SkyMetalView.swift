@@ -6,6 +6,7 @@ struct SkyMetalView: UIViewRepresentable {
     let reduceMotionOverride: Bool
     let commitSelection: (String) -> Void
     var isForeground = true
+    var usableSize = CGSize.zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeCoordinator() -> Coordinator { Coordinator(controller: controller, commitSelection: commitSelection) }
@@ -39,7 +40,8 @@ struct SkyMetalView: UIViewRepresentable {
             camera: controller.camera,
             playingStarID: controller.playingStarID,
             spectrum: effectiveReduceMotion ? .zero : controller.spectrumLevels,
-            animateSelection: !effectiveReduceMotion
+            animateSelection: !effectiveReduceMotion,
+            usableSize: usableSize == .zero ? controller.usableSkySize : usableSize
         )
         context.coordinator.renderer?.configureFrameRate(for: view)
         // The sky stays mounted behind utility panels so the camera survives, but an

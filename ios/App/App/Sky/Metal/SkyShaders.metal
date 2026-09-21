@@ -11,6 +11,9 @@ struct SkyInstance {
     uint flags;
     float turbulence;
     uint tailPadding;
+    float4 surface;
+    float4 orientation;
+    float4 atmosphere;
 };
 
 struct SkyLine {
@@ -37,6 +40,10 @@ struct SkyVertexOut {
     float turbulence;
     float spectrumLow;
     float spectrumHigh;
+    uint family [[flat]];
+    float4 surface;
+    float4 orientation;
+    float4 atmosphere;
 };
 
 float2 worldToNDC(float2 world, constant SkyUniforms &uniforms) {
@@ -56,7 +63,7 @@ vertex SkyVertexOut skyInstanceVertex(
     };
     SkyInstance instance = instances[instanceID];
     float2 corner = corners[vertexID];
-    float ringScale = (instance.flags & 0x100) != 0 ? 1.65 : 1.08;
+    float ringScale = (instance.flags & 2) != 0 ? instance.surface.w : 1.0;
     float audioScale = 1.0;
     if ((instance.flags & 1) != 0) audioScale += uniforms.spectrum.x * 0.04;
     if ((instance.flags & 0x200) != 0) audioScale += uniforms.spectrum.y * 0.06;
@@ -77,7 +84,7 @@ vertex SkyVertexOut skyInstanceVertex(
     if (selected) radius = mix(3.3, 9.0, focus);
     if (glow) radius = selected ? mix(12.0, 56.0, focus) : mix(9.0, 17.0, near);
     if (backdrop) radius = instance.size;
-    if (planet) radius = clamp(instance.size * cameraScale, 10.0, min(uniforms.viewport.x, uniforms.viewport.y) / pixelsPerPoint * 0.34) * ringScale;
+    if (planet) radius = instance.size * ringScale; // CPU-shared projection and culling bounds
     float2 pixelOffset = corner * radius * pixelsPerPoint * audioScale;
     float2 ndcOffset = float2(pixelOffset.x / (uniforms.viewport.x * 0.5),
                               -pixelOffset.y / (uniforms.viewport.y * 0.5));
@@ -91,6 +98,11 @@ vertex SkyVertexOut skyInstanceVertex(
     out.color1 = instance.color1;
     out.color2 = instance.color2;
     out.flags = instance.flags;
+    out.family = instance.tailPadding;
+    out.surface = instance.surface;
+    out.orientation = instance.orientation;
+    out.orientation.z += uniforms.time * instance.orientation.y;
+    out.atmosphere = instance.atmosphere;
     out.turbulence = instance.turbulence;
     if (planet) out.color2.a = ringScale;
     out.spectrumLow = uniforms.spectrum.x;
@@ -114,6 +126,10 @@ vertex SkyVertexOut skyLineVertex(
     out.color1 = lines[vertexID].color;
     out.color2 = lines[vertexID].color;
     out.flags = 0;
+    out.family = 0;
+    out.surface = float4(0);
+    out.orientation = float4(0);
+    out.atmosphere = float4(0);
     out.turbulence = 0;
     out.spectrumLow = 0;
     out.spectrumHigh = 0;
@@ -161,54 +177,117 @@ float skyNoise(float3 p) {
                mix(mix(b.x, b.y, f.x), mix(b.z, b.w, f.x), f.y), f.z);
 }
 
+// Material lighting is linear, with exactly one display transfer at the end.
+// Existing scene exposure/backdrop and source-alpha composition are preserved.
+float3 planetLinear(float3 c) {
+    return select(c / 12.92, pow((c + 0.055) / 1.055, float3(2.4)), c > 0.04045);
+}
+float3 planetDisplay(float3 c) {
+    c = clamp(c, 0.0, 1.0);
+    return select(c * 12.92, 1.055 * pow(c, float3(1.0 / 2.4)) - 0.055, c > 0.0031308);
+}
+float2 planetRotate(float2 p, float angle) {
+    float c = cos(angle), s = sin(angle);
+    return float2(c * p.x - s * p.y, s * p.x + c * p.y);
+}
+
 fragment float4 skyPlanetFragment(SkyVertexOut in [[stage_in]]) {
-    float2 p = (in.uv * 2.0 - 1.0) * in.color2.a;
-    float r = length(p);
-    float edge = max(fwidth(r), 0.002);
-    float sphere = 1.0 - smoothstep(1.0 - edge, 1.0, r);
+    float2 p = (in.uv * 2.0 - 1.0) * in.surface.w;
+    float r = length(p), edge = max(fwidth(r), 0.002);
+    float body = 1.0 - smoothstep(1.0 - edge, 1.0 + edge, r);
     float3 n = float3(p.x, -p.y, sqrt(max(0.0, 1.0 - dot(p, p))));
-    float3 light = normalize(float3(-0.65, 0.45, 0.55));
-    float illumination = max(0.0, dot(n, light));
-    float3 sample = n * 3.5 + in.turbulence;
-    float large = skyNoise(sample);
-    float medium = skyNoise(sample * 2.3 + large);
-    float detail = 1.0 - smoothstep(0.015, 0.08, fwidth(p.x));
-    float fine = detail > 0.01 ? skyNoise(sample * 12.0 + medium * 2.0) : 0.5;
-    float noise = large * 0.57 + medium * 0.30 + fine * 0.13;
-    float family = fmod(in.turbulence, 4.0);
-    float pattern;
-    if (family < 1.0) {
-        float latitude = p.y + (large - 0.5) * 0.32 + (medium - 0.5) * 0.10;
-        float bands = sin(latitude * 25.0 + n.x * 3.5 + large * 4.0);
-        float ribbons = sin(latitude * 49.0 + medium * 3.0) * detail;
-        float storm = exp(-length((p - float2(0.25, -0.2)) * float2(3.0, 8.0))) * medium;
-        pattern = saturate(0.5 + bands * 0.30 + ribbons * 0.12 + storm * 0.3);
-    } else if (family < 2.0) {
-        pattern = smoothstep(0.33, 0.67, noise);
-    } else if (family < 3.0) {
-        pattern = smoothstep(0.42, 0.57, large + medium * 0.18);
-    } else {
-        pattern = saturate(0.4 + abs(n.y) * 0.4 + (medium - 0.5) * 0.5);
-    }
-    float3 base = mix(in.color0.rgb, in.color1.rgb, pattern);
-    base = mix(base, in.color2.rgb, smoothstep(0.63, 0.81, noise) * 0.55);
+    float3 light = normalize(float3(-0.65, 0.45, 0.65));
     float lambert = dot(n, light);
-    float terminator = smoothstep(-0.12, 0.18, lambert);
-    float relief = mix(1.0, 0.87 + fine * 0.23, detail);
-    float3 surface = base * (0.065 + 0.88 * illumination * terminator) * relief;
-    float atmosphereStrength = family < 2.0 ? 0.12 : 0.23;
-    float3 atmosphereTint = normalize(mix(in.color1.rgb, float3(0.35, 0.50, 0.70), 0.55));
-    float rim = pow(1.0 - max(0.0, n.z), 4.5) * (0.12 + illumination * 0.55);
-    surface += atmosphereTint * rim * atmosphereStrength;
-    float atmosphere = exp(-abs(r - 1.0) * 58.0) * atmosphereStrength;
-    float ring = 0;
-    if ((in.flags & 0x100) != 0) {
-        float ellipse = length(float2(p.x / 1.52, (p.y + p.x * 0.18) / 0.30));
-        ring = smoothstep(0.75, 0.82, ellipse) * (1.0 - smoothstep(1.0, 1.05, ellipse));
-        if (p.y < 0 && r < 1.0) ring = 0;
+    float daylight = smoothstep(-0.09, 0.19, lambert);
+    float3 local = float3(planetRotate(n.xy, in.orientation.x), n.z);
+    local.xz = planetRotate(local.xz, in.orientation.z);
+    float3 sample = local * 3.2 + in.turbulence;
+    float large = skyNoise(sample);
+    float medium = skyNoise(sample * 2.7 + large * 0.8);
+    float lod = 1.0 - smoothstep(0.012, 0.065, fwidth(p.x));
+    float fine = lod > 0.01 ? skyNoise(sample * 11.0 + medium) : 0.5;
+    float3 dark = planetLinear(in.color0.rgb);
+    float3 middle = planetLinear(in.color1.rgb);
+    float3 pale = planetLinear(in.color2.rgb);
+    float3 albedo = dark;
+    float emission = 0, specularMask = 0;
+    float cloud = 0;
+    if (in.family == 0) { // Ocean, opalescent cloud shelves and controlled water glints.
+        float land = smoothstep(0.48, 0.60, large + medium * 0.16);
+        albedo = mix(dark, middle, land * 0.85);
+        float vapor = skyNoise(sample * 1.7 + float3(in.orientation.z * 0.24, 0.2, 0));
+        cloud = smoothstep(0.50, 0.76, vapor + medium * 0.13) * in.surface.x;
+        albedo = mix(albedo, pale, cloud);
+        specularMask = (1.0 - land) * (1.0 - cloud);
+    } else if (in.family == 1) { // Copper giant: sheared bands and a single oval storm.
+        float latitude = local.y + (large - 0.5) * 0.16;
+        float band = 0.5 + 0.5 * sin(latitude * 31.0 + medium * 2.4);
+        float2 stormPoint = (local.xy - float2(0.30, -0.24)) * float2(3.8, 8.0);
+        float stormRadius = length(stormPoint);
+        float storm = (1.0 - smoothstep(0.55, 1.3, stormRadius)) * smoothstep(0.05, 0.28, local.z);
+        float swirl = 0.5 + 0.5 * sin(stormRadius * 16.0 + atan2(stormPoint.y, stormPoint.x) * 2.0);
+        albedo = mix(dark, middle, 0.18 + band * 0.82);
+        albedo = mix(albedo, pale, smoothstep(0.70, 0.96, band) * 0.6);
+        albedo = mix(albedo, mix(dark, pale, swirl * 0.45), storm * 0.86);
+    } else if (in.family == 2) { // Fractured ice plates, glassy ridges and sparse blue seams.
+        float ridge = abs(sin((local.x + local.y * 0.7) * 17.0 + large * 7.0));
+        float fractures = (1.0 - smoothstep(0.025, 0.09, ridge)) * (0.4 + 0.6 * medium);
+        albedo = mix(middle, pale, smoothstep(0.28, 0.7, large));
+        albedo = mix(albedo, dark, fractures * 0.8);
+        specularMask = smoothstep(0.5, 0.8, medium) * 0.35;
+    } else if (in.family == 3) { // Rough charcoal plates and sparse connected hot fissures.
+        float seam = abs(large - 0.52 + (medium - 0.5) * 0.16);
+        float fissure = (1.0 - smoothstep(0.005, 0.025, seam)) * smoothstep(0.42, 0.65, medium);
+        albedo = mix(dark, middle, medium * 0.7) * (0.75 + fine * 0.45 * lod);
+        emission = fissure * in.surface.z;
+    } else if (in.family == 4) { // Subdued satin body lets the inclined ring silhouette lead.
+        float latitude = sin(local.y * 15.0 + large * 2.5) * 0.5 + 0.5;
+        albedo = mix(dark, middle, 0.3 + latitude * 0.5);
+        specularMask = 0.1;
+    } else { // Structured twilight continents, luminous polar curtains only.
+        albedo = mix(dark, middle, smoothstep(0.42, 0.68, large + medium * 0.12));
+        cloud = smoothstep(0.62, 0.82, medium) * in.surface.x;
+        albedo = mix(albedo, middle * 1.3, cloud);
+        float polar = exp(-pow((abs(local.y) - 0.72) * 15.0, 2.0));
+        float curtain = pow(0.5 + 0.5 * sin(atan2(local.z, local.x) * 23.0 + medium * 5.0), 3.0);
+        emission = polar * curtain * in.surface.z * (0.35 + 0.65 * (1.0 - daylight));
     }
-    float3 color = surface * sphere + atmosphereTint * atmosphere + mix(in.color1.rgb, float3(0.65), 0.5) * ring * 0.4;
-    return float4(color, max(max(sphere, atmosphere), ring * 0.72) * in.color0.a);
+    float relief = 1.0 + (fine - 0.5) * 0.18 * lod * in.surface.y;
+    float3 surface = albedo * (0.14 + max(0.0, lambert) * 0.92 * daylight) * relief;
+    float highlight = pow(max(0.0, dot(n, normalize(light + float3(0, 0, 1)))),
+                          mix(100.0, 12.0, in.surface.y));
+    surface += float3(0.8, 0.9, 1.0) * highlight * specularMask * 0.42 * daylight;
+    surface += pale * emission;
+    float limb = pow(1.0 - max(0.0, n.z), 3.5);
+    float3 air = planetLinear(in.atmosphere.rgb);
+    surface += air * limb * in.atmosphere.w * (0.28 + 0.72 * daylight);
+    float atmosphere = exp(-max(0.0, r - 1.0) * 52.0) * (1.0 - body) * in.atmosphere.w;
+    atmosphere *= (1.0 - smoothstep(1.05, 1.08, r)) * (0.35 + 0.65 * daylight);
+    float alpha = max(body, atmosphere);
+    float3 premultiplied = surface * body + air * atmosphere;
+    if (in.family == 4) {
+        float2 q = planetRotate(p, in.orientation.x - 0.30);
+        float inclination = in.orientation.w;
+        float ringRadius = length(float2(q.x, q.y / inclination));
+        float aa = max(fwidth(ringRadius), 0.004);
+        float ring = smoothstep(1.12, 1.12 + aa, ringRadius) * (1.0 - smoothstep(1.59 - aa, 1.59, ringRadius));
+        float ringZ = -q.y * sqrt(1.0 - inclination * inclination) / inclination;
+        bool front = ringZ > n.z || r >= 1.0;
+        float3 ringPoint = float3(p.x, -p.y, ringZ);
+        float alongLight = dot(-ringPoint, light);
+        float closest = length(ringPoint + light * max(0.0, alongLight));
+        float shadow = alongLight > 0 ? smoothstep(0.88, 1.06, closest) : 1.0;
+        float grooves = 0.78 + 0.15 * sin(ringRadius * 110.0) * lod;
+        float gap = 1.0 - 0.7 * exp(-pow((ringRadius - 1.38) * 95.0, 2.0));
+        float opacity = ring * grooves * gap * 0.80;
+        float3 ringColor = mix(pale, middle, 0.3) * (0.18 + shadow * 0.82);
+        if (front) {
+            premultiplied = ringColor * opacity + premultiplied * (1.0 - opacity);
+            alpha = opacity + alpha * (1.0 - opacity);
+        }
+    }
+    float3 color = premultiplied / max(alpha, 0.0001);
+    return float4(planetDisplay(color), alpha * in.color0.a);
 }
 
 fragment float4 skyPlanetTextureFragment(

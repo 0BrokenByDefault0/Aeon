@@ -217,7 +217,8 @@ struct SkyComposer {
                     seed: stable.seed,
                     coordinate: stable.coordinate,
                     exclusionRadius: stable.exclusionRadius,
-                    descriptor: stable.descriptor
+                    descriptor: stable.descriptor,
+                    material: stable.resolvedMaterial
                 ))
                 continue
             }
@@ -245,7 +246,8 @@ struct SkyComposer {
                 seed: seed,
                 coordinate: coordinate,
                 exclusionRadius: Self.planetExclusionRadius,
-                descriptor: descriptor
+                descriptor: descriptor,
+                material: .make(worldID: "planet:\(index)", seed: seed, index: index)
             ))
         }
         return planets

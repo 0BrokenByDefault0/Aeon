@@ -3,6 +3,40 @@ import XCTest
 @testable import App
 
 final class PlanetModelTests: XCTestCase {
+    func testLegacyWorldsDecodeAndPersistMaterialWithoutMovingCatalogue() throws {
+        let original = try SkyComposer().compose(albums: makeAlbums(count: 90))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        var worlds = try XCTUnwrap(json["planets"] as? [[String: Any]])
+        for index in worlds.indices { worlds[index].removeValue(forKey: "material") }
+        json["planets"] = worlds
+        let legacy = try JSONDecoder().decode(SkyCatalogue.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertTrue(legacy.planets.allSatisfy { $0.material == nil })
+        let migrated = try SkyComposer().compose(albums: makeAlbums(count: 91), preserving: legacy)
+        XCTAssertEqual(migrated.planets.map(\.resolvedMaterial), original.planets.map(\.resolvedMaterial))
+        XCTAssertEqual(migrated.planets.map(\.name), legacy.planets.map(\.name))
+        XCTAssertEqual(migrated.planets.map(\.coordinate), legacy.planets.map(\.coordinate))
+        XCTAssertEqual(migrated.stars.prefix(90).map(\.coordinate), original.stars.map(\.coordinate))
+        let restored = try JSONDecoder().decode(SkyCatalogue.self, from: JSONEncoder().encode(migrated))
+        XCTAssertEqual(restored.planets.map(\.material), migrated.planets.map(\.material))
+        XCTAssertEqual(Set(restored.planets.map { $0.resolvedMaterial.family }).count, 6)
+    }
+
+    func testPlanetProjectionIsContinuousAndCompleteEnvelopeStaysBounded() {
+        for size in [CGSize(width: 320, height: 360), CGSize(width: 430, height: 620), CGSize(width: 700, height: 230)] {
+            for extent: Float in [1.08, 1.62] {
+                var previous: CGFloat = 0
+                for step in 0...1400 {
+                    let radius = PlanetProjection.bodyRadius(scale: Double(step) / 100, usableSize: size, ringExtent: extent)
+                    XCTAssertGreaterThanOrEqual(radius, previous)
+                    XCTAssertLessThanOrEqual(radius * CGFloat(extent) * 2, size.width * 0.55 + 0.001)
+                    XCTAssertLessThanOrEqual(radius * CGFloat(extent) * 2, size.height * 0.45 + 0.001)
+                    if step > 0 { XCTAssertLessThan(radius - previous, 1) }
+                    previous = radius
+                }
+            }
+        }
+    }
+
     func testExactMilestonesAndAppendStability() throws {
         let albums = makeAlbums(count: 33)
         var previous = SkyCatalogue.empty

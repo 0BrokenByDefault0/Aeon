@@ -14,6 +14,18 @@ struct SkyViewport: Equatable, Sendable {
     var center: CGPoint { CGPoint(x: size.width / 2, y: size.height / 2) }
 }
 
+enum PlanetProjection {
+    // Shared by renderer, collision clearance, selection and body hit testing.
+    // Continuous in zoom; selection alone never changes the body's size.
+    static func bodyRadius(scale: Double, usableSize: CGSize, ringExtent: Float) -> CGFloat {
+        let width = max(1, usableSize.width), height = max(1, usableSize.height)
+        let approach = 1 - exp(-max(0, scale) / 2.5)
+        let desired = width * (0.065 + 0.165 * approach)
+        let envelopeCap = min(width * 0.275, height * 0.225)
+        return min(desired, envelopeCap / CGFloat(max(1.08, ringExtent)))
+    }
+}
+
 struct SkyCameraState: Codable, Equatable, Sendable {
     static let minimumScale = 0.015
     static let maximumScale = 14.0

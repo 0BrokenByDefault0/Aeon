@@ -46,6 +46,12 @@ final class SkySceneController: ObservableObject {
             camera = SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y), scale: 1.8, selectedID: planet.id)
         } else if Self.fixtureName() == "planet-selected", let planet = catalogue.planets.first {
             camera = SkyCameraState.planetFocus(planet, viewport: SkyViewport(size: viewportSize))
+        } else if let fixture = Self.fixtureName(), fixture.hasPrefix("world-family-"),
+                  let index = Int(fixture.replacingOccurrences(of: "world-family-", with: "")),
+                  catalogue.planets.indices.contains(index) {
+            let planet = catalogue.planets[index]
+            camera = SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y),
+                                    scale: 3, selectedID: nil)
         } else if ["album-selected", "one-focused"].contains(Self.fixtureName() ?? ""), let star = catalogue.stars.first {
             camera = SkyCameraState.albumFocus(star.coordinate, id: star.albumID)
         } else if Self.fixtureName() == "artist-focused", let artist = catalogue.constellations.first {
@@ -185,8 +191,20 @@ final class SkySceneController: ObservableObject {
 
     private var focusTopInset: CGFloat = 0
     private var focusBottomInset: CGFloat = 0
+    var usableSkySize: CGSize {
+        CGSize(width: viewportSize.width, height: max(1, viewportSize.height - focusTopInset - focusBottomInset))
+    }
+    var usableSkyBounds: CGRect {
+        CGRect(x: 0, y: focusTopInset, width: usableSkySize.width, height: usableSkySize.height)
+    }
+    func planetBodyRadius(_ planet: SkyPlanet) -> CGFloat {
+        PlanetProjection.bodyRadius(scale: camera.scale, usableSize: usableSkySize,
+                                    ringExtent: planet.resolvedMaterial.ringExtent)
+    }
 
     func updateFocusInsets(top: CGFloat, bottom: CGFloat) {
+        guard focusTopInset != max(0, top) || focusBottomInset != max(0, bottom) else { return }
+        objectWillChange.send()
         focusTopInset = max(0, top)
         focusBottomInset = max(0, bottom)
     }
@@ -363,7 +381,7 @@ final class SkySceneController: ObservableObject {
         }
         let planets = catalogue.planets.map {
             SkyHitCandidate(target: .planet($0.id), coordinate: $0.coordinate,
-                            visualRadius: CGFloat(max(10, min(Double(min(viewportSize.width, viewportSize.height)) * 0.34, 28 * camera.scale))))
+                            visualRadius: planetBodyRadius($0))
         }
         let starMap = Dictionary(uniqueKeysWithValues: catalogue.stars.map { ($0.albumID, $0.coordinate) })
         let constellations = catalogue.constellations.compactMap { constellation -> SkyHitCandidate? in
@@ -419,6 +437,7 @@ final class SkySceneController: ObservableObject {
     static func fixture(named name: String) throws -> SkyCatalogue {
         let count: Int
         switch name {
+        case "world-family-0", "world-family-1", "world-family-2", "world-family-3", "world-family-4", "world-family-5": count = 90
         case "one", "one-focused": count = 1
         case "three", "artist-focused": count = 3
         case "fourteen": count = 14

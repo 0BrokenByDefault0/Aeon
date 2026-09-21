@@ -21,6 +21,10 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         var flags: UInt32
         var turbulence: Float
         var tailPadding: UInt32 = 0
+        // Instance layout v2: three aligned float4s shared with SkyShaders.metal.
+        var surface = SIMD4<Float>(repeating: 0)
+        var orientation = SIMD4<Float>(repeating: 0)
+        var atmosphere = SIMD4<Float>(repeating: 0)
     }
 
     private struct GPULine {
@@ -64,6 +68,11 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     private var glowCount = 0
     private var lineCount = 0
     private var planetCount = 0
+    private var planetInstances: [GPUInstance] = []
+    private var projectedCamera: SkyCameraState?
+    private var projectedViewport = CGSize.zero
+    private var usableSize = CGSize.zero
+    private var projectedUsableSize = CGSize.zero
     private(set) var stats = SkyRendererStats()
 
     init?(view: MTKView) {
@@ -100,12 +109,14 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         camera: SkyCameraState,
         playingStarID: String? = nil,
         spectrum: SpectrumLevels = .zero,
-        animateSelection: Bool = true
+        animateSelection: Bool = true,
+        usableSize: CGSize = .zero
     ) {
         let catalogueChanged = stars != catalogue.stars || planets != catalogue.planets || constellations != catalogue.constellations || starBuffer == nil
         let selectionChanged = selectedID != camera.selectedID || self.playingStarID != playingStarID || self.animateSelection != animateSelection
         let spectrumChanged = self.spectrum != spectrum
         self.camera = camera
+        self.usableSize = usableSize
         self.spectrum = spectrum
         guard catalogueChanged || selectionChanged || spectrumChanged else { return }
         if catalogueChanged {
@@ -136,6 +147,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
               let commandBuffer = commandQueue.makeCommandBuffer(),
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
         os_signpost(.begin, log: Self.performanceLog, name: "SkyFrame")
+        projectPlanets(viewport: view.bounds.size)
         let screenScale = Float(view.contentScaleFactor)
         var uniforms = Uniforms(
             center: SIMD2(Float(camera.centerX), Float(camera.centerY)),
@@ -193,9 +205,8 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         }
         glowBuffer = makeBuffer(glows)
         glowCount = glows.count
-        let worlds = planets.map { planetInstance($0, selected: $0.id == selectedID) }
-        planetBuffer = makeBuffer(worlds)
-        planetCount = worlds.count
+        planetInstances = planets.map { planetInstance($0, selected: $0.id == selectedID) }
+        projectedCamera = nil
     }
 
     private func rebuildStaticLineBuffer() {
@@ -224,7 +235,8 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
     }
 
     private func planetInstance(_ planet: SkyPlanet, selected: Bool) -> GPUInstance {
-        let colors = planet.descriptor.bandColors
+        let material = planet.resolvedMaterial
+        let colors = material.palette
         func vector(_ index: Int) -> SIMD4<Float> {
             let color = colors.isEmpty ? SkyColor(red: 120, green: 132, blue: 150) : colors[index % colors.count]
             return SIMD4(Float(color.red) / 255, Float(color.green) / 255, Float(color.blue) / 255,
@@ -232,12 +244,39 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         }
         // The analytic sphere uses the persisted descriptor at every LOD. No bitmap
         // upscale, texture swap, or CPU texture generation in a camera transaction.
-        return GPUInstance(
+        var instance = GPUInstance(
             position: SIMD2(Float(planet.coordinate.x), Float(planet.coordinate.y)),
             color0: vector(0), color1: vector(1), color2: vector(2), size: 28,
-            flags: 2 | (planet.descriptor.hasRings ? 0x100 : 0),
+            flags: 2 | (material.family == .ringed ? 0x100 : 0),
             turbulence: Float(planet.seed % 10007) / 100
         )
+        instance.tailPadding = material.family.rawValue
+        instance.surface = SIMD4(material.cloudCover, material.roughness, material.emission, material.ringExtent)
+        instance.orientation = SIMD4(material.axialTilt, material.rotationRate, material.phase, material.ringInclination)
+        instance.atmosphere = SIMD4(0.32, 0.64, 0.95, material.atmosphere)
+        return instance
+    }
+
+    private func projectPlanets(viewport: CGSize) {
+        guard camera != projectedCamera || viewport != projectedViewport || usableSize != projectedUsableSize else { return }
+        projectedCamera = camera
+        projectedViewport = viewport
+        projectedUsableSize = usableSize
+        let usable = usableSize == .zero ? viewport : usableSize
+        let bounds = CGRect(origin: .zero, size: viewport)
+        let visible = planetInstances.compactMap { base -> GPUInstance? in
+            var instance = base
+            let radius = PlanetProjection.bodyRadius(scale: camera.scale, usableSize: usable, ringExtent: base.surface.w)
+            let point = CGPoint(x: viewport.width / 2 + CGFloat(Double(base.position.x) - camera.centerX) * camera.scale,
+                                y: viewport.height / 2 + CGFloat(Double(base.position.y) - camera.centerY) * camera.scale)
+            let envelope = radius * CGFloat(base.surface.w)
+            guard bounds.intersects(CGRect(x: point.x - envelope, y: point.y - envelope,
+                                           width: envelope * 2, height: envelope * 2)) else { return nil }
+            instance.size = Float(radius)
+            return instance
+        }
+        planetBuffer = makeBuffer(visible)
+        planetCount = visible.count
     }
 
     private func makeBuffer<Element>(_ values: [Element]) -> MTLBuffer? {
