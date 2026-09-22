@@ -4,6 +4,28 @@ import XCTest
 @testable import App
 
 final class DesignTokenTests: XCTestCase {
+    func testOnlyFrontmostMiniPlayerOwnsInteractionAndDismissRestoresItsParent() {
+        let visibility = PlayerBarPresentation()
+        let album = UUID(), picker = UUID()
+        XCTAssertTrue(visibility.isActive(nil))
+        visibility.present(album)
+        visibility.present(picker)
+        visibility.present(album) // Parent reappearing cannot steal a child's controls.
+        XCTAssertFalse(visibility.isActive(nil))
+        XCTAssertFalse(visibility.isActive(album))
+        XCTAssertTrue(visibility.isActive(picker))
+        visibility.dismiss(picker)
+        XCTAssertTrue(visibility.isActive(album))
+        visibility.dismiss(album)
+        XCTAssertTrue(visibility.isActive(nil))
+        visibility.present(album)
+        visibility.present(picker)
+        visibility.dismiss(album) // Dismissing an entire stack can remove parents first.
+        XCTAssertTrue(visibility.isActive(picker))
+        visibility.dismiss(picker)
+        XCTAssertTrue(visibility.isActive(nil))
+    }
+
     func testNocturneAndItsProvenanceShipInTheAppBundle() throws {
         XCTAssertNotNil(Bundle.main.url(forResource: "AeonNocturne-Regular", withExtension: "otf"))
         XCTAssertNotNil(Bundle.main.url(forResource: "GUST-FONT-LICENSE", withExtension: "txt"))

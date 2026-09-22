@@ -37,6 +37,8 @@ struct PlayerPresentation {
 
 struct PlayerBar: View {
     @ObservedObject var playback: PlaybackController
+    @ObservedObject var visibility: PlayerBarPresentation
+    var layerID: UUID? = nil
     let catalog: CatalogRepository
     let artworkStore: ArtworkStore
     let open: () -> Void
@@ -113,6 +115,9 @@ struct PlayerBar: View {
             .padding(.vertical, 6)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("aeon.player.bar")
+            .opacity(visibility.isActive(layerID) ? 1 : 0)
+            .allowsHitTesting(visibility.isActive(layerID))
+            .accessibilityHidden(!visibility.isActive(layerID))
         }
     }
 
@@ -148,10 +153,23 @@ struct PlayerBar: View {
     }
 }
 
+/// Presentation ownership only; all layers still use the one playback controller.
+/// Covered bars keep their layout reservation without remaining touch/VoiceOver targets.
+final class PlayerBarPresentation: ObservableObject {
+    @Published private var layers: [UUID] = []
+
+    func isActive(_ id: UUID?) -> Bool { layers.last == id }
+    func present(_ id: UUID) {
+        if !layers.contains(id) { layers.append(id) }
+    }
+    func dismiss(_ id: UUID) { layers.removeAll { $0 == id } }
+}
+
 /// Modal screens borrow the same playback controller. Nested sheets compose dismiss
 /// actions so opening the player returns through the whole presentation stack.
 struct PlayerBarContext {
     let playback: PlaybackController
+    let presentation: PlayerBarPresentation
     let catalog: CatalogRepository
     let artworkStore: ArtworkStore
     let open: () -> Void
@@ -171,17 +189,24 @@ extension EnvironmentValues {
 private struct ModalPlayerBar: ViewModifier {
     @Environment(\.aeonPlayerBar) private var player
     @Environment(\.dismiss) private var dismiss
+    @State private var layerID = UUID()
 
     @ViewBuilder func body(content: Content) -> some View {
         if let player {
-            let scoped = PlayerBarContext(playback: player.playback, catalog: player.catalog,
+            let scoped = PlayerBarContext(playback: player.playback, presentation: player.presentation, catalog: player.catalog,
                 artworkStore: player.artworkStore, open: { dismiss(); player.open() })
-            content
-                .environment(\.aeonPlayerBar, scoped)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    PlayerBar(playback: scoped.playback, catalog: scoped.catalog,
-                        artworkStore: scoped.artworkStore, open: scoped.open)
-                }
+            // A concrete sibling reserves space even for GeometryReader-backed album
+            // content, which otherwise extends through a safeAreaInset on this sheet.
+            VStack(spacing: 0) {
+                content
+                    .environment(\.aeonPlayerBar, scoped)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                PlayerBar(playback: scoped.playback, visibility: scoped.presentation,
+                    layerID: layerID, catalog: scoped.catalog,
+                    artworkStore: scoped.artworkStore, open: scoped.open)
+            }
+            .onAppear { player.presentation.present(layerID) }
+            .onDisappear { player.presentation.dismiss(layerID) }
         } else {
             content
         }

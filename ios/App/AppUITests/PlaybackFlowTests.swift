@@ -11,7 +11,7 @@ final class PlaybackFlowTests: XCTestCase {
         app.buttons["ADD TO PLAYLIST"].tap()
         let name = app.textFields["aeon.track.playlist.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 4))
-        XCTAssertTrue(app.buttons["aeon.player.open"].isHittable)
+        assertSingleReachableMiniPlayer(in: app)
         name.tap()
         name.typeText("Quick Add")
         app.buttons["aeon.track.playlist.create"].tap()
@@ -19,20 +19,51 @@ final class PlaybackFlowTests: XCTestCase {
         actions.tap()
         app.buttons["SHOW ALBUM"].tap()
         XCTAssertTrue(app.buttons["aeon.track.actions.playback-fixture-track-2"].waitForExistence(timeout: 4))
-        let mini = app.buttons["aeon.player.open"]
-        XCTAssertTrue(mini.isHittable)
+        // The album and a nested track sheet must both own a single reachable bar.
+        assertSingleReachableMiniPlayer(in: app)
+        let albumActions = app.buttons["aeon.track.actions.playback-fixture-track-2"]
+        scrollUntilHittable(albumActions, in: app)
+        albumActions.tap()
+        app.buttons["ADD TO PLAYLIST"].tap()
+        XCTAssertTrue(name.waitForExistence(timeout: 4))
+        let mini = assertSingleReachableMiniPlayer(in: app)
+        capture("Nested playlist sheet with its mini-player — simulator", in: app)
         mini.tap()
         XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 4))
+        assertSingleReachableMiniPlayer(in: app)
+        XCTAssertFalse(name.exists)
+        let queue = app.buttons["aeon.player.queue.open"]
+        scrollUntilHittable(queue, in: app)
+        queue.tap()
+        let closeQueue = app.buttons["aeon.player.queue.close"]
+        XCTAssertTrue(closeQueue.waitForExistence(timeout: 4))
+        assertSingleReachableMiniPlayer(in: app)
+        closeQueue.tap()
+        assertSingleReachableMiniPlayer(in: app)
         for destination in ["playlists", "settings", "library", "sky"] {
             app.buttons["aeon.navigation.\(destination)"].tap()
-            XCTAssertTrue(mini.isHittable, "Missing mini-player in \(destination)")
+            let mini = assertSingleReachableMiniPlayer(in: app)
             XCTAssertTrue(mini.label.contains("A Signal Carried Across the Quiet"))
             if destination == "playlists" { XCTAssertTrue(app.staticTexts["Quick Add"].waitForExistence(timeout: 4)) }
         }
-        let capture = XCTAttachment(screenshot: app.screenshot())
-        capture.name = "Translucent mini-player over Sky — simulator"
-        capture.lifetime = .keepAlways
-        add(capture)
+        capture("Translucent mini-player over Sky — simulator", in: app)
+    }
+
+    @discardableResult
+    private func assertSingleReachableMiniPlayer(in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let players = app.buttons.matching(identifier: "aeon.player.open")
+        let ready = NSPredicate { _, _ in players.count == 1 && players.element.isHittable }
+        let result = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: ready, object: nil)], timeout: 5)
+        XCTAssertEqual(result, .completed, "Expected exactly one reachable mini-player; found \(players.count)", file: file, line: line)
+        XCTAssertEqual(players.count, 1, file: file, line: line)
+        return players.element
+    }
+
+    private func capture(_ name: String, in app: XCUIApplication) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     func testBundledCorrectionRequiresExactSelectionAndPreviewBeforeApplying() {
@@ -50,6 +81,7 @@ final class PlaybackFlowTests: XCTestCase {
         choose.tap()
         let search = app.textFields["aeon.correction.search"]
         XCTAssertTrue(search.waitForExistence(timeout: 4))
+        assertSingleReachableMiniPlayer(in: app)
         search.tap()
         search.typeText("HD600")
         let profile = app.buttons["aeon.correction.profile.opra-sennheiser-hd600-oratory1990-harman-v1"]

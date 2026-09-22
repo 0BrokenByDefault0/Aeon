@@ -280,6 +280,7 @@ struct AeonRootView: View {
 }
 
 private struct AeonReadyShell: View {
+    @StateObject private var playerPresentation = PlayerBarPresentation()
     let container: AppContainer
     let services: AppServices
     let roots: AppStorageRoots
@@ -394,6 +395,7 @@ private struct AeonReadyShell: View {
                         ) {
                             PlayerBar(
                                 playback: playback,
+                                visibility: playerPresentation,
                                 catalog: services.catalogRepository,
                                 artworkStore: services.artworkStore,
                                 open: {
@@ -409,7 +411,7 @@ private struct AeonReadyShell: View {
             }
         }
         .environment(\.aeonPlayerBar, PlayerBarContext(
-            playback: playback, catalog: services.catalogRepository, artworkStore: services.artworkStore,
+            playback: playback, presentation: playerPresentation, catalog: services.catalogRepository, artworkStore: services.artworkStore,
             open: { nowPlayingSection = nil; nowPlayingVisible = true }
         ))
         .animation(reduceMotion || AeonTestOverrides.reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)

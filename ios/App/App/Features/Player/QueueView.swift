@@ -346,6 +346,7 @@ struct TrackActionMenu<Label: View>: View {
     let remove: (() -> Void)?
     let label: Label
     @State private var presentedSheet: TrackActionSheet?
+    @Environment(\.aeonPlayerBar) private var playerBar
 
     init(
         track: CatalogTrack,
@@ -384,12 +385,15 @@ struct TrackActionMenu<Label: View>: View {
             if let remove { Button(removeTitle, role: .destructive, action: remove) }
         } label: { label }
         .sheet(item: $presentedSheet) { destination in
-            switch destination {
-            case .playlist:
-                TrackPlaylistPicker(track: track, catalog: catalog)
-            case .info:
-                TrackInfoSheet(track: track, album: try? catalog.album(id: track.albumID))
+            Group {
+                switch destination {
+                case .playlist:
+                    TrackPlaylistPicker(track: track, catalog: catalog)
+                case .info:
+                    TrackInfoSheet(track: track, album: try? catalog.album(id: track.albumID))
+                }
             }
+            .environment(\.aeonPlayerBar, playerBar)
         }
         .accessibilityLabel("Actions for \(track.title)")
         .accessibilityIdentifier("aeon.track.actions.\(track.id)")

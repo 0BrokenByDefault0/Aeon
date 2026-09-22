@@ -232,6 +232,7 @@ struct AlbumDetailView: View {
                 .overlay(alignment: .bottom) {
                     Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                 }
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("aeon.album.track.\(track.id)")
             }
         }
