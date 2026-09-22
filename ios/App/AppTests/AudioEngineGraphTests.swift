@@ -18,6 +18,46 @@ final class AudioEngineGraphTests: XCTestCase {
         }
     }
 
+    func testBundledWAVPreparesAndRendersThroughProductionGraph() throws {
+        let graph = makeGraph()
+        let url = fixtureURL(named: "pcm-48000.wav")
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2))
+        // Exercise the actual file opening/player format negotiation that buffer-only
+        // fixtures miss. This is native offline rendering, not device acceptance.
+        let file = try graph.openForScheduling(url: url, slot: .a)
+        XCTAssertEqual(file.frameCount, 12_000)
+        XCTAssertEqual(file.sampleRate, 48_000)
+        XCTAssertTrue(graph.dspNode.auAudioUnit is AeonDSPAudioUnit)
+        try graph.engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 1_024)
+        defer { graph.engine.stop(); graph.engine.disableManualRenderingMode() }
+        try graph.schedule(slot: .a, sourceFrame: 0, outputFrame: 0, completion: {})
+        try graph.engine.start()
+        // Offline rendering has a sample clock, not the live scheduler's host clock.
+        graph.playerA.play()
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1_024))
+        var rendered: [Float] = []
+        var unavailable = 0
+        while rendered.count < Int(file.frameCount) + 128 {
+            let count = AVAudioFrameCount(min(1_024, Int(file.frameCount) + 128 - rendered.count))
+            let status = try graph.engine.renderOffline(count, to: buffer)
+            if status == .cannotDoInCurrentContext, unavailable < 8 { unavailable += 1; continue }
+            guard status == .success, buffer.frameLength == count else {
+                XCTFail("File-backed native render returned \(status.rawValue)")
+                return
+            }
+            rendered += UnsafeBufferPointer(start: try XCTUnwrap(buffer.floatChannelData)[0], count: Int(count))
+        }
+        let decoded = try AVAudioFile(forReading: url)
+        let reference = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: decoded.processingFormat, frameCapacity: AVAudioFrameCount(decoded.length)))
+        try decoded.read(into: reference)
+        let expected = Array(UnsafeBufferPointer(start: try XCTUnwrap(reference.floatChannelData)[0], count: Int(reference.frameLength)))
+        let aligned = Array(rendered.dropFirst(128)) // Declared AU lookahead.
+        XCTAssertEqual(aligned.count, expected.count)
+        XCTAssertTrue(aligned.allSatisfy(\.isFinite))
+        XCTAssertGreaterThan(aligned.map { abs($0) }.max() ?? 0, 0.01, "Must render actual music, not just report playing")
+        XCTAssertLessThan(zip(aligned, expected).map { abs($0 - $1) }.max() ?? 1, 0.00001)
+    }
+
     func testOfflineUnityPathKeepsFramesAndNullsBelowMinus100DBFS() throws {
         let input = (0..<16_384).map { index -> Float in
             let time = Double(index) / 48_000

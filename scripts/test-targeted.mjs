@@ -37,7 +37,7 @@ const routes={
 const pathRules=[
   [/^ios\/App\/AppTests\/CorrectionCatalogTests\.swift$/,['playback']],
   [/^ios\/App\/AppUITests\/PlaybackFlowTests\.swift$/,['playback','chrome']],
-  [/^ios\/App\/AppTests\/(QueueScheduler|QueueController|AudioIntegration|AudioEngineGraph|ParametricDSP|PlaybackModels|DesignToken)Tests\.swift$/,['playback']],
+  [/^ios\/App\/AppTests\/(QueueScheduler|QueueController|AudioIntegration|AudioEngineGraph|ParametricDSP|PlaybackModels|PlaybackCoordinator|DesignToken)Tests\.swift$/,['playback']],
   [/^ios\/App\/AppTests\/(PlanetModel|SkyCamera|SkyComposer|SkyHitTesting)Tests\.swift$/,['sky']],
   [/^ios\/App\/AppUITests\/SkyInteractionTests\.swift$/,['sky']],
   [/^ios\/App\/App\/Import\//,['import']],
@@ -122,7 +122,15 @@ function plan(args){
     library:['PlaylistTests'],
     chrome:['DesignTokenTests','PlayerNavigationTests']
   };
-  const nativeFor=area=>profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
+  const modalPlayerFiles=['Audio/QueueScheduler.swift','Audio/PlaybackCoordinator.swift','Audio/DiagnosticsLog.swift','Features/Player/PlayerBar.swift','Features/Player/QueueView.swift','Features/Root/AeonRootView.swift','Features/Library/AlbumDetailView.swift'];
+  const modalPlayerIteration=!explicit.length&&files.includes('ios/App/App/Features/Player/PlayerBar.swift')&&
+    areas.every(area=>['playback','chrome','library'].includes(area))&&
+    files.filter(file=>file.startsWith('ios/App/App/')).every(file=>modalPlayerFiles.includes(file.slice('ios/App/App/'.length)));
+  const modalPlayerTests=['DesignTokenTests','PlaylistTests',
+    ...(files.some(file=>file.startsWith('ios/App/App/Audio/'))?['AudioEngineGraphTests','PlaybackCoordinatorTests','QueueSchedulerTests','PlaybackStateStoreTests']:[]),
+    'PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs',
+    'PlaybackFlowTests/testBundledCorrectionRequiresExactSelectionAndPreviewBeforeApplying'];
+  const nativeFor=area=>modalPlayerIteration?modalPlayerTests:profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
   const commands=tier==='cheap'
     ?uniqueCommands([
       ['npm','run','check'],

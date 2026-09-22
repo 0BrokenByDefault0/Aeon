@@ -19,6 +19,20 @@ enum QueueSchedulerError: Error, Equatable {
     case timelineOverflow
     case media(trackID: String, capability: MediaCapability)
     case operation(trackID: String?, reason: String)
+
+    enum PreparationStage: String {
+        case fileAccess = "file_access", graphSetup = "graph_setup"
+        case decoderOpen = "decoder_open", scheduling, playbackOperation = "playback_operation"
+    }
+
+    static func preparation(_ stage: PreparationStage, trackID: String?, error: Error) -> QueueSchedulerError {
+        if let existing = error as? QueueSchedulerError { return existing }
+        let native = error as NSError
+        // Never carry localized descriptions/userInfo: either can include a personal path.
+        let domain = native.domain.range(of: #"^[A-Za-z0-9_.-]{1,100}$"#, options: .regularExpression) != nil
+            ? native.domain : "NativeError"
+        return .operation(trackID: trackID, reason: "\(stage.rawValue):\(domain):\(native.code)")
+    }
 }
 
 struct ScheduledAudioFile {
@@ -304,7 +318,8 @@ final class QueueScheduler {
         reachedEnd = false
         self.position = position
         retainedSourceFrame = exactFrame
-        outputRate = try graph.schedulingSampleRate()
+        do { outputRate = try graph.schedulingSampleRate() }
+        catch { throw QueueSchedulerError.preparation(.graphSetup, trackID: items[index].trackID, error: error) }
         guard outputRate.isFinite, outputRate > 0 else { throw QueueSchedulerError.invalidAudioFormat }
         current = try prepareItem(index: index, slot: slot, position: position, outputFrame: 0, exactFrame: exactFrame)
         if let current { self.position = min(position, Double(current.file.frameCount) / current.file.sampleRate) }
@@ -315,7 +330,8 @@ final class QueueScheduler {
         let item = items[index]
         let url: URL
         do { url = try resolver.resolve(item.mediaRef) }
-        catch { throw QueueSchedulerError.operation(trackID: item.trackID, reason: String(describing: error)) }
+        catch { throw QueueSchedulerError.preparation(.fileAccess, trackID: item.trackID, error: error) }
+        var stage = QueueSchedulerError.PreparationStage.decoderOpen
         do {
             let capability = probe(url)
             guard case .playable(let media) = capability else { throw QueueSchedulerError.media(trackID: item.trackID, capability: capability) }
@@ -344,6 +360,7 @@ final class QueueScheduler {
                 replayGainScalar(mode: replayGainMode, values: replayGain, preampDB: replayGainPreampDB),
                 slot: slot
             )
+            stage = .scheduling
             try graph.schedule(slot: slot, sourceFrame: sourceFrame, outputFrame: outputFrame) { [weak self] in
                 guard let self else { return }
                 // Never resolve files, mutate nodes, or publish events on an audio callback.
@@ -370,8 +387,7 @@ final class QueueScheduler {
         } catch {
             graph.closeScheduledFile(slot: slot)
             resolver.release(url)
-            if let error = error as? QueueSchedulerError { throw error }
-            throw QueueSchedulerError.operation(trackID: item.trackID, reason: String(describing: error))
+            throw QueueSchedulerError.preparation(stage, trackID: item.trackID, error: error)
         }
     }
 
@@ -500,7 +516,7 @@ final class QueueScheduler {
     @discardableResult
     private func fail(_ error: Error) -> QueueSchedulerError {
         let trackID = index.map { items[$0].trackID }
-        let failure = (error as? QueueSchedulerError) ?? .operation(trackID: trackID, reason: String(describing: error))
+        let failure = QueueSchedulerError.preparation(.playbackOperation, trackID: trackID, error: error)
         invalidate()
         let failedID: String?
         switch failure {

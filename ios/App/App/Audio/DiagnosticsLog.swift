@@ -167,11 +167,11 @@ final class DiagnosticsLog {
         return value
     }
 
-    private static func safeFailureDetail(_ value: String?) -> String? {
-        // Retain only our structured native startup code. Never export NSError
+    static func safeFailureDetail(_ value: String?) -> String? {
+        // Retain only our structured native preparation/startup code. Never export NSError
         // descriptions/userInfo, which may contain filenames or personal metadata.
         guard let value,
-              value.range(of: #"^engine_start:[A-Za-z0-9_.-]{1,100}:-?[0-9]{1,12}$"#,
+              value.range(of: #"^(engine_start|file_access|graph_setup|decoder_open|scheduling|playback_operation):[A-Za-z0-9_.-]{1,100}:-?[0-9]{1,12}$"#,
                           options: .regularExpression) != nil else { return nil }
         return value
     }

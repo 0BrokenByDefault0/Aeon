@@ -74,3 +74,22 @@ test('profile/player iteration runs its real UI flows and catalogue within one n
   assert(result.commands[0].includes('-only-testing:AppUITests/PlayerNavigationTests'));
   assert(result.commands[0].includes('-only-testing:AppTests/PlaylistTests'));
 });
+
+test('modal player correction retains the failed flow and state tests without repeating unrelated exits',()=>{
+  const result=plan('--file=ios/App/App/Features/Player/PlayerBar.swift',
+    '--file=ios/App/App/Features/Player/QueueView.swift',
+    '--file=ios/App/App/Features/Library/AlbumDetailView.swift',
+    '--file=ios/App/App/Features/Root/AeonRootView.swift','--tier=native');
+  assert.equal(result.commands.length,1);
+  assert(result.commands[0].includes('-only-testing:AppTests/DesignTokenTests'));
+  assert(result.commands[0].includes('-only-testing:AppTests/PlaylistTests'));
+  assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs'));
+  assert(!result.commands[0].includes('-only-testing:AppUITests/PlayerNavigationTests'));
+  const withAudio=plan('--file=ios/App/App/Features/Player/PlayerBar.swift',
+    '--file=ios/App/App/Audio/QueueScheduler.swift','--tier=native');
+  assert(withAudio.commands[0].includes('-only-testing:AppTests/QueueSchedulerTests'));
+  assert(withAudio.commands[0].includes('-only-testing:AppTests/AudioEngineGraphTests'));
+  assert(withAudio.commands[0].includes('-only-testing:AppTests/PlaybackCoordinatorTests'));
+  assert(withAudio.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs'));
+  assert(!withAudio.commands[0].includes('-only-testing:AppUITests/AeonScreenMatrixTests'));
+});

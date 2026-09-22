@@ -74,6 +74,31 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(try harness.state().intent, .paused)
     }
 
+    func testPreparationFailuresIdentifyStageWithoutChangingPlaybackIntent() throws {
+        for (stage, code) in [("file_access", "media_access_failed"), ("graph_setup", "audio_setup_failed"),
+                              ("decoder_open", "decoder_open_failed"), ("scheduling", "audio_schedule_failed")] {
+            let harness = try CoordinatorHarness()
+            _ = try harness.initialize().get()
+            _ = try harness.load(harness.a).get()
+            harness.scheduler.playError = .operation(trackID: "A", reason: "\(stage):NSOSStatusErrorDomain:-10868")
+            let result = harness.command(harness.coordinator.play)
+            XCTAssertEqual(result.failure?.code, code)
+            XCTAssertTrue(result.failure?.message.contains("-10868") == true)
+            XCTAssertEqual(try harness.state().intent, .paused)
+            XCTAssertFalse(harness.scheduler.isPlaying)
+        }
+    }
+
+    func testPreparationDiagnosticsDiscardPrivateErrorDescriptions() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: 257,
+            userInfo: [NSLocalizedDescriptionKey: "/private/Music/Owner Track.wav"])
+        let failure = QueueSchedulerError.preparation(.fileAccess, trackID: "A", error: error)
+        XCTAssertEqual(failure, .operation(trackID: "A", reason: "file_access:NSCocoaErrorDomain:257"))
+        XCTAssertNotNil(DiagnosticsLog.safeFailureDetail("file_access:NSCocoaErrorDomain:257"))
+        XCTAssertNil(DiagnosticsLog.safeFailureDetail("file_access:/private/Music/Owner.wav:257"))
+        XCTAssertEqual(QueueSchedulerError.preparation(.decoderOpen, trackID: "A", error: failure), failure)
+    }
+
     func testLateLoadCompletionCannotReplaceNewerTrack() throws {
         let media = ControlledMediaInfo()
         let harness = try CoordinatorHarness(mediaInfo: media)

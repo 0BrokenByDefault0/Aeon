@@ -978,7 +978,19 @@ final class PlaybackCoordinator {
                 if reason.hasPrefix("engine_start:") {
                     return PlaybackFailure(code: "engine_start_failed", message: "Audio output could not start (\(reason)).", recoverable: true, trackID: id ?? trackID)
                 }
-                return PlaybackFailure(code: "media_open_failed", message: "Could not prepare media", recoverable: true, trackID: id ?? trackID)
+                let stage = reason.split(separator: ":").first.map(String.init) ?? ""
+                let labels: [String: (code: String, message: String)] = [
+                    "file_access": ("media_access_failed", "The imported file could not be accessed"),
+                    "graph_setup": ("audio_setup_failed", "The audio processing chain could not be prepared"),
+                    "decoder_open": ("decoder_open_failed", "The audio file could not be opened for decoding"),
+                    "scheduling": ("audio_schedule_failed", "The decoded audio could not be scheduled"),
+                    "playback_operation": ("audio_operation_failed", "The audio operation failed")
+                ]
+                if let label = labels[stage], DiagnosticsLog.safeFailureDetail(reason) != nil {
+                    return PlaybackFailure(code: label.code, message: "\(label.message) (\(reason)).",
+                        recoverable: true, trackID: id ?? trackID)
+                }
+                return PlaybackFailure(code: "media_open_failed", message: "Could not prepare media. Open Settings → Diagnostics for the failure code.", recoverable: true, trackID: id ?? trackID)
             }
         }
         if error is AudioEngineGraphError {
