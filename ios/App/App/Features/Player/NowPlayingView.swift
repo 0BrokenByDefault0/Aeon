@@ -23,7 +23,7 @@ struct NowPlayingView: View {
     @State private var requestedSection: NowPlayingSection?
 
     var body: some View {
-        AeonGlass {
+        GeometryReader { viewport in
             VStack(spacing: 0) {
                 heading(queuePosition: playback.snapshot?.queueIndex.map {
                     (index: $0, count: playback.snapshot?.queue.count ?? 0)
@@ -41,20 +41,23 @@ struct NowPlayingView: View {
                             artworkStore: artworkStore
                         ), let snapshot = playback.snapshot {
                             VStack(spacing: AeonTheme.Space.section) {
-                                VStack(spacing: AeonTheme.Space.large) {
-                                    artworkStage(presentation)
+                                VStack(spacing: 12) {
+                                    artworkStage(presentation, viewport: viewport.size)
+                                    Spacer(minLength: 0)
                                     metadata(presentation: presentation)
                                     seek(presentation: presentation, snapshot: snapshot)
                                     transport(snapshot: snapshot)
+                                    queueControls(snapshot: snapshot)
                                 }
-                                queueControls(snapshot: snapshot)
+                                .frame(minHeight: max(0, viewport.size.height - 92))
+                                .accessibilityIdentifier("aeon.player.primary-content")
                                 volume(snapshot: snapshot)
                                 secondary(presentation: presentation, snapshot: snapshot)
                                 EQView(playback: playback).id(NowPlayingSection.equalizer)
                                 spectrumSection.id(NowPlayingSection.spectrum)
                             }
                             .padding(.horizontal, AeonTheme.Space.edge)
-                            .padding(.top, AeonTheme.Space.large)
+                            .padding(.top, 16)
                             .padding(.bottom, AeonTheme.Space.section)
                             .frame(maxWidth: 620)
                             .frame(maxWidth: .infinity)
@@ -130,18 +133,15 @@ struct NowPlayingView: View {
         }
     }
 
-    private func artworkStage(_ presentation: PlayerPresentation) -> some View {
-        GeometryReader { geometry in
-            let maximum: CGFloat = dynamicTypeSize.isAccessibilitySize ? 220 : 280
-            let size = min(maximum, max(176, geometry.size.width - 72))
-            ZStack {
-                AeonArtwork(image: presentation.artwork, size: size)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(height: dynamicTypeSize.isAccessibilitySize ? 246 : 306)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Artwork for \(presentation.album.title)")
+    private func artworkStage(_ presentation: PlayerPresentation, viewport: CGSize) -> some View {
+        let availableWidth = max(1, min(620, viewport.width) - AeonTheme.Space.edge * 2)
+        let maximum: CGFloat = dynamicTypeSize.isAccessibilitySize ? 200 : 340
+        let size = min(availableWidth, min(maximum, max(140, (viewport.height - 120) * 0.40)))
+        return AeonArtwork(image: presentation.artwork, size: size)
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Artwork for \(presentation.album.title)")
+            .accessibilityIdentifier("aeon.player.artwork")
     }
 
     private func metadata(presentation: PlayerPresentation) -> some View {

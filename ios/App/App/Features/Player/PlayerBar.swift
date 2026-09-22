@@ -53,11 +53,11 @@ struct PlayerBar: View {
         ), let snapshot = playback.snapshot {
             HStack(spacing: AeonTheme.Space.small) {
                 Button(action: open) {
-                    HStack(spacing: AeonTheme.Space.medium) {
+                    HStack(spacing: 10) {
                         miniArtwork(presentation.artwork)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(presentation.track.title)
-                                .font(AeonTheme.FontToken.ui(.callout, weight: .semibold))
+                                .font(AeonTheme.FontToken.ui(.subheadline, weight: .semibold))
                                 .foregroundStyle(AeonTheme.ColorToken.bone)
                                 .lineLimit(1)
                             Text(presentation.artist)
@@ -87,13 +87,13 @@ struct PlayerBar: View {
                 )
             }
             .padding(.horizontal, AeonTheme.Space.medium)
-            .frame(minHeight: AeonTheme.Space.playerBar - 12)
+            .frame(minHeight: 56)
             .background {
-                if reduceTransparency || contrast == .increased {
+                if reduceTransparency || AeonTestOverrides.reduceTransparency || contrast == .increased || AeonTestOverrides.increasedContrast {
                     AeonTheme.ColorToken.surface
                 } else {
                     Rectangle().fill(.ultraThinMaterial)
-                        .overlay(Color.black.opacity(0.24))
+                        .overlay(Color.black.opacity(0.12))
                 }
             }
             .overlay(alignment: .topLeading) {
@@ -108,8 +108,8 @@ struct PlayerBar: View {
                 .frame(height: 2.5)
                 .accessibilityHidden(true)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
             .padding(.horizontal, AeonTheme.Space.medium)
             .padding(.vertical, 6)
@@ -124,7 +124,7 @@ struct PlayerBar: View {
     // Square, hairline-bordered, exactly like every other cover in the app. The rounded
     // corner here was the last survivor of the pre-square geometry.
     private func miniArtwork(_ image: Image?) -> some View {
-        AeonArtwork(image: image, size: 44)
+        AeonArtwork(image: image, size: 40)
     }
 
     private func transportButton(
@@ -205,6 +205,7 @@ private struct ModalPlayerBar: ViewModifier {
                     layerID: layerID, catalog: scoped.catalog,
                     artworkStore: scoped.artworkStore, open: scoped.open)
             }
+            .presentationBackground(.clear)
             .onAppear { player.presentation.present(layerID) }
             .onDisappear { player.presentation.dismiss(layerID) }
         } else {

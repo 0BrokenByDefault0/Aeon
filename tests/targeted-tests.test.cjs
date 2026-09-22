@@ -93,3 +93,14 @@ test('modal player correction retains the failed flow and state tests without re
   assert(withAudio.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs'));
   assert(!withAudio.commands[0].includes('-only-testing:AppUITests/AeonScreenMatrixTests'));
 });
+
+
+test('full player layout includes viewport and nested-sheet evidence in one bounded invocation',()=>{
+  const result=plan('--file=ios/App/App/Features/Player/NowPlayingView.swift',
+    '--file=ios/App/App/Features/Player/PlayerBar.swift',
+    '--file=ios/App/App/Features/Root/AeonRootView.swift','--tier=native');
+  assert.equal(result.commands.length,1);
+  assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar'));
+  assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs'));
+  assert(!result.commands[0].includes('-only-testing:AppTests/AudioEngineGraphTests'));
+});

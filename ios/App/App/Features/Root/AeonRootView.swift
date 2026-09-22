@@ -371,8 +371,10 @@ private struct AeonReadyShell: View {
                             },
                             isForeground: destination == .sky && !nowPlayingVisible
                         )
+                        .accessibilityHidden(nowPlayingVisible)
                         if destination != .sky {
                             destinationPanel(destination, geometry: geometry, insets: readableInsets)
+                                .accessibilityHidden(nowPlayingVisible)
                                 .zIndex(AeonTheme.Layer.content)
                                 // Utility tabs are independent surfaces, not a crossfade through Sky.
                                 // A fade here would show the live Metal view through the panel for
@@ -381,30 +383,32 @@ private struct AeonReadyShell: View {
                                 .transition(.identity)
                         }
                         if nowPlayingVisible {
-                            nowPlayingPanel(geometry: geometry, insets: readableInsets)
+                            nowPlayingPanel(geometry: geometry)
                                 .zIndex(AeonTheme.Layer.sheet)
                                 .transition(.opacity)
                         }
-                        AeonChrome(
-                            destination: Binding(get: { destination }, set: {
-                                destination = $0
-                                nowPlayingVisible = false
-                            }),
-                            portraitSidebarVisible: $portraitSidebarVisible,
-                            playerLoaded: playback.snapshot?.trackID != nil
-                        ) {
-                            PlayerBar(
-                                playback: playback,
-                                visibility: playerPresentation,
-                                catalog: services.catalogRepository,
-                                artworkStore: services.artworkStore,
-                                open: {
-                                    nowPlayingSection = nil
-                                    nowPlayingVisible = true
-                                }
-                            )
+                        if !nowPlayingVisible {
+                            AeonChrome(
+                                destination: Binding(get: { destination }, set: {
+                                    destination = $0
+                                    nowPlayingVisible = false
+                                }),
+                                portraitSidebarVisible: $portraitSidebarVisible,
+                                playerLoaded: playback.snapshot?.trackID != nil
+                            ) {
+                                PlayerBar(
+                                    playback: playback,
+                                    visibility: playerPresentation,
+                                    catalog: services.catalogRepository,
+                                    artworkStore: services.artworkStore,
+                                    open: {
+                                        nowPlayingSection = nil
+                                        nowPlayingVisible = true
+                                    }
+                                )
+                            }
+                            .zIndex(AeonTheme.Layer.chrome)
                         }
-                        .zIndex(AeonTheme.Layer.sheet + 1)
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topTrailing)
                 }
@@ -440,11 +444,7 @@ private struct AeonReadyShell: View {
         reduceMotion || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion
     }
 
-    private func nowPlayingPanel(geometry: GeometryProxy, insets: AeonReadableInsets) -> some View {
-        let regular = horizontalSizeClass == .regular
-        let width = regular
-            ? regularPanelWidth(in: geometry)
-            : geometry.size.width
+    private func nowPlayingPanel(geometry: GeometryProxy) -> some View {
         return NowPlayingView(
             playback: playback,
             spectrum: services.spectrumAnalyzer,
@@ -470,15 +470,8 @@ private struct AeonReadyShell: View {
                 nowPlayingVisible = false
             }
         )
-        .padding(.leading, regularContentLeadingPadding(regular: regular))
-        .padding(.bottom, insets.bottom)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(width: width)
-        .modifier(AeonOpaquePanel())
-        // Keep the presentation viewport below system chrome. Ignoring the top safe area
-        // let scrolled content pass beneath the Dynamic Island after the initial padding
-        // had moved offscreen; only the background needs bottom-edge continuation.
-        .ignoresSafeArea(edges: .bottom)
+        .frame(width: geometry.size.width, height: geometry.size.height)
+        .background(AeonTheme.ColorToken.void.ignoresSafeArea())
     }
 
     @ViewBuilder

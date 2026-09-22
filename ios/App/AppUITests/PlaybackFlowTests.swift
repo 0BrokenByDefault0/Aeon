@@ -30,7 +30,7 @@ final class PlaybackFlowTests: XCTestCase {
         capture("Nested playlist sheet with its mini-player — simulator", in: app)
         mini.tap()
         XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 4))
-        assertSingleReachableMiniPlayer(in: app)
+        XCTAssertFalse(app.buttons["aeon.player.open"].exists, "Full player replaces the mini-player")
         XCTAssertFalse(name.exists)
         let queue = app.buttons["aeon.player.queue.open"]
         scrollUntilHittable(queue, in: app)
@@ -39,6 +39,8 @@ final class PlaybackFlowTests: XCTestCase {
         XCTAssertTrue(closeQueue.waitForExistence(timeout: 4))
         assertSingleReachableMiniPlayer(in: app)
         closeQueue.tap()
+        XCTAssertFalse(app.buttons["aeon.player.open"].exists)
+        app.buttons["aeon.player.close"].tap()
         assertSingleReachableMiniPlayer(in: app)
         for destination in ["playlists", "settings", "library", "sky"] {
             app.buttons["aeon.navigation.\(destination)"].tap()
@@ -47,6 +49,32 @@ final class PlaybackFlowTests: XCTestCase {
             if destination == "playlists" { XCTAssertTrue(app.staticTexts["Quick Add"].waitForExistence(timeout: 4)) }
         }
         capture("Translucent mini-player over Sky — simulator", in: app)
+    }
+
+    func testFullPlayerFillsViewportAndRestoresCompactBar() {
+        let app = launch()
+        let mini = assertSingleReachableMiniPlayer(in: app)
+        let originalTitle = mini.label
+        let bar = app.descendants(matching: .any)["aeon.player.bar"]
+        XCTAssertLessThanOrEqual(bar.frame.height, 80)
+        mini.tap()
+        let close = app.buttons["aeon.player.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertTrue(close.isHittable)
+        XCTAssertFalse(app.buttons["aeon.player.open"].exists)
+        XCTAssertFalse(app.buttons["aeon.navigation.sky"].exists)
+        let scroll = app.scrollViews["aeon.player.scroll"]
+        XCTAssertGreaterThan(scroll.frame.maxY, app.frame.maxY - 70, "No dock-sized blank region below the full player")
+        XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].isHittable)
+        XCTAssertTrue(app.buttons["aeon.track.actions.playback-fixture-track-1"].isHittable)
+        capture("Full-screen player — simulator", in: app)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(close.isHittable)
+        XCTAssertGreaterThan(scroll.frame.maxY, app.frame.maxY - 70)
+        XCUIDevice.shared.orientation = .portrait
+        close.tap()
+        XCTAssertEqual(assertSingleReachableMiniPlayer(in: app).label, originalTitle)
+        capture("Compact floating player restored — simulator", in: app)
     }
 
     @discardableResult
