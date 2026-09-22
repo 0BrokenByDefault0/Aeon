@@ -88,29 +88,22 @@ struct PlayerBar: View {
             }
             .padding(.horizontal, AeonTheme.Space.medium)
             .frame(minHeight: 56)
-            .background {
-                if reduceTransparency || AeonTestOverrides.reduceTransparency || contrast == .increased || AeonTestOverrides.increasedContrast {
-                    AeonTheme.ColorToken.surface
-                } else {
-                    Rectangle().fill(.ultraThinMaterial)
-                        .overlay(Color.black.opacity(0.12))
-                }
-            }
-            .overlay(alignment: .topLeading) {
+            .modifier(PlayerBarSurface(opaque: reduceTransparency || AeonTestOverrides.reduceTransparency
+                || contrast == .increased || AeonTestOverrides.increasedContrast))
+            .overlay(alignment: .bottomLeading) {
                 GeometryReader { geometry in
                     Rectangle()
                         .fill(AeonTheme.ColorToken.ivorySecondary)
                         .frame(
                             width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
-                            height: 2.5
+                            height: 1.5
                         )
                 }
-                .frame(height: 2.5)
+                .frame(height: 1.5)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 4)
                 .accessibilityHidden(true)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
             .padding(.horizontal, AeonTheme.Space.medium)
             .padding(.vertical, 6)
             .accessibilityElement(children: .contain)
@@ -216,4 +209,17 @@ private struct ModalPlayerBar: ViewModifier {
 
 extension View {
     func aeonMiniPlayerInset() -> some View { modifier(ModalPlayerBar()) }
+}
+
+
+/// One native glass surface; accessibility contrast settings retain an opaque capsule.
+private struct PlayerBarSurface: ViewModifier {
+    let opaque: Bool
+    @ViewBuilder func body(content: Content) -> some View {
+        if opaque {
+            content.background(AeonTheme.ColorToken.surface, in: Capsule())
+        } else {
+            content.glassEffect(.regular, in: Capsule())
+        }
+    }
 }

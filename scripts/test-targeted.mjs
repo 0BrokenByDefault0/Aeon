@@ -128,7 +128,7 @@ function plan(args){
     areas.every(area=>['playback','chrome','library'].includes(area))&&
     files.filter(file=>file.startsWith('ios/App/App/')).every(file=>modalPlayerFiles.includes(file.slice('ios/App/App/'.length)));
   const modalPlayerTests=['DesignTokenTests','PlaylistTests',
-    ...((files.includes('ios/App/App/Features/Player/NowPlayingView.swift')||files.includes('tests/screen-isolation.test.cjs'))?['PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar']:[]),
+    ...((files.includes('ios/App/App/Features/Player/NowPlayingView.swift')||files.includes('ios/App/App/Features/Player/PlayerBar.swift')||files.includes('tests/screen-isolation.test.cjs'))?['PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar']:[]),
     ...(files.some(file=>file.startsWith('ios/App/App/Audio/'))?['AudioEngineGraphTests','PlaybackCoordinatorTests','QueueSchedulerTests','PlaybackStateStoreTests']:[]),
     'PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs',
     'PlaybackFlowTests/testBundledCorrectionRequiresExactSelectionAndPreviewBeforeApplying'];
