@@ -40,6 +40,8 @@ struct PlayerBar: View {
     let catalog: CatalogRepository
     let artworkStore: ArtworkStore
     let open: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         if let presentation = PlayerPresentation.resolve(
@@ -83,10 +85,14 @@ struct PlayerBar: View {
                 )
             }
             .padding(.horizontal, AeonTheme.Space.medium)
-            .frame(minHeight: AeonTheme.Space.playerBar)
-            .background(AeonTheme.ColorToken.surface)
-            .overlay(alignment: .top) {
-                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
+            .frame(minHeight: AeonTheme.Space.playerBar - 12)
+            .background {
+                if reduceTransparency || contrast == .increased {
+                    AeonTheme.ColorToken.surface
+                } else {
+                    Rectangle().fill(.ultraThinMaterial)
+                        .overlay(Color.black.opacity(0.24))
+                }
             }
             .overlay(alignment: .topLeading) {
                 GeometryReader { geometry in
@@ -100,6 +106,13 @@ struct PlayerBar: View {
                 .frame(height: 2.5)
                 .accessibilityHidden(true)
             }
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline))
+            .padding(.horizontal, AeonTheme.Space.medium)
+            .padding(.vertical, 6)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("aeon.player.bar")
         }
     }
 
@@ -133,4 +146,48 @@ struct PlayerBar: View {
         guard duration > 0 else { return 0 }
         return CGFloat(min(1, max(0, snapshot.position / duration)))
     }
+}
+
+/// Modal screens borrow the same playback controller. Nested sheets compose dismiss
+/// actions so opening the player returns through the whole presentation stack.
+struct PlayerBarContext {
+    let playback: PlaybackController
+    let catalog: CatalogRepository
+    let artworkStore: ArtworkStore
+    let open: () -> Void
+}
+
+private struct PlayerBarContextKey: EnvironmentKey {
+    static let defaultValue: PlayerBarContext? = nil
+}
+
+extension EnvironmentValues {
+    var aeonPlayerBar: PlayerBarContext? {
+        get { self[PlayerBarContextKey.self] }
+        set { self[PlayerBarContextKey.self] = newValue }
+    }
+}
+
+private struct ModalPlayerBar: ViewModifier {
+    @Environment(\.aeonPlayerBar) private var player
+    @Environment(\.dismiss) private var dismiss
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let player {
+            let scoped = PlayerBarContext(playback: player.playback, catalog: player.catalog,
+                artworkStore: player.artworkStore, open: { dismiss(); player.open() })
+            content
+                .environment(\.aeonPlayerBar, scoped)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    PlayerBar(playback: scoped.playback, catalog: scoped.catalog,
+                        artworkStore: scoped.artworkStore, open: scoped.open)
+                }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func aeonMiniPlayerInset() -> some View { modifier(ModalPlayerBar()) }
 }

@@ -24,6 +24,7 @@ struct LibraryScreen: View {
             if let album = controller.selectedAlbum {
                 AlbumDetailView(controller: controller, album: album, embedded: false, close: controller.dismissAlbum,
                                 findInSky: { id in controller.dismissAlbum(); findInSky(id, effectiveReduceMotion) })
+                    .aeonMiniPlayerInset()
                     .environment(\.dynamicTypeSize, dynamicTypeSize)
             }
         }

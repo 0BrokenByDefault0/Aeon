@@ -427,11 +427,13 @@ private struct TrackPlaylistPicker: View {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
                         AeonLabel(text: "New playlist")
                         TextField("Playlist name", text: $name)
+                            .accessibilityIdentifier("aeon.track.playlist.name")
                             .textInputAutocapitalization(.words)
                             .padding(.horizontal, AeonTheme.Space.regular)
                             .frame(minHeight: AeonTheme.Space.minimumTarget)
                             .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
                         Button("CREATE AND ADD") { createAndAdd() }
+                            .accessibilityIdentifier("aeon.track.playlist.create")
                             .buttonStyle(AeonButtonStyle(tier: .filled))
                             .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }

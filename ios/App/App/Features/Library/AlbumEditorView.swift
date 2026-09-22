@@ -64,6 +64,7 @@ struct AlbumEditorView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
+        .aeonMiniPlayerInset()
         // Scope the screen marker to the scroll view, not the inset Save button.
         .accessibilityIdentifier("aeon.album.editor")
         .safeAreaInset(edge: .bottom, spacing: 0) {

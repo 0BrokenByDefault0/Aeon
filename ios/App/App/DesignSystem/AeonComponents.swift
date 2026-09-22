@@ -485,6 +485,7 @@ struct AeonSheet<Content: View>: View {
         .frame(maxWidth: AeonTheme.Space.textContentMaximum)
         .background(AeonTheme.ColorToken.void)
         .presentationDragIndicator(.hidden)
+        .aeonMiniPlayerInset()
     }
 }
 

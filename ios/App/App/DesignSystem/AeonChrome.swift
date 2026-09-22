@@ -71,7 +71,6 @@ struct AeonChrome<PlayerBar: View>: View {
                     if playerLoaded && !portraitSidebarVisible {
                         VStack(spacing: 0) {
                             Spacer(minLength: 0)
-                            Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                             playerBar.frame(minHeight: AeonTheme.Space.playerBar)
                         }
                         .frame(width: min(AeonTheme.Space.sidePanel, geometry.size.width - AeonTheme.Space.edge * 2),
@@ -107,9 +106,7 @@ struct AeonChrome<PlayerBar: View>: View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
             if playerLoaded {
-                Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                 playerBar.frame(minHeight: AeonTheme.Space.playerBar)
-                    .background(AeonTheme.ColorToken.void)
             }
             HStack(spacing: 0) {
                 ForEach(AeonDestination.allCases) { navigationButton($0, compact: true) }

@@ -1,6 +1,75 @@
 import XCTest
 
 final class PlaybackFlowTests: XCTestCase {
+    func testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs() {
+        let app = launch()
+        openNowPlaying(in: app)
+        let actions = app.buttons["aeon.track.actions.playback-fixture-track-1"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 4))
+        scrollUntilHittable(actions, in: app)
+        actions.tap()
+        app.buttons["ADD TO PLAYLIST"].tap()
+        let name = app.textFields["aeon.track.playlist.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["aeon.player.open"].isHittable)
+        name.tap()
+        name.typeText("Quick Add")
+        app.buttons["aeon.track.playlist.create"].tap()
+        XCTAssertTrue(actions.waitForExistence(timeout: 4))
+        actions.tap()
+        app.buttons["SHOW ALBUM"].tap()
+        XCTAssertTrue(app.buttons["aeon.track.actions.playback-fixture-track-2"].waitForExistence(timeout: 4))
+        let mini = app.buttons["aeon.player.open"]
+        XCTAssertTrue(mini.isHittable)
+        mini.tap()
+        XCTAssertTrue(app.buttons["aeon.player.primary-toggle"].waitForExistence(timeout: 4))
+        for destination in ["playlists", "settings", "library", "sky"] {
+            app.buttons["aeon.navigation.\(destination)"].tap()
+            XCTAssertTrue(mini.isHittable, "Missing mini-player in \(destination)")
+            XCTAssertTrue(mini.label.contains("A Signal Carried Across the Quiet"))
+            if destination == "playlists" { XCTAssertTrue(app.staticTexts["Quick Add"].waitForExistence(timeout: 4)) }
+        }
+        let capture = XCTAttachment(screenshot: app.screenshot())
+        capture.name = "Translucent mini-player over Sky — simulator"
+        capture.lifetime = .keepAlways
+        add(capture)
+    }
+
+    func testBundledCorrectionRequiresExactSelectionAndPreviewBeforeApplying() {
+        let app = launch()
+        openNowPlaying(in: app)
+        app.buttons["aeon.player.eq.open"].tap()
+        let disclosure = app.buttons["Device correction & gain"]
+        scrollUntilHittable(disclosure, in: app)
+        disclosure.tap()
+        let help = app.staticTexts["aeon.correction.choose-first"]
+        scrollUntilHittable(help, in: app)
+        XCTAssertTrue(help.exists)
+        let choose = app.buttons["aeon.correction.choose"]
+        scrollUntilHittable(choose, in: app)
+        choose.tap()
+        let search = app.textFields["aeon.correction.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 4))
+        search.tap()
+        search.typeText("HD600")
+        let profile = app.buttons["aeon.correction.profile.opra-sennheiser-hd600-oratory1990-harman-v1"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 4))
+        profile.tap()
+        let apply = app.buttons["aeon.correction.apply"]
+        scrollUntilHittable(apply, in: app)
+        XCTAssertTrue(help.exists, "Preview must not activate correction")
+        apply.tap()
+        let toggle = app.switches["aeon.correction.enabled"]
+        // Return to the top of the expanded correction section.
+        for _ in 0..<6 where !toggle.isHittable { app.swipeDown() }
+        XCTAssertTrue(toggle.isEnabled)
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+    }
+
     func testLoadedPausedTrackExposesPersistentPlayerAndCompleteSurface() {
         let app = launch()
 

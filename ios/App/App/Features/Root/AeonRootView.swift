@@ -385,7 +385,10 @@ private struct AeonReadyShell: View {
                                 .transition(.opacity)
                         }
                         AeonChrome(
-                            destination: $destination,
+                            destination: Binding(get: { destination }, set: {
+                                destination = $0
+                                nowPlayingVisible = false
+                            }),
                             portraitSidebarVisible: $portraitSidebarVisible,
                             playerLoaded: playback.snapshot?.trackID != nil
                         ) {
@@ -399,11 +402,16 @@ private struct AeonReadyShell: View {
                                 }
                             )
                         }
+                        .zIndex(AeonTheme.Layer.sheet + 1)
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topTrailing)
                 }
             }
         }
+        .environment(\.aeonPlayerBar, PlayerBarContext(
+            playback: playback, catalog: services.catalogRepository, artworkStore: services.artworkStore,
+            open: { nowPlayingSection = nil; nowPlayingVisible = true }
+        ))
         .animation(reduceMotion || AeonTestOverrides.reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.sheet), value: nowPlayingVisible)
         .onReceive(container.$libraryImportResult) { result in
             guard let result, result.importedTracks > 0 || !result.skippedDuplicateAlbums.isEmpty else { return }
@@ -461,7 +469,7 @@ private struct AeonReadyShell: View {
             }
         )
         .padding(.leading, regularContentLeadingPadding(regular: regular))
-        .padding(.bottom, regular ? insets.bottom : 0)
+        .padding(.bottom, insets.bottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(width: width)
         .modifier(AeonOpaquePanel())

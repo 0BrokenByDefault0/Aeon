@@ -146,10 +146,20 @@ struct NowPlayingView: View {
 
     private func metadata(presentation: PlayerPresentation) -> some View {
         VStack(spacing: AeonTheme.Space.small) {
-            Text(playback.snapshot?.intent == .playing ? "PLAYING" : "PAUSED")
-                .font(AeonTheme.FontToken.metric(.caption2))
-                .tracking(1.4)
-                .foregroundStyle(AeonOrbit.secondary)
+            HStack {
+                Spacer().frame(width: 44)
+                Text(playback.snapshot?.intent == .playing ? "PLAYING" : "PAUSED")
+                    .font(AeonTheme.FontToken.metric(.caption2))
+                    .tracking(1.4)
+                    .foregroundStyle(AeonOrbit.secondary)
+                    .frame(maxWidth: .infinity)
+                TrackActionMenu(track: presentation.track, catalog: catalog, playback: playback,
+                    showAlbum: { showAlbum(presentation.album.id) },
+                    showArtist: { showArtist(presentation.artist) }) {
+                    AeonGlyph(kind: .more).frame(width: 44, height: 44).contentShape(Rectangle())
+                }
+                .foregroundStyle(AeonOrbit.ink)
+            }
             AeonDisplayText(presentation.track.title, size: 36, maximumLines: 2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(AeonOrbit.title)
