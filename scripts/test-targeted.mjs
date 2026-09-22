@@ -124,7 +124,7 @@ function plan(args){
     chrome:['DesignTokenTests','PlayerNavigationTests']
   };
   const modalPlayerFiles=['Audio/QueueScheduler.swift','Audio/PlaybackCoordinator.swift','Audio/DiagnosticsLog.swift','Features/Player/PlayerBar.swift','Features/Player/NowPlayingView.swift','Features/Player/QueueView.swift','Features/Root/AeonRootView.swift','Features/Library/AlbumDetailView.swift'];
-  const modalPlayerIteration=!explicit.length&&(files.includes('ios/App/App/Features/Player/PlayerBar.swift')||files.includes('tests/screen-isolation.test.cjs'))&&
+  const modalPlayerIteration=!explicit.length&&(files.includes('ios/App/App/Features/Player/PlayerBar.swift')||files.includes('ios/App/App/Features/Player/NowPlayingView.swift')||files.includes('tests/screen-isolation.test.cjs'))&&
     areas.every(area=>['playback','chrome','library'].includes(area))&&
     files.filter(file=>file.startsWith('ios/App/App/')).every(file=>modalPlayerFiles.includes(file.slice('ios/App/App/'.length)));
   const modalPlayerTests=['DesignTokenTests','PlaylistTests',

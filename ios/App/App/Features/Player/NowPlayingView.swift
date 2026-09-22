@@ -50,7 +50,6 @@ struct NowPlayingView: View {
                                     queueControls(snapshot: snapshot)
                                 }
                                 .frame(minHeight: max(0, viewport.size.height - 92))
-                                .accessibilityIdentifier("aeon.player.primary-content")
                                 volume(snapshot: snapshot)
                                 secondary(presentation: presentation, snapshot: snapshot)
                                 EQView(playback: playback).id(NowPlayingSection.equalizer)
