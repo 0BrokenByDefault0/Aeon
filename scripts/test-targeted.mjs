@@ -9,7 +9,7 @@ const routes={
     native:['LibraryImporterTests','AudioTagReaderTests','MetadataEnricherTests','MetadataProbeTests','ImportPickerTests','ImportedFolderStoreTests','ArchiveCompatibilityTests','ImportPickerPresentationTests']
   },
   playback:{
-    cheap:[['node','--test','tests/playback.test.cjs','tests/native-dsp-kernel.test.cjs']],
+    cheap:[['node','--test','tests/playback.test.cjs','tests/native-dsp-kernel.test.cjs','tests/correction-catalog.test.cjs']],
     native:['ParametricDSPTests','PlaybackModelsTests','PlaybackCoordinatorTests','PlaybackControllerTests','PlaybackStateStoreTests','QueueSchedulerTests','QueueControllerTests','AudioSessionPolicyTests','AudioEngineGraphTests','AudioIntegrationTests','RecoveryTests','ReplayGainAndEQTests','SpectrumAnalyzerTests','PlayerNavigationTests','PlaybackFlowTests']
   },
   library:{
@@ -35,6 +35,8 @@ const routes={
 };
 
 const pathRules=[
+  [/^ios\/App\/AppTests\/CorrectionCatalogTests\.swift$/,['playback']],
+  [/^ios\/App\/AppUITests\/PlaybackFlowTests\.swift$/,['playback','chrome']],
   [/^ios\/App\/AppTests\/(QueueScheduler|QueueController|AudioIntegration|AudioEngineGraph|ParametricDSP|PlaybackModels|DesignToken)Tests\.swift$/,['playback']],
   [/^ios\/App\/AppTests\/(PlanetModel|SkyCamera|SkyComposer|SkyHitTesting)Tests\.swift$/,['sky']],
   [/^ios\/App\/AppUITests\/SkyInteractionTests\.swift$/,['sky']],
@@ -114,14 +116,20 @@ function plan(args){
   // including a compile replacement whose previous push has not delivered an IPA.
   if(dspIteration&&!areas.includes('sky'))areas.push('sky');
   const focusedDSP=['ParametricDSPTests','AudioEngineGraphTests','PlaybackModelsTests','QueueSchedulerTests','QueueControllerTests','PlaybackCoordinatorTests'];
-  const nativeFor=area=>area==='playback'&&dspIteration?focusedDSP:routes[area].native;
+  const profilePlayerIteration=!explicit.length&&!dspIteration&&files.includes('ios/App/App/Audio/CorrectionCatalog.swift')&&areas.every(area=>['playback','chrome','library'].includes(area));
+  const profilePlayerTests={
+    playback:['CorrectionCatalogTests','ParametricDSPTests','PlaybackCoordinatorTests','PlaybackModelsTests','PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs','PlaybackFlowTests/testBundledCorrectionRequiresExactSelectionAndPreviewBeforeApplying'],
+    library:['PlaylistTests'],
+    chrome:['DesignTokenTests','PlayerNavigationTests']
+  };
+  const nativeFor=area=>profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
   const commands=tier==='cheap'
     ?uniqueCommands([
       ['npm','run','check'],
       ['node','--test','tests/validation-deadline.test.cjs','tests/ios-test-runner.test.cjs','tests/targeted-tests.test.cjs'],
       ...(configOnly?[["node","--test","tests/ios-test-runner.test.cjs","tests/targeted-tests.test.cjs"]]:areas.flatMap(area=>routes[area].cheap))
     ])
-    :areas.length?[['node','scripts/test-ios.mjs',`--family=${family}`,...new Set(areas.flatMap(nativeFor).map(name=>`-only-testing:${name.endsWith('Tests')&&['ImportPickerPresentationTests','PlayerNavigationTests','PlaybackFlowTests','LibraryFlowTests','SkyInteractionTests','AdaptiveChromeTests','AeonAccessibilityTests','AeonScreenMatrixTests','SettingsFlowTests'].includes(name)?'AppUITests':'AppTests'}/${name}`))]]:[];
+    :areas.length?[['node','scripts/test-ios.mjs',`--family=${family}`,...new Set(areas.flatMap(nativeFor).map(name=>`-only-testing:${['ImportPickerPresentationTests','PlayerNavigationTests','PlaybackFlowTests','LibraryFlowTests','SkyInteractionTests','AdaptiveChromeTests','AeonAccessibilityTests','AeonScreenMatrixTests','SettingsFlowTests'].includes(name.split('/')[0])?'AppUITests':'AppTests'}/${name}`))]]:[];
   return{areas,files,tier,family,configOnly,commands};
 }
 

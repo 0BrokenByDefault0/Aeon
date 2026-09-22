@@ -63,3 +63,14 @@ test('rejects unknown areas',()=>{
   assert.equal(result.status,2);
   assert.match(result.stderr,/Unknown area/);
 });
+
+test('profile/player iteration runs its real UI flows and catalogue within one native invocation',()=>{
+  const result=plan('--file=ios/App/App/Audio/CorrectionCatalog.swift',
+    '--file=ios/App/App/DesignSystem/AeonComponents.swift',
+    '--file=ios/App/App/Features/Library/LibraryScreen.swift','--tier=native');
+  assert.equal(result.commands.length,1);
+  assert(result.commands[0].includes('-only-testing:AppTests/CorrectionCatalogTests'));
+  assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs'));
+  assert(result.commands[0].includes('-only-testing:AppUITests/PlayerNavigationTests'));
+  assert(result.commands[0].includes('-only-testing:AppTests/PlaylistTests'));
+});

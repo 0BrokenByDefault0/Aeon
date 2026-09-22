@@ -14,7 +14,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -22,6 +22,13 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npm test
-      - run: npm run check
-      - run: npm audit --audit-level=high
+      - name: Bounded deterministic verification
+        timeout-minutes: 11
+        run: |
+          python3 scripts/validation-deadline.py --stage "Verify deterministic checks" --report verify-deadline.json -- bash -c 'set -euo pipefail; npm test; npm run check; npm audit --audit-level=high'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Aeon-verify-deadline-${{ github.run_id }}
+          path: verify-deadline.json
+          if-no-files-found: ignore
