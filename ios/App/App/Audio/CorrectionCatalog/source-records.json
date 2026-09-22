@@ -1,0 +1,751 @@
+[
+  {
+    "path": "database/vendors/apple/info.json",
+    "data": {
+      "name": "Apple",
+      "logo": "logo.png",
+      "blurb": "Apple Inc. is an American technology company headquartered in Cupertino, California. Apple specializes in consumer electronics, including wireless earbuds, smart speakers, and audio software."
+    }
+  },
+  {
+    "path": "database/vendors/apple/products/airpods_pro_1st_gen/info.json",
+    "data": {
+      "name": "AirPods Pro (1st gen)",
+      "type": "headphones",
+      "subtype": "in_ear"
+    }
+  },
+  {
+    "path": "database/vendors/apple/products/airpods_pro_1st_gen/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/scl/fi/a3qv91axmak6yh1d8mqn0/Apple-AirPods-Pro.pdf?rlkey=ayeyal8el4uktmzdre40dj14m&dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -9.1,
+        "bands": [
+          {
+            "type": "peak_dip",
+            "frequency": 52,
+            "gain_db": -5.4,
+            "q": 0.45
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 110,
+            "gain_db": 10,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 160,
+            "gain_db": 3.1,
+            "q": 1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 580,
+            "gain_db": -2.5,
+            "q": 0.9
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 935,
+            "gain_db": 1.4,
+            "q": 2
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 3500,
+            "gain_db": 8,
+            "q": 0.71
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 9000,
+            "gain_db": -8,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/audio_technica/info.json",
+    "data": {
+      "name": "Audio-Technica",
+      "logo": "logo.png",
+      "blurb": "Audio-Technica Corporation is a Japanese audio equipment manufacturer headquartered in Machida, Tokyo. Audio-Technica specializes in equipment for both the consumer and professional audio markets, including turntables, microphones, headphones, and wireless systems."
+    }
+  },
+  {
+    "path": "database/vendors/audio_technica/products/ath_m50x/info.json",
+    "data": {
+      "name": "ATH-M50x",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/audio_technica/products/ath_m50x/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/s/r7wa83eb53da6fh/Audio%20Technica%20ATH-M50x.pdf?dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -4.7,
+        "bands": [
+          {
+            "type": "peak_dip",
+            "frequency": 40,
+            "gain_db": -4.6,
+            "q": 0.6
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 150,
+            "gain_db": -4.3,
+            "q": 0.8
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 335,
+            "gain_db": 5.7,
+            "q": 1.3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1600,
+            "gain_db": 1.6,
+            "q": 1.2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2600,
+            "gain_db": -1.1,
+            "q": 2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 4300,
+            "gain_db": -4.5,
+            "q": 4
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 5300,
+            "gain_db": 5.5,
+            "q": 1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 5700,
+            "gain_db": -3.5,
+            "q": 4
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 10000,
+            "gain_db": -1,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/beyerdynamic/info.json",
+    "data": {
+      "name": "Beyerdynamic",
+      "logo": "logo.png",
+      "blurb": "Beyerdynamic GmbH & Co. KG is a German audio equipment manufacturer headquartered in Heilbronn. Beyerdynamic specializes in equipment for both the consumer and professional audio markets, including headphones, microphones, and conference systems."
+    }
+  },
+  {
+    "path": "database/vendors/beyerdynamic/products/dt770_80_ohm/info.json",
+    "data": {
+      "name": "DT770 (80 Ohm)",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/beyerdynamic/products/dt770_80_ohm/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/scl/fi/gqu1wg1hh4o0qnbj8lvwr/Beyerdynamic-DT770-80-Ohm.pdf?rlkey=ouwbyd4o31nbpjf7xf16169fu&dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -3.7,
+        "bands": [
+          {
+            "type": "peak_dip",
+            "frequency": 65,
+            "gain_db": -9.7,
+            "q": 0.35
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 210,
+            "gain_db": 7.8,
+            "q": 1.6
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 950,
+            "gain_db": -1,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2600,
+            "gain_db": -3.1,
+            "q": 2
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 3000,
+            "gain_db": 1,
+            "q": 0.35
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3700,
+            "gain_db": 5,
+            "q": 2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 4700,
+            "gain_db": -3,
+            "q": 4
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 7200,
+            "gain_db": -6.5,
+            "q": 3
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 10000,
+            "gain_db": -2,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/info.json",
+    "data": {
+      "name": "Sennheiser",
+      "logo": "logo.png",
+      "blurb": "Sennheiser electronic GmbH & Co. KG is a German audio equipment manufacturer headquartered in Wedemark. Sennheiser specializes in equipment for both the consumer and professional audio markets, including microphones, headphones, and loudspeakers."
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/products/hd600/info.json",
+    "data": {
+      "name": "HD600",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/products/hd600/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/s/pn3heg2rkwzeh34/Sennheiser%20HD600.pdf?dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -9.3,
+        "bands": [
+          {
+            "type": "peak_dip",
+            "frequency": 20,
+            "gain_db": 4,
+            "q": 1.1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 97,
+            "gain_db": -2.5,
+            "q": 0.7
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 215,
+            "gain_db": -1.7,
+            "q": 1.1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1400,
+            "gain_db": -2.1,
+            "q": 1.5
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 2000,
+            "gain_db": 3,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2700,
+            "gain_db": -1.3,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3370,
+            "gain_db": -3.9,
+            "q": 2.5
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 5350,
+            "gain_db": -3.5,
+            "q": 3
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 11000,
+            "gain_db": -4,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/products/hd650/info.json",
+    "data": {
+      "name": "HD650",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/products/hd650/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/s/qs4hs92tvfbwr04/Sennheiser%20HD650.pdf?dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -9.3,
+        "bands": [
+          {
+            "type": "peak_dip",
+            "frequency": 20,
+            "gain_db": 4,
+            "q": 1.1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 97,
+            "gain_db": -2.5,
+            "q": 0.7
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 215,
+            "gain_db": -1.7,
+            "q": 1.1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1300,
+            "gain_db": -1.5,
+            "q": 1.5
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 2000,
+            "gain_db": 3.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2700,
+            "gain_db": -1.4,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3300,
+            "gain_db": -3.7,
+            "q": 2.7
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 5350,
+            "gain_db": -3.4,
+            "q": 3
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 11000,
+            "gain_db": -2.5,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/products/hd660s2/info.json",
+    "data": {
+      "name": "HD660S2",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/sennheiser/products/hd660s2/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/scl/fi/v4wkt7t98ghc08nhfl3ur/Sennheiser-HD660S2.pdf?rlkey=em9ocbjw0t0u3orpyc15cqibu&dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -9.6,
+        "bands": [
+          {
+            "type": "low_shelf",
+            "frequency": 28,
+            "gain_db": 4,
+            "q": 0.8
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 100,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 180,
+            "gain_db": -1.8,
+            "q": 1
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1250,
+            "gain_db": -2.4,
+            "q": 1.4
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 3000,
+            "gain_db": 6,
+            "q": 0.35
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3150,
+            "gain_db": -1.5,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 5600,
+            "gain_db": -7,
+            "q": 3.5
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 6500,
+            "gain_db": 2,
+            "q": 1.4
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 10000,
+            "gain_db": -4,
+            "q": 1
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/sony/info.json",
+    "data": {
+      "name": "Sony",
+      "logo": "logo.png",
+      "blurb": "Sony Corporation is a Japanese electronics manufacturer headquartered in Tokyo. Sony specializes in equipment for both consumer and professional markets, including headphones, earphones, and professional audio systems."
+    }
+  },
+  {
+    "path": "database/vendors/sony/products/wh_1000xm4/info.json",
+    "data": {
+      "name": "WH-1000XM4",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/sony/products/wh_1000xm4/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/s/db11bmvccxgyd97/Sony%20WH1000XM4.pdf?dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -5.6,
+        "bands": [
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 210,
+            "gain_db": -9.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 580,
+            "gain_db": -1.5,
+            "q": 2.5
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1430,
+            "gain_db": -2.5,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2300,
+            "gain_db": 6,
+            "q": 1.2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3930,
+            "gain_db": -2.4,
+            "q": 4
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 5200,
+            "gain_db": -4.2,
+            "q": 4
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 7400,
+            "gain_db": 3,
+            "q": 2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 8100,
+            "gain_db": -5,
+            "q": 4
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 11600,
+            "gain_db": -3,
+            "q": 6
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/sony/products/wh_1000xm5/info.json",
+    "data": {
+      "name": "WH-1000XM5",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/sony/products/wh_1000xm5/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/s/ozv8rsyvq73zavf/Sony%20WH1000XM5.pdf?dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -3.6,
+        "bands": [
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 5.5,
+            "q": 0.71
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 270,
+            "gain_db": -9.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 880,
+            "gain_db": -1.4,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1170,
+            "gain_db": 1.9,
+            "q": 2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 1800,
+            "gain_db": -1.9,
+            "q": 3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2230,
+            "gain_db": 6,
+            "q": 1.4
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3200,
+            "gain_db": -5.3,
+            "q": 1.8
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 6200,
+            "gain_db": -3.8,
+            "q": 3.3
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 8900,
+            "gain_db": -3,
+            "q": 6
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 9000,
+            "gain_db": 3,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  },
+  {
+    "path": "database/vendors/sony/products/wh_1000xm6/info.json",
+    "data": {
+      "name": "WH-1000XM6",
+      "type": "headphones",
+      "subtype": "over_the_ear"
+    }
+  },
+  {
+    "path": "database/vendors/sony/products/wh_1000xm6/eq/oratory1990_harman_target/info.json",
+    "data": {
+      "author": "oratory1990",
+      "details": "Harman Target",
+      "link": "https://www.dropbox.com/scl/fi/a5lipytkk0t6mtl6lyuy1/Sony-WH-1000XM6-wireless.pdf?rlkey=1mnshaj5jvg8nn9dhawxsxl1j&dl=0",
+      "type": "parametric_eq",
+      "parameters": {
+        "gain_db": -1,
+        "bands": [
+          {
+            "type": "low_shelf",
+            "frequency": 105,
+            "gain_db": 0,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 108,
+            "gain_db": 2,
+            "q": 2.6
+          },
+          {
+            "type": "low_shelf",
+            "frequency": 240,
+            "gain_db": -10.5,
+            "q": 0.71
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 820,
+            "gain_db": -1,
+            "q": 2
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 2600,
+            "gain_db": -4.5,
+            "q": 2.5
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 3000,
+            "gain_db": 0,
+            "q": 0.35
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 3100,
+            "gain_db": -2.4,
+            "q": 5
+          },
+          {
+            "type": "peak_dip",
+            "frequency": 4000,
+            "gain_db": 1.8,
+            "q": 2
+          },
+          {
+            "type": "high_shelf",
+            "frequency": 10000,
+            "gain_db": 0,
+            "q": 0.71
+          }
+        ]
+      }
+    }
+  }
+]
+

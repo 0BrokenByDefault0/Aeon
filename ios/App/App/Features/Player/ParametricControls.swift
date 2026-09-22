@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 struct EQBandInspector: View {
     let band: EQBand
@@ -71,7 +72,7 @@ struct DeviceCorrectionView: View {
     @State private var pending: CorrectionProfile?
     @State private var message: String?
     @State private var kind = CorrectionProfile.Kind.headphones
-    @State private var search = ""
+    @State private var choosingProfile = false
     @State private var profileName = ""
     private var settings: DSPSettings { playback.snapshot?.dsp ?? .init() }
     private var rate: Double { playback.snapshot?.outputFormat?.processingSampleRate ?? 48_000 }
@@ -80,13 +81,17 @@ struct DeviceCorrectionView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Device correction", isOn: Binding(get: { settings.correctionEnabled }, set: { value in edit { $0.correctionEnabled = value } }))
                     .toggleStyle(AeonToggleStyle())
+                    .disabled(settings.correction == nil || settings.referenceBypass)
+                    .accessibilityIdentifier("aeon.correction.enabled")
                 Text(settings.correction?.name ?? "No profile selected").font(AeonTheme.FontToken.ui(.callout))
-                TextField("Search saved models / rooms", text: $search).textFieldStyle(.roundedBorder)
-                Menu("CHOOSE PROFILE") {
-                    ForEach(settings.profiles.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }) { profile in
-                        Button(profile.name) { pending = profile }
-                    }
+                if settings.referenceBypass {
+                    Text("Reference bypass is on. Turn it off below to hear device correction.").font(.caption)
+                } else if settings.correction == nil {
+                    Text("Choose your exact headphone model or import a profile before enabling correction.")
+                        .font(.caption).accessibilityIdentifier("aeon.correction.choose-first")
                 }
+                Button("CHOOSE PROFILE") { choosingProfile = true }
+                    .accessibilityIdentifier("aeon.correction.choose")
                 Picker("Import purpose", selection: $kind) {
                     Text("Headphones").tag(CorrectionProfile.Kind.headphones)
                     Text("Speaker measurement").tag(CorrectionProfile.Kind.speakerMeasurement)
@@ -110,6 +115,7 @@ struct DeviceCorrectionView: View {
                                 state.correctionID = profile.id; state.correctionEnabled = true
                             }; pending = nil
                         }
+                        .accessibilityIdentifier("aeon.correction.apply")
                     }
                     Button("CANCEL PREVIEW") { pending = nil }
                 }
@@ -128,6 +134,9 @@ struct DeviceCorrectionView: View {
                         preampDB: 0, bands: bands, provenance: "Owner-created tonal profile. Not a measured correction.")
                 }.disabled(profileName.trimmingCharacters(in: .whitespaces).isEmpty)
                 if let profile = settings.correction {
+                    if let entry = CorrectionCatalog.profiles.first(where: { $0.id == profile.id }) {
+                        correctionCredit(entry)
+                    }
                     DisclosureGroup("Correction filters") {
                         ForEach(Array(profile.bands.enumerated()), id: \.element.id) { index, band in
                             Text("\(index+1) · \(band.enabled ? "On" : "Off") · \(band.type.title) · \(band.frequency, specifier: "%.1f") Hz · \(band.gainDB, specifier: "%.1f") dB · Q \(band.q, specifier: "%.2f")").font(.caption)
@@ -138,10 +147,18 @@ struct DeviceCorrectionView: View {
                 Slider(value: Binding(get: { settings.trimDB }, set: { value in edit { $0.trimDB = value } }), in: -24...0, step: 0.5)
                 Toggle("Reference bypass", isOn: Binding(get: { settings.referenceBypass }, set: { value in edit { $0.referenceBypass = value } }))
                     .toggleStyle(AeonToggleStyle())
+                    .accessibilityIdentifier("aeon.correction.reference")
                 Text("Reference bypass disables EQ, correction, ReplayGain, app gain and protection. Settings are retained. The fixed DSP delay and native route conversion remain.").font(.caption).foregroundStyle(AeonOrbit.secondary)
                 if let message { Text(message).font(.caption).foregroundStyle(.orange) }
             }.padding(.top, 10)
         }.foregroundStyle(AeonOrbit.ink).tint(AeonOrbit.ink)
+        .sheet(isPresented: $choosingProfile) {
+            CorrectionCatalogPicker(saved: settings.profiles) { profile in
+                pending = profile
+                message = nil
+                choosingProfile = false
+            }
+        }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText, .json, .data]) { result in
             guard case .success(let url) = result else { return }
             let selectedKind = kind
@@ -159,8 +176,91 @@ struct DeviceCorrectionView: View {
             }
         }
     }
-    private func edit(_ change: (inout DSPSettings) -> Void) { var state = settings; change(&state); playback.setDSP(state) }
+    private func edit(_ change: (inout DSPSettings) -> Void) {
+        var state = settings
+        change(&state)
+        guard state.profiles.count <= 32 else { message = "Up to 32 saved device profiles are supported."; return }
+        playback.setDSP(state)
+        message = nil
+    }
     private func previewPreamp(_ profile: CorrectionProfile) -> Double {
         ParametricDSP.headroom(bands: profile.bands + (playback.snapshot?.eqEnabled == true ? playback.snapshot?.eqBands ?? [] : []), rate: rate, recommendedPreamp: profile.preampDB)
+    }
+}
+
+private func correctionCredit(_ entry: BundledCorrection) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+        Text("\(entry.creator) · \(entry.target)").font(.caption).bold()
+        Text("Mode: \(entry.operatingMode). OPRA snapshot \(entry.snapshotDate), not the measurement date.").font(.caption)
+        HStack {
+            if let url = URL(string: entry.sourceURL) { Link("OPRA record", destination: url) }
+            if let url = URL(string: entry.originalURL) { Link("Measurement", destination: url) }
+        }.font(.caption)
+        Text("Profile data: \(entry.license)").font(.caption)
+    }
+}
+
+private struct CorrectionCatalogPicker: View {
+    let saved: [CorrectionProfile]
+    let select: (CorrectionProfile) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    var body: some View {
+        AeonSheet {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
+                HStack {
+                    AeonDisplayText("Device profiles", size: 30, maximumLines: 2)
+                    Spacer()
+                    Button("DONE") { dismiss() }
+                }
+                TextField("Search exact model or saved room", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("aeon.correction.search")
+                ScrollView {
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                        Text("Choose the exact model and variant. These measurements are tonal starting points, not individual fit or hearing calibration. Previewing does not change playback.").font(.caption)
+                        if case .failure(let error) = CorrectionCatalog.loaded { Text(error.localizedDescription).font(.caption) }
+                        ForEach(CorrectionCatalog.profiles.filter { $0.matches(query) }) { entry in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Button { select(entry.profile) } label: {
+                                    HStack {
+                                        Text(entry.profile.name).font(.headline)
+                                        Spacer()
+                                        Text("PREVIEW").font(.caption)
+                                    }.frame(minHeight: 44).contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("aeon.correction.profile.\(entry.id)")
+                                correctionCredit(entry)
+                            }
+                        }
+                        let personal = saved.filter { profile in
+                            !CorrectionCatalog.profiles.contains(where: { $0.id == profile.id }) &&
+                            (query.isEmpty || profile.name.localizedCaseInsensitiveContains(query))
+                        }
+                        if !personal.isEmpty {
+                            AeonLabel(text: "Saved imports and rooms")
+                            ForEach(personal) { profile in
+                                Button(profile.name) { select(profile) }.frame(minHeight: 44)
+                            }
+                        }
+                        if let path = Bundle.main.path(forResource: "opra-logo", ofType: "png", inDirectory: "CorrectionCatalog"),
+                           let logo = UIImage(contentsOfFile: path) {
+                            Image(uiImage: logo).resizable().scaledToFit().frame(width: 140).accessibilityLabel("OPRA")
+                        }
+                        Text("OPRA is an open repository of product information, measurements and EQ presets. This offline subset preserves the published filters and preamps; Aeon converts their storage format.").font(.caption)
+                        Link("OPRA project and creators", destination: URL(string: "https://github.com/opra-project/OPRA")!)
+                        Link("Data license: Creative Commons BY-SA 4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!)
+                        if let url = Bundle.main.url(forResource: "profiles", withExtension: "json", subdirectory: "CorrectionCatalog"),
+                           let license = Bundle.main.url(forResource: "LICENSE", withExtension: "md", subdirectory: "CorrectionCatalog") {
+                            ShareLink("Share catalogue data and license", items: [url, license])
+                        }
+                    }
+                }
+            }.padding(AeonTheme.Space.edge)
+        }
+        .foregroundStyle(AeonOrbit.ink).tint(AeonOrbit.ink)
+        .presentationDetents([.large])
     }
 }
