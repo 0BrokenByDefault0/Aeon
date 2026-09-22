@@ -11,12 +11,18 @@ const chrome = read('ios/App/App/DesignSystem/AeonChrome.swift');
 const ui = read('ios/App/AppUITests/AdaptiveChromeTests.swift');
 const tokens = read('ios/App/AppTests/DesignTokenTests.swift');
 
-test('all utility and player panels have opaque backing inside their width constraint', () => {
-  assert.equal((root.match(/\.modifier\(AeonOpaquePanel\(\)\)/g) || []).length, 5);
+test('utility panels and full-screen player retain opaque isolated backing', () => {
+  assert.equal((root.match(/\.modifier\(AeonOpaquePanel\(\)\)/g) || []).length, 4);
   assert.match(root, /struct AeonOpaquePanel: ViewModifier[\s\S]*\.background\(AeonTheme\.ColorToken\.void\)/);
+  const player = root.split('private func nowPlayingPanel')[1].split('@ViewBuilder')[0];
+  assert.match(player, /\.frame\(width: geometry\.size\.width, height: geometry\.size\.height\)/);
+  assert.match(player, /\.background\(AeonTheme\.ColorToken\.void\.ignoresSafeArea\(\)\)/);
+  assert.doesNotMatch(player, /padding\(\.bottom, insets\.bottom\)/);
+  assert.match(root, /if !nowPlayingVisible \{\s*AeonChrome/);
+  assert.match(root, /destinationPanel[^\n]*\n\s*\.accessibilityHidden\(nowPlayingVisible\)/);
   const surface = root.split('struct AeonOpaquePanel: ViewModifier')[1];
   assert.doesNotMatch(surface, /\.opacity\(/);
-  assert.equal((root.match(/\.frame\(width: width\)(?:\s*\.clipped\(\))?\s*\.modifier\(AeonOpaquePanel\(\)\)/g) || []).length, 5);
+  assert.equal((root.match(/\.frame\(width: width\)(?:\s*\.clipped\(\))?\s*\.modifier\(AeonOpaquePanel\(\)\)/g) || []).length, 4);
 });
 
 test('Sky stays mounted but inactive copy, actions and accessibility overlays do not', () => {
