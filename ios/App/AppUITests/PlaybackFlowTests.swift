@@ -8,7 +8,7 @@ final class PlaybackFlowTests: XCTestCase {
         XCTAssertTrue(actions.waitForExistence(timeout: 4))
         scrollUntilHittable(actions, in: app)
         actions.tap()
-        app.buttons["ADD TO PLAYLIST"].tap()
+        app.buttons["aeon.track.add-to-playlist.playback-fixture-track-1"].tap()
         let name = app.textFields["aeon.track.playlist.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 4))
         assertSingleReachableMiniPlayer(in: app)
@@ -21,10 +21,11 @@ final class PlaybackFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["aeon.track.actions.playback-fixture-track-2"].waitForExistence(timeout: 4))
         // The album and a nested track sheet must both own a single reachable bar.
         assertSingleReachableMiniPlayer(in: app)
+        capture("Album sheet with glass capsule and black safe area — simulator", in: app)
         let albumActions = app.buttons["aeon.track.actions.playback-fixture-track-2"]
         scrollUntilHittable(albumActions, in: app)
         albumActions.tap()
-        app.buttons["ADD TO PLAYLIST"].tap()
+        app.buttons["aeon.track.add-to-playlist.playback-fixture-track-2"].tap()
         XCTAssertTrue(name.waitForExistence(timeout: 4))
         let mini = assertSingleReachableMiniPlayer(in: app)
         capture("Nested playlist sheet with its mini-player — simulator", in: app)

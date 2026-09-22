@@ -375,6 +375,7 @@ struct TrackActionMenu<Label: View>: View {
             Button("PLAY NEXT") { playback.playNext(track) }
             Button("ADD TO QUEUE") { playback.addToQueue(track) }
             Button("ADD TO PLAYLIST") { presentedSheet = .playlist }
+                .accessibilityIdentifier("aeon.track.add-to-playlist.\(track.id)")
             if let showAlbum { Button("SHOW ALBUM", action: showAlbum) }
             if let showArtist, !track.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 // Aeon currently has artist search, not an artist detail destination.

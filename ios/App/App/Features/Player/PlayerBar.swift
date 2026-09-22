@@ -46,7 +46,7 @@ struct PlayerBar: View {
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
-        if let presentation = PlayerPresentation.resolve(
+        if visibility.isActive(layerID), let presentation = PlayerPresentation.resolve(
             snapshot: playback.snapshot,
             catalog: catalog,
             artworkStore: artworkStore
@@ -108,9 +108,10 @@ struct PlayerBar: View {
             .padding(.vertical, 6)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("aeon.player.bar")
-            .opacity(visibility.isActive(layerID) ? 1 : 0)
-            .allowsHitTesting(visibility.isActive(layerID))
-            .accessibilityHidden(!visibility.isActive(layerID))
+        } else if playback.snapshot?.trackID != nil {
+            // Preserve viewport geometry without retaining covered controls in UIKit's
+            // accessibility tree (opacity alone leaves duplicate sheet/root buttons).
+            Color.clear.frame(height: 68).accessibilityHidden(true)
         }
     }
 
@@ -198,7 +199,10 @@ private struct ModalPlayerBar: ViewModifier {
                     layerID: layerID, catalog: scoped.catalog,
                     artworkStore: scoped.artworkStore, open: scoped.open)
             }
-            .presentationBackground(.clear)
+            // The sheet owns its whole background, including the home-indicator area.
+            // Only the capsule supplies glass; a clear sheet exposes the system gray floor.
+            .background(AeonTheme.ColorToken.void.ignoresSafeArea())
+            .presentationBackground(AeonTheme.ColorToken.void)
             .onAppear { player.presentation.present(layerID) }
             .onDisappear { player.presentation.dismiss(layerID) }
         } else {
