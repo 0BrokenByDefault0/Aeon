@@ -116,6 +116,27 @@ final class LibraryImporterTests: XCTestCase {
         XCTAssertLessThanOrEqual(probe.peakConcurrentCalls, LibraryImporter.maximumConcurrentProbes)
     }
 
+    func testDuplicateWithinOneImportIsSkippedAgainstTheAlbumItJustCommitted() async throws {
+        let copies = ["Copy A", "Copy B"].flatMap { folder in
+            ["01 One.wav", "02 Two.wav"].map { root.appendingPathComponent("\(folder)/\($0)") }
+        }
+        for url in copies { try writeAudio(url) }
+        let tags = AudioTags(title: nil, artist: "Twin", albumArtist: nil, album: "Twin", year: nil, genre: nil, trackNumber: nil, discNumber: nil, artworkData: nil)
+        let importer = makeImporter(
+            reader: StubTagReader(values: ["01 One.wav": tags, "02 Two.wav": tags]),
+            probe: StubProbe()
+        )
+
+        let result = try await importer.importURLs(
+            [root.appendingPathComponent("Copy A"), root.appendingPathComponent("Copy B")],
+            mode: .folder
+        )
+        XCTAssertEqual(result.importedAlbums, 1)
+        XCTAssertEqual(result.importedTracks, 2)
+        XCTAssertEqual(result.skippedDuplicateAlbums, ["Twin"])
+        XCTAssertEqual(try repository.albumCount(), 1)
+    }
+
     func testUnreachableSelectionReportsAccessDeniedInsteadOfSucceedingSilently() async throws {
         let missing = root.appendingPathComponent("Gone/01 Missing.wav")
         let importer = makeImporter(reader: StubTagReader(values: [:]), probe: StubProbe())

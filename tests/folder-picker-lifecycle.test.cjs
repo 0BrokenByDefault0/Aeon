@@ -50,7 +50,7 @@ test('adoption uses the existing import progress and result channels', () => {
 
 test('adopt rescan can conservatively repair moved collector-owned albums', () => {
   assert.match(importer, /repairAdoptedAlbumIfNeeded/);
-  assert.match(importer, /matchingAlbums\(fields: fields, trackCount: playable\.count\)/);
+  assert.match(importer, /matchingAlbums\(fields: fields, trackCount: playable\.count[,)]/);
   assert.match(importer, /repository\.updateTrack\(updated\)/);
   assert.match(importer, /!path\.hasPrefix\("Music\/_Imported\/"\)/);
   assert.match(importer, /!path\.hasPrefix\("Music\/_Migrated\/"\)/);

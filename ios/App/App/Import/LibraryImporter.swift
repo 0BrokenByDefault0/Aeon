@@ -161,6 +161,47 @@ final class LibraryImporter: @unchecked Sendable {
         case adoptedMusicRoot
     }
 
+    /// Album IDs keyed by normalized title and artist, read in one catalogue pass per
+    /// import. Every duplicate, repair and extension check used to page through the whole
+    /// catalogue for each album group, which made a first adopt of a large library
+    /// quadratic. Candidates are re-read before use, so edits, deletions and appended
+    /// tracks since the index was built are always honoured.
+    private final class AlbumMatchIndex {
+        private var albumIDsByKey: [String: [String]] = [:]
+        private var loaded = false
+
+        func albumIDs(title: String, artist: String, repository: CatalogRepository) throws -> [String] {
+            if !loaded {
+                albumIDsByKey = [:]
+                var offset = 0
+                while true {
+                    let page = try repository.albumPage(
+                        offset: offset,
+                        limit: CatalogDatabase.maximumPageSize,
+                        sort: .recentlyAdded
+                    )
+                    for album in page {
+                        albumIDsByKey[Self.key(title: album.title, artist: album.artist), default: []].append(album.id)
+                    }
+                    if page.count < CatalogDatabase.maximumPageSize { break }
+                    offset += page.count
+                }
+                loaded = true
+            }
+            return albumIDsByKey[Self.key(title: title, artist: artist)] ?? []
+        }
+
+        /// Albums committed by this import join the index, newest first as the catalogue orders them.
+        func insert(albumID: String, title: String, artist: String) {
+            guard loaded else { return }
+            albumIDsByKey[Self.key(title: title, artist: artist), default: []].insert(albumID, at: 0)
+        }
+
+        private static func key(title: String, artist: String) -> String {
+            ImportGrouper.normalizedAlbum(title) + "\u{0}" + ImportGrouper.normalizedPerson(artist)
+        }
+    }
+
     private let repository: CatalogRepository
     private let mediaStore: MediaStore
     private let tagReader: AudioTagReading
@@ -382,12 +423,14 @@ final class LibraryImporter: @unchecked Sendable {
         let savedCursor = try repository.setting(Cursor.self, forKey: cursorKey)
         let startIndex = savedCursor?.signature == signature ? min(savedCursor?.nextGroup ?? 0, groups.count) : 0
 
+        let matchIndex = AlbumMatchIndex()
         for groupIndex in startIndex ..< groups.count {
             try cancellation.check()
             let group = ImportGrouper.sortAlbumItems(groups[groupIndex])
             let groupResult = try await importGroup(
                 group,
                 originalURLs: originalURLs,
+                matchIndex: matchIndex,
                 result: &result,
                 cancellation: cancellation
             )
@@ -457,6 +500,7 @@ final class LibraryImporter: @unchecked Sendable {
     private func importGroup(
         _ group: [ImportCandidate],
         originalURLs: [URL: URL],
+        matchIndex: AlbumMatchIndex,
         result: inout LibraryImportResult,
         cancellation: LibraryImportCancellation
     ) async throws -> (albumCount: Int, trackCount: Int, duplicate: String?, repairedTracks: Int) {
@@ -482,11 +526,13 @@ final class LibraryImporter: @unchecked Sendable {
            let enriched = try? await metadataEnricher.automaticGenre(for: fields.artist) {
             fields = ImportAlbumFields(title: fields.title, artist: fields.artist, year: fields.year, genre: enriched)
         }
-        let extending = try adoptedAlbumToExtend(fields: fields, playable: playable)
-        if extending == nil, let repaired = try repairAdoptedAlbumIfNeeded(fields: fields, playable: playable), repaired > 0 {
+        let extending = try adoptedAlbumToExtend(fields: fields, playable: playable, matchIndex: matchIndex)
+        if extending == nil,
+           let repaired = try repairAdoptedAlbumIfNeeded(fields: fields, playable: playable, matchIndex: matchIndex),
+           repaired > 0 {
             return (0, 0, nil, repaired)
         }
-        if extending == nil, try isDuplicate(fields: fields, trackCount: playable.count) {
+        if extending == nil, try isDuplicate(fields: fields, trackCount: playable.count, matchIndex: matchIndex) {
             return (0, 0, fields.title, 0)
         }
 
@@ -558,6 +604,7 @@ final class LibraryImporter: @unchecked Sendable {
         do {
             try repository.insertAlbum(album, tracks: tracks)
             committed = true
+            matchIndex.insert(albumID: albumID, title: fields.title, artist: fields.artist)
             return (1, tracks.count, nil, 0)
         } catch {
             throw error
@@ -599,39 +646,38 @@ final class LibraryImporter: @unchecked Sendable {
         return nil
     }
 
-    private func isDuplicate(fields: ImportAlbumFields, trackCount: Int) throws -> Bool {
-        try !matchingAlbums(fields: fields, trackCount: trackCount).isEmpty
+    private func isDuplicate(fields: ImportAlbumFields, trackCount: Int, matchIndex: AlbumMatchIndex) throws -> Bool {
+        try !matchingAlbums(fields: fields, trackCount: trackCount, matchIndex: matchIndex).isEmpty
     }
 
     private func matchingAlbums(
         fields: ImportAlbumFields,
         trackCount: Int?,
+        matchIndex: AlbumMatchIndex,
         limit: Int = 2
     ) throws -> [CatalogAlbumSummary] {
-        var offset = 0
+        let candidateIDs = try matchIndex.albumIDs(title: fields.title, artist: fields.artist, repository: repository)
         var matches: [CatalogAlbumSummary] = []
-        while matches.count < limit {
-            let page = try repository.albumPage(
-                offset: offset,
-                limit: CatalogDatabase.maximumPageSize,
-                sort: .recentlyAdded
-            )
-            matches.append(contentsOf: page.filter {
-                ImportGrouper.isDuplicate(
-                    existingTitle: $0.title,
-                    existingArtist: $0.artist,
-                    existingTrackCount: $0.trackCount,
+        for albumID in candidateIDs {
+            guard let summary = try repository.albumSummary(id: albumID),
+                  ImportGrouper.isDuplicate(
+                    existingTitle: summary.title,
+                    existingArtist: summary.artist,
+                    existingTrackCount: summary.trackCount,
                     candidate: fields,
-                    candidateTrackCount: trackCount ?? $0.trackCount
-                )
-            })
-            if page.count < CatalogDatabase.maximumPageSize { break }
-            offset += page.count
+                    candidateTrackCount: trackCount ?? summary.trackCount
+                  ) else { continue }
+            matches.append(summary)
+            if matches.count == limit { break }
         }
-        return Array(matches.prefix(limit))
+        return matches
     }
 
-    private func adoptedAlbumToExtend(fields: ImportAlbumFields, playable: [ProbedCandidate]) throws -> CatalogAlbumSummary? {
+    private func adoptedAlbumToExtend(
+        fields: ImportAlbumFields,
+        playable: [ProbedCandidate],
+        matchIndex: AlbumMatchIndex
+    ) throws -> CatalogAlbumSummary? {
         let references = playable.compactMap { mediaStore.adoptedDocumentReference(for: $0.candidate.url) }
         guard references.count == playable.count, let first = references.first,
               case .documents(let firstPath) = first else { return nil }
@@ -640,7 +686,7 @@ final class LibraryImporter: @unchecked Sendable {
             guard case .documents(let path) = reference else { return false }
             return (path as NSString).deletingLastPathComponent == directory
         }) else { return nil }
-        let matches = try matchingAlbums(fields: fields, trackCount: nil)
+        let matches = try matchingAlbums(fields: fields, trackCount: nil, matchIndex: matchIndex)
         guard matches.count == 1, let album = matches.first else { return nil }
         let existing = try repository.tracks(albumID: album.id)
         guard !existing.isEmpty, existing.allSatisfy({ track in
@@ -656,11 +702,12 @@ final class LibraryImporter: @unchecked Sendable {
     /// and every candidate must match by disc/track number or normalized title.
     private func repairAdoptedAlbumIfNeeded(
         fields: ImportAlbumFields,
-        playable: [ProbedCandidate]
+        playable: [ProbedCandidate],
+        matchIndex: AlbumMatchIndex
     ) throws -> Int? {
         let newReferences = playable.compactMap { mediaStore.adoptedDocumentReference(for: $0.candidate.url) }
         guard newReferences.count == playable.count else { return nil }
-        let matches = try matchingAlbums(fields: fields, trackCount: playable.count)
+        let matches = try matchingAlbums(fields: fields, trackCount: playable.count, matchIndex: matchIndex)
         guard matches.count == 1 else { return nil }
 
         let albumID = matches[0].id
