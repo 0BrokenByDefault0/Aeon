@@ -21,8 +21,9 @@ link out to Bandcamp, so discovery ends in *owning* the music, not renting
 it.
 
 **Bring the whole collection at once.** No file picker survives a library
-of tens of thousands of files, so the installed app doesn't use one:
-copy your master folder into **Files → On My iPhone → ISOLATION →
+of tens of thousands of files. The Import sheet still copies a handful of
+files in from Files, but a real collection arrives another way: copy your
+master folder into **Files → On My iPhone → ISOLATION →
 Music** — artist folders, album folders, nested as deep as you like —
 and tap **ADOPT LIBRARY**. Every folder holding audio becomes one album,
 tagged from the files themselves and named from the folder when the tags
@@ -33,8 +34,11 @@ one impossible record.
 Adoption reads the files **where they lie**: nothing is copied, so a
 500 GB collection occupies 500 GB rather than a terabyte, and it takes
 as long as reading the tags, not as long as duplicating the audio.
-Because those files are yours and not the app's, removing an album later
-takes it out of the sky and leaves the file on disk untouched.
+Running it again later reads only the files that are new or changed
+since the last scan; moved files are re-linked and everything else is
+recognised by where it lies and left alone. Because those files are yours and not the app's,
+removing an album later takes it out of the sky and leaves the file on
+disk untouched.
 
 **One genre, however it was spelled.** A region of the sky is far too
 big a thing to hang on punctuation, so tags are folded before they are
@@ -115,6 +119,9 @@ height rather than pushing the transport off the bottom.
 
 ## What it costs to run
 
+*These measurements come from the 4.x web build. The 5.0 app is native
+SwiftUI with a Metal sky and has not yet been measured the same way.*
+
 The sky is not drawn for anyone who is not looking at it — standing on
 the Library tab used to cost a full render sixty times a second — and
 nothing off the edge of the screen is drawn at all. The grid is built a
@@ -139,15 +146,21 @@ the same range the suite produces running the *same* build twice.
 ## What's in here
 
 ```
-app/                  the entire application (single-file PWA + service worker)
-ios/                  Capacitor iOS shell, ready for Xcode
-tests/                unit tests over the deterministic core (npm test)
-test/                 browser regression suite (npm run test:browser)
-scripts/              syntax check and dependency patches
+ios/App/App/          the 5.0 native app: SwiftUI screens, Metal sky, AVAudioEngine
+                      playback, SQLite catalogue, importer and legacy migration
+ios/App/AppTests/     XCTest unit and integration tests
+ios/App/AppUITests/   XCUITest flows and screen matrices
+app/                  the 4.x web app, kept to migrate existing libraries and as a
+                      compatibility reference; it is not the native interface
+tests/                Node source contracts and core checks (npm test)
+test/                 browser regression suite over the web app (npm run test:browser)
+scripts/              syntax check, targeted test routing and packaging
+docs/                 development workflow, validation matrices and release notes
 .github/workflows/    quick verification, fast IPA, and deep release validation
-capacitor.config.json
-package.json
 ```
+
+Capacitor remains a dependency for one job: the hidden web view that reads a
+4.x library out of browser storage during the first 5.0 launch.
 
 ## The unsigned .ipa
 
@@ -227,11 +240,12 @@ year and lets you export a shareable `.ipa` via *Product → Archive*.
 
 No Mac of your own? A rented cloud Mac works with exactly the same steps.
 
-### B) No Mac — install as a PWA today
+### B) No Mac — the unsigned IPA, or the legacy web app
 
-Apple only allows iOS apps to be built and signed on macOS, so without one
-this is the way in — and it is the same app, offline-capable, with its own
-icon and no browser chrome.
+Without a Mac, sideload the unsigned IPA described above. The `app/`
+folder can still be installed as a PWA, but it is the 4.x web app rather
+than the native 5.0 app: offline-capable, with its own icon and no browser
+chrome, and without the native player, importer or Metal sky.
 
 1. Drag the contents of `app/` onto <https://app.netlify.com/drop>.
 2. Open the URL it gives you in **Safari** on the iPhone.
@@ -260,4 +274,4 @@ app switcher; locking the screen and backgrounding are fine.
 - **Share your sky** — renders the live sky into an image card for the
   share sheet. Only the picture leaves the device.
 - **Player** — gapless-queue playback, 10-band EQ, shuffle, repeat
-  off/all/one, lock-screen controls via Media Session.
+  off/all/one, lock-screen and Control Center controls.
