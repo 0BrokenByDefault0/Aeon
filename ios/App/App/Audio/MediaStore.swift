@@ -330,7 +330,9 @@ final class MediaStore: MediaResolving {
         case .native(let relativePath):
             url = try resolve(relativePath, beneath: mediaRoot)
         case .documents(let relativePath)
-            where relativePath.hasPrefix("Music/_Imported/") || relativePath.hasPrefix("Music/_Migrated/"):
+            where relativePath.hasPrefix("Music/_Imported/")
+                || relativePath.hasPrefix("Music/_Migrated/")
+                || relativePath.hasPrefix("Music/_Restored/"):
             url = try resolve(relativePath, beneath: documentsRoot)
         case .documents, .externalBookmark, .legacyBlob, .unavailable:
             return

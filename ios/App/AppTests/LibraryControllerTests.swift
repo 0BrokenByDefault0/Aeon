@@ -122,6 +122,25 @@ final class LibraryControllerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: imported.path))
     }
 
+    func testManagedCleanupRemovesRestoredCopiesButNotLookalikeCollectorFolders() throws {
+        let root = temporaryRoot(named: "Restored")
+        let documents = root.appendingPathComponent("Documents", isDirectory: true)
+        let store = try MediaStore(baseURL: root, documentsRoot: documents)
+        let restored = documents.appendingPathComponent("Music/_Restored/operation/track.flac")
+        let lookalike = documents.appendingPathComponent("Music/Artist/_Restored/track.flac")
+        for url in [restored, lookalike] {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(url.lastPathComponent.utf8).write(to: url)
+        }
+
+        try store.removeManagedMedia(.documents(relativePath: "Music/_Restored/operation/track.flac"))
+        try store.removeManagedMedia(.documents(relativePath: "Music/Artist/_Restored/track.flac"))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: restored.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: restored.deletingLastPathComponent().path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: lookalike.path))
+    }
+
     private func makeRepository() throws -> CatalogRepository {
         CatalogRepository(database: try CatalogDatabase(rootURL: temporaryRoot(named: "Catalog")))
     }
