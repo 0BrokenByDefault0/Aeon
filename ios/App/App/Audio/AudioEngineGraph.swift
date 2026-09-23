@@ -44,6 +44,11 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private var effectivePreamp: Double = 0
     private var unavailableFilters = 0
     private var lastDSPParameters: Data?
+    /// The DSP unit's parameter mailbox has exactly one producer. Settings arrive on the
+    /// transport queue while ReplayGain headroom is recalculated on the scheduler queue at
+    /// track boundaries, so every DSP-state change and parameter submission takes this
+    /// lock. The render thread never touches it.
+    private let dspStateLock = NSRecursiveLock()
 
     private var files: [AudioSlot: AVAudioFile] = [:]
     private var isConfigured = false
@@ -352,11 +357,15 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     }
 
     func setMasterVolume(_ linear: Float) {
+        dspStateLock.lock()
+        defer { dspStateLock.unlock() }
         masterVolume = linear.isFinite && (0...1).contains(linear) ? linear : 1
         if isConfigured { engine.mainMixerNode.outputVolume = dspSettings.referenceBypass ? 1 : masterVolume }
     }
 
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {
+        dspStateLock.lock()
+        defer { dspStateLock.unlock() }
         let transparentScalar = scalar.isFinite && (0...16).contains(scalar) ? scalar : 1
         switch slot {
         case .a:
@@ -371,6 +380,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     }
 
     func setDSP(_ settings: DSPSettings) throws {
+        dspStateLock.lock()
+        defer { dspStateLock.unlock() }
         let old = dspSettings
         dspSettings = settings
         do { try applyDSP() } catch { dspSettings = old; throw error }
@@ -381,6 +392,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     }
 
     private func applyDSP() throws {
+        dspStateLock.lock()
+        defer { dspStateLock.unlock() }
         let rate = processingSampleRate ?? 48_000
         let parameters = ParametricDSP.parameters(user: eqBands, enabled: eqEnabled, settings: dspSettings,
             rate: rate, replayGain: Double(max(replayGainA, replayGainB)))
@@ -398,6 +411,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     }
 
     func setEQ(enabled: Bool, bands: [EQBand]) throws {
+        dspStateLock.lock()
+        defer { dspStateLock.unlock() }
         try validateEQBands(bands)
         let previousEnabled = eqEnabled, previousBands = eqBands
         eqEnabled = enabled; eqBands = bands
@@ -487,6 +502,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     }
 
     func rebuild() throws {
+        dspStateLock.lock()
+        defer { dspStateLock.unlock() }
         stop()
         spectrumTapInstalled = false
         scheduleOutputRate = 0
