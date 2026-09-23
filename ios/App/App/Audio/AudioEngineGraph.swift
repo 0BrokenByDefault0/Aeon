@@ -52,6 +52,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private var replayGainB: Float = 1
     private var eqEnabled = false
     private var eqBands: [EQBand] = []
+    private let activateSession: (() throws -> Void)?
     private let outputFormatProvider: (() -> AVAudioFormat?)?
     private var scheduledStarts: [AudioSlot: Int64] = [:]
     private var scheduleHostOrigin: UInt64?
@@ -60,7 +61,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
     private var spectrumTapHandler: AVAudioNodeTapBlock?
     private var spectrumTapInstalled = false
 
-    init(outputFormatProvider: (() -> AVAudioFormat?)? = nil) {
+    init(outputFormatProvider: (() -> AVAudioFormat?)? = nil, activateSession: (() throws -> Void)? = nil) {
+        self.activateSession = activateSession
         engine = AVAudioEngine()
         playerA = AVAudioPlayerNode()
         playerB = AVAudioPlayerNode()
@@ -99,6 +101,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func configure() throws {
         guard !isConfigured else { return }
+        try activateSession?()
 
         // AU effects do not negotiate sample-rate conversion between their buses.
         // In particular our AU's initial 48 kHz output must not be left paired
@@ -407,7 +410,8 @@ final class AudioEngineGraph: QueueSchedulingGraph {
 
     func installSpectrumTap(bufferSize: AVAudioFrameCount, handler: @escaping AVAudioNodeTapBlock) throws {
         guard bufferSize > 0 else { throw AudioEngineGraphError.invalidSchedulingFormat }
-        try configure()
+        // Register now; attach when playback configures the graph. Decorative spectrum
+        // must not acquire an audio session or require a live route during app launch.
         if spectrumTapInstalled { programMixer.removeTap(onBus: 0) }
         spectrumTapBufferSize = bufferSize
         spectrumTapHandler = handler

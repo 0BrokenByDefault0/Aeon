@@ -242,6 +242,42 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.scheduler.seekCallCount, 1)
     }
 
+    func testUnavailableRestoredSourceDoesNotPermanentlyDisableTransport() throws {
+        let restored = PlaybackSnapshot(
+            version: 12,
+            trackID: "A",
+            queueRevision: 4,
+            queue: [QueueItem(trackID: "A", albumID: "album", mediaRef: .native(relativePath: "A.wav"))],
+            queueIndex: 0,
+            position: 19.5,
+            intent: .playing,
+            replayGainMode: .album,
+            replayGainPreampDB: -1,
+            masterVolume: 0.75,
+            eqEnabled: false,
+            eqBands: [],
+            route: nil,
+            sourceFormat: nil,
+            outputFormat: nil,
+            timestamp: Date(timeIntervalSince1970: 100)
+        )
+        let harness = try CoordinatorHarness(restored: restored)
+        harness.scheduler.prepareError = .operation(trackID: "A", reason: "graph_setup:StartupTest:17")
+        XCTAssertNotNil(harness.initialize().failure)
+        let state = try harness.state()
+        XCTAssertEqual(state.queue, restored.queue)
+        XCTAssertEqual(state.position, restored.position)
+        XCTAssertEqual(state.intent, .paused)
+        XCTAssertEqual(harness.scheduler.playCallCount, 0)
+        harness.scheduler.prepareError = nil
+        let played = try harness.command(harness.coordinator.play).get()
+        XCTAssertEqual(played.trackID, "A")
+        XCTAssertEqual(played.position, restored.position)
+        XCTAssertEqual(played.intent, .playing)
+        let loaded = try harness.load(harness.b).get()
+        XCTAssertEqual(loaded.trackID, "B")
+    }
+
     func testInitializeRestoresCheckpointWithoutAutoplay() throws {
         let restored = PlaybackSnapshot(
             version: 12,
@@ -422,6 +458,7 @@ private final class CoordinatorScheduler: PlaybackScheduling {
     private(set) var replaceQueueCallCount = 0
     private(set) var preparedTrackIDs: [String] = []
     private(set) var repeatMode: RepeatMode = .off
+    var prepareError: QueueSchedulerError?
     var playError: QueueSchedulerError?
 
     func setQueue(_ items: [QueueItem], index: Int, revision: UInt64) throws {
@@ -438,6 +475,7 @@ private final class CoordinatorScheduler: PlaybackScheduling {
         guard position.isFinite, position >= 0, let currentTrackID else { throw QueueSchedulerError.invalidPosition }
         advance()
         currentPosition = position
+        if let prepareError { throw prepareError }
         preparedTrackIDs.append(currentTrackID)
     }
 

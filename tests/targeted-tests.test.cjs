@@ -104,3 +104,15 @@ test('full player layout includes viewport and nested-sheet evidence in one boun
   assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs'));
   assert(!result.commands[0].includes('-only-testing:AppTests/AudioEngineGraphTests'));
 });
+
+
+test('startup recovery checks remain one bounded native invocation',()=>{
+  const result=plan('--file=ios/App/App/AppContainer.swift',
+    '--file=ios/App/App/Audio/AudioEngineGraph.swift',
+    '--file=ios/App/App/Audio/PlaybackCoordinator.swift','--tier=native');
+  assert.equal(result.commands.length,1);
+  assert(result.commands[0].includes('-only-testing:AppTests/AppContainerTests'));
+  assert(result.commands[0].includes('-only-testing:AppTests/AudioEngineGraphTests'));
+  assert(result.commands[0].includes('-only-testing:AppTests/PlaybackCoordinatorTests'));
+  assert(!result.commands[0].includes('-only-testing:AppUITests/SkyInteractionTests'));
+});

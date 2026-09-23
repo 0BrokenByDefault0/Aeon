@@ -259,6 +259,7 @@ final class PlaybackCoordinator {
                 return
             }
             do {
+                var preparationFailure: Error?
                 scheduler.setReplayGain(mode: replayGainMode, preampDB: replayGainPreampDB)
                 try scheduler.setRepeatMode(repeatMode)
                 if !queue.isEmpty {
@@ -266,9 +267,15 @@ final class PlaybackCoordinator {
                         throw CoordinatorError.invalidQueueIndex
                     }
                     try scheduler.setQueue(queue, index: index, revision: queueRevision)
-                    try scheduler.prepareCurrent(position: position)
+                    do {
+                        try scheduler.prepareCurrent(position: position)
+                        syncSchedulerState()
+                    } catch {
+                        // A restored file/route can be unavailable at launch. Keep the
+                        // queue and position, and allow the next explicit play/load to retry.
+                        preparationFailure = error
+                    }
                     acceptedSchedulerGeneration = scheduler.currentGeneration
-                    syncSchedulerState()
                 } else {
                     trackID = nil
                     queueIndex = nil
@@ -283,7 +290,8 @@ final class PlaybackCoordinator {
                 route = outputFormat?.route
                 initialized = true
                 let snapshot = try publish(eventCode: "ENGINE_INITIALIZED")
-                succeed(snapshot, completion: completion)
+                if let preparationFailure { fail(preparationFailure, completion: completion) }
+                else { succeed(snapshot, completion: completion) }
             } catch {
                 fail(error, completion: completion)
             }

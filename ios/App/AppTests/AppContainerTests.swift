@@ -3,6 +3,24 @@ import XCTest
 
 @MainActor
 final class AppContainerTests: XCTestCase {
+    func testStartupErrorIdentifiesStageWithoutLeakingPersonalPaths() {
+        let native = NSError(domain: NSCocoaErrorDomain, code: 257,
+            userInfo: [NSFilePathErrorKey: "/private/music/Personal Album.wav",
+                       NSLocalizedDescriptionKey: "Secret file path"])
+        do {
+            let _: Void = try AppStartupFailure.perform("catalogue") { throw native }
+            XCTFail("Expected the original failure to remain a failure")
+        } catch {
+            guard let failure = error as? AppStartupFailure else { return XCTFail("Missing startup stage") }
+            XCTAssertEqual(failure.stage, "catalogue")
+            XCTAssertEqual(failure.domain, NSCocoaErrorDomain)
+            XCTAssertEqual(failure.nativeCode, 257)
+            XCTAssertFalse(failure.message.contains("Personal Album"))
+            XCTAssertFalse(failure.message.contains("Secret"))
+            XCTAssertFalse(failure.message.contains("Check available device storage"))
+        }
+    }
+
     func testContainerCreatesOneStableNativeServiceGraph() throws {
         let container = AppContainer.inMemory()
         let services = try XCTUnwrap(container.services)

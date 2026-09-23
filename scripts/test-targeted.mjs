@@ -132,7 +132,11 @@ function plan(args){
     ...(files.some(file=>file.startsWith('ios/App/App/Audio/'))?['AudioEngineGraphTests','PlaybackCoordinatorTests','QueueSchedulerTests','PlaybackStateStoreTests']:[]),
     'PlaybackFlowTests/testSongMenuCreatesPlaylistAndMiniPlayerSurvivesSheetsAndTabs',
     'PlaybackFlowTests/testBundledCorrectionRequiresExactSelectionAndPreviewBeforeApplying'];
-  const nativeFor=area=>modalPlayerIteration?modalPlayerTests:profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
+  const startupFiles=['AppContainer.swift','Audio/AudioEngineGraph.swift','Audio/PlaybackCoordinator.swift'];
+  const startupIteration=!explicit.length&&files.includes('ios/App/App/AppContainer.swift')&&
+    files.filter(file=>file.startsWith('ios/App/App/')).every(file=>startupFiles.includes(file.slice('ios/App/App/'.length)));
+  const startupTests=['AppContainerTests','AudioEngineGraphTests','PlaybackCoordinatorTests','SpectrumAnalyzerTests','RecoveryTests','PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar'];
+  const nativeFor=area=>startupIteration?startupTests:modalPlayerIteration?modalPlayerTests:profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
   const commands=tier==='cheap'
     ?uniqueCommands([
       ['npm','run','check'],

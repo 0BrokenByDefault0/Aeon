@@ -3,6 +3,25 @@ import XCTest
 @testable import App
 
 final class AudioEngineGraphTests: XCTestCase {
+    func testSpectrumRegistrationDoesNotActivateAudioAndFailedActivationCanRetry() throws {
+        var attempts = 0
+        let graph = AudioEngineGraph(outputFormatProvider: {
+            AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)
+        }, activateSession: {
+            attempts += 1
+            if attempts == 1 { throw NSError(domain: "StartupTest", code: 17) }
+        })
+        try graph.installSpectrumTap(bufferSize: 1_024) { _, _ in }
+        XCTAssertEqual(attempts, 0, "A decorative tap must not acquire the route at launch")
+        XCTAssertThrowsError(try graph.configure())
+        XCTAssertEqual(attempts, 1)
+        try graph.configure()
+        XCTAssertEqual(attempts, 2)
+        try graph.configure()
+        XCTAssertEqual(attempts, 2, "Configured playback must not repeatedly activate the session")
+        graph.removeSpectrumTap()
+    }
+
     func testProductionDSPBusFormatsAllocateAtSupportedRates() throws {
         for rate in [44_100.0, 48_000, 96_000] {
             let graph = AudioEngineGraph(outputFormatProvider: {

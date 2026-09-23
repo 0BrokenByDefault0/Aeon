@@ -88,7 +88,9 @@ struct AppServices {
         try fileManager.createDirectory(at: stateRoot, withIntermediateDirectories: true)
         try fileManager.createDirectory(at: diagnosticsRoot, withIntermediateDirectories: true)
 
-        let database = try CatalogDatabase(rootURL: aeonSupport, fileManager: fileManager)
+        let database = try AppStartupFailure.perform("catalogue") {
+            try CatalogDatabase(rootURL: aeonSupport, fileManager: fileManager)
+        }
         let catalog = CatalogRepository(database: database)
         let artwork = try ArtworkStore(
             rootURL: aeonSupport.appendingPathComponent("Artwork", isDirectory: true),
@@ -143,12 +145,13 @@ struct AppServices {
             fileManager: fileManager
         )
         let skyRepository = SkyRepository(catalog: catalog, artworkStore: artwork)
-        try skyRepository.backfill()
+        try AppStartupFailure.perform("sky catalogue preparation") { try skyRepository.backfill() }
         let audioSession = AudioSessionController()
-        try audioSession.activate()
-        let graph = AudioEngineGraph()
-        let spectrumAnalyzer = try SpectrumAnalyzer(source: graph)
-        if startSpectrum { try spectrumAnalyzer.start() }
+        let graph = AudioEngineGraph(activateSession: audioSession.activate)
+        let spectrumAnalyzer = try AppStartupFailure.perform("spectrum setup") { try SpectrumAnalyzer(source: graph) }
+        if startSpectrum {
+            try AppStartupFailure.perform("spectrum registration") { try spectrumAnalyzer.start() }
+        }
         let scheduler = QueueScheduler(graph: graph, resolver: mediaStore, probe: metadataProbe)
         let mediaInfo = NativePlaybackMediaInfoProvider(resolver: mediaStore, probe: metadataProbe)
         let recovery = RecoveryCoordinator(scheduler: scheduler, graph: graph, session: audioSession)
@@ -321,6 +324,31 @@ struct LegacyLibrarySummary: Equatable {
     let artifactCount: Int
 
     var recordCount: Int { counts.values.reduce(0, +) }
+}
+
+/// Keep the failing stage and native code, never file paths or raw localized errors.
+struct AppStartupFailure: Error {
+    let stage: String
+    let domain: String
+    let nativeCode: Int
+
+    init(stage: String, error: Error) {
+        self.stage = stage
+        let native = error as NSError
+        domain = native.domain
+        nativeCode = native.code
+    }
+
+    static func perform<T>(_ stage: String, _ operation: () throws -> T) throws -> T {
+        do { return try operation() }
+        catch CatalogDatabaseError.recoveryRequired(let recovery) {
+            throw CatalogDatabaseError.recoveryRequired(recovery)
+        } catch { throw AppStartupFailure(stage: stage, error: error) }
+    }
+
+    var message: String {
+        "Aeon could not finish \(stage). Your library has not been reset. Retry, or share this error code: \(domain) (\(nativeCode))."
+    }
 }
 
 struct AppRecoveryState: Equatable {
@@ -689,9 +717,10 @@ final class AppContainer: ObservableObject {
             ))
         } catch {
             services = nil
+            let failure = (error as? AppStartupFailure) ?? AppStartupFailure(stage: "file storage setup", error: error)
             launchState = .recovery(AppRecoveryState(
                 code: "startup_failed",
-                message: "Aeon could not open its native storage. Check available device storage, then retry."
+                message: failure.message
             ))
         }
     }
