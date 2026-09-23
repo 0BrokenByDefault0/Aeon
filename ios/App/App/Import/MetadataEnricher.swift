@@ -110,10 +110,37 @@ final class MetadataEnricher {
     }
 }
 
-final class MusicBrainzGenreProvider: ArtistGenreProviding {
-    private let session: URLSession
+/// MusicBrainz asks each application to stay at or below one request per second. Every
+/// lookup, automatic or manual, reserves the next free slot before it is sent, so an adopt
+/// of a large library cannot burst requests and get the device's address throttled.
+actor MusicBrainzRequestGate {
+    static let shared = MusicBrainzRequestGate()
 
-    init(session: URLSession = .shared) { self.session = session }
+    private let interval: TimeInterval
+    private var nextSlot = Date.distantPast
+
+    init(interval: TimeInterval = 1.1) { self.interval = interval }
+
+    func waitForTurn() async throws {
+        let now = Date()
+        let slot = max(now, nextSlot)
+        nextSlot = slot.addingTimeInterval(interval)
+        let delay = slot.timeIntervalSince(now)
+        if delay > 0 { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+    }
+}
+
+final class MusicBrainzGenreProvider: ArtistGenreProviding {
+    /// MusicBrainz identifies clients by application, version and a contact URL.
+    static let userAgent = "Aeon/5.0 ( https://github.com/0brokenbydefault0/aeon )"
+
+    private let session: URLSession
+    private let gate: MusicBrainzRequestGate
+
+    init(session: URLSession = .shared, gate: MusicBrainzRequestGate = .shared) {
+        self.session = session
+        self.gate = gate
+    }
 
     func genre(for canonicalArtist: String) async throws -> String? {
         var searchComponents = URLComponents(string: "https://musicbrainz.org/ws/2/artist/")!
@@ -136,9 +163,10 @@ final class MusicBrainzGenreProvider: ArtistGenreProviding {
     }
 
     private func data(for url: URL) async throws -> Data {
+        try await gate.waitForTurn()
         var request = URLRequest(url: url)
         request.timeoutInterval = 12
-        request.setValue("Aeon/1.0 (native music library metadata)", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return data

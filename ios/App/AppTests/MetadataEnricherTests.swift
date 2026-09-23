@@ -97,6 +97,21 @@ final class MetadataEnricherTests: XCTestCase {
         XCTAssertEqual(try replacement.cachedEntry(for: "Aeon")?.genre, "Electronic")
         XCTAssertEqual(confirmations.map { $0.1 }, ["Electronic", "Electronic"])
     }
+
+    func testMusicBrainzGateSpacesConsecutiveRequests() async throws {
+        let gate = MusicBrainzRequestGate(interval: 0.3)
+        let start = Date()
+        try await gate.waitForTurn()
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.25)
+        try await gate.waitForTurn()
+        try await gate.waitForTurn()
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(start), 0.55)
+    }
+
+    func testMusicBrainzUserAgentCarriesContactURL() {
+        XCTAssertTrue(MusicBrainzGenreProvider.userAgent.hasPrefix("Aeon/"))
+        XCTAssertTrue(MusicBrainzGenreProvider.userAgent.contains("( https://"))
+    }
 }
 
 private final class StubGenreProvider: ArtistGenreProviding {
