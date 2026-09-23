@@ -61,9 +61,17 @@ final class LibraryController: ObservableObject {
     let skyController: SkySceneController
     let metadataEnricher: MetadataEnricher
 
+    private struct PlaybackMarker: Equatable {
+        let trackID: String?
+        let isPlaying: Bool
+    }
+
     private var observation: CatalogObservation?
     private var playbackObservation: AnyCancellable?
     private var thumbnailTasks: [String: Task<Void, Never>] = [:]
+    private var refreshTask: Task<Void, Never>?
+    private var playbackMarker = PlaybackMarker(trackID: nil, isPlaying: false)
+    private var playingAlbumID: String?
 
     init(
         repository: CatalogRepository,
@@ -82,13 +90,20 @@ final class LibraryController: ObservableObject {
         self.skyController = skyController
         self.metadataEnricher = metadataEnricher
         seedFixtureIfNeeded()
-        observation = repository.observeLibrary { [weak self] _ in self?.reload(reset: true) }
-        playbackObservation = playback.$snapshot.sink { [weak self] _ in self?.objectWillChange.send() }
+        observation = repository.observeLibrary { [weak self] _ in self?.scheduleRefresh() }
+        // The position timer publishes twice a second while music plays. The Library only
+        // shows which album is in the player and whether it is playing, so it redraws on
+        // those changes alone.
+        playbackObservation = playback.$snapshot
+            .map { PlaybackMarker(trackID: $0?.trackID, isPlaying: $0?.intent == .playing) }
+            .removeDuplicates()
+            .sink { [weak self] marker in self?.acceptPlayback(marker) }
         reload(reset: true)
     }
 
     deinit {
         observation?.cancel()
+        refreshTask?.cancel()
         thumbnailTasks.values.forEach { $0.cancel() }
     }
 
@@ -96,10 +111,9 @@ final class LibraryController: ObservableObject {
     var isSearching: Bool { !CatalogRepository.normalize(query).isEmpty }
 
     var continueAlbum: CatalogAlbumSummary? {
-        guard let trackID = playback.snapshot?.trackID,
-              let track = try? repository.track(id: trackID) else { return nil }
-        return albums.first { $0.id == track.albumID }
-            ?? (try? repository.albumSummary(id: track.albumID)) ?? nil
+        guard let albumID = playingAlbumID else { return nil }
+        return albums.first { $0.id == albumID }
+            ?? (try? repository.albumSummary(id: albumID)) ?? nil
     }
 
     func setSort(_ value: Sort) {
@@ -121,7 +135,8 @@ final class LibraryController: ObservableObject {
             totalCount = try repository.albumCount()
             let offset = reset ? 0 : albums.count
             let page = try repository.albumPage(offset: offset, limit: Self.pageSize, sort: sort.repositorySort)
-            albums.append(contentsOf: page.filter { next in !albums.contains { $0.id == next.id } })
+            let loadedIDs = Set(albums.map(\.id))
+            albums.append(contentsOf: page.filter { !loadedIDs.contains($0.id) })
             loadState = .ready
             prefetchArtwork(for: page)
             if isSearching { performSearch() }
@@ -153,11 +168,8 @@ final class LibraryController: ObservableObject {
     }
 
     func status(for albumID: String) -> String? {
-        guard let snapshot = playback.snapshot,
-              let trackID = snapshot.trackID,
-              let track = try? repository.track(id: trackID),
-              track.albumID == albumID else { return nil }
-        return snapshot.intent == .playing ? "PLAYING" : "IN THE PLAYER"
+        guard let playingAlbumID, playingAlbumID == albumID else { return nil }
+        return playbackMarker.isPlaying ? "PLAYING" : "IN THE PLAYER"
     }
 
     func playAlbum(id: String, startingTrackID: String? = nil) {
@@ -311,6 +323,53 @@ final class LibraryController: ObservableObject {
         switch track.mediaReference {
         case .unavailable, .legacyBlob: return "FILE UNAVAILABLE"
         case .native, .documents, .externalBookmark: return nil
+        }
+    }
+
+    private func acceptPlayback(_ marker: PlaybackMarker) {
+        objectWillChange.send()
+        if marker.trackID != playbackMarker.trackID || playingAlbumID == nil {
+            playingAlbumID = marker.trackID.flatMap { trackID in
+                (try? repository.track(id: trackID))?.albumID
+            }
+        }
+        playbackMarker = marker
+    }
+
+    /// Catalogue writes arrive in bursts: every committed album during an import, every
+    /// recorded play. Coalesce them into one refresh that keeps the albums already loaded,
+    /// so the grid neither collapses to its first page nor loses its scroll position.
+    private func scheduleRefresh() {
+        guard refreshTask == nil else { return }
+        refreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.refreshTask = nil
+            self.refreshLoadedAlbums()
+        }
+    }
+
+    private func refreshLoadedAlbums() {
+        do {
+            let target = max(albums.count, Self.pageSize)
+            var refreshed: [CatalogAlbumSummary] = []
+            var seen = Set<String>()
+            var offset = 0
+            while offset < target {
+                let limit = min(CatalogDatabase.maximumPageSize, target - offset)
+                let page = try repository.albumPage(offset: offset, limit: limit, sort: sort.repositorySort)
+                offset += page.count
+                refreshed.append(contentsOf: page.filter { seen.insert($0.id).inserted })
+                if page.count < limit { break }
+            }
+            totalCount = try repository.albumCount()
+            albums = refreshed
+            loadState = .ready
+            prefetchArtwork(for: refreshed)
+            if isSearching { performSearch() }
+            if let id = selectedAlbum?.id { selectAlbum(id: id) }
+        } catch {
+            loadState = .failed("The library could not be read. Your catalogue was not changed.")
         }
     }
 
