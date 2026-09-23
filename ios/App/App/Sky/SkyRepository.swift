@@ -13,6 +13,20 @@ final class SkyRepository {
     private let composer: SkyComposer
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    /// Backfill, rechart and delete each read the whole sky, compose, then rewrite it.
+    /// Imports run backfill off the main thread, so the cycles are serialized here.
+    private let rewriteLock = NSRecursiveLock()
+
+    private struct CachedSamples {
+        let stamp: String
+        let samples: [SkyColor]
+    }
+
+    /// Every compose re-derives star colours from artwork. Samples are cached by artwork
+    /// key, file date and size, so a replaced cover is decoded again and an unchanged one
+    /// is decoded once per launch rather than on every import, edit and delete.
+    private let sampleCacheLock = NSLock()
+    private var sampleCache: [String: CachedSamples] = [:]
 
     init(catalog: CatalogRepository, artworkStore: ArtworkStore? = nil, composer: SkyComposer = SkyComposer()) {
         self.catalog = catalog
@@ -50,11 +64,13 @@ final class SkyRepository {
 
     @discardableResult
     func backfill(inputs: [SkyAlbumInput]? = nil) throws -> SkyCatalogue {
-        let existing = try catalogue()
-        let source = try inputs ?? catalogInputs()
-        let composed = try composer.compose(albums: source, preserving: existing)
-        try persist(composed, preserving: existing)
-        return composed
+        try serializedRewrite { () throws -> SkyCatalogue in
+            let existing = try catalogue()
+            let source = try inputs ?? catalogInputs()
+            let composed = try composer.compose(albums: source, preserving: existing)
+            try persist(composed, preserving: existing)
+            return composed
+        }
     }
 
     func affectedAlbumCount(for updatedAlbum: CatalogAlbum) throws -> Int {
@@ -68,6 +84,12 @@ final class SkyRepository {
 
     @discardableResult
     func rechart(updatedAlbum: CatalogAlbum) throws -> SkyCatalogue {
+        try serializedRewrite { () throws -> SkyCatalogue in
+            try rechartUnlocked(updatedAlbum: updatedAlbum)
+        }
+    }
+
+    private func rechartUnlocked(updatedAlbum: CatalogAlbum) throws -> SkyCatalogue {
         let existing = try catalogue()
         let source = try catalogInputs(replacing: updatedAlbum)
         let oldKey = existing.stars.first { $0.albumID == updatedAlbum.id }?.artistKey
@@ -93,6 +115,12 @@ final class SkyRepository {
 
     @discardableResult
     func deleteAlbum(id: String) throws -> Bool {
+        try serializedRewrite { () throws -> Bool in
+            try deleteAlbumUnlocked(id: id)
+        }
+    }
+
+    private func deleteAlbumUnlocked(id: String) throws -> Bool {
         let existing = try catalogue()
         let source = try catalogInputs(deletingAlbumID: id)
         let retainedPlanets = existing.planets.compactMap { planet -> SkyPlanet? in
@@ -123,6 +151,12 @@ final class SkyRepository {
             records: rewrite.records,
             deletingSkyRecordIDs: rewrite.deletingIDs
         )
+    }
+
+    private func serializedRewrite<Value>(_ body: () throws -> Value) rethrows -> Value {
+        rewriteLock.lock()
+        defer { rewriteLock.unlock() }
+        return try body()
     }
 
     private func catalogInputs(
@@ -226,6 +260,21 @@ final class SkyRepository {
     }
 
     private func artworkSamples(for key: String?) -> [SkyColor] {
+        guard let key, let artworkStore, let url = try? artworkStore.url(forKey: key) else { return [] }
+        let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+        let stamp = "\(values?.contentModificationDate?.timeIntervalSinceReferenceDate ?? -1)|\(values?.fileSize ?? -1)"
+        sampleCacheLock.lock()
+        let cached = sampleCache[key]
+        sampleCacheLock.unlock()
+        if let cached, cached.stamp == stamp { return cached.samples }
+        let samples = decodedArtworkSamples(for: key)
+        sampleCacheLock.lock()
+        sampleCache[key] = CachedSamples(stamp: stamp, samples: samples)
+        sampleCacheLock.unlock()
+        return samples
+    }
+
+    private func decodedArtworkSamples(for key: String?) -> [SkyColor] {
         guard let key, let artworkStore,
               let url = try? artworkStore.url(forKey: key),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil),

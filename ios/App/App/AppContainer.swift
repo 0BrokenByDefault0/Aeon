@@ -145,7 +145,14 @@ struct AppServices {
             fileManager: fileManager
         )
         let skyRepository = SkyRepository(catalog: catalog, artworkStore: artwork)
-        try AppStartupFailure.perform("sky catalogue preparation") { try skyRepository.backfill() }
+        do {
+            try skyRepository.backfill()
+        } catch {
+            // The sky is derived from the catalogue and is recomposed after the next import.
+            // Like audio, it must not keep the Library closed; record the stage and continue.
+            let failure = AppStartupFailure(stage: "sky catalogue preparation", error: error)
+            try? diagnostics.record(eventCode: "startup.sky_backfill_failed.\(failure.domain).\(failure.nativeCode)")
+        }
         let audioSession = AudioSessionController()
         let graph = AudioEngineGraph(activateSession: audioSession.activate)
         let spectrumAnalyzer = try AppStartupFailure.perform("spectrum setup") { try SpectrumAnalyzer(source: graph) }
@@ -403,6 +410,7 @@ final class AppContainer: ObservableObject {
     private let cleanupFileManager: FileManager
     private var libraryImportTask: Task<Void, Never>?
     private var libraryImportCancellation: LibraryImportCancellation?
+    private var libraryImportToken: UUID?
     private let processEraseToken = UUID().uuidString
 
     private enum LibraryImportSource: Equatable, Sendable {
@@ -536,6 +544,10 @@ final class AppContainer: ObservableObject {
         } else {
             effectiveMode = mode
         }
+        let importToken = UUID()
+        let skyRepository = resolvedServices.skyRepository
+        let diagnostics = resolvedServices.diagnosticsLog
+        libraryImportToken = importToken
         libraryImportCancellation = cancellation
         libraryImportProgress = LibraryImportProgress(
             phase: .scanning,
@@ -551,21 +563,31 @@ final class AppContainer: ObservableObject {
         }
         libraryImportTask = Task { [weak self] in
             do {
-                let result = try await Task.detached(priority: .userInitiated) {
+                let result = try await Task.detached(priority: .userInitiated) { () async throws -> LibraryImportResult in
+                    let result: LibraryImportResult
                     if source == .adoptedMusicRoot {
-                        return try await importer.adoptMusicLibrary(cancellation: cancellation) { progress in
-                            Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
+                        result = try await importer.adoptMusicLibrary(cancellation: cancellation) { progress in
+                            Task { @MainActor [weak self] in self?.acceptLibraryImportProgress(progress, token: importToken) }
+                        }
+                    } else {
+                        result = try await importer.importURLs(
+                            urls,
+                            mode: effectiveMode,
+                            cancellation: cancellation
+                        ) { progress in
+                            Task { @MainActor [weak self] in self?.acceptLibraryImportProgress(progress, token: importToken) }
                         }
                     }
-                    return try await importer.importURLs(
-                        urls,
-                        mode: effectiveMode,
-                        cancellation: cancellation
-                    ) { progress in
-                        Task { @MainActor [weak self] in self?.libraryImportProgress = progress }
+                    // Charting decodes artwork for every album, so it stays off the main thread.
+                    // The albums are already committed: a sky failure is logged rather than
+                    // reported as a failed import, and the next backfill charts them.
+                    do {
+                        try skyRepository.backfill()
+                    } catch {
+                        try? diagnostics.record(eventCode: "library.import.sky_backfill_failed")
                     }
+                    return result
                 }.value
-                _ = try self?.services?.skyRepository.backfill()
                 self?.services?.skySceneController.reload()
                 self?.libraryImportResult = result
                 if source == .adoptedMusicRoot {
@@ -590,10 +612,18 @@ final class AppContainer: ObservableObject {
                     ? "The library scan stopped before the next album could be catalogued. Your music files were not changed."
                     : "Import stopped before the next album could be committed. Select the same source to resume."
             }
+            self?.libraryImportToken = nil
             self?.libraryImportProgress = nil
             self?.libraryImportCancellation = nil
             self?.libraryImportTask = nil
         }
+    }
+
+    /// Progress hops to the main actor in separate tasks, so one can arrive after its
+    /// import has finished. Only the running import may move the progress bar.
+    private func acceptLibraryImportProgress(_ progress: LibraryImportProgress, token: UUID) {
+        guard libraryImportToken == token else { return }
+        libraryImportProgress = progress
     }
 
     func cancelLibraryImport() {
@@ -612,6 +642,8 @@ final class AppContainer: ObservableObject {
     func eraseEverything() -> Bool {
         guard let roots, let currentServices = services else { return false }
         currentServices.playbackController.pause()
+        // The replacement services start their own analyser; stop the old one's timer.
+        currentServices.spectrumAnalyzer.stop()
         currentServices.catalogDatabase.close()
         launchState = .launching
         services = nil

@@ -182,6 +182,9 @@ struct AeonRootView: View {
                     importFiles: { requestPicker(.audioFiles) },
                     adoptLibrary: { container.adoptMusicLibrary() }
                 )
+                // Erase replaces every service. A new identity rebuilds the shell's
+                // controllers instead of keeping ones bound to the closed catalogue.
+                .id(ObjectIdentifier(services.catalogDatabase))
             }
         case .recovery(let issue):
             VStack(spacing: 18) {
