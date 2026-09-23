@@ -136,7 +136,12 @@ function plan(args){
   const startupIteration=!explicit.length&&files.includes('ios/App/App/AppContainer.swift')&&
     files.filter(file=>file.startsWith('ios/App/App/')).every(file=>startupFiles.includes(file.slice('ios/App/App/'.length)));
   const startupTests=['AppContainerTests','AudioEngineGraphTests','PlaybackCoordinatorTests','SpectrumAnalyzerTests','RecoveryTests','PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar'];
-  const nativeFor=area=>startupIteration?startupTests:modalPlayerIteration?modalPlayerTests:profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
+  const skyLabelPlayerFiles=['Features/Sky/SkyScreen.swift','Features/Player/PlayerBar.swift'];
+  const skyLabelPlayerIteration=!explicit.length&&files.includes('ios/App/App/Features/Sky/SkyScreen.swift')&&
+    files.includes('ios/App/App/Features/Player/PlayerBar.swift')&&
+    files.filter(file=>file.startsWith('ios/App/App/')).every(file=>skyLabelPlayerFiles.includes(file.slice('ios/App/App/'.length)));
+  const skyLabelPlayerTests=['SkyCameraTests','SkyComposerTests','DesignTokenTests','PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar'];
+  const nativeFor=area=>skyLabelPlayerIteration?skyLabelPlayerTests:startupIteration?startupTests:modalPlayerIteration?modalPlayerTests:profilePlayerIteration?profilePlayerTests[area]:area==='playback'&&dspIteration?focusedDSP:routes[area].native;
   const commands=tier==='cheap'
     ?uniqueCommands([
       ['npm','run','check'],

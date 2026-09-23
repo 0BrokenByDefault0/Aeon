@@ -116,3 +116,14 @@ test('startup recovery checks remain one bounded native invocation',()=>{
   assert(result.commands[0].includes('-only-testing:AppTests/PlaybackCoordinatorTests'));
   assert(!result.commands[0].includes('-only-testing:AppUITests/SkyInteractionTests'));
 });
+
+
+test('Sky hierarchy and mini transport share one focused native stage',()=>{
+  const result=plan('--file=ios/App/App/Features/Sky/SkyScreen.swift',
+    '--file=ios/App/App/Features/Player/PlayerBar.swift','--tier=native');
+  assert.equal(result.commands.length,1);
+  assert(result.commands[0].includes('-only-testing:AppTests/SkyCameraTests'));
+  assert(result.commands[0].includes('-only-testing:AppTests/SkyComposerTests'));
+  assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar'));
+  assert(!result.commands[0].includes('-only-testing:AppUITests/AeonScreenMatrixTests'));
+});

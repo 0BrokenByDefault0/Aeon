@@ -56,6 +56,13 @@ final class PlaybackFlowTests: XCTestCase {
         let app = launch()
         let mini = assertSingleReachableMiniPlayer(in: app)
         let originalTitle = mini.label
+        XCTAssertTrue(app.buttons["aeon.player.previous"].isHittable)
+        app.buttons["aeon.player.next"].tap()
+        let changed = NSPredicate { _, _ in mini.label != originalTitle }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: changed, object: nil)], timeout: 4), .completed)
+        app.buttons["aeon.player.previous"].tap()
+        let restored = NSPredicate { _, _ in mini.label == originalTitle }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: restored, object: nil)], timeout: 4), .completed)
         let bar = app.descendants(matching: .any)["aeon.player.bar"]
         XCTAssertLessThanOrEqual(bar.frame.height, 80)
         mini.tap()

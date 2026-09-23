@@ -115,6 +115,34 @@ final class SkyCameraTests: XCTestCase {
         }
     }
 
+    func testDenseConstellationLabelClearsItsMembers() throws {
+        let viewport = CGSize(width: 390, height: 844)
+        let bounds = CGRect(x: 0, y: 120, width: 390, height: 600)
+        let points = stride(from: 120, through: 270, by: 25).flatMap { x in
+            stride(from: 300, through: 450, by: 25).map { y in CGPoint(x: CGFloat(x), y: CGFloat(y)) }
+        }
+        let candidate = try XCTUnwrap(SkyLabelLayout.groupCandidate(id: "artist-sza", text: "SZA",
+            isRegion: false, points: points, usableBounds: bounds, opacity: 1))
+        let obstacles = points.map { CGRect(x: $0.x - 9, y: $0.y - 9, width: 18, height: 18) }
+        let labels = SkyLabelLayout.place([candidate], viewport: viewport, obstacles: obstacles, usableBounds: bounds)
+        let label = try XCTUnwrap(labels.first)
+        XCTAssertEqual(label.text, "SZA")
+        XCTAssertTrue(bounds.contains(label.frame))
+        XCTAssertFalse(obstacles.contains { $0.insetBy(dx: -8, dy: -6).intersects(label.frame) })
+    }
+
+    func testPartlyVisibleRegionUsesItsVisibleMembersAndBlockedLabelsDoNotConsumeBudget() throws {
+        let viewport = CGSize(width: 390, height: 844)
+        let bounds = CGRect(x: 0, y: 120, width: 390, height: 600)
+        let group = try XCTUnwrap(SkyLabelLayout.groupCandidate(id: "region-soul", text: "SOUL",
+            isRegion: true, points: [CGPoint(x: -900, y: 350), CGPoint(x: 300, y: 350)],
+            usableBounds: bounds, opacity: 1))
+        XCTAssertEqual(group.anchor, CGPoint(x: 300, y: 350))
+        let blocked = SkyLabelLayout.Candidate(id: "blocked", text: "Hidden", anchor: CGPoint(x: -900, y: -900), isRegion: false)
+        let labels = SkyLabelLayout.place([blocked, group], viewport: viewport, usableBounds: bounds, limit: 1)
+        XCTAssertEqual(labels.map(\.id), ["region-soul"])
+    }
+
     func testSkyLabelPlacementKeepsReadoutsOnscreenAndCollisionFree() {
         let candidates = (0..<8).map { index in
             SkyLabelLayout.Candidate(

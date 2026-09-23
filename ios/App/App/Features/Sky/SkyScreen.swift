@@ -212,20 +212,22 @@ private struct SkyLabelOverlay: View {
             for region in controller.catalogue.regions {
                 let points = controller.catalogue.stars.filter { $0.regionID == region.id }.map(\.coordinate)
                 guard !points.isEmpty else { continue }
-                let center = SkyPoint(x: Int32(points.map { Int64($0.x) }.reduce(0, +) / Int64(points.count)),
-                                      y: Int32(points.map { Int64($0.y) }.reduce(0, +) / Int64(points.count)))
-                candidates.append(.init(id: "region-" + region.id, text: region.name.uppercased(),
-                    anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: true, opacity: disclosure.region))
+                if let candidate = SkyLabelLayout.groupCandidate(
+                    id: "region-" + region.id, text: region.name.uppercased(), isRegion: true,
+                    points: points.map { camera.screenPoint(for: $0, viewport: resolvedViewport) },
+                    usableBounds: controller.usableSkyBounds, opacity: disclosure.region
+                ) { candidates.append(candidate) }
             }
         }
         if disclosure.artist > 0 {
             for artist in controller.catalogue.constellations {
                 let members = artist.albumIDs.compactMap { starByID[$0]?.coordinate }
                 guard !members.isEmpty else { continue }
-                let center = SkyPoint(x: Int32(members.map { Int64($0.x) }.reduce(0, +) / Int64(members.count)),
-                                      y: Int32(members.map { Int64($0.y) }.reduce(0, +) / Int64(members.count)))
-                candidates.append(.init(id: "artist-" + artist.id, text: artist.artistName,
-                    anchor: camera.screenPoint(for: center, viewport: resolvedViewport), isRegion: false, opacity: disclosure.artist))
+                if let candidate = SkyLabelLayout.groupCandidate(
+                    id: "artist-" + artist.id, text: artist.artistName, isRegion: false,
+                    points: members.map { camera.screenPoint(for: $0, viewport: resolvedViewport) },
+                    usableBounds: controller.usableSkyBounds, opacity: disclosure.artist
+                ) { candidates.append(candidate) }
             }
         }
         if disclosure.album > 0 {
@@ -245,8 +247,8 @@ private struct SkyLabelOverlay: View {
                 let right = hypot($1.anchor.x - viewport.width / 2, $1.anchor.y - viewport.height / 2)
                 return left == right ? $0.id < $1.id : left < right
             }
-        return SkyLabelLayout.place(Array(visible.prefix(camera.scale < 0.65 ? 5 : 10)), viewport: viewport,
-                                    obstacles: obstacles, usableBounds: controller.usableSkyBounds)
+        return SkyLabelLayout.place(visible, viewport: viewport, obstacles: obstacles,
+                                    usableBounds: controller.usableSkyBounds, limit: camera.scale < 0.65 ? 5 : 10)
     }
 }
 
@@ -273,6 +275,7 @@ enum SkyLabelLayout {
         let anchor: CGPoint
         let isRegion: Bool
         var opacity: Double = 1
+        var memberBounds: CGRect? = nil
     }
 
     struct Placed: Identifiable, Equatable {
@@ -284,26 +287,57 @@ enum SkyLabelLayout {
         var opacity: Double = 1
     }
 
-    static func place(_ candidates: [Candidate], viewport: CGSize, obstacles: [CGRect] = [], usableBounds: CGRect? = nil) -> [Placed] {
+    /// Label the visible members, rather than discarding a partly visible group
+    /// because its world-space centroid is outside the viewport.
+    static func groupCandidate(id: String, text: String, isRegion: Bool, points: [CGPoint],
+                               usableBounds: CGRect, opacity: Double) -> Candidate? {
+        let visible = points.filter { usableBounds.contains($0) }
+        guard let first = visible.first else { return nil }
+        let memberBounds = visible.dropFirst().reduce(CGRect(origin: first, size: .zero)) { bounds, point in
+            CGRect(x: min(bounds.minX, point.x), y: min(bounds.minY, point.y),
+                   width: max(bounds.maxX, point.x) - min(bounds.minX, point.x),
+                   height: max(bounds.maxY, point.y) - min(bounds.minY, point.y))
+        }
+        return Candidate(id: id, text: text,
+                         anchor: CGPoint(x: memberBounds.midX, y: memberBounds.midY),
+                         isRegion: isRegion, opacity: opacity, memberBounds: memberBounds)
+    }
+
+    static func place(_ candidates: [Candidate], viewport: CGSize, obstacles: [CGRect] = [], usableBounds: CGRect? = nil, limit: Int = .max) -> [Placed] {
         let bounds = (usableBounds ?? CGRect(origin: .zero, size: viewport)).insetBy(dx: 8, dy: 8)
         guard bounds.width > 0, bounds.height > 0 else { return [] }
         var occupied: [CGRect] = obstacles
         var placed: [Placed] = []
-        for candidate in candidates {
+        // Bound collision work, but count successful labels rather than blocked candidates.
+        for candidate in candidates.prefix(64) {
+            if placed.count >= limit { break }
             let width = min(220, max(54, CGFloat(candidate.text.count) * (candidate.isRegion ? 9.2 : 7.5) + 8))
             let size = CGSize(width: width, height: candidate.isRegion ? 28 : 22)
             let distance: CGFloat = candidate.isRegion ? 34 : 26
-            let offsets = [
+            var offsets = [
                 CGPoint(x: 0, y: distance), CGPoint(x: 0, y: -distance),
                 CGPoint(x: width / 2 + 18, y: 0), CGPoint(x: -width / 2 - 18, y: 0)
             ]
+            if let members = candidate.memberBounds {
+                // Dense constellations can block every near-centre slot. Put the
+                // hierarchy name beside its actual visible envelope, not over stars.
+                let horizontal = members.width / 2 + width / 2 + 22
+                let vertical = members.height / 2 + size.height / 2 + 20
+                offsets += [CGPoint(x: 0, y: -vertical), CGPoint(x: 0, y: vertical),
+                            CGPoint(x: horizontal, y: 0), CGPoint(x: -horizontal, y: 0)]
+            }
             guard let frame = offsets.lazy.map({ offset in
-                CGRect(
+                var frame = CGRect(
                     x: candidate.anchor.x + offset.x - size.width / 2,
                     y: candidate.anchor.y + offset.y - size.height / 2,
                     width: size.width,
                     height: size.height
                 )
+                if candidate.memberBounds != nil {
+                    frame.origin.x = max(bounds.minX, min(frame.minX, bounds.maxX - frame.width))
+                    frame.origin.y = max(bounds.minY, min(frame.minY, bounds.maxY - frame.height))
+                }
+                return frame
             }).first(where: { frame in
                 bounds.contains(frame) && !occupied.contains(where: { $0.insetBy(dx: -8, dy: -6).intersects(frame) })
             }) else { continue }

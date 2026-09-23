@@ -74,6 +74,12 @@ struct PlayerBar: View {
                 .accessibilityIdentifier("aeon.player.open")
 
                 transportButton(
+                    .previous,
+                    label: "Previous track",
+                    identifier: "aeon.player.previous",
+                    action: playback.previous
+                )
+                transportButton(
                     snapshot.intent == .playing ? .pause : .play,
                     label: snapshot.intent == .playing ? "Pause" : "Play",
                     identifier: "aeon.player.toggle",
