@@ -74,6 +74,7 @@ struct AppServices {
     let playbackController: PlaybackController
     let remoteCommandCoordinator: RemoteCommandCoordinator
     let skySceneController: SkySceneController
+    let spotlightIndexer: SpotlightIndexer
 
     @MainActor
     static func production(
@@ -159,7 +160,10 @@ struct AppServices {
         if startSpectrum {
             try AppStartupFailure.perform("spectrum registration") { try spectrumAnalyzer.start() }
         }
+        graph.preferHardwareSampleRate = { [weak audioSession] rate in audioSession?.preferSampleRate(rate) }
         let scheduler = QueueScheduler(graph: graph, resolver: mediaStore, probe: metadataProbe)
+        let storedPreferences = try? catalog.setting(AeonPreferences.self, forKey: SettingsController.preferencesKey)
+        scheduler.setMatchesSourceSampleRate(storedPreferences?.matchSourceSampleRate ?? false)
         let mediaInfo = NativePlaybackMediaInfoProvider(resolver: mediaStore, probe: metadataProbe)
         let recovery = RecoveryCoordinator(scheduler: scheduler, graph: graph, session: audioSession)
         let coordinator = PlaybackCoordinator(
@@ -188,6 +192,9 @@ struct AppServices {
             spectrum: spectrumAnalyzer
         )
         playbackController.start()
+        let spotlightIndexer = SpotlightIndexer(catalog: catalog)
+        // Fixture launches never touch the device's real search index.
+        if startPlayback { spotlightIndexer.setEnabled(storedPreferences?.spotlightAlbums ?? false) }
         if let marker = ProcessInfo.processInfo.arguments.firstIndex(of: "-AeonPlaybackFixture"),
            ProcessInfo.processInfo.arguments.indices.contains(marker + 1),
            ProcessInfo.processInfo.arguments[marker + 1] == "error" {
@@ -225,7 +232,8 @@ struct AppServices {
             recoveryCoordinator: recovery,
             playbackController: playbackController,
             remoteCommandCoordinator: remoteCommands,
-            skySceneController: skySceneController
+            skySceneController: skySceneController,
+            spotlightIndexer: spotlightIndexer
         )
     }
 
@@ -644,6 +652,8 @@ final class AppContainer: ObservableObject {
         currentServices.playbackController.pause()
         // The replacement services start their own analyser; stop the old one's timer.
         currentServices.spectrumAnalyzer.stop()
+        // Nothing erased should stay findable from system search.
+        currentServices.spotlightIndexer.setEnabled(false)
         currentServices.catalogDatabase.close()
         launchState = .launching
         services = nil

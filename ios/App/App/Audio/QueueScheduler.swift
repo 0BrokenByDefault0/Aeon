@@ -50,10 +50,13 @@ protocol QueueSchedulingGraph: AnyObject {
     func cancelScheduledPlayback()
     func closeScheduledFile(slot: AudioSlot)
     func setReplayGain(_ scalar: Float, slot: AudioSlot)
+    /// Called only while nothing is scheduled, before a fresh timeline starts at frame 0.
+    func matchOutputRate(toSource rate: Double)
 }
 
 extension QueueSchedulingGraph {
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {}
+    func matchOutputRate(toSource rate: Double) {}
 }
 
 final class QueueScheduler {
@@ -90,6 +93,7 @@ final class QueueScheduler {
     private var replayGainMode: ReplayGainMode = .off
     private var replayGainPreampDB: Double = 0
     private var repeatMode: RepeatMode = .off
+    private var matchesSourceSampleRate = false
 
     /// Events arrive on the main queue, outside the scheduling serialization domain.
     var onEvent: ((SchedulerEvent) -> Void)? {
@@ -146,6 +150,12 @@ final class QueueScheduler {
             reachedEnd = false
             slot = .a
         }
+    }
+
+    /// Opt-in: ask the hardware for each explicitly started track's own rate. The rate is
+    /// only ever changed at a fresh prepare, never at a gapless handoff between tracks.
+    func setMatchesSourceSampleRate(_ enabled: Bool) {
+        confined { matchesSourceSampleRate = enabled }
     }
 
     func prepareCurrent(position: Double) throws {
@@ -318,12 +328,23 @@ final class QueueScheduler {
         reachedEnd = false
         self.position = position
         retainedSourceFrame = exactFrame
+        if matchesSourceSampleRate, let rate = sourceSampleRate(of: items[index]) {
+            graph.matchOutputRate(toSource: rate)
+        }
         do { outputRate = try graph.schedulingSampleRate() }
         catch { throw QueueSchedulerError.preparation(.graphSetup, trackID: items[index].trackID, error: error) }
         guard outputRate.isFinite, outputRate > 0 else { throw QueueSchedulerError.invalidAudioFormat }
         current = try prepareItem(index: index, slot: slot, position: position, outputFrame: 0, exactFrame: exactFrame)
         if let current { self.position = min(position, Double(current.file.frameCount) / current.file.sampleRate) }
         try prepareFollowing()
+    }
+
+    private func sourceSampleRate(of item: QueueItem) -> Double? {
+        guard let url = try? resolver.resolve(item.mediaRef) else { return nil }
+        defer { resolver.release(url) }
+        guard case .playable(let media) = probe(url), let rate = media.descriptor.sampleRate,
+              rate.isFinite, rate > 0 else { return nil }
+        return rate
     }
 
     private func prepareItem(index: Int, slot: AudioSlot, position: Double, outputFrame: Int64, exactFrame: Int64? = nil) throws -> Prepared {

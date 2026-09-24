@@ -57,6 +57,10 @@ struct SettingsScreen: View {
                             note("Uses ReplayGain tags already in your files, so quiet records stop disappearing between loud ones. Nothing is analysed or written; untagged tracks play untouched.")
                         }
                         .padding(.bottom, AeonTheme.Space.regular).rowDivider()
+                        orbitalToggle(title: "Match source sample rate",
+                            detail: "Asks iOS to run the output at each record's own rate so 44.1 kHz and hi-res files are not resampled. Applies when playback starts or you skip, never mid-album. Some Bluetooth routes decline.",
+                            isOn: Binding(get: { controller.preferences.matchSourceSampleRate }, set: controller.setMatchSourceSampleRate),
+                            identifier: "aeon.settings.match-sample-rate")
                         settingsNavigationRow(title: "Equalizer", value: "10 BANDS",
                             detail: "Ten bands, ±12 dB, with automatic headroom so boosts cannot clip.",
                             identifier: "aeon.settings.eq.open", showsDivider: false) { openNowPlaying(.equalizer) }
@@ -70,6 +74,10 @@ struct SettingsScreen: View {
                             detail: "Off by default. When enabled, missing album titles and artist names are sent to Apple and MusicBrainz after an import to find tags and artwork. Only those words are sent, never your files.",
                             isOn: Binding(get: { controller.preferences.metadataLookups }, set: controller.setMetadataLookups),
                             identifier: "aeon.settings.metadata-lookups")
+                        orbitalToggle(title: "Show albums in Spotlight",
+                            detail: "Off by default. Adds album titles, artists and genres to this iPhone's search index so a record opens from system search. The index stays on this device.",
+                            isOn: Binding(get: { controller.preferences.spotlightAlbums }, set: controller.setSpotlightAlbums),
+                            identifier: "aeon.settings.spotlight")
                         settingsNavigationRow(title: "Artwork", value: "REPAIR",
                             detail: "Re-checks covers. Interrupted work resumes where it stopped.",
                             identifier: "aeon.settings.artwork-repair", glyph: .refresh, action: { controller.repairArtwork() })

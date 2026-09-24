@@ -13,7 +13,9 @@ struct AeonApp: App {
         let deterministicFixture = arguments.contains("-AeonSkyFixture")
             || arguments.contains("-AeonLibraryFixture")
             || arguments.contains("-AeonPlaybackFixture")
-        _container = StateObject(wrappedValue: deterministicFixture ? AppContainer.inMemory() : AppContainer.production())
+        let container = deterministicFixture ? AppContainer.inMemory() : AppContainer.production()
+        AeonRuntime.container = container
+        _container = StateObject(wrappedValue: container)
     }
 
     var body: some Scene {

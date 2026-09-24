@@ -17,6 +17,19 @@ final class AudioTagReaderTests: XCTestCase {
 
     override func tearDownWithError() throws { try? FileManager.default.removeItem(at: root) }
 
+    func testUnsynchronisedLyricsFrameSkipsLanguageAndDescriptor() {
+        var latin = Data([0]) + Data("eng".utf8) + Data("desc".utf8) + Data([0])
+        latin += Data("First line\r\nSecond line\n".utf8)
+        XCTAssertEqual(AudioTagReader.id3UnsynchronisedLyrics(latin), "First line\nSecond line")
+
+        var utf16 = Data([1]) + Data("eng".utf8) + Data([0xff, 0xfe, 0, 0])
+        utf16 += "Caf\u{e9}".data(using: .utf16) ?? Data()
+        XCTAssertEqual(AudioTagReader.id3UnsynchronisedLyrics(utf16), "Caf\u{e9}")
+
+        XCTAssertNil(AudioTagReader.id3UnsynchronisedLyrics(Data([3]) + Data("eng".utf8) + Data([0])))
+        XCTAssertNil(AudioTagReader.cleanLyrics("  \n "))
+    }
+
     func testSupportedImportFormatsAreExplicit() {
         XCTAssertEqual(
             AudioTagReader.supportedExtensions,

@@ -99,6 +99,135 @@ final class AudioTagReader: AudioTagReading {
         return tags
     }
 
+    /// Unsynchronised lyrics embedded in the file itself: ID3 USLT, Vorbis LYRICS or
+    /// UNSYNCEDLYRICS, and the MP4 lyrics atom. Nothing is fetched from a network.
+    func readLyrics(url: URL) async -> String? {
+        guard fileManager.fileExists(atPath: url.path) else { return nil }
+        let fileExtension = url.pathExtension.lowercased()
+        switch fileExtension {
+        case "mp3", "aac":
+            if let lyrics = try? readID3Lyrics(url: url) { return lyrics }
+        case "flac":
+            if let lyrics = try? readFLACLyrics(url: url) { return lyrics }
+        default: break
+        }
+        let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: false])
+        if let lyrics = try? await asset.load(.lyrics), let cleaned = Self.cleanLyrics(lyrics) { return cleaned }
+        guard let formats = try? await asset.load(.availableMetadataFormats) else { return nil }
+        for format in formats.prefix(12) {
+            guard let items = try? await asset.loadMetadata(for: format) else { continue }
+            for item in items {
+                let identity = [item.identifier?.rawValue, item.key as? String]
+                    .compactMap { $0 }.joined(separator: " ").lowercased()
+                guard identity.contains("lyr") || identity.contains("uslt") else { continue }
+                if let text = Self.cleanLyrics(item.stringValue) { return text }
+            }
+        }
+        return nil
+    }
+
+    private func readID3Lyrics(url: URL) throws -> String? {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        guard let header = try handle.read(upToCount: 10), header.count == 10,
+              header.prefix(3) == Data("ID3".utf8), header[3] == 3 || header[3] == 4 else { return nil }
+        let tagSize = syncSafe(header, at: 6)
+        guard tagSize > 0, tagSize <= maximumTagBytes,
+              let body = try handle.read(upToCount: tagSize), body.count == tagSize else { return nil }
+        let version = header[3]
+        var offset = 0
+        while offset + 10 <= body.count {
+            let idData = body.subdata(in: offset ..< offset + 4)
+            guard let id = String(data: idData, encoding: .ascii), id.range(of: "^[A-Z0-9]{4}$", options: .regularExpression) != nil else { break }
+            let frameSize = version == 4 ? syncSafe(body, at: offset + 4) : bigEndianInt(body, at: offset + 4)
+            offset += 10
+            guard frameSize > 0, frameSize <= body.count - offset else { break }
+            if id == "USLT", let lyrics = Self.id3UnsynchronisedLyrics(body.subdata(in: offset ..< offset + frameSize)) {
+                return lyrics
+            }
+            offset += frameSize
+        }
+        return nil
+    }
+
+    /// USLT payload: encoding byte, three-byte language, terminated descriptor, then text.
+    static func id3UnsynchronisedLyrics(_ payload: Data) -> String? {
+        guard payload.count > 5 else { return nil }
+        let bytes = [UInt8](payload)
+        let encoding = bytes[0]
+        var offset = 4
+        if encoding == 1 || encoding == 2 {
+            while offset + 1 < bytes.count, !(bytes[offset] == 0 && bytes[offset + 1] == 0) { offset += 2 }
+            offset += 2
+        } else {
+            while offset < bytes.count, bytes[offset] != 0 { offset += 1 }
+            offset += 1
+        }
+        guard offset < bytes.count else { return nil }
+        let text = Data(bytes[offset...])
+        let decoded: String?
+        switch encoding {
+        case 0: decoded = String(data: text, encoding: .isoLatin1)
+        case 1: decoded = String(data: text, encoding: .utf16)
+        case 2: decoded = String(data: text, encoding: .utf16BigEndian)
+        case 3: decoded = String(data: text, encoding: .utf8)
+        default: decoded = nil
+        }
+        return cleanLyrics(decoded?.replacingOccurrences(of: "\0", with: ""))
+    }
+
+    private func readFLACLyrics(url: URL) throws -> String? {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        guard try handle.read(upToCount: 4) == Data("fLaC".utf8) else { return nil }
+        var isLast = false
+        while !isLast, let header = try handle.read(upToCount: 4), header.count == 4 {
+            isLast = header[0] & 0x80 != 0
+            let type = header[0] & 0x7f
+            let length = Int(header[1]) << 16 | Int(header[2]) << 8 | Int(header[3])
+            if type == 4 {
+                guard length <= maximumTagBytes, let block = try handle.read(upToCount: length), block.count == length else { return nil }
+                return vorbisLyrics(block)
+            }
+            // Skip artwork and other blocks without reading them into memory.
+            try handle.seek(toOffset: handle.offset() + UInt64(length))
+        }
+        return nil
+    }
+
+    private func vorbisLyrics(_ data: Data) -> String? {
+        var offset = 0
+        guard let vendorLength = littleEndianInt(data, at: offset) else { return nil }
+        offset += 4
+        guard vendorLength <= data.count - offset else { return nil }
+        offset += vendorLength
+        guard let count = littleEndianInt(data, at: offset), count <= 100_000 else { return nil }
+        offset += 4
+        var fallback: String?
+        for _ in 0 ..< count {
+            guard let length = littleEndianInt(data, at: offset) else { return fallback }
+            offset += 4
+            guard length <= data.count - offset,
+                  let value = String(data: data.subdata(in: offset ..< offset + length), encoding: .utf8) else { return fallback }
+            offset += length
+            let pair = value.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2 else { continue }
+            switch pair[0].uppercased() {
+            case "LYRICS": if let text = Self.cleanLyrics(String(pair[1])) { return text }
+            case "UNSYNCEDLYRICS", "UNSYNCED LYRICS": fallback = fallback ?? Self.cleanLyrics(String(pair[1]))
+            default: break
+            }
+        }
+        return fallback
+    }
+
+    static func cleanLyrics(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+        let cleaned = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.isEmpty ? nil : cleaned
+    }
+
     private func foundationTags(url: URL, includeArtwork: Bool) async -> AudioTags {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: false])
         var items: [AVMetadataItem] = []

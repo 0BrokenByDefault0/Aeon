@@ -131,3 +131,8 @@ struct CatalogSnapshot: Equatable {
     let albums: [CatalogAlbumSummary]
     let playlists: [CatalogPlaylist]
 }
+
+enum CatalogListeningOrder: String, CaseIterable {
+    case recentlyPlayed = "recent"
+    case mostPlayed = "most"
+}

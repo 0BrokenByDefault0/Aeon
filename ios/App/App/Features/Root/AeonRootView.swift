@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftUI
 
 struct AeonRootView: View {
@@ -331,7 +332,8 @@ private struct AeonReadyShell: View {
         ))
         _playlistsController = StateObject(wrappedValue: PlaylistsController(
             repository: services.catalogRepository,
-            playback: services.playbackController
+            playback: services.playbackController,
+            playlistsFolder: roots.documentsURL.appendingPathComponent(PlaylistM3U.folderName, isDirectory: true)
         ))
         _settingsController = StateObject(wrappedValue: SettingsController(
             repository: services.catalogRepository,
@@ -345,7 +347,9 @@ private struct AeonReadyShell: View {
                 _ = try? services.skyRepository.backfill()
                 services.skySceneController.reload()
             },
-            eraseAction: { [weak container] in container?.eraseEverything() ?? false }
+            eraseAction: { [weak container] in container?.eraseEverything() ?? false },
+            setSampleRateMatching: { services.queueScheduler.setMatchesSourceSampleRate($0) },
+            setSpotlightIndexing: { services.spotlightIndexer.setEnabled($0) }
         ))
     }
 
@@ -434,6 +438,14 @@ private struct AeonReadyShell: View {
             portraitSidebarVisible = false
             destination = .library
         }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            guard let identifier = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                  let albumID = SpotlightIndexer.albumID(fromItemIdentifier: identifier) else { return }
+            showAlbumFromOutside(albumID)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: AeonRuntime.showAlbumNotification)) { note in
+            if let albumID = note.object as? String { showAlbumFromOutside(albumID) }
+        }
         .onAppear { services.spectrumAnalyzer.setReduceMotion(effectiveReduceMotion) }
         .onChange(of: reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion)
@@ -441,6 +453,14 @@ private struct AeonReadyShell: View {
         .onChange(of: settingsController.preferences.reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion(reduceMotion || $0 || AeonTestOverrides.reduceMotion)
         }
+    }
+
+    /// Spotlight and Shortcuts open a record the same way the Now Playing sleeve does.
+    private func showAlbumFromOutside(_ albumID: String) {
+        libraryController.selectAlbum(id: albumID)
+        nowPlayingVisible = false
+        portraitSidebarVisible = false
+        destination = .library
     }
 
     private var effectiveReduceMotion: Bool {

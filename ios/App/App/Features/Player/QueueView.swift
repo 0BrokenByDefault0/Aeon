@@ -332,6 +332,7 @@ private struct QueueNativeList<Row: View>: UIViewRepresentable {
 enum TrackActionSheet: String, Identifiable {
     case playlist
     case info
+    case lyrics
     var id: String { rawValue }
 }
 
@@ -346,6 +347,7 @@ struct TrackActionMenu<Label: View>: View {
     let remove: (() -> Void)?
     let label: Label
     @State private var presentedSheet: TrackActionSheet?
+    @State private var isFavourite = false
     @Environment(\.aeonPlayerBar) private var playerBar
 
     init(
@@ -376,12 +378,16 @@ struct TrackActionMenu<Label: View>: View {
             Button("ADD TO QUEUE") { playback.addToQueue(track) }
             Button("ADD TO PLAYLIST") { presentedSheet = .playlist }
                 .accessibilityIdentifier("aeon.track.add-to-playlist.\(track.id)")
+            Button(isFavourite ? "REMOVE FROM FAVOURITES" : "ADD TO FAVOURITES") { toggleFavourite() }
+                .accessibilityIdentifier("aeon.track.favourite.\(track.id)")
             if let showAlbum { Button("SHOW ALBUM", action: showAlbum) }
             if let showArtist, !track.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 // Aeon currently has artist search, not an artist detail destination.
                 Button("FIND ARTIST", action: showArtist)
             }
             Button("TRACK INFO") { presentedSheet = .info }
+            Button("LYRICS") { presentedSheet = .lyrics }
+                .accessibilityIdentifier("aeon.track.lyrics.\(track.id)")
             if let playFromHere { Button("PLAY FROM HERE", action: playFromHere) }
             if let remove { Button(removeTitle, role: .destructive, action: remove) }
         } label: { label }
@@ -392,12 +398,26 @@ struct TrackActionMenu<Label: View>: View {
                     TrackPlaylistPicker(track: track, catalog: catalog)
                 case .info:
                     TrackInfoSheet(track: track, album: try? catalog.album(id: track.albumID))
+                case .lyrics:
+                    TrackLyricsSheet(track: track)
                 }
             }
             .environment(\.aeonPlayerBar, playerBar)
         }
+        .onAppear { isFavourite = (try? catalog.isFavourite(trackID: track.id)) ?? false }
         .accessibilityLabel("Actions for \(track.title)")
         .accessibilityIdentifier("aeon.track.actions.\(track.id)")
+    }
+
+    private func toggleFavourite() {
+        let wanted = !((try? catalog.isFavourite(trackID: track.id)) ?? isFavourite)
+        do {
+            try catalog.setFavourite(trackID: track.id, wanted)
+            isFavourite = wanted
+            AeonFeedback.succeeded()
+        } catch {
+            AeonFeedback.failed()
+        }
     }
 }
 
@@ -474,6 +494,42 @@ private struct TrackPlaylistPicker: View {
             self.error = "The playlist could not be created."
             AeonFeedback.failed()
         }
+    }
+}
+
+private struct TrackLyricsSheet: View {
+    let track: CatalogTrack
+    @Environment(\.dismiss) private var dismiss
+    @State private var lyrics: String?
+    @State private var loaded = false
+
+    var body: some View {
+        AeonSheet {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                    AeonDisplayText(track.title, size: 32, maximumLines: 3).foregroundStyle(AeonOrbit.title)
+                    if let lyrics {
+                        Text(lyrics).font(AeonTheme.FontToken.ui(.body)).foregroundStyle(AeonOrbit.ink)
+                            .textSelection(.enabled).accessibilityIdentifier("aeon.track.lyrics.text")
+                    } else {
+                        Text(loaded ? "No lyrics are embedded in this file." : "Reading the file\u{2026}")
+                            .font(AeonOrbit.supportingFont).foregroundStyle(AeonOrbit.secondary)
+                    }
+                    Button("DONE") { dismiss() }.buttonStyle(AeonButtonStyle(tier: .filled))
+                }
+                .padding(AeonTheme.Space.edge)
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .task { await load() }
+    }
+
+    private func load() async {
+        defer { loaded = true }
+        guard let services = AeonRuntime.services,
+              let url = try? services.mediaStore.resolve(track.mediaReference) else { return }
+        defer { services.mediaStore.release(url) }
+        lyrics = await services.audioTagReader.readLyrics(url: url)
     }
 }
 

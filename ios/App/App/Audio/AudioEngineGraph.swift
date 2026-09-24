@@ -228,6 +228,26 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         engine.stop()
     }
 
+    /// Requests a hardware rate from the audio session. Wired by the app to
+    /// `AudioSessionController.preferSampleRate`; nil leaves the route's rate alone.
+    var preferHardwareSampleRate: ((Double) -> Void)?
+
+    /// The scheduler calls this with nothing scheduled. The engine is stopped before the
+    /// session changes rate, then rebuilt so every node renders the new hardware format;
+    /// the next `startScheduledPlayback` starts it again.
+    func matchOutputRate(toSource rate: Double) {
+        guard let preferHardwareSampleRate, rate.isFinite, rate >= 8_000, rate <= 192_000 else { return }
+        let session = AVAudioSession.sharedInstance()
+        let before = session.sampleRate
+        guard abs(before - rate) > 1 else { return }
+        if engine.isRunning { engine.stop() }
+        preferHardwareSampleRate(rate)
+        let after = session.sampleRate
+        guard isConfigured, abs(engine.outputNode.inputFormat(forBus: 0).sampleRate - after) > 1 else { return }
+        // A failed rebuild leaves the previous format; the following configure() reports it.
+        try? rebuild()
+    }
+
     func schedulingSampleRate() throws -> Double {
         try configure()
         let rate = engine.outputNode.inputFormat(forBus: 0).sampleRate

@@ -10,6 +10,22 @@ final class CatalogRepositoryTests: XCTestCase {
         super.tearDown()
     }
 
+    func testPreferencesSavedBeforeNewKeysKeepTheCollectorsChoices() throws {
+        let stored = Data(#"{"oneImportOneAlbum":false,"metadataLookups":true,"hud":true,"highSkyContrast":false,"reduceMotion":true}"#.utf8)
+        let decoded = try JSONDecoder().decode(AeonPreferences.self, from: stored)
+        XCTAssertFalse(decoded.oneImportOneAlbum)
+        XCTAssertTrue(decoded.metadataLookups)
+        XCTAssertTrue(decoded.hud)
+        XCTAssertTrue(decoded.reduceMotion)
+        XCTAssertFalse(decoded.matchSourceSampleRate)
+        XCTAssertFalse(decoded.spotlightAlbums)
+
+        var updated = decoded
+        updated.spotlightAlbums = true
+        let roundTrip = try JSONDecoder().decode(AeonPreferences.self, from: try JSONEncoder().encode(updated))
+        XCTAssertEqual(roundTrip, updated)
+    }
+
     func testAlbumOrderIsDeterministicAndTrackOrderIsNatural() throws {
         let repository = try makeRepository()
         try repository.insertAlbum(

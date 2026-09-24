@@ -27,6 +27,24 @@ struct AeonPreferences: Codable, Equatable {
     var hud = false
     var highSkyContrast = false
     var reduceMotion = false
+    var matchSourceSampleRate = false
+    var spotlightAlbums = false
+
+    init() {}
+
+    /// Stored preferences predate later keys; a missing key keeps its default instead of
+    /// discarding every other choice the collector made.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = AeonPreferences()
+        oneImportOneAlbum = try container.decodeIfPresent(Bool.self, forKey: .oneImportOneAlbum) ?? defaults.oneImportOneAlbum
+        metadataLookups = try container.decodeIfPresent(Bool.self, forKey: .metadataLookups) ?? defaults.metadataLookups
+        hud = try container.decodeIfPresent(Bool.self, forKey: .hud) ?? defaults.hud
+        highSkyContrast = try container.decodeIfPresent(Bool.self, forKey: .highSkyContrast) ?? defaults.highSkyContrast
+        reduceMotion = try container.decodeIfPresent(Bool.self, forKey: .reduceMotion) ?? defaults.reduceMotion
+        matchSourceSampleRate = try container.decodeIfPresent(Bool.self, forKey: .matchSourceSampleRate) ?? defaults.matchSourceSampleRate
+        spotlightAlbums = try container.decodeIfPresent(Bool.self, forKey: .spotlightAlbums) ?? defaults.spotlightAlbums
+    }
 }
 
 struct AeonStorageMeasurement: Equatable {
@@ -79,6 +97,8 @@ final class SettingsController: ObservableObject {
     private let fileManager: FileManager
     private let didRestore: () -> Void
     private let eraseAction: () -> Bool
+    private let setSampleRateMatching: (Bool) -> Void
+    private let setSpotlightIndexing: (Bool) -> Void
     private var sleepTask: Task<Void, Never>?
     private var playbackObservation: AnyCancellable?
     private var sleepAlbumID: String?
@@ -93,8 +113,12 @@ final class SettingsController: ObservableObject {
         roots: AppStorageRoots,
         fileManager: FileManager = .default,
         didRestore: @escaping () -> Void,
-        eraseAction: @escaping () -> Bool
+        eraseAction: @escaping () -> Bool,
+        setSampleRateMatching: @escaping (Bool) -> Void = { _ in },
+        setSpotlightIndexing: @escaping (Bool) -> Void = { _ in }
     ) {
+        self.setSampleRateMatching = setSampleRateMatching
+        self.setSpotlightIndexing = setSpotlightIndexing
         self.repository = repository
         self.artworkStore = artworkStore
         self.diagnostics = diagnostics
@@ -134,6 +158,18 @@ final class SettingsController: ObservableObject {
         preferences.metadataLookups = enabled
         persistPreferences()
         try? repository.setSetting(enabled, forKey: MetadataEnricher.lookupEnabledKey)
+    }
+
+    func setMatchSourceSampleRate(_ enabled: Bool) {
+        preferences.matchSourceSampleRate = enabled
+        persistPreferences()
+        setSampleRateMatching(enabled)
+    }
+
+    func setSpotlightAlbums(_ enabled: Bool) {
+        preferences.spotlightAlbums = enabled
+        persistPreferences()
+        setSpotlightIndexing(enabled)
     }
 
     func setHUD(_ enabled: Bool) {

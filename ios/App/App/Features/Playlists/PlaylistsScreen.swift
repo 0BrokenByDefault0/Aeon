@@ -24,13 +24,17 @@ struct PlaylistsScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     header
+                    if !controller.smartRoutes.isEmpty {
+                        LazyVStack(spacing: 0) { ForEach(controller.smartRoutes) { smartRow($0) } }
+                    }
                     if controller.playlists.isEmpty {
                         AeonEmptyState(title: "No routes charted yet.",
                                        detail: "Build a route through the records you return to.",
                                        actionTitle: "CREATE PLAYLIST", motif: .route,
                                        actionIdentifier: "aeon.playlists.create") { creationPresented = true }
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: max(0, geometry.size.height - contentBottomInset - 200))
+                        .frame(minHeight: controller.smartRoutes.isEmpty
+                               ? max(0, geometry.size.height - contentBottomInset - 200) : 0)
                     } else {
                         LazyVStack(spacing: 0) { ForEach(controller.playlists) { playlistRow($0) } }
                     }
@@ -86,6 +90,14 @@ struct PlaylistsScreen: View {
                 }
             }
             Spacer()
+            if controller.playlistsFolder != nil {
+                Button { controller.importPlaylistFiles() } label: {
+                    HStack { Text("M3U").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .picker) }
+                        .frame(minHeight: 44).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)
+                .accessibilityLabel("Import Playlists from Files").accessibilityIdentifier("aeon.playlists.import")
+            }
             if !controller.playlists.isEmpty {
                 Button { creationPresented = true } label: {
                     HStack { Text("NEW").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .add) }
@@ -114,6 +126,25 @@ struct PlaylistsScreen: View {
         }
         .buttonStyle(.plain).accessibilityIdentifier("aeon.playlists.row.\(overview.id)")
     }
+    private func smartRow(_ overview: SmartRouteOverview) -> some View {
+        Button { controller.select(smart: overview.route); detailPresented = controller.selectedSmartRoute != nil } label: {
+            HStack(spacing: AeonTheme.Space.large) {
+                AeonGlyph(kind: overview.route == .favourites ? .star : .play)
+                    .foregroundStyle(AeonOrbit.secondary).frame(width: 68, height: 44)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(overview.route.title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
+                        .foregroundStyle(AeonTheme.ColorToken.textPrimary).lineLimit(2)
+                    Text("\(overview.itemCount) TRACK\(overview.itemCount == 1 ? "" : "S")")
+                        .font(AeonTheme.FontToken.metric(.caption2, weight: .medium)).tracking(1.2).foregroundStyle(AeonOrbit.secondary)
+                }
+                Spacer()
+                AeonGlyph(kind: .disclosure).foregroundStyle(AeonOrbit.secondary)
+            }
+            .padding(.vertical, AeonTheme.Space.medium).contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
+        }
+        .buttonStyle(.plain).accessibilityIdentifier("aeon.playlists.smart.\(overview.route.rawValue)")
+    }
     private var createForm: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
             TextField("Playlist name", text: $name).textInputAutocapitalization(.words).submitLabel(.done)
@@ -136,6 +167,8 @@ private struct PlaylistDetailView: View {
     let showAlbum: (String) -> Void
     let showArtist: (String) -> Void
     @State private var deleteConfirmation = false
+    @State private var renamePresented = false
+    @State private var reorderPresented = false
     var body: some View {
         AeonSheet {
             ScrollView {
@@ -160,23 +193,37 @@ private struct PlaylistDetailView: View {
             Button("Delete Playlist", role: .destructive) { if controller.deleteSelected() { close() } }
             Button("Cancel", role: .cancel) {}
         } message: { Text("Tracks stay in the library.") }
+        .sheet(isPresented: $renamePresented) { PlaylistRenameView(controller: controller) }
+        .sheet(isPresented: $reorderPresented) { PlaylistReorderView(controller: controller) }
     }
     private var header: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    AeonDisplayText(controller.selectedPlaylist?.name ?? "Route", size: 34, maximumLines: 2).foregroundStyle(AeonOrbit.title)
+                    AeonDisplayText(controller.selectionTitle, size: 34, maximumLines: 2).foregroundStyle(AeonOrbit.title)
                     AeonLabel(text: "\(controller.selectedItems.count) tracks")
                 }
                 Spacer()
+                Menu {
+                    if controller.selectionIsEditable {
+                        Button("RENAME") { renamePresented = true }
+                        Button("REORDER") { reorderPresented = true }.disabled(controller.selectedItems.count < 2)
+                    }
+                    if controller.playlistsFolder != nil {
+                        Button("EXPORT M3U") { controller.exportSelected() }.disabled(controller.selectedItems.isEmpty)
+                    }
+                } label: { AeonGlyph(kind: .more).frame(width: 44, height: 44) }
+                .accessibilityLabel("Playlist Actions").accessibilityIdentifier("aeon.playlists.detail.actions")
                 Button(action: close) { AeonGlyph(kind: .close).frame(width: 44, height: 44) }
                     .buttonStyle(.plain).accessibilityLabel("Close Playlist").accessibilityIdentifier("aeon.playlists.detail.close")
             }
             HStack(spacing: AeonTheme.Space.medium) {
                 Button("PLAY") { controller.play() }.buttonStyle(AeonButtonStyle(tier: .filled))
                     .disabled(controller.selectedItems.isEmpty).accessibilityIdentifier("aeon.playlists.detail.play")
-                Button("DELETE") { deleteConfirmation = true }.buttonStyle(AeonButtonStyle(tier: .bare, destructive: true))
-                    .accessibilityIdentifier("aeon.playlists.detail.delete")
+                if controller.selectionIsEditable {
+                    Button("DELETE") { deleteConfirmation = true }.buttonStyle(AeonButtonStyle(tier: .bare, destructive: true))
+                        .accessibilityIdentifier("aeon.playlists.detail.delete")
+                }
             }
         }
     }
@@ -194,12 +241,80 @@ private struct PlaylistDetailView: View {
                     playFromHere: route.unavailable ? nil : { controller.play(startingAt: index) },
                     showAlbum: { showAlbum(route.item.albumID) },
                     showArtist: { showArtist(route.item.artist) },
-                    remove: { controller.remove(position: index) }
+                    removeTitle: controller.selectedSmartRoute == .favourites ? "REMOVE FROM FAVOURITES" : "REMOVE FROM PLAYLIST",
+                    remove: controller.selectionIsEditable || controller.selectedSmartRoute == .favourites
+                        ? { controller.remove(position: index) } : nil
                 ) {
                     AeonGlyph(kind: .more).frame(width: 44, height: 44)
                 }
                 .foregroundStyle(AeonOrbit.secondary)
             }
         }
+    }
+}
+
+private struct PlaylistRenameView: View {
+    @ObservedObject var controller: PlaylistsController
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    var body: some View {
+        AeonSheet {
+            ScrollView {
+                VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                    AeonDisplayText("Rename playlist", size: 32, maximumLines: 2).foregroundStyle(AeonOrbit.title)
+                    TextField("Playlist name", text: $name).textInputAutocapitalization(.words).submitLabel(.done)
+                        .padding(.horizontal, AeonTheme.Space.regular).frame(minHeight: AeonTheme.Space.minimumTarget)
+                        .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+                        .accessibilityIdentifier("aeon.playlists.rename.name").onSubmit(save)
+                    Button("SAVE", action: save).buttonStyle(AeonButtonStyle(tier: .filled))
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("aeon.playlists.rename.commit")
+                    Button("CANCEL") { dismiss() }.buttonStyle(AeonButtonStyle(tier: .bare))
+                }
+                .padding(AeonTheme.Space.edge).foregroundStyle(AeonOrbit.ink)
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .onAppear { name = controller.selectedPlaylist?.name ?? "" }
+    }
+    private func save() {
+        if controller.renameSelected(to: name) { dismiss() }
+    }
+}
+
+/// Drag handles come from the system list in edit mode, so VoiceOver users get the
+/// standard move actions rather than a custom gesture.
+private struct PlaylistReorderView: View {
+    @ObservedObject var controller: PlaylistsController
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        AeonSheet {
+            VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
+                HStack(alignment: .top) {
+                    AeonDisplayText("Reorder route", size: 32, maximumLines: 2).foregroundStyle(AeonOrbit.title)
+                    Spacer()
+                    Button("DONE") { dismiss() }.buttonStyle(AeonButtonStyle(tier: .bare))
+                        .accessibilityIdentifier("aeon.playlists.reorder.done")
+                }
+                List {
+                    ForEach(controller.selectedItems) { route in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(route.item.trackTitle).font(AeonTheme.FontToken.ui(.callout))
+                                .foregroundStyle(AeonTheme.ColorToken.textPrimary).lineLimit(2)
+                            Text("\(route.item.artist) \u{00b7} \(route.item.albumTitle)").font(AeonTheme.FontToken.ui(.caption))
+                                .foregroundStyle(AeonOrbit.secondary).lineLimit(1)
+                        }
+                        .listRowBackground(Color.clear)
+                    }
+                    .onMove { source, destination in controller.moveItems(fromOffsets: source, toOffset: destination) }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .environment(\.editMode, .constant(.active))
+                .accessibilityIdentifier("aeon.playlists.reorder.list")
+            }
+            .padding(AeonTheme.Space.edge).foregroundStyle(AeonOrbit.ink)
+        }
+        .presentationDetents([.large])
     }
 }

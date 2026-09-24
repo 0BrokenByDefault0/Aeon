@@ -66,9 +66,8 @@ final class AudioSessionController: AudioSessionActivating {
     /// may decline — on many Bluetooth routes it will — so this is best effort and never
     /// fails a load.
     ///
-    /// Only call this while nothing is rendering. Changing the rate under a running
-    /// engine forces a reconfiguration this app does not yet observe, so the caller is
-    /// responsible for the "engine is idle" precondition.
+    /// Only call this while nothing is rendering. `AudioEngineGraph.matchOutputRate`
+    /// is the one caller: it stops the engine first and rebuilds it for the new format.
     func preferSampleRate(_ rate: Double) {
         guard rate.isFinite, rate >= 8_000, rate <= 192_000 else { return }
         guard abs(session.sampleRate - rate) > 1 else { return }

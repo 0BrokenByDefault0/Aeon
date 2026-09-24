@@ -193,6 +193,17 @@ final class CatalogRepository {
         ).map(try decodeAlbumSummary)
     }
 
+    /// Changes whenever an album is added, removed or edited; cheap enough to poll.
+    func albumCatalogueSignature() throws -> String {
+        let row = try database.query(
+            """
+            SELECT COUNT(*) AS count, COALESCE(MAX(updated_at), 0) AS updated,
+                   COALESCE(SUM(sequence), 0) AS sequences FROM albums
+            """
+        ).first
+        return "\(row?.int64("count") ?? 0):\(row?.double("updated") ?? 0):\(row?.int64("sequences") ?? 0)"
+    }
+
     func albumCount() throws -> Int {
         Int(try database.scalar("SELECT COUNT(*) AS value FROM albums")?.int64 ?? 0)
     }
@@ -468,6 +479,125 @@ final class CatalogRepository {
                 artist: artist
             )
         }
+    }
+
+    /// Every item of a playlist, read page by page. Rewrites must start from this, never
+    /// from a single page, or a long playlist would lose everything past the first page.
+    func allPlaylistItems(playlistID: String) throws -> [CatalogPlaylistItem] {
+        var items: [CatalogPlaylistItem] = []
+        while true {
+            let page = try playlistItems(playlistID: playlistID, offset: items.count)
+            items += page
+            if page.count < CatalogDatabase.maximumPageSize { return items }
+        }
+    }
+
+    /// Favourites are an ordinary playlist under a reserved ID, so archives, M3U export and
+    /// deletion cascades carry them without a schema of their own.
+    static let favouritesPlaylistID = "aeon.favourites"
+
+    func isFavourite(trackID: String) throws -> Bool {
+        try validateID(trackID)
+        return try database.scalar(
+            "SELECT COUNT(*) AS value FROM playlist_items WHERE playlist_id = ? AND track_id = ?",
+            [.text(Self.favouritesPlaylistID), .text(trackID)]
+        )?.int64 ?? 0 > 0
+    }
+
+    func setFavourite(trackID: String, _ favourite: Bool, at date: Date = Date()) throws {
+        try validateID(trackID)
+        let listExists = try recordExists(table: "playlists", id: Self.favouritesPlaylistID)
+        var existing: [String] = []
+        if listExists {
+            existing = try allPlaylistItems(playlistID: Self.favouritesPlaylistID).map(\.trackID)
+        }
+        if favourite {
+            guard !existing.contains(trackID) else { return }
+            if !listExists {
+                try createPlaylist(name: "Favourites", trackIDs: [trackID], id: Self.favouritesPlaylistID, at: date)
+            } else {
+                try replacePlaylistItems(playlistID: Self.favouritesPlaylistID, trackIDs: existing + [trackID], updatedAt: date)
+            }
+        } else {
+            guard existing.contains(trackID) else { return }
+            try replacePlaylistItems(
+                playlistID: Self.favouritesPlaylistID,
+                trackIDs: existing.filter { $0 != trackID },
+                updatedAt: date
+            )
+        }
+    }
+
+    /// Listening-derived routes: tracks ordered by when they were last heard, or how often.
+    func listeningRouteItems(
+        _ order: CatalogListeningOrder,
+        limit: Int = 100
+    ) throws -> [CatalogPlaylistItem] {
+        try validatePage(offset: 0, limit: limit)
+        let clause: String
+        switch order {
+        case .recentlyPlayed:
+            clause = "WHERE l.last_played_at IS NOT NULL ORDER BY l.last_played_at DESC, t.id"
+        case .mostPlayed:
+            clause = "WHERE l.play_count > 0 ORDER BY l.play_count DESC, l.last_played_at DESC, t.id"
+        }
+        let routeID = "listening.\(order.rawValue)"
+        return try database.query(
+            """
+            SELECT t.id AS track_id, a.id AS album_id, t.title AS track_title, a.title AS album_title,
+                   CASE WHEN t.artist = '' THEN a.artist ELSE t.artist END AS artist
+            FROM listening l
+            JOIN tracks t ON t.id = l.track_id
+            JOIN albums a ON a.id = t.album_id
+            \(clause)
+            LIMIT ?
+            """,
+            [.integer(Int64(limit))]
+        ).enumerated().map { position, row in
+            guard let trackID = row.string("track_id"), let albumID = row.string("album_id"),
+                  let trackTitle = row.string("track_title"), let albumTitle = row.string("album_title"),
+                  let artist = row.string("artist") else {
+                throw CatalogRepositoryError.decodeFailed("listening_route_item")
+            }
+            return CatalogPlaylistItem(
+                playlistID: routeID,
+                position: position,
+                trackID: trackID,
+                albumID: albumID,
+                trackTitle: trackTitle,
+                albumTitle: albumTitle,
+                artist: artist
+            )
+        }
+    }
+
+    /// Resolves an M3U entry against the catalogue: a Files-visible path first, then
+    /// the title and artist it was written with.
+    func trackID(documentsRelativePath path: String) throws -> String? {
+        try database.query(
+            "SELECT id FROM tracks WHERE media_kind = 'documents' AND media_path = ? LIMIT 1",
+            [.text(path)]
+        ).first?.string("id")
+    }
+
+    func trackID(title: String, artist: String) throws -> String? {
+        let normalizedTitle = Self.normalize(title)
+        guard !normalizedTitle.isEmpty else { return nil }
+        let normalizedArtist = Self.normalize(artist)
+        if normalizedArtist.isEmpty {
+            return try database.query(
+                "SELECT id FROM tracks WHERE normalized_title = ? ORDER BY id LIMIT 1",
+                [.text(normalizedTitle)]
+            ).first?.string("id")
+        }
+        return try database.query(
+            """
+            SELECT t.id AS id FROM tracks t JOIN albums a ON a.id = t.album_id
+            WHERE t.normalized_title = ? AND (t.normalized_artist = ? OR a.normalized_artist = ?)
+            ORDER BY t.id LIMIT 1
+            """,
+            [.text(normalizedTitle), .text(normalizedArtist), .text(normalizedArtist)]
+        ).first?.string("id")
     }
 
     func recordPlay(
