@@ -141,8 +141,8 @@ struct SettingsScreen: View {
                                 .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.ink)
                             note("Every file is checked before the catalogue is updated. Adopted originals stay in place. Keep this backup until you have checked the restored library.")
                             Button("Restore Library") { controller.confirmRestore() }
-                                .buttonStyle(AeonButtonStyle()).accessibilityIdentifier("aeon.settings.restore.confirm")
-                            Button("Cancel") { controller.cancelRestorePreview() }.buttonStyle(AeonButtonStyle())
+                                .buttonStyle(AeonButtonStyle(tier: .filled)).accessibilityIdentifier("aeon.settings.restore.confirm")
+                            Button("Cancel") { controller.cancelRestorePreview() }.buttonStyle(AeonButtonStyle(tier: .bare))
                         }.padding(AeonTheme.Space.edge)
                     }
                 }
@@ -167,7 +167,7 @@ struct SettingsScreen: View {
                             }
                             if health.missingCount > health.missingTracks.count { note("Showing the first \(health.missingTracks.count) missing tracks.") }
                             note("This check does not delete files. Unused copies may still be useful for recovery. Music adopted in place is never treated as an unused managed copy.")
-                            Button("Done") { controller.clearLibraryHealth() }.buttonStyle(AeonButtonStyle())
+                            Button("Done") { controller.clearLibraryHealth() }.buttonStyle(AeonButtonStyle(tier: .hairline))
                         }.padding(AeonTheme.Space.edge)
                     }
                 }
