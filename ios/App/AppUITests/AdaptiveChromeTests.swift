@@ -248,7 +248,7 @@ extension AdaptiveChromeTests {
         eq.tap()
         let changedEQ = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", originalEQ ?? "0"), object: eq)
         XCTAssertEqual(XCTWaiter.wait(for: [changedEQ], timeout: 5), .completed)
-        let bass = app.buttons["aeon.player.eq.preset.bass-ritual"]
+        let bass = app.buttons["aeon.player.eq.preset.bass-lift"]
         reviewScroll(app, until: bass)
         bass.tap()
         assertState(bass, predicate: "selected == true")
