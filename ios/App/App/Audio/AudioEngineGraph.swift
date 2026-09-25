@@ -130,7 +130,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         programMixer.outputVolume = 1
         playerA.volume = dspSettings.referenceBypass ? 1 : replayGainA
         playerB.volume = dspSettings.referenceBypass ? 1 : replayGainB
-        engine.mainMixerNode.outputVolume = dspSettings.referenceBypass ? 1 : masterVolume
+        engine.mainMixerNode.outputVolume = masterVolume
         equalizer.bypass = dspSettings.referenceBypass || !eqEnabled
 
         engine.connect(playerA, to: programMixer, fromBus: 0, toBus: 0, format: nil)
@@ -380,7 +380,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         dspStateLock.lock()
         defer { dspStateLock.unlock() }
         masterVolume = linear.isFinite && (0...1).contains(linear) ? linear : 1
-        if isConfigured { engine.mainMixerNode.outputVolume = dspSettings.referenceBypass ? 1 : masterVolume }
+        if isConfigured { engine.mainMixerNode.outputVolume = masterVolume }
     }
 
     func setReplayGain(_ scalar: Float, slot: AudioSlot) {
@@ -408,7 +408,7 @@ final class AudioEngineGraph: QueueSchedulingGraph {
         applyEQBands()
         playerA.volume = settings.referenceBypass ? 1 : replayGainA
         playerB.volume = settings.referenceBypass ? 1 : replayGainB
-        engine.mainMixerNode.outputVolume = settings.referenceBypass ? 1 : masterVolume
+        engine.mainMixerNode.outputVolume = masterVolume
     }
 
     private func applyDSP() throws {

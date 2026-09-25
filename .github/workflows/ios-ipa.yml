@@ -35,15 +35,14 @@ concurrency:
 jobs:
   ipa:
     runs-on: macos-latest
-    timeout-minutes: 80
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      # Owner authorized a new profile/player iteration on 2026-09-22.
-      # One native stage follows this pass's IPA upload, under the existing 600s watchdog.
-      - uses: actions/setup-node@v4
+      # Unit validation follows IPA upload; UI cases run separately in Deep release validation.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: npm
@@ -99,7 +98,7 @@ jobs:
         run: npx cap sync ios
 
       - name: Cache CocoaPods
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ios/App/Pods
           key: ${{ runner.os }}-pods-${{ hashFiles('ios/App/Podfile.lock') }}
@@ -150,7 +149,7 @@ jobs:
             printf 'Build timestamp (UTC): %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             printf 'Build run: %s/%s/actions/runs/%s\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
             printf 'Cheap targeted checks: PASSED\nFocused native validation: %s\n' "$native_result"
-            printf 'Deep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\n'
+            printf 'Native scope: all AppTests; UI validation: NOT RUN\nDeep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\n'
             printf 'Release status: ITERATION ONLY\n'
           } | tee "$manifest"
           cp "$manifest" "$app/Aeon-validation.txt"
@@ -165,7 +164,7 @@ jobs:
 
       - name: Upload fast IPA
         id: upload_ipa
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Aeon-5.0-fast-${{ github.run_id }}
           path: |
@@ -197,7 +196,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/aeon-fast"
           if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
           set +e
-          python3 scripts/validation-deadline.py --stage "post-IPA native validation" --report "$RUNNER_TEMP/aeon-fast/deadline.json" -- node scripts/test-targeted.mjs "${route[@]}" --tier=native --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
+          python3 scripts/validation-deadline.py --stage "post-IPA native validation" --report "$RUNNER_TEMP/aeon-fast/deadline.json" -- node scripts/test-targeted.mjs "${route[@]}" --tier=native --scope=unit --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
           result=$?
           set -e
           {
@@ -232,14 +231,14 @@ jobs:
           {
             printf 'Aeon post-upload validation\nCommit: %s\n' "$GITHUB_SHA"
             printf 'IPA artifact: %s\nFocused native validation: %s\n' "$IPA_URL" "$native_result"
-            printf 'Deep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\nRelease status: ITERATION ONLY\n'
+            printf 'Native scope: all AppTests; UI validation: NOT RUN\nDeep regression matrix: NOT RUN\nPhysical-device acceptance: NOT RUN\nRelease status: ITERATION ONLY\n'
           } | tee "$RUNNER_TEMP/aeon-fast/Aeon-native-validation.txt"
           printf '\n## Post-upload native validation\n' >> "$GITHUB_STEP_SUMMARY"
           cat "$RUNNER_TEMP/aeon-fast/Aeon-native-validation.txt" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload native validation report
         if: ${{ always() && steps.upload_ipa.outcome == 'success' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Aeon-fast-native-validation-${{ github.run_id }}
           path: |
@@ -253,7 +252,7 @@ jobs:
 
       - name: Upload focused failure evidence
         if: failure() && steps.native.outcome == 'failure'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Aeon-fast-native-failure-${{ github.run_id }}
           path: |
@@ -265,7 +264,7 @@ jobs:
       - name: Preserve Release compile evidence
         if: ${{ always() }}
         timeout-minutes: 1
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Aeon-release-compile-${{ github.run_id }}
           path: ${{ runner.temp }}/aeon-fast/xcodebuild.log

@@ -123,6 +123,44 @@ final class AppContainerTests: XCTestCase {
         XCTAssertNil(container.services)
     }
 
+    func testFailedFreshStartRollsBackAndFailedRollbackKeepsRecoveryJournal() throws {
+        for failRollback in [false, true] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let roots = try AppStorageRoots.temporary(at: root, fileManager: .default)
+            let manager = EraseFailureFileManager()
+            var attempts = 0
+            let container = AppContainer(rootsProvider: { roots }, servicesFactory: { roots in
+                attempts += 1
+                let services = try AppServices.production(roots: roots, startSpectrum: false, startPlayback: false)
+                if attempts == 2 {
+                    services.playbackController.stopRefreshing()
+                    services.playbackCoordinator.shutdown()
+                    services.catalogDatabase.close()
+                    manager.failRollback = failRollback
+                    throw NSError(domain: "EraseFixture", code: 1)
+                }
+                return services
+            }, inspectLegacyLibrary: false, cleanupFileManager: manager)
+            let services = try XCTUnwrap(container.services)
+            try services.catalogRepository.insertAlbum(CatalogAlbum(id: "survivor", sequence: 1, title: "Survivor", artist: "Artist", year: "2026", genre: "Jazz", artworkKey: nil, importedAt: Date(), updatedAt: Date()), tracks: [])
+            let music = roots.documentsURL.appendingPathComponent("Music/_Imported/music.wav")
+            try FileManager.default.createDirectory(at: music.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("original music".utf8).write(to: music)
+            XCTAssertFalse(container.eraseEverything())
+            if failRollback {
+                let journal = roots.applicationSupportURL.appendingPathComponent("Aeon/EraseQuarantine/pending.json")
+                XCTAssertTrue(FileManager.default.fileExists(atPath: journal.path))
+                XCTAssertNil(container.services)
+                manager.failRollback = false
+                container.retryStartup()
+            }
+            XCTAssertEqual(container.launchState, .ready)
+            XCTAssertNotNil(try container.services?.catalogRepository.album(id: "survivor"))
+            XCTAssertEqual(try Data(contentsOf: music), Data("original music".utf8))
+        }
+    }
+
     func testEraseQuarantinesOwnedDataPreservesAdoptedAndLegacyStorageThenPurgesAfterRelaunch() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -166,5 +204,13 @@ final class AppContainerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: quarantine.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: adopted.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: indexedDB.path))
+    }
+}
+
+private final class EraseFailureFileManager: FileManager, @unchecked Sendable {
+    var failRollback = false
+    override func moveItem(at srcURL: URL, to dstURL: URL) throws {
+        if failRollback && srcURL.path.contains("EraseQuarantine") { throw NSError(domain: "EraseFixture", code: 2) }
+        try super.moveItem(at: srcURL, to: dstURL)
     }
 }

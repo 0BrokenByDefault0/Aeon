@@ -8,7 +8,7 @@ struct AeonApp: App {
     private let testArguments: [String]
 
     init() {
-        let arguments = ProcessInfo.processInfo.arguments
+        let arguments = AeonTestOverrides.arguments
         testArguments = arguments
         let deterministicFixture = arguments.contains("-AeonSkyFixture")
             || arguments.contains("-AeonLibraryFixture")
@@ -52,7 +52,11 @@ private struct AeonTestEnvironment: ViewModifier {
 }
 
 enum AeonTestOverrides {
-    private static let arguments = ProcessInfo.processInfo.arguments
+    #if DEBUG
+    static let arguments = ProcessInfo.processInfo.arguments
+    #else
+    static let arguments: [String] = []
+    #endif
 
     static let staticSky = arguments.contains("-AeonSkyFixture")
         || arguments.contains("-AeonLibraryFixture")

@@ -154,7 +154,7 @@ final class LibraryController: ObservableObject {
     func selectAlbum(id: String) {
         do {
             selectedAlbum = try repository.album(id: id)
-            selectedTracks = try repository.tracks(albumID: id)
+            selectedTracks = try repository.allTracks(albumID: id)
         } catch {
             selectedAlbum = nil
             selectedTracks = []
@@ -174,7 +174,7 @@ final class LibraryController: ObservableObject {
 
     func playAlbum(id: String, startingTrackID: String? = nil) {
         do {
-            let tracks = try repository.tracks(albumID: id)
+            let tracks = try repository.allTracks(albumID: id)
             guard !tracks.isEmpty else {
                 message = "This album has no playable tracks."
                 return
@@ -194,9 +194,8 @@ final class LibraryController: ObservableObject {
     func addSelectedAlbum(to playlistID: String) {
         guard let album = selectedAlbum else { return }
         do {
-            let existing = try repository.playlistItems(playlistID: playlistID).map(\.trackID)
-            let additions = try repository.tracks(albumID: album.id).map(\.id)
-            try repository.replacePlaylistItems(playlistID: playlistID, trackIDs: existing + additions)
+            let additions = try repository.allTracks(albumID: album.id).map(\.id)
+            try repository.appendPlaylistItems(playlistID: playlistID, trackIDs: additions)
             message = "Added to playlist."
         } catch {
             message = "The playlist could not be updated."
@@ -210,6 +209,8 @@ final class LibraryController: ObservableObject {
     }
 
     func saveAlbum(_ draft: CatalogAlbum, artworkData: Data?) -> Bool {
+        guard repository.beginFileOperation() else { message = "Another library operation is running."; return false }
+        defer { repository.endFileOperation() }
         do {
             guard let original = try repository.album(id: draft.id) else { return false }
             var updated = draft
@@ -228,7 +229,7 @@ final class LibraryController: ObservableObject {
                 if needsSkyRechart {
                     _ = try skyRepository.rechart(updatedAlbum: updated)
                 } else {
-                    try repository.updateAlbum(updated)
+                    try skyRepository.refreshMetadata(updatedAlbum: updated)
                 }
             } catch {
                 if let newArtworkKey { try? artworkStore.remove(key: newArtworkKey) }
@@ -248,8 +249,10 @@ final class LibraryController: ObservableObject {
 
     func deleteSelectedAlbum() -> Bool {
         guard let album = selectedAlbum else { return false }
+        guard repository.beginFileOperation() else { message = "Another library operation is running."; return false }
+        defer { repository.endFileOperation() }
         do {
-            let tracks = try repository.tracks(albumID: album.id)
+            let tracks = try repository.allTracks(albumID: album.id)
             let deleted = try skyRepository.deleteAlbum(id: album.id)
             guard deleted else { return false }
             var cleanupFailed = false
@@ -430,6 +433,7 @@ final class LibraryController: ObservableObject {
     }
 
     private func seedFixtureIfNeeded() {
+        #if DEBUG
         guard ["populated", "long-title"].contains(Self.fixtureName() ?? ""), (try? repository.albumCount()) == 0 else { return }
         let artists = ["Arden Vale", "Black Static", "Cinder Atlas", "Dawn Index"]
         let genres = ["Ambient", "Electronic", "Hip-Hop", "Soul"]
@@ -477,10 +481,11 @@ final class LibraryController: ObservableObject {
         } catch {
             message = "The library fixture could not be prepared."
         }
+        #endif
     }
 
     private static func fixtureName() -> String? {
-        let arguments = ProcessInfo.processInfo.arguments
+        let arguments = AeonTestOverrides.arguments
         guard let index = arguments.firstIndex(of: "-AeonLibraryFixture"), arguments.indices.contains(index + 1) else { return nil }
         return arguments[index + 1]
     }

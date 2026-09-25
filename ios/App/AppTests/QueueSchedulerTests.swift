@@ -338,22 +338,19 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertNil(scheduler.preparedNextTrackID)
     }
 
-    func testUnplayableNextIsReportedAndNeverSilentlySkipped() throws {
-        let capabilities: [MediaCapability] = [.unsupported(reason: "decoder"), .decodeFailed(reason: "corrupt"), .unavailable]
-        for capability in capabilities {
+    func testUnplayableNextIsReportedAndSkippedWithoutStoppingCurrent() throws {
+        for capability in [MediaCapability.unsupported(reason: "decoder"), .decodeFailed(reason: "corrupt"), .unavailable] {
             let (scheduler, graph, _) = try makeScheduler([a, b, c], rejected: capability)
-            let failed = expectation(description: "explicit media failure")
-            scheduler.onEvent = { event in
-                if case .failed(_, let error, _) = event {
-                    XCTAssertEqual(error, .media(trackID: "b", capability: capability))
-                    failed.fulfill()
-                }
-            }
-            XCTAssertThrowsError(try scheduler.play())
-            wait(for: [failed], timeout: 1)
+            let skipped = expectation(description: "explicit skipped track")
+            scheduler.onEvent = { if case .skipped(let id, _) = $0 { XCTAssertEqual(id, "b"); skipped.fulfill() } }
+            try scheduler.play()
+            wait(for: [skipped], timeout: 1)
             XCTAssertEqual(scheduler.currentTrackID, "a")
-            XCTAssertNil(scheduler.preparedNextTrackID)
-            XCTAssertFalse(graph.started)
+            XCTAssertEqual(scheduler.preparedNextTrackID, "c")
+            XCTAssertTrue(scheduler.isPlaying)
+            graph.schedules[0].completion()
+            XCTAssertEqual(scheduler.currentTrackID, "c")
+            XCTAssertTrue(scheduler.isPlaying)
         }
     }
 
@@ -425,19 +422,14 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertFalse(scheduler.isPlaying)
     }
 
-    func testOpeningNextFileFailureClosesCurrentAndReportsNextTrack() throws {
+    func testOpeningNextFileFailureReleasesOnlyFailedCandidateAndContinues() throws {
         let (scheduler, graph, resolver) = try makeScheduler([a, b, c])
         graph.failingFile = "b.wav"
-        XCTAssertThrowsError(try scheduler.play()) { error in
-            guard let failure = error as? QueueSchedulerError,
-                  case .operation(let trackID, _) = failure else {
-                return XCTFail("Expected operation failure")
-            }
-            XCTAssertEqual(trackID, "b")
-        }
-        XCTAssertFalse(scheduler.isPlaying)
-        XCTAssertNil(scheduler.preparedNextTrackID)
-        XCTAssertEqual(Set(resolver.released.map { $0.lastPathComponent }), Set(["a.wav", "b.wav"]))
+        try scheduler.play()
+        XCTAssertTrue(scheduler.isPlaying)
+        XCTAssertEqual(scheduler.preparedNextTrackID, "c")
+        XCTAssertTrue(resolver.released.contains { $0.lastPathComponent == "b.wav" })
+        XCTAssertFalse(resolver.released.contains { $0.lastPathComponent == "a.wav" })
     }
 
     func testResumeRetainsExactFrameWithoutFloatingPointRoundTrip() throws {
@@ -449,13 +441,13 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(graph.schedules.suffix(2).first?.sourceFrame, 27)
     }
 
-    func testPreparationFailureAfterHandoffStopsAndReportsFollowingTrack() throws {
+    func testPreparationFailureAfterHandoffKeepsCurrentTrackPlaying() throws {
         let (scheduler, graph, _) = try makeScheduler([a, b, c])
         try scheduler.play()
         graph.failingFile = "c.wav"
         graph.schedules[0].completion()
         XCTAssertEqual(scheduler.currentTrackID, "b")
-        XCTAssertFalse(scheduler.isPlaying)
+        XCTAssertTrue(scheduler.isPlaying)
         XCTAssertNil(scheduler.preparedNextTrackID)
     }
 

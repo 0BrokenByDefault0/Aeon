@@ -74,6 +74,11 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
 
     deinit { positionTimer?.invalidate() }
 
+    func stopRefreshing() {
+        positionTimer?.invalidate()
+        positionTimer = nil
+    }
+
     func start() {
         coordinator.initialize { [weak self] result in self?.accept(result) }
     }
@@ -269,6 +274,9 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
             if events.contains(.engineRecovered), snapshot.version >= latestVersion,
                snapshot.intent == .playing, failure?.recoverable == true { failure = nil }
             accept(snapshot: snapshot)
+            if events.contains(.queueItemSkipped), snapshot.version >= latestVersion {
+                queueMessage = "An unavailable upcoming track was skipped. Your current track continues."
+            }
         }
     }
 
@@ -334,6 +342,7 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
 
 /// Deterministic playback authority used by simulator fixtures. It preserves the
 /// same command/state contract as the native coordinator without opening CoreAudio.
+#if DEBUG
 final class PlaybackFixtureCoordinator: PlaybackCoordinating {
     weak var delegate: PlaybackCoordinatorDelegate?
     private var state: FixtureState
@@ -587,3 +596,5 @@ private struct FixtureState {
         )
     }
 }
+
+#endif

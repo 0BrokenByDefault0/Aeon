@@ -49,10 +49,10 @@ struct SkyMetalView: UIViewRepresentable {
         // surface nobody can see is pure battery cost, so decorative motion stops with
         // effectiveReduceMotion || !isForeground and only resumes on return.
         if !AeonTestOverrides.staticSky {
-            view.isPaused = !isForeground
-            view.enableSetNeedsDisplay = !isForeground
+            view.isPaused = !isForeground || effectiveReduceMotion
+            view.enableSetNeedsDisplay = !isForeground || effectiveReduceMotion
         }
-        if AeonTestOverrides.staticSky { view.setNeedsDisplay() }
+        if isForeground, AeonTestOverrides.staticSky || effectiveReduceMotion { view.setNeedsDisplay() }
     }
 
     @MainActor

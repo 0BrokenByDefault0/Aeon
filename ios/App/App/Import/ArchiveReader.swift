@@ -4,8 +4,9 @@ import Foundation
 struct ArchiveReadLimits: Equatable {
     var maximumEntryCount = 100_000
     var maximumCentralDirectoryBytes: UInt64 = 64 * 1_024 * 1_024
-    var maximumEntryBytes: UInt64 = 1_099_511_627_776
-    var maximumTotalBytes: UInt64 = 4_398_046_511_104
+    var maximumEntryBytes: UInt64 = 8 * 1_024 * 1_024 * 1_024
+    var maximumTotalBytes: UInt64 = 512 * 1_024 * 1_024 * 1_024
+    var minimumFreeBytes: UInt64 = 64 * 1_024 * 1_024
 }
 
 struct ArchiveEntry: Equatable {
@@ -29,6 +30,7 @@ enum ArchiveReaderError: Error, Equatable {
     case checksumFailed(String)
     case invalidCatalog(String)
     case unsupportedVersion(Int)
+    case operationInProgress
 }
 
 final class ArchiveReader {
@@ -51,16 +53,23 @@ final class ArchiveReader {
         try fileManager.createDirectory(at: incoming, withIntermediateDirectories: true)
         var result: [String: URL] = [:]
         do {
+            let attributes = try fileManager.attributesOfFileSystem(forPath: root.path)
+            guard let free = (attributes[.systemFreeSize] as? NSNumber)?.uint64Value,
+                  free > limits.minimumFreeBytes else { throw ArchiveReaderError.limitExceeded("free_space") }
+            var remainingBudget = min(limits.maximumTotalBytes, free - limits.minimumFreeBytes)
             for (index, entry) in entries.enumerated() {
+                try Task.checkCancellation()
+                guard entry.size <= remainingBudget else { throw ArchiveReaderError.limitExceeded("free_space") }
                 let destination = root.appendingPathComponent(entry.path, isDirectory: false)
                 try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
                 let partial = incoming.appendingPathComponent("\(index)-\(UUID().uuidString).partial", isDirectory: false)
-                try extract(entry, to: partial) { copied in
+                try extract(entry, to: partial, byteBudget: remainingBudget) { copied in
                     progress(ArchiveExportProgress(completedEntries: index, completedBytes: copied, currentPath: entry.path))
                 }
                 if fileManager.fileExists(atPath: destination.path) { throw ArchiveReaderError.duplicatePath(entry.path) }
                 try fileManager.moveItem(at: partial, to: destination)
                 result[entry.path] = destination
+                remainingBudget -= entry.size
                 progress(ArchiveExportProgress(completedEntries: index + 1, completedBytes: entry.size, currentPath: entry.path))
             }
             try? fileManager.removeItem(at: incoming)
@@ -71,7 +80,7 @@ final class ArchiveReader {
         }
     }
 
-    private func extract(_ entry: ArchiveEntry, to destination: URL, progress: (UInt64) -> Void) throws {
+    private func extract(_ entry: ArchiveEntry, to destination: URL, byteBudget: UInt64, progress: (UInt64) -> Void) throws {
         let input = try FileHandle(forReadingFrom: url)
         defer { try? input.close() }
         try input.seek(toOffset: entry.localHeaderOffset)
@@ -89,6 +98,17 @@ final class ArchiveReader {
         defer { try? output.close() }
         var crc = CRC32.initial
         var written: UInt64 = 0
+        let ceiling = min(entry.size, limits.maximumEntryBytes, byteBudget)
+        func write(_ chunk: Data) throws {
+            try Task.checkCancellation()
+            guard written <= ceiling, UInt64(chunk.count) <= ceiling - written else {
+                throw ArchiveReaderError.limitExceeded(entry.path)
+            }
+            try output.write(contentsOf: chunk)
+            crc = CRC32.update(crc, with: chunk)
+            written += UInt64(chunk.count)
+            progress(written)
+        }
         switch entry.method {
         case 0:
             guard entry.compressedSize == entry.size else { throw ArchiveReaderError.corruptDirectory }
@@ -98,18 +118,11 @@ final class ArchiveReader {
                 guard let chunk = try input.read(upToCount: amount), !chunk.isEmpty else {
                     throw ArchiveReaderError.truncated(entry.path)
                 }
-                try output.write(contentsOf: chunk)
-                crc = CRC32.update(crc, with: chunk)
-                written += UInt64(chunk.count)
+                try write(chunk)
                 remaining -= UInt64(chunk.count)
-                progress(written)
             }
         case 8:
-            try inflate(input: input, compressedBytes: entry.compressedSize, output: output) { chunk in
-                crc = CRC32.update(crc, with: chunk)
-                written += UInt64(chunk.count)
-                progress(written)
-            }
+            try inflate(input: input, compressedBytes: entry.compressedSize, consume: write)
         default:
             throw ArchiveReaderError.unsupportedCompression(entry.path)
         }
@@ -118,10 +131,24 @@ final class ArchiveReader {
         guard CRC32.finish(crc) == entry.crc32 else { throw ArchiveReaderError.checksumFailed(entry.path) }
     }
 
+    func catalogueData() throws -> Data {
+        guard let entry = entries.first(where: {
+            $0.path == ArchiveWriter.catalogFilename || ($0.path as NSString).lastPathComponent == ArchiveWriter.catalogFilename
+        }), entry.size <= 128 * 1_024 * 1_024 else { throw ArchiveReaderError.invalidCatalog("missing_catalog") }
+        let temporary = fileManager.temporaryDirectory.appendingPathComponent("aeon-preview-\(UUID().uuidString).partial")
+        defer { try? fileManager.removeItem(at: temporary) }
+        let attributes = try fileManager.attributesOfFileSystem(forPath: fileManager.temporaryDirectory.path)
+        guard let free = (attributes[.systemFreeSize] as? NSNumber)?.uint64Value,
+              free > limits.minimumFreeBytes, entry.size <= free - limits.minimumFreeBytes else {
+            throw ArchiveReaderError.limitExceeded("free_space")
+        }
+        try extract(entry, to: temporary, byteBudget: entry.size) { _ in }
+        return try Data(contentsOf: temporary)
+    }
+
     private func inflate(
         input: FileHandle,
         compressedBytes: UInt64,
-        output: FileHandle,
         consume: (Data) throws -> Void
     ) throws {
         let seed = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
@@ -142,6 +169,7 @@ final class ArchiveReader {
         let destinationSize = 512 * 1_024
         var destination = [UInt8](repeating: 0, count: destinationSize)
         while remaining > 0 && !reachedEnd {
+            try Task.checkCancellation()
             let amount = Int(min(UInt64(256 * 1_024), remaining))
             guard let source = try input.read(upToCount: amount), !source.isEmpty else {
                 throw ArchiveReaderError.corruptDirectory
@@ -160,7 +188,6 @@ final class ArchiveReader {
                     let produced = destinationSize - stream.dst_size
                     if produced > 0 {
                         let chunk = Data(destination[0..<produced])
-                        try output.write(contentsOf: chunk)
                         try consume(chunk)
                     }
                     if status == COMPRESSION_STATUS_END { reachedEnd = true; break }
@@ -260,6 +287,11 @@ final class ArchiveReader {
             guard expanded <= limits.maximumEntryBytes, compressed <= limits.maximumEntryBytes else {
                 throw ArchiveReaderError.limitExceeded(path)
             }
+            let ext = (path as NSString).pathExtension.lowercased()
+            if ext == "json", expanded > 128 * 1_024 * 1_024 { throw ArchiveReaderError.limitExceeded(path) }
+            if ["jpg", "jpeg", "png", "heic", "webp", "tiff"].contains(ext), expanded > 32 * 1_024 * 1_024 {
+                throw ArchiveReaderError.limitExceeded(path)
+            }
             let (nextTotal, overflow) = total.addingReportingOverflow(expanded)
             guard !overflow, nextTotal <= limits.maximumTotalBytes else { throw ArchiveReaderError.limitExceeded("total_size") }
             total = nextTotal
@@ -301,6 +333,29 @@ struct ArchiveRestoreResult: Equatable {
     let albumCount: Int
     let trackCount: Int
     let playlistCount: Int
+    var warnings: [String] = []
+}
+
+struct ArchiveRestorePreview: Equatable {
+    let albumCount: Int
+    let trackCount: Int
+    let playlistCount: Int
+    let replacingAlbums: Int
+    let replacingPlaylists: Int
+    let expandedBytes: UInt64
+}
+
+struct LibraryHealthReport {
+    struct MissingTrack: Identifiable {
+        let id: String
+        let title: String
+        let album: String
+    }
+    var trackCount = 0
+    var missingCount = 0
+    var missingTracks: [MissingTrack] = []
+    var unreferencedFileCount = 0
+    var unreferencedBytes: Int64 = 0
 }
 
 final class ArchiveRestorer {
@@ -327,11 +382,72 @@ final class ArchiveRestorer {
         self.fileManager = fileManager
     }
 
+    func preview(from source: URL) throws -> ArchiveRestorePreview {
+        guard repository.beginFileOperation() else { throw ArchiveReaderError.operationInProgress }
+        defer { repository.endFileOperation() }
+        let reader = try ArchiveReader(url: source, fileManager: fileManager)
+        let paths = Set(reader.entries.map(\.path))
+        let catalog = try decodeCatalog(reader.catalogueData(), entryPaths: paths)
+        try validate(catalog, entryPaths: paths)
+        let playlistIDs = Set(try repository.allPlaylists().map(\.id))
+        let replacingAlbums = try catalog.albums.filter { try repository.album(id: $0.id) != nil }.count
+        return ArchiveRestorePreview(albumCount: catalog.albums.count, trackCount: catalog.albums.reduce(0) { $0 + $1.tracks.count },
+            playlistCount: catalog.playlists.count, replacingAlbums: replacingAlbums,
+            replacingPlaylists: catalog.playlists.filter { playlistIDs.contains($0.id) }.count,
+            expandedBytes: reader.entries.reduce(0) { $0 + $1.size })
+    }
+
+    func inspectLibrary() throws -> LibraryHealthReport {
+        guard repository.beginFileOperation() else { throw ArchiveReaderError.operationInProgress }
+        defer { repository.endFileOperation() }
+        var report = LibraryHealthReport()
+        var references = Set<String>()
+        var offset = 0
+        while true {
+            try Task.checkCancellation()
+            let albums = try repository.albumPage(offset: offset)
+            for album in albums {
+                for track in try repository.allTracks(albumID: album.id) {
+                    report.trackCount += 1
+                    do {
+                        let url = try mediaStore.resolve(track.mediaReference)
+                        defer { mediaStore.release(url) }
+                        references.insert(url.standardizedFileURL.resolvingSymlinksInPath().path)
+                        guard fileManager.fileExists(atPath: url.path) else { throw MediaStoreError.unavailable(trackID: track.id) }
+                    } catch {
+                        report.missingCount += 1
+                        if report.missingTracks.count < 50 {
+                            report.missingTracks.append(.init(id: track.id, title: track.title, album: album.title))
+                        }
+                    }
+                }
+            }
+            offset += albums.count
+            if albums.count < CatalogDatabase.maximumPageSize { break }
+        }
+        let managedRoots = [mediaStore.mediaRoot, mediaStore.importedDocumentsRoot, mediaStore.migratedRoot,
+                            mediaStore.documentsMusicRoot.appendingPathComponent("_Restored")]
+        for root in managedRoots {
+            guard let files = fileManager.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey], options: [.skipsHiddenFiles]) else { continue }
+            for case let url as URL in files {
+                try Task.checkCancellation()
+                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                guard values.isRegularFile == true, values.isSymbolicLink != true,
+                      !references.contains(url.standardizedFileURL.resolvingSymlinksInPath().path) else { continue }
+                report.unreferencedFileCount += 1
+                report.unreferencedBytes += Int64(values.fileSize ?? 0)
+            }
+        }
+        return report
+    }
+
     func restore(
         from source: URL,
         limits: ArchiveReadLimits = ArchiveReadLimits(),
         progress: (ArchiveExportProgress) -> Void = { _ in }
     ) throws -> ArchiveRestoreResult {
+        guard repository.beginFileOperation() else { throw ArchiveReaderError.operationInProgress }
+        defer { repository.endFileOperation() }
         let operationID = UUID().uuidString.lowercased()
         let staging = restoreRoot.appendingPathComponent(".incoming/\(operationID)", isDirectory: true)
         let finalMediaRoot = mediaStore.documentsMusicRoot
@@ -372,6 +488,9 @@ final class ArchiveRestorer {
             let processor = ArtworkProcessor(store: artworkStore)
             for album in catalog.albums {
                 guard let path = album.artworkPath, let stagedURL = extracted[path] else { continue }
+                guard let entry = archive.entries.first(where: { $0.path == path }), entry.size <= 32 * 1_024 * 1_024 else {
+                    throw ArchiveReaderError.limitExceeded(path)
+                }
                 let key = "restore-\(operationID.prefix(8))-\(safeComponent(album.id).prefix(72))"
                 guard let stored = processor.process(try Data(contentsOf: stagedURL), key: key) else {
                     throw ArchiveReaderError.invalidCatalog("artwork:\(album.id)")
@@ -380,14 +499,20 @@ final class ArchiveRestorer {
                 createdArtwork.append(stored)
             }
 
+            try Task.checkCancellation()
             try repository.restoreArchive(catalog, mediaReferences: media, artworkKeys: artwork)
+            // The library is committed. Queue state is best-effort and must never roll
+            // back media now referenced by the database.
+            var warnings: [String] = []
             if let checkpoint = rewrittenCheckpoint(catalog.queueCheckpoint, media: media) {
-                try playbackStateStore.save(checkpoint)
+                do { try playbackStateStore.save(checkpoint) }
+                catch { warnings.append("Your library was restored, but the saved playback queue could not be restored.") }
             }
             return ArchiveRestoreResult(
                 albumCount: catalog.albums.count,
                 trackCount: catalog.albums.reduce(0) { $0 + $1.tracks.count },
-                playlistCount: catalog.playlists.count
+                playlistCount: catalog.playlists.count,
+                warnings: warnings
             )
         } catch {
             try? fileManager.removeItem(at: finalMediaRoot)
@@ -548,14 +673,14 @@ final class ArchiveRestorer {
         for album in catalog.albums {
             guard validID(album.id), !album.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   !album.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  album.sequence > 0, sequences.insert(album.sequence).inserted,
+                  album.sequence > 0, album.sequence <= 1_000_000_000, sequences.insert(album.sequence).inserted,
                   albumIDs.insert(album.id).inserted else { throw ArchiveReaderError.invalidCatalog("album") }
             if let artwork = album.artworkPath {
                 guard ArchivePath.isSafe(artwork), entryPaths.contains(artwork) else { throw ArchiveReaderError.invalidCatalog("artwork") }
             }
             var trackSequences = Set<Int>()
             for track in album.tracks {
-                guard validID(track.id), track.albumID == album.id, track.sequence > 0,
+                guard validID(track.id), track.albumID == album.id, track.sequence > 0, track.sequence <= 1_000_000_000,
                       trackSequences.insert(track.sequence).inserted,
                       trackIDs.insert(track.id).inserted,
                       !track.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -584,6 +709,7 @@ final class ArchiveRestorer {
               Set(catalog.skyRecords.map(\.id)).count == catalog.skyRecords.count else {
             throw ArchiveReaderError.invalidCatalog("relationship")
         }
+        try SkyRepository.validateArchiveRecords(catalog.skyRecords, albumIDs: albumIDs)
         if let queue = catalog.queueCheckpoint {
             guard queue.queue.allSatisfy({ trackIDs.contains($0.trackID) && albumIDs.contains($0.albumID) }) else {
                 throw ArchiveReaderError.invalidCatalog("queue")

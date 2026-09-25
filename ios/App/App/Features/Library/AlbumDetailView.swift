@@ -128,7 +128,7 @@ struct AlbumDetailView: View {
 
     private var playlistMenu: some View {
         Menu {
-            let playlists = (try? controller.repository.playlists()) ?? []
+            let playlists = (try? controller.repository.allPlaylists()) ?? []
             if playlists.isEmpty {
                 Button("NO PLAYLISTS YET") {}.disabled(true)
             } else {

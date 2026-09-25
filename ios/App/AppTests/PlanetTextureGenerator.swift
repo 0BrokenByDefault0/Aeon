@@ -1,4 +1,5 @@
 import Foundation
+@testable import App
 
 struct PlanetTextureGenerator {
     static let width = 512

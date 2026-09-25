@@ -3,6 +3,21 @@ import XCTest
 @testable import App
 
 final class AudioEngineGraphTests: XCTestCase {
+    func testReferenceBypassNeverRaisesListeningVolume() throws {
+        let graph = makeGraph()
+        graph.setMasterVolume(0.2)
+        var settings = DSPSettings()
+        settings.referenceBypass = true
+        try graph.setDSP(settings)
+        try graph.configure()
+        XCTAssertEqual(graph.engine.mainMixerNode.outputVolume, 0.2, accuracy: 0.0001)
+        graph.setMasterVolume(0.1)
+        XCTAssertEqual(graph.engine.mainMixerNode.outputVolume, 0.1, accuracy: 0.0001)
+        settings.referenceBypass = false
+        try graph.setDSP(settings)
+        XCTAssertEqual(graph.engine.mainMixerNode.outputVolume, 0.1, accuracy: 0.0001)
+    }
+
     func testSpectrumRegistrationDoesNotActivateAudioAndFailedActivationCanRetry() throws {
         var attempts = 0
         let graph = AudioEngineGraph(outputFormatProvider: {

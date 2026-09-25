@@ -77,7 +77,7 @@ struct SkyComposer {
     private func validate(_ albums: [SkyAlbumInput]) throws {
         var ids = Set<String>()
         for album in albums {
-            guard !album.id.isEmpty, album.id.utf8.count <= 512, album.sequence > 0 else {
+            guard !album.id.isEmpty, album.id.utf8.count <= 512, album.sequence > 0, album.sequence <= 1_000_000_000 else {
                 throw SkyComposerError.invalidAlbum(album.id)
             }
             guard ids.insert(album.id).inserted else { throw SkyComposerError.duplicateAlbum(album.id) }
@@ -90,14 +90,14 @@ struct SkyComposer {
                 return .variousArtists
             }
             let tagged = values.compactMap { album -> (String, Date, Int64)? in
-                let key = SkyStableHash.normalized(album.genre)
+                let key = SkyStableHash.normalized(Self.broadGenre(album.genre) ?? "")
                 return key.isEmpty ? nil : (key, album.importedAt, album.sequence)
             }
             guard let first = tagged.first else { return .uncharted }
             let counts = Dictionary(grouping: tagged, by: \.0).mapValues(\.count)
             if counts.count > 1,
                let canonical = values.lazy.compactMap(\.canonicalArtistGenre)
-                .map(SkyStableHash.normalized).first(where: { !$0.isEmpty }) {
+                .compactMap(Self.broadGenre).map(SkyStableHash.normalized).first(where: { !$0.isEmpty }) {
                 return .region(Self.regionID(canonical))
             }
             let maximum = counts.values.max()
@@ -111,7 +111,7 @@ struct SkyComposer {
     }
 
     private func outwardCoordinate(album: SkyAlbumInput, occupied: inout SpatialIndex) -> SkyPoint {
-        let regionSeed = SkyStableHash.value(SkyStableHash.normalized(album.canonicalArtistGenre ?? album.genre))
+        let regionSeed = SkyStableHash.value(SkyStableHash.normalized(Self.broadGenre(album.canonicalArtistGenre ?? album.genre) ?? "uncharted"))
         let angle = Double(regionSeed % 6283) / 1000
         let regionCenter = SkyPoint(x: Int32(cos(angle) * 640), y: Int32(sin(angle) * 640))
         let start = max(1, Int(album.sequence)) + Int(SkyStableHash.value(Self.artistKey(for: album)) % 64)
@@ -180,8 +180,8 @@ struct SkyComposer {
         var names: [String: String] = [:]
         for album in albums {
             for genre in [album.genre, album.canonicalArtistGenre].compactMap({ $0 }) where !genre.isEmpty {
-                let key = Self.regionID(SkyStableHash.normalized(genre))
-                if names[key] == nil { names[key] = genre.trimmingCharacters(in: .whitespacesAndNewlines) }
+                guard let broad = Self.broadGenre(genre) else { continue }
+                names[Self.regionID(SkyStableHash.normalized(broad))] = broad
             }
         }
         return Dictionary(grouping: stars, by: \.regionID).map { id, values in
@@ -329,6 +329,27 @@ struct SkyComposer {
     }
 
     private static func regionID(_ normalizedGenre: String) -> String { "region:" + slug(normalizedGenre) }
+
+    /// Presentation taxonomy only. Original tags remain untouched in the catalogue.
+    static func broadGenre(_ genre: String) -> String? {
+        let value = SkyStableHash.normalized(genre).replacingOccurrences(of: "&", with: " and ")
+        let words = value.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        let key = words.joined(separator: " ")
+        let families: [(String, [String])] = [
+            ("R&B", ["r and b", "rnb", "r b", "rhythm and blues", "soul", "funk", "neo soul"]),
+            ("Hip-Hop", ["hip hop", "hiphop", "rap", "trap", "drill", "grime"]),
+            ("Electronic", ["electronic", "electronica", "ambient", "house", "techno", "trance", "dance", "dubstep", "garage", "idm", "drum and bass", "dnb", "trip hop"]),
+            ("Alternative", ["alternative", "indie", "shoegaze", "dream pop", "post rock", "experimental"]),
+            ("Jazz", ["jazz", "bebop", "fusion"]), ("Classical", ["classical", "orchestral", "chamber", "opera", "baroque"]),
+            ("Metal", ["metal", "metalcore", "deathcore"]), ("Rock", ["rock", "punk", "grunge"]),
+            ("Folk & Country", ["folk", "country", "americana", "bluegrass"]),
+            ("Reggae", ["reggae", "dancehall", "dub", "ska"]),
+            ("Pop", ["pop", "synthpop", "hyperpop", "k pop", "j pop"]),
+            ("Blues", ["blues"]), ("Latin", ["latin", "salsa", "reggaeton", "bossa nova"]),
+            ("Soundtrack", ["soundtrack", "score"])
+        ]
+        return families.first { _, aliases in aliases.contains { (" " + key + " ").contains(" " + $0 + " ") } }?.0
+    }
 
     private static func slug(_ value: String) -> String {
         let scalars = value.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character(String($0)) : "-" }

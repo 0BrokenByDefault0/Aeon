@@ -17,15 +17,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - name: Run complete Node and browser matrix
+        timeout-minutes: 11
         run: |
+          python3 scripts/validation-deadline.py --stage "deep web regression" --report web-deadline.json -- bash -e <<'CHECKS'
           npm test
           npm run check
           npm run test:browser
@@ -34,66 +36,106 @@ jobs:
           npm run test:sky-chrome
           npm run test:native-audio
           npm run test:legacy-migration
+          CHECKS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: Aeon-deep-web-${{ github.run_id }}
+          path: web-deadline.json
 
-  native-regression:
+  native-build:
+    needs: web-regression
     runs-on: macos-latest
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      max-parallel: 2
-      matrix:
-        family: [iphone, ipad]
-    name: Native full matrix / ${{ matrix.family }}
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '20'
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npx cap sync ios
-      - uses: actions/cache@v4
+      - run: pod install --project-directory=ios/App
+      - id: plan
+        run: echo "matrix=$(node scripts/native-test-matrix.mjs)" >> "$GITHUB_OUTPUT"
+      - name: Build simulator tests once
+        timeout-minutes: 11
+        env:
+          AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
+        run: |
+          mkdir -p "$RUNNER_TEMP/aeon-build"
+          python3 scripts/validation-deadline.py --stage "deep native compilation" --report "$RUNNER_TEMP/aeon-build/deadline.json" -- node scripts/test-ios.mjs --family=iphone --mode=build-for-testing > "$RUNNER_TEMP/aeon-build/build.log" 2>&1
+      - name: Preserve build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          path: ios/App/Pods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/App/Podfile.lock') }}
-          restore-keys: ${{ runner.os }}-pods-
-      - name: Install locked pods
-        working-directory: ios/App
-        run: pod install
-      - name: Run all native shards
-        shell: bash
+          name: Aeon-deep-build-${{ github.run_id }}
+          path: ${{ runner.temp }}/aeon-build
+      - name: Package executable test products
+        run: tar -C "$RUNNER_TEMP/AeonDerivedData" -czf "$RUNNER_TEMP/native-products.tgz" Build/Products
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Aeon-native-products-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-products.tgz
+          retention-days: 2
+          compression-level: 0
+
+  native-regression:
+    needs: native-build
+    runs-on: macos-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.native-build.outputs.matrix) }}
+    name: Native / ${{ matrix.family }} / ${{ matrix.selector }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: Aeon-native-products-${{ github.run_id }}
+          path: ${{ runner.temp }}
+      - run: |
+          mkdir -p "$RUNNER_TEMP/AeonDerivedData" "$RUNNER_TEMP/aeon-release"
+          tar -C "$RUNNER_TEMP/AeonDerivedData" -xzf "$RUNNER_TEMP/native-products.tgz"
+      - name: Run bounded native case
+        timeout-minutes: 11
         env:
           FAMILY: ${{ matrix.family }}
+          SELECTOR: ${{ matrix.selector }}
           AEON_IOS_DERIVED_DATA_PATH: ${{ runner.temp }}/AeonDerivedData
           AEON_IOS_RESULT_BUNDLE_PATH: ${{ runner.temp }}/aeon-release/result.xcresult
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/aeon-release"
           set +e
-          node scripts/test-ios.mjs --family="$FAMILY" > "$RUNNER_TEMP/aeon-release/native.log" 2>&1
+          python3 scripts/validation-deadline.py --stage "$FAMILY $SELECTOR" --report "$RUNNER_TEMP/aeon-release/deadline.json" -- node scripts/test-ios.mjs --family="$FAMILY" --mode=test-without-building "-only-testing:$SELECTOR" > "$RUNNER_TEMP/aeon-release/native.log" 2>&1
           result=$?
           set -e
           {
-            printf 'Commit: %s\nFamily: %s\nExit code: %s\n' "$GITHUB_SHA" "$FAMILY" "$result"
-            grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)|shards (failed|passed)' "$RUNNER_TEMP/aeon-release/native.log" | tail -n 240 || true
-            printf '\nFinal log lines:\n'
-            tail -n 60 "$RUNNER_TEMP/aeon-release/native.log"
+            printf 'Commit: %s\nFamily: %s\nSelector: %s\nExit code: %s\n' "$GITHUB_SHA" "$FAMILY" "$SELECTOR" "$result"
+            grep -E 'error:|XCTAssert|XCTFail|Test Case .* (failed|passed)|Executed .* tests|TEST (FAILED|SUCCEEDED)' "$RUNNER_TEMP/aeon-release/native.log" | tail -n 100 || true
+            tail -n 30 "$RUNNER_TEMP/aeon-release/native.log"
           } | tee "$RUNNER_TEMP/aeon-release/summary.txt"
           exit "$result"
       - name: Upload release evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Aeon-release-${{ matrix.family }}-${{ github.run_id }}
-          path: |
-            ${{ runner.temp }}/aeon-release/summary.txt
-            ${{ runner.temp }}/aeon-release/*.xcresult
+          name: Aeon-release-${{ matrix.shard }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/aeon-release
           if-no-files-found: warn
           retention-days: 14
 
   release-summary:
     if: always()
-    needs: [web-regression, native-regression]
+    needs: [web-regression, native-build, native-regression]
     runs-on: ubuntu-latest
     steps:
       - name: Record automated scope

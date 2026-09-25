@@ -127,3 +127,9 @@ test('Sky hierarchy and mini transport share one focused native stage',()=>{
   assert(result.commands[0].includes('-only-testing:AppUITests/PlaybackFlowTests/testFullPlayerFillsViewportAndRestoresCompactBar'));
   assert(!result.commands[0].includes('-only-testing:AppUITests/AeonScreenMatrixTests'));
 });
+
+test('unit scope covers every AppTest without silently claiming UI coverage',()=>{
+  const result=plan('--area=import,playback,library,sky,chrome,playlists,settings','--tier=native','--scope=unit');
+  assert.equal(result.scope,'unit');
+  assert.deepEqual(result.commands,[['node','scripts/test-ios.mjs','--family=iphone','-only-testing:AppTests']]);
+});

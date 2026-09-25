@@ -103,11 +103,13 @@ struct AppServices {
             fileManager: fileManager
         )
         let stateStore = PlaybackStateStore(baseURL: stateRoot, fileManager: fileManager)
+        #if DEBUG
         try seedPlaybackFixtureIfRequested(
             catalog: catalog,
             mediaStore: mediaStore,
             stateStore: stateStore
         )
+        #endif
         let diagnostics = DiagnosticsLog(
             url: diagnosticsRoot.appendingPathComponent("audio.jsonl", isDirectory: false),
             fileManager: fileManager
@@ -172,12 +174,15 @@ struct AppServices {
             stateStore: stateStore,
             diagnostics: diagnostics,
             mediaInfo: mediaInfo,
-            recovery: recovery
+            recovery: recovery,
+            listeningRepository: startPlayback ? catalog : nil
         )
         audioSession.onEvent = { [weak coordinator] event in coordinator?.handleAudioSessionEvent(event) }
-        let playbackAuthority: PlaybackCoordinating = startPlayback
-            ? coordinator
-            : PlaybackFixtureCoordinator(snapshot: stateStore.load())
+        #if DEBUG
+        let playbackAuthority: PlaybackCoordinating = startPlayback ? coordinator : PlaybackFixtureCoordinator(snapshot: stateStore.load())
+        #else
+        let playbackAuthority: PlaybackCoordinating = coordinator
+        #endif
         let playbackController = PlaybackController(coordinator: playbackAuthority, playlistStore: catalog)
         spectrumAnalyzer.bind(to: playbackController)
         let remoteCommands = RemoteCommandCoordinator(
@@ -195,9 +200,9 @@ struct AppServices {
         let spotlightIndexer = SpotlightIndexer(catalog: catalog)
         // Fixture launches never touch the device's real search index.
         if startPlayback { spotlightIndexer.setEnabled(storedPreferences?.spotlightAlbums ?? false) }
-        if let marker = ProcessInfo.processInfo.arguments.firstIndex(of: "-AeonPlaybackFixture"),
-           ProcessInfo.processInfo.arguments.indices.contains(marker + 1),
-           ProcessInfo.processInfo.arguments[marker + 1] == "error" {
+        if let marker = AeonTestOverrides.arguments.firstIndex(of: "-AeonPlaybackFixture"),
+           AeonTestOverrides.arguments.indices.contains(marker + 1),
+           AeonTestOverrides.arguments[marker + 1] == "error" {
             playbackController.accept(
                 failure: PlaybackFailure(
                     code: "decoder_error",
@@ -237,12 +242,13 @@ struct AppServices {
         )
     }
 
+    #if DEBUG
     private static func seedPlaybackFixtureIfRequested(
         catalog: CatalogRepository,
         mediaStore: MediaStore,
         stateStore: PlaybackStateStore
     ) throws {
-        let arguments = ProcessInfo.processInfo.arguments
+        let arguments = AeonTestOverrides.arguments
         guard let marker = arguments.firstIndex(of: "-AeonPlaybackFixture"),
               arguments.indices.contains(marker + 1),
               ["loaded", "error"].contains(arguments[marker + 1]),
@@ -332,6 +338,7 @@ struct AppServices {
         var littleEndian = value.littleEndian
         withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
     }
+    #endif
 }
 
 struct LegacyLibrarySummary: Equatable {
@@ -569,7 +576,15 @@ final class AppContainer: ObservableObject {
         if source == .adoptedMusicRoot {
             try? resolvedServices.diagnosticsLog.record(eventCode: "library.adopt.started")
         }
+        guard resolvedServices.catalogRepository.beginFileOperation() else {
+            libraryImportToken = nil
+            libraryImportCancellation = nil
+            libraryImportProgress = nil
+            libraryImportError = "Another library operation is running. Wait for it to finish, then import again."
+            return
+        }
         libraryImportTask = Task { [weak self] in
+            defer { resolvedServices.catalogRepository.endFileOperation() }
             do {
                 let result = try await Task.detached(priority: .userInitiated) { () async throws -> LibraryImportResult in
                     let result: LibraryImportResult
@@ -647,55 +662,76 @@ final class AppContainer: ObservableObject {
     }
 
     @discardableResult
+    private func eraseTargets(_ roots: AppStorageRoots) -> [(source: URL, name: String)] {
+        let support = roots.applicationSupportURL.appendingPathComponent("Aeon", isDirectory: true)
+        return [
+            (support.appendingPathComponent("Catalog"), "support-Catalog"),
+            (support.appendingPathComponent("Artwork"), "support-Artwork"),
+            (support.appendingPathComponent("Media"), "support-Media"),
+            (support.appendingPathComponent("State"), "support-State"),
+            (roots.documentsURL.appendingPathComponent("Music/_Imported"), "documents-Imported"),
+            (roots.documentsURL.appendingPathComponent("Music/_Migrated"), "documents-Migrated"),
+            (roots.documentsURL.appendingPathComponent("Music/_Restored"), "documents-Restored")
+        ]
+    }
+
+    private func rollbackErase(roots: AppStorageRoots, quarantine: URL) throws {
+        for target in eraseTargets(roots).reversed() {
+            let original = quarantine.appendingPathComponent(target.name)
+            guard cleanupFileManager.fileExists(atPath: original.path) else { continue }
+            // Only targets with an intact quarantined original can contain a disposable
+            // replacement. Never remove adopted music or a successfully restored target.
+            if cleanupFileManager.fileExists(atPath: target.source.path) {
+                try cleanupFileManager.removeItem(at: target.source)
+            }
+            try cleanupFileManager.createDirectory(at: target.source.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try cleanupFileManager.moveItem(at: original, to: target.source)
+        }
+    }
+
     func eraseEverything() -> Bool {
-        guard let roots, let currentServices = services else { return false }
-        currentServices.playbackController.pause()
-        // The replacement services start their own analyser; stop the old one's timer.
+        guard let roots, let currentServices = services, libraryImportTask == nil,
+              currentServices.catalogRepository.beginFileOperation() else { return false }
+        defer { currentServices.catalogRepository.endFileOperation() }
+        currentServices.playbackController.stopRefreshing()
+        currentServices.playbackCoordinator.shutdown()
         currentServices.spectrumAnalyzer.stop()
-        // Nothing erased should stay findable from system search.
         currentServices.spotlightIndexer.setEnabled(false)
         currentServices.catalogDatabase.close()
         launchState = .launching
         services = nil
 
-        let supportRoot = roots.applicationSupportURL.appendingPathComponent("Aeon", isDirectory: true)
-        let quarantineBase = supportRoot.appendingPathComponent("EraseQuarantine", isDirectory: true)
-        let quarantine = quarantineBase.appendingPathComponent(UUID().uuidString.lowercased(), isDirectory: true)
-        let marker = quarantineBase.appendingPathComponent("pending.json", isDirectory: false)
-        let targets: [(source: URL, name: String)] = [
-            (supportRoot.appendingPathComponent("Catalog", isDirectory: true), "support-Catalog"),
-            (supportRoot.appendingPathComponent("Artwork", isDirectory: true), "support-Artwork"),
-            (supportRoot.appendingPathComponent("Media", isDirectory: true), "support-Media"),
-            (supportRoot.appendingPathComponent("State", isDirectory: true), "support-State"),
-            (roots.documentsURL.appendingPathComponent("Music/_Imported", isDirectory: true), "documents-Imported"),
-            (roots.documentsURL.appendingPathComponent("Music/_Migrated", isDirectory: true), "documents-Migrated"),
-            (roots.documentsURL.appendingPathComponent("Music/_Restored", isDirectory: true), "documents-Restored")
-        ]
-        var moved: [(source: URL, destination: URL)] = []
+        let quarantineBase = roots.applicationSupportURL.appendingPathComponent("Aeon/EraseQuarantine", isDirectory: true)
+        let directory = UUID().uuidString.lowercased()
+        let quarantine = quarantineBase.appendingPathComponent(directory, isDirectory: true)
+        let marker = quarantineBase.appendingPathComponent("pending.json")
+        func mark(_ phase: String) throws {
+            let data = try JSONSerialization.data(withJSONObject: ["token": processEraseToken, "phase": phase, "directory": directory], options: [.sortedKeys])
+            try data.write(to: marker, options: .atomic)
+        }
         do {
             try cleanupFileManager.createDirectory(at: quarantine, withIntermediateDirectories: true)
-            for target in targets where cleanupFileManager.fileExists(atPath: target.source.path) {
-                let destination = quarantine.appendingPathComponent(target.name, isDirectory: true)
-                try cleanupFileManager.moveItem(at: target.source, to: destination)
-                moved.append((target.source, destination))
+            try mark("preparing")
+            for target in eraseTargets(roots) where cleanupFileManager.fileExists(atPath: target.source.path) {
+                try cleanupFileManager.moveItem(at: target.source, to: quarantine.appendingPathComponent(target.name))
             }
-            let markerData = try JSONSerialization.data(withJSONObject: ["token": processEraseToken], options: [.sortedKeys])
-            try markerData.write(to: marker, options: .atomic)
             services = try servicesFactory(roots)
+            try mark("committed")
             launchState = .ready
             return true
         } catch {
             services?.catalogDatabase.close()
             services = nil
-            for value in moved.reversed() where cleanupFileManager.fileExists(atPath: value.destination.path) {
-                try? cleanupFileManager.createDirectory(at: value.source.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try? cleanupFileManager.moveItem(at: value.destination, to: value.source)
+            do {
+                try rollbackErase(roots: roots, quarantine: quarantine)
+                try cleanupFileManager.removeItem(at: quarantineBase)
+                services = try servicesFactory(roots)
+                launchState = .ready
+            } catch {
+                // Leave the journal and all remaining originals intact for next launch.
+                launchState = .recovery(AppRecoveryState(code: "erase_recovery_pending",
+                    message: "Erase could not finish. Recovery data has been kept. Reopen Aeon to retry restoring your library."))
             }
-            try? cleanupFileManager.removeItem(at: quarantineBase)
-            services = try? servicesFactory(roots)
-            launchState = services == nil
-                ? .recovery(AppRecoveryState(code: "erase_failed", message: "Aeon could not create a fresh catalogue. The quarantined library was restored."))
-                : .ready
             return false
         }
     }
@@ -744,6 +780,7 @@ final class AppContainer: ObservableObject {
             if services == nil {
                 let resolvedRoots = try rootsProvider()
                 roots = resolvedRoots
+                try recoverInterruptedErase(roots: resolvedRoots)
                 let resolvedServices = try servicesFactory(resolvedRoots)
                 services = resolvedServices
                 completePendingEraseIfNeeded(roots: resolvedRoots)
@@ -767,12 +804,26 @@ final class AppContainer: ObservableObject {
         }
     }
 
+    private func recoverInterruptedErase(roots: AppStorageRoots) throws {
+        let base = roots.applicationSupportURL.appendingPathComponent("Aeon/EraseQuarantine", isDirectory: true)
+        let marker = base.appendingPathComponent("pending.json")
+        guard cleanupFileManager.fileExists(atPath: marker.path) else { return }
+        let object = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: marker))
+        guard object["phase"] == "preparing" else { return }
+        guard let directory = object["directory"], UUID(uuidString: directory) != nil else {
+            throw CatalogDatabaseError.invalidResult("erase_recovery_journal")
+        }
+        try rollbackErase(roots: roots, quarantine: base.appendingPathComponent(directory))
+        try cleanupFileManager.removeItem(at: base)
+    }
+
     private func completePendingEraseIfNeeded(roots: AppStorageRoots) {
         let quarantine = roots.applicationSupportURL.appendingPathComponent("Aeon/EraseQuarantine", isDirectory: true)
         let marker = quarantine.appendingPathComponent("pending.json", isDirectory: false)
         guard let data = try? Data(contentsOf: marker),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-              object["token"] != processEraseToken else { return }
+              object["token"] != processEraseToken,
+              object["phase"] == nil || object["phase"] == "committed" else { return }
         try? cleanupFileManager.removeItem(at: quarantine)
     }
 

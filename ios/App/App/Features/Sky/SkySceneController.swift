@@ -6,12 +6,14 @@ import UIKit
 
 @MainActor
 final class SkySceneController: ObservableObject {
-    @Published private(set) var catalogue: SkyCatalogue
+    @Published private(set) var catalogue: SkyCatalogue { didSet { catalogueRevision &+= 1 } }
+    private(set) var catalogueRevision: UInt64 = 0
     @Published private(set) var camera: SkyCameraState
     @Published private(set) var ceremony: String?
     @Published private(set) var nowPlayingText: String?
     @Published private(set) var playingStarID: String?
     @Published private(set) var captureURL: URL?
+    @Published private(set) var captureInProgress = false
     @Published private(set) var cameraCrossfade = false
     @Published private(set) var spectrumLevels = SpectrumLevels.zero
 
@@ -311,68 +313,43 @@ final class SkySceneController: ObservableObject {
     }
 
     func makeCapture(wide: Bool, viewport: CGSize) {
+        guard !captureInProgress else { return }
+        captureInProgress = true
         let outputSize = CGSize(width: 1_170, height: 2_532)
         let framingScale = min(outputSize.width / max(1, viewport.width), outputSize.height / max(1, viewport.height))
         var plateCamera = camera
         plateCamera.scale *= Double(framingScale) * (wide ? 0.62 : 1)
-        let plateViewport = SkyViewport(size: outputSize)
-        let renderer = UIGraphicsImageRenderer(size: outputSize)
-        let image = renderer.image { context in
-            UIColor(red: 0.003, green: 0.004, blue: 0.007, alpha: 1).setFill()
-            context.fill(CGRect(origin: .zero, size: outputSize))
-            let graphics = context.cgContext
-            graphics.setLineWidth(1)
-            graphics.setStrokeColor(UIColor(white: 0.7, alpha: 0.28).cgColor)
-            let starByID = Dictionary(uniqueKeysWithValues: catalogue.stars.map { ($0.albumID, $0) })
-            for constellation in catalogue.constellations {
-                for segment in constellation.figureSegments {
-                    guard let from = starByID[segment.fromAlbumID], let to = starByID[segment.toAlbumID] else { continue }
-                    graphics.move(to: plateCamera.screenPoint(for: from.coordinate, viewport: plateViewport))
-                    graphics.addLine(to: plateCamera.screenPoint(for: to.coordinate, viewport: plateViewport))
-                    graphics.strokePath()
+        let title = selectedTitle() ?? "AEON / SKY"
+        let starCount = catalogue.stars.count
+        SkyRenderer.capture(catalogue: catalogue, camera: plateCamera, playingStarID: playingStarID, size: outputSize) { [weak self] sky in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                defer { self.captureInProgress = false }
+                guard let sky else { self.announce("The sky could not be captured. Try again."); return }
+                let format = UIGraphicsImageRendererFormat()
+                format.scale = 1
+                format.opaque = true
+                let image = UIGraphicsImageRenderer(size: outputSize, format: format).image { _ in
+                    sky.draw(in: CGRect(origin: .zero, size: outputSize))
+                    title.uppercased().draw(at: CGPoint(x: 64, y: 72), withAttributes: [
+                        .font: UIFont.systemFont(ofSize: 28, weight: .medium),
+                        .foregroundColor: UIColor(white: 0.92, alpha: 1), .kern: 3
+                    ])
+                    let credit = "AEON · \(starCount) STARS"
+                    credit.draw(at: CGPoint(x: 64, y: outputSize.height - 96), withAttributes: [
+                        .font: UIFont.monospacedSystemFont(ofSize: 18, weight: .regular),
+                        .foregroundColor: UIColor(white: 0.68, alpha: 1), .kern: 2
+                    ])
                 }
+                let url = FileManager.default.temporaryDirectory.appendingPathComponent("aeon-sky-\(UUID().uuidString).png")
+                guard let data = image.pngData(), (try? data.write(to: url, options: .atomic)) != nil else {
+                    self.announce("The sky could not be saved. Check available storage.")
+                    return
+                }
+                if let old = self.captureURL { try? FileManager.default.removeItem(at: old) }
+                self.captureURL = url
             }
-            for star in catalogue.stars {
-                let point = plateCamera.screenPoint(for: star.coordinate, viewport: plateViewport)
-                let radius = CGFloat(2 + Int(star.magnitude) / 48)
-                graphics.setFillColor(UIColor(white: star.isUncharted ? 0.74 : 0.94, alpha: 1).cgColor)
-                graphics.fillEllipse(in: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
-            }
-            for planet in catalogue.planets {
-                let point = plateCamera.screenPoint(for: planet.coordinate, viewport: plateViewport)
-                let color = planet.descriptor.bandColors.first ?? SkyColor(red: 120, green: 132, blue: 150)
-                graphics.setFillColor(UIColor(
-                    red: CGFloat(color.red) / 255,
-                    green: CGFloat(color.green) / 255,
-                    blue: CGFloat(color.blue) / 255,
-                    alpha: 1
-                ).cgColor)
-                graphics.fillEllipse(in: CGRect(x: point.x - 18, y: point.y - 18, width: 36, height: 36))
-            }
-            let title = selectedTitle() ?? "AEON / SKY"
-            let titleAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 28, weight: .medium),
-                .foregroundColor: UIColor(white: 0.92, alpha: 1),
-                .kern: 3
-            ]
-            title.uppercased().draw(at: CGPoint(x: 64, y: 72), withAttributes: titleAttributes)
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.dateFormat = "yyyy.MM.dd"
-            let credit = "AEON · \(formatter.string(from: Date())) · \(catalogue.stars.count) STARS"
-            credit.draw(
-                at: CGPoint(x: 64, y: outputSize.height - 96),
-                withAttributes: [
-                    .font: UIFont.monospacedSystemFont(ofSize: 18, weight: .regular),
-                    .foregroundColor: UIColor(white: 0.68, alpha: 1),
-                    .kern: 2
-                ]
-            )
         }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aeon-sky-\(UUID().uuidString).png")
-        guard let data = image.pngData(), (try? data.write(to: url, options: .atomic)) != nil else { return }
-        if let captureURL { try? FileManager.default.removeItem(at: captureURL) }
-        captureURL = url
     }
 
     func hitCandidates() -> [SkyHitCandidate] {
@@ -429,12 +406,13 @@ final class SkySceneController: ObservableObject {
     }
 
     private static func fixtureName() -> String? {
-        let arguments = ProcessInfo.processInfo.arguments
+        let arguments = AeonTestOverrides.arguments
         guard let index = arguments.firstIndex(of: "-AeonSkyFixture"), arguments.indices.contains(index + 1) else { return nil }
         return arguments[index + 1]
     }
 
     static func fixture(named name: String) throws -> SkyCatalogue {
+        #if DEBUG
         let count: Int
         switch name {
         case "world-family-0", "world-family-1", "world-family-2", "world-family-3", "world-family-4", "world-family-5": count = 90
@@ -466,5 +444,8 @@ final class SkySceneController: ObservableObject {
             ))
         }
         return try SkyComposer().compose(albums: albums)
+        #else
+        return .empty
+        #endif
     }
 }

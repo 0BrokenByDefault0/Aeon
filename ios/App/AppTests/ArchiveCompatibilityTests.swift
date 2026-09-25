@@ -28,10 +28,7 @@ final class ArchiveCompatibilityTests: XCTestCase {
         )
         try source.repository.setSetting(true, forKey: MetadataEnricher.lookupEnabledKey)
         try source.repository.setSetting(UInt32(91), forKey: "sky.seed")
-        try source.repository.upsertSkyRecord(SkyRecord(
-            id: "star", kind: .star, sequence: 1, payload: Data("{\"albumID\":\"album\"}".utf8),
-            updatedAt: Date(timeIntervalSince1970: 3)
-        ))
+        try SkyRepository(catalog: source.repository).backfill()
         let checkpoint = makeSnapshot(track: track)
 
         let catalogueURL = source.roots.temporaryURL.appendingPathComponent("catalog.json")
@@ -42,7 +39,7 @@ final class ArchiveCompatibilityTests: XCTestCase {
         XCTAssertEqual(catalogue.listening.first?.playCount, 4)
         XCTAssertEqual(catalogue.queueCheckpoint?.trackID, "track")
         XCTAssertEqual(catalogue.skySeed, 91)
-        XCTAssertEqual(catalogue.skyRecords.map(\.id), ["star"])
+        XCTAssertEqual(catalogue.skyRecords.filter { $0.kind == .star }.map(\.id), ["star:album"])
         XCTAssertTrue(catalogue.albums.flatMap(\.tracks).allSatisfy { $0.audioPath == nil })
         XCTAssertTrue(catalogue.albums.allSatisfy { $0.artworkPath == nil })
 
@@ -68,6 +65,12 @@ final class ArchiveCompatibilityTests: XCTestCase {
             trackID: "track", playCount: 12, completedCount: 8, lastPosition: 1,
             lastPlayedAt: Date(timeIntervalSince1970: 10)
         )
+
+        let preview = try target.restorer.preview(from: backupURL)
+        XCTAssertEqual(preview.replacingAlbums, 1)
+        XCTAssertEqual(preview.trackCount, 1)
+        XCTAssertEqual(try target.repository.album(id: "album")?.title, "Older Title")
+        XCTAssertNotNil(try target.repository.track(id: "obsolete"))
 
         let result = try target.restorer.restore(from: backupURL)
         XCTAssertEqual(result, ArchiveRestoreResult(albumCount: 1, trackCount: 1, playlistCount: 1))
@@ -174,6 +177,60 @@ final class ArchiveCompatibilityTests: XCTestCase {
             XCTAssertEqual(error as? ArchiveReaderError, .checksumFailed("payload"))
         }
         XCTAssertEqual((try? FileManager.default.contentsOfDirectory(at: partialRoot, includingPropertiesForKeys: nil).count) ?? 0, 0)
+    }
+
+    func testLibraryHealthReportsMissingAndUnusedManagedFilesWithoutDeletingAdoptedMusic() throws {
+        let context = try makeContext("health")
+        let present = context.media.mediaURL(stableID: "present", fileExtension: "wav")
+        let unused = context.media.mediaURL(stableID: "unused", fileExtension: "wav")
+        let adopted = context.media.documentsMusicRoot.appendingPathComponent("Collector/Original.wav")
+        try FileManager.default.createDirectory(at: adopted.deletingLastPathComponent(), withIntermediateDirectories: true)
+        for url in [present, unused, adopted] { try Data("music".utf8).write(to: url) }
+        try context.repository.insertAlbum(makeAlbum(id: "album", sequence: 1, title: "Health"), tracks: [
+            makeTrack(id: "present", albumID: "album", sequence: 1, media: .native(relativePath: present.lastPathComponent)),
+            makeTrack(id: "missing", albumID: "album", sequence: 2, media: .unavailable(trackID: "missing"))
+        ])
+        let report = try context.restorer.inspectLibrary()
+        XCTAssertEqual(report.trackCount, 2)
+        XCTAssertEqual(report.missingCount, 1)
+        XCTAssertEqual(report.missingTracks.map(\.id), ["missing"])
+        XCTAssertEqual(report.unreferencedFileCount, 1)
+        for url in [present, unused, adopted] { XCTAssertTrue(FileManager.default.fileExists(atPath: url.path)) }
+    }
+
+    func testDeflateCannotWriteBeyondAdvertisedExpandedSize() throws {
+        let root = temporaryRoot("quota")
+        let url = root.appendingPathComponent("lying.zip")
+        var bytes = try XCTUnwrap(Data(base64Encoded: "UEsDBBQAAAAIABh7LV2KTkaoGgAAABgAAAATAAAAZm9sZGVyL2RlZmxhdGVkLnR4dEtJTctJLElNUUgsSs7ILEtVKEiszMlPTAEAUEsBAhQDFAAAAAgAGHstXYpORqgaAAAAGAAAABMAAAAAAAAAAAAAAIABAAAAAGZvbGRlci9kZWZsYXRlZC50eHRQSwUGAAAAAAEAAQBBAAAASwAAAAAA"))
+        let central = try XCTUnwrap(bytes.range(of: Data([0x50, 0x4b, 0x01, 0x02]))).lowerBound
+        bytes.replaceSubrange(22..<26, with: [1, 0, 0, 0])
+        bytes.replaceSubrange((central + 24)..<(central + 28), with: [1, 0, 0, 0])
+        try bytes.write(to: url)
+        let destination = root.appendingPathComponent("output")
+        XCTAssertThrowsError(try ArchiveReader(url: url).extractAll(to: destination)) { error in
+            guard case ArchiveReaderError.limitExceeded = error else { return XCTFail("Expected output quota rejection: \(error)") }
+        }
+        XCTAssertEqual((try? FileManager.default.contentsOfDirectory(atPath: destination.path).count) ?? 0, 0)
+    }
+
+    func testCheckpointFailureKeepsCommittedCatalogueAndMedia() throws {
+        let source = try makeContext("checkpoint-source")
+        let mediaURL = source.media.mediaURL(stableID: "track", fileExtension: "wav")
+        try Data("music".utf8).write(to: mediaURL)
+        let track = makeTrack(id: "track", albumID: "album", sequence: 1, media: .native(relativePath: mediaURL.lastPathComponent))
+        try source.repository.insertAlbum(makeAlbum(id: "album", sequence: 1, title: "Survivor"), tracks: [track])
+        let backup = source.roots.temporaryURL.appendingPathComponent("backup.zip")
+        try source.writer.writeFullBackup(to: backup, playbackSnapshot: makeSnapshot(track: track))
+        let target = try makeContext("checkpoint-target")
+        let blocked = target.roots.applicationSupportURL.appendingPathComponent("Aeon/State/transport-v1.json")
+        try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
+        let result = try target.restorer.restore(from: backup)
+        XCTAssertEqual(result.warnings.count, 1)
+        let restored = try XCTUnwrap(target.repository.track(id: "track"))
+        let resolved = try target.media.resolve(restored.mediaReference)
+        defer { target.media.release(resolved) }
+        XCTAssertEqual(try Data(contentsOf: resolved), Data("music".utf8))
+        XCTAssertEqual(try target.repository.album(id: "album")?.title, "Survivor")
     }
 
     private func makeContext(_ name: String) throws -> ArchiveTestContext {

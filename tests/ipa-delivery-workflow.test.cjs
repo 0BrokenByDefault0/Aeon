@@ -65,7 +65,7 @@ test('cheap checks, device build, packaging, and upload precede native execution
 
 test('the uploaded IPA is immediately exposed and failures are not suppressed', () => {
   assert.match(step('Upload fast IPA'), /id: upload_ipa/);
-  assert.match(step('Upload fast IPA'), /uses: actions\/upload-artifact@v4/);
+  assert.match(step('Upload fast IPA'), /uses: actions\/upload-artifact@[a-f0-9]{40} # v4/);
   assert.match(step('Upload fast IPA'), /if-no-files-found: error/);
   assert.match(step('Publish IPA download link'), /steps\.upload_ipa\.outputs\.artifact-url/);
   assert.doesNotMatch(workflow, /continue-on-error|overwrite:\s*true|delete-artifact/);
@@ -131,4 +131,13 @@ test('agent instructions persist IPA delivery before native testing', () => {
   assert.match(agents, /build and upload fast unsigned IPA -> npm run test:targeted:native/);
   assert.match(agents, /Always build and upload the fast unsigned IPA before running native tests/);
   assert.doesNotMatch(agents, /gated by relevant cheap checks and one-family focused native tests/);
+});
+
+test('fast native scope is explicit and every action is pinned', () => {
+  assert.match(step('Run focused native validation'), /--scope=unit/);
+  assert.match(step('Report post-upload native validation'), /UI validation: NOT RUN/);
+  for (const file of ['ios-ipa.yml', 'ios-release.yml', 'verify.yml']) {
+    const text = readFileSync(join(root, '.github/workflows', file), 'utf8');
+    for (const [, ref] of text.matchAll(/uses: actions\/[^@]+@([^\s]+)/g)) assert.match(ref, /^[a-f0-9]{40}$/);
+  }
 });

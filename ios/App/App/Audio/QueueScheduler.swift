@@ -9,6 +9,7 @@ enum SchedulerEvent {
     case handoff(fromTrackID: String, toTrackID: String, index: Int, token: ScheduleToken)
     case completed(trackID: String, token: ScheduleToken)
     case failed(trackID: String?, error: QueueSchedulerError, token: ScheduleToken)
+    case skipped(trackID: String, token: ScheduleToken)
 }
 
 enum QueueSchedulerError: Error, Equatable {
@@ -267,7 +268,7 @@ final class QueueScheduler {
                 if following?.index != desired { discardFollowing() }
             }
             if current != nil, following == nil {
-                do { try prepareFollowing() }
+                do { try prepareFollowing(skippingUnavailable: false) }
                 catch { repeatMode = previousMode; throw error }
             }
         }
@@ -420,10 +421,22 @@ final class QueueScheduler {
         resolver.release(obsolete.url)
     }
 
-    private func prepareFollowing() throws {
-        guard let current, let next = Self.successor(after: current.index, count: items.count, mode: repeatMode) else { return }
-        following = try prepareItem(index: next, slot: current.slot == .a ? .b : .a,
-                                    position: 0, outputFrame: current.endOutputFrame)
+    private func prepareFollowing(skippingUnavailable: Bool = true) throws {
+        guard let current else { return }
+        var next = Self.successor(after: current.index, count: items.count, mode: repeatMode)
+        var attempted = Set<Int>()
+        // Bound decoder work; a queue containing only missing files must not block Play.
+        while let candidate = next, attempted.count < 32, attempted.insert(candidate).inserted {
+            do {
+                following = try prepareItem(index: candidate, slot: current.slot == .a ? .b : .a,
+                                            position: 0, outputFrame: current.endOutputFrame)
+                return
+            } catch {
+                guard skippingUnavailable else { throw error }
+                emit(.skipped(trackID: items[candidate].trackID, token: ScheduleToken(generation: generation)))
+                next = Self.successor(after: candidate, count: items.count, mode: repeatMode)
+            }
+        }
     }
 
     static func successor(after index: Int, count: Int, mode: RepeatMode) -> Int? {

@@ -501,6 +501,7 @@
 			isa = PBXGroup;
 			children = (
 				A50000000000000000000002 /* SmokeTests.swift */,
+				A5F000000000000000000014 /* PlanetTextureGenerator.swift */,
 				A52000000000000000000014 /* PlaybackModelsTests.swift */,
 				A52000000000000000000015 /* PlaybackStateStoreTests.swift */,
 				A53000000000000000000013 /* MediaStoreTests.swift */,
@@ -662,7 +663,6 @@
 				A5F000000000000000000011 /* SkyModels.swift */,
 				A5F000000000000000000012 /* SkyComposer.swift */,
 				A5F000000000000000000013 /* SkyRepository.swift */,
-				A5F000000000000000000014 /* PlanetTextureGenerator.swift */,
 			);
 			path = Sky;
 			sourceTree = "<group>";
@@ -1036,7 +1036,6 @@
 				A5F000000000000000000001 /* SkyModels.swift in Sources */,
 				A5F000000000000000000002 /* SkyComposer.swift in Sources */,
 				A5F000000000000000000003 /* SkyRepository.swift in Sources */,
-				A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */,
 				A60000000000000000000001 /* SkyCamera.swift in Sources */,
 				A60000000000000000000002 /* SkyHitTester.swift in Sources */,
 				A60000000000000000000003 /* SkyRenderer.swift in Sources */,
@@ -1077,6 +1076,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A50000000000000000000001 /* SmokeTests.swift in Sources */,
+				A5F000000000000000000004 /* PlanetTextureGenerator.swift in Sources */,
 				A52000000000000000000004 /* PlaybackModelsTests.swift in Sources */,
 				A52000000000000000000005 /* PlaybackStateStoreTests.swift in Sources */,
 				A53000000000000000000003 /* MediaStoreTests.swift in Sources */,

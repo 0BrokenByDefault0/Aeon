@@ -86,6 +86,9 @@ final class SettingsController: ObservableObject {
     @Published private(set) var exportKind: SettingsExportKind?
     @Published private(set) var isRestoring = false
     @Published private(set) var eraseFailed = false
+    @Published private(set) var restorePreview: ArchiveRestorePreview?
+    @Published private(set) var libraryHealth: LibraryHealthReport?
+    private var pendingRestoreURL: URL?
 
     let playback: PlaybackController
     private let repository: CatalogRepository
@@ -242,9 +245,12 @@ final class SettingsController: ObservableObject {
 
     func repairArtwork() {
         guard operationProgress == nil else { return }
+        guard repository.beginFileOperation() else { operationMessage = "Another library operation is running."; return }
         operationProgress = 0
         operationMessage = "Checking artwork…"
+        let repository = repository
         Task { [weak self] in
+            defer { repository.endFileOperation() }
             guard let self else { return }
             do {
                 let total = try repository.albumCount()
@@ -287,8 +293,54 @@ final class SettingsController: ObservableObject {
     func exportActivity() { prepareExport(kind: .activity) }
     func exportDiagnostics() { prepareExport(kind: .diagnostics) }
 
+    func prepareRestore(from url: URL) {
+        guard operationProgress == nil else { return }
+        operationProgress = 0
+        operationMessage = "Reading backup…"
+        let accessed = url.startAccessingSecurityScopedResource()
+        let restorer = archiveRestorer
+        Task { [weak self] in
+            defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+            guard let self else { return }
+            defer { operationProgress = nil }
+            do {
+                let preview = try await Task.detached(priority: .userInitiated) { try restorer.preview(from: url) }.value
+                pendingRestoreURL = url
+                restorePreview = preview
+                operationMessage = nil
+            } catch {
+                operationMessage = "This backup could not be verified. Your library has not changed. If another library operation is running, wait and try again."
+            }
+        }
+    }
+
+    func cancelRestorePreview() { restorePreview = nil; pendingRestoreURL = nil }
+
+    func confirmRestore() {
+        guard let url = pendingRestoreURL else { return }
+        cancelRestorePreview()
+        restore(from: url)
+    }
+
+    func inspectLibrary() {
+        guard operationProgress == nil else { return }
+        operationProgress = 0
+        operationMessage = "Checking your library…"
+        let restorer = archiveRestorer
+        Task { [weak self] in
+            guard let self else { return }
+            defer { operationProgress = nil }
+            do {
+                libraryHealth = try await Task.detached(priority: .utility) { try restorer.inspectLibrary() }.value
+                operationMessage = nil
+            } catch { operationMessage = "The library check could not finish. Wait for other library operations to finish, then try again." }
+        }
+    }
+
+    func clearLibraryHealth() { libraryHealth = nil }
+
     func restore(from url: URL) {
-        guard !isRestoring else { return }
+        guard !isRestoring, operationProgress == nil else { return }
         isRestoring = true
         operationProgress = 0
         operationMessage = "Validating every record and checksum…"
@@ -306,7 +358,11 @@ final class SettingsController: ObservableObject {
                     }
                 }.value
                 didRestore()
-                operationMessage = "Restore complete — \(result.albumCount) albums and \(result.playlistCount) playlists validated."
+                operationMessage = result.warnings.isEmpty
+                    ? "Restore complete — \(result.albumCount) albums and \(result.playlistCount) playlists validated."
+                    : result.warnings.joined(separator: " ")
+            } catch ArchiveReaderError.operationInProgress {
+                operationMessage = "Another library operation is running. Wait for it to finish, then restore again."
             } catch {
                 operationMessage = "Backup rejected before the catalogue changed."
             }
@@ -318,7 +374,7 @@ final class SettingsController: ObservableObject {
 
     @discardableResult
     func eraseEverything(confirmation: String) -> Bool {
-        guard confirmation == "ERASE" else {
+        guard confirmation == "ERASE", operationProgress == nil else {
             eraseFailed = true
             return false
         }
@@ -341,6 +397,7 @@ final class SettingsController: ObservableObject {
 
     private func prepareExport(kind: SettingsExportKind) {
         guard exportURL == nil, operationProgress == nil else { return }
+        guard repository.beginFileOperation() else { operationMessage = "Another library operation is running."; return }
         operationProgress = 0
         operationMessage = kind == .fullBackup ? "Packing the sky…" : "Preparing export…"
         let directory = roots.temporaryURL.appendingPathComponent("Exports", isDirectory: true)
@@ -357,7 +414,9 @@ final class SettingsController: ObservableObject {
         let playbackSnapshot = playback.snapshot
         let diagnosticEntries = kind == .diagnostics ? diagnostics.entries() : []
         let fileManager = fileManager
+        let repository = repository
         Task { [weak self] in
+            defer { repository.endFileOperation() }
             guard let self else { return }
             do {
                 try await Task.detached(priority: .userInitiated) {

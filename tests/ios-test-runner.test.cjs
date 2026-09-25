@@ -124,3 +124,25 @@ test('failed native commands still fail the run and do not skip remaining shards
   assert.deepEqual(destinations(result), [phone, phone, pad, pad]);
   assert.match(result.stderr, /4 of 4 shards failed/);
 });
+
+test('deep compilation builds once and never executes tests', t => {
+  const result = run(t, ['--family=iphone', '--mode=build-for-testing']);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.commands.length, 1);
+  assert(result.commands[0].includes('build-for-testing'));
+  assert(!result.commands[0].includes('test'));
+});
+
+test('deep case runs use the downloaded manifest without rebuilding', t => {
+  const derived = fs.mkdtempSync(path.join(os.tmpdir(), 'aeon-native-products-'));
+  t.after(() => fs.rmSync(derived, {recursive: true, force: true}));
+  fs.mkdirSync(path.join(derived, 'Build/Products'), {recursive: true});
+  fs.writeFileSync(path.join(derived, 'Build/Products/App.xctestrun'), 'fixture manifest');
+  const result = run(t, ['--family=iphone', '--mode=test-without-building', selection], {AEON_IOS_DERIVED_DATA_PATH: derived});
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.commands.length, 1);
+  assert(result.commands[0].includes('test-without-building'));
+  assert(result.commands[0].includes('-xctestrun'));
+  assert(!result.commands[0].includes('-workspace'));
+  assert(result.commands[0].includes(selection));
+});

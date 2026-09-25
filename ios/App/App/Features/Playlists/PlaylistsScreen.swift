@@ -91,12 +91,13 @@ struct PlaylistsScreen: View {
             }
             Spacer()
             if controller.playlistsFolder != nil {
-                Button { controller.importPlaylistFiles() } label: {
+                Button { Task { await controller.importPlaylistFiles() } } label: {
                     HStack { Text("M3U").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .picker) }
                         .frame(minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)
-                .accessibilityLabel("Import Playlists from Files").accessibilityIdentifier("aeon.playlists.import")
+                .disabled(controller.isImporting)
+                .accessibilityLabel(controller.isImporting ? "Importing Playlists" : "Import Playlists from Files").accessibilityIdentifier("aeon.playlists.import")
             }
             if !controller.playlists.isEmpty {
                 Button { creationPresented = true } label: {

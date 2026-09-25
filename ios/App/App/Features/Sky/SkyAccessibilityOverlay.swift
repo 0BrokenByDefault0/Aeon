@@ -3,6 +3,7 @@ import UIKit
 
 struct SkyAccessibilityOverlay: UIViewRepresentable {
     @ObservedObject var controller: SkySceneController
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     func makeUIView(context: Context) -> SkyAccessibilityView {
         let view = SkyAccessibilityView()
@@ -12,6 +13,7 @@ struct SkyAccessibilityOverlay: UIViewRepresentable {
     }
 
     func updateUIView(_ view: SkyAccessibilityView, context: Context) {
+        _ = voiceOverEnabled // Re-evaluate when VoiceOver changes without a camera mutation.
         view.update(controller: controller)
     }
 }
@@ -25,11 +27,11 @@ final class SkyAccessibilityView: UIView {
 
     private var orderedElements: [Element] = []
     private weak var controller: SkySceneController?
-    private var catalogueSignature = 0
-    private var selectedID: String?
+    private var catalogueRevision: UInt64?
+    private var camera: SkyCameraState?
     private var accessibilityEnabled: Bool {
         UIAccessibility.isVoiceOverRunning
-            || ProcessInfo.processInfo.arguments.contains("-AeonAccessibilityTesting")
+            || AeonTestOverrides.arguments.contains("-AeonAccessibilityTesting")
     }
 
     override func layoutSubviews() {
@@ -45,15 +47,13 @@ final class SkyAccessibilityView: UIView {
             orderedElements = []
             accessibilityElements = nil
             accessibilityCustomRotors = nil
+            catalogueRevision = nil
+            camera = nil
             return
         }
-        let signature = controller.catalogue.stars.count &* 31
-            &+ controller.catalogue.planets.count &* 17
-            &+ controller.catalogue.constellations.count
-        guard signature != catalogueSignature
-                || selectedID != controller.camera.selectedID else { return }
-        catalogueSignature = signature
-        selectedID = controller.camera.selectedID
+        guard controller.catalogueRevision != catalogueRevision || camera != controller.camera else { return }
+        catalogueRevision = controller.catalogueRevision
+        camera = controller.camera
         rebuild(controller: controller)
     }
 

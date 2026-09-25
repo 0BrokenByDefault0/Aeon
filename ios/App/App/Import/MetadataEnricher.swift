@@ -26,6 +26,8 @@ final class MetadataEnricher {
     private let musicBrainz: ArtistGenreProviding
     private let apple: ArtistGenreProviding
     private let now: () -> Date
+    private let failureLock = NSLock()
+    private var failures: [String: Date] = [:]
 
     init(
         repository: CatalogRepository,
@@ -43,10 +45,18 @@ final class MetadataEnricher {
         guard try repository.setting(Bool.self, forKey: Self.lookupEnabledKey) == true else { return nil }
         let canonical = ImportGrouper.normalizedPerson(artist)
         guard !canonical.isEmpty else { return nil }
-        if let cached = try cachedEntry(for: canonical) { return cached.genre }
-        let result = try await lookup(canonical: canonical)
-        try store(result, canonical: canonical)
-        return result.genre
+        if let cached = try cachedEntry(for: canonical),
+           cached.provider != .noMatch || now().timeIntervalSince(cached.checkedAt) < 86_400 { return cached.genre }
+        guard !recentFailure(canonical) else { throw URLError(.notConnectedToInternet) }
+        do {
+            let result = try await lookup(canonical: canonical)
+            try store(result, canonical: canonical)
+            rememberFailure(canonical, date: nil)
+            return result.genre
+        } catch {
+            if !(error is CancellationError) { rememberFailure(canonical, date: now()) }
+            throw error
+        }
     }
 
     func manualLookup(
@@ -73,13 +83,29 @@ final class MetadataEnricher {
     }
 
     private func lookup(canonical: String) async throws -> (genre: String?, provider: MetadataGenreProvider) {
-        if let response = try? await musicBrainz.genre(for: canonical), let genre = clean(response) {
-            return (genre, .musicBrainz)
-        }
-        if let response = try? await apple.genre(for: canonical), let genre = clean(response) {
-            return (genre, .apple)
-        }
+        var failure: Error?
+        do {
+            if let genre = clean(try await musicBrainz.genre(for: canonical)) { return (genre, .musicBrainz) }
+        } catch { failure = error }
+        try Task.checkCancellation()
+        do {
+            if let genre = clean(try await apple.genre(for: canonical)) { return (genre, .apple) }
+        } catch { failure = failure ?? error }
+        try Task.checkCancellation()
+        if let failure { throw failure }
         return (nil, .noMatch)
+    }
+
+    private func recentFailure(_ artist: String) -> Bool {
+        failureLock.lock()
+        defer { failureLock.unlock() }
+        return failures[artist].map { now().timeIntervalSince($0) < 60 } ?? false
+    }
+
+    private func rememberFailure(_ artist: String, date: Date?) {
+        failureLock.lock()
+        failures[artist] = date
+        failureLock.unlock()
     }
 
     private func store(

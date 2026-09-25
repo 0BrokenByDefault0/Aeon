@@ -38,6 +38,7 @@ final class SpectrumAnalyzer: ObservableObject {
     private var capturedSampleRate = 48_000.0
     private var hasCapturedFrame = false
     private var playbackActive = false
+    private var consumerActive = true
     private var reduceMotion = false
     private var mode: SpectrumMode = .ambient
     private var timer: DispatchSourceTimer?
@@ -61,7 +62,7 @@ final class SpectrumAnalyzer: ObservableObject {
         }
         let timer = DispatchSource.makeTimerSource(queue: workQueue)
         timer.schedule(
-            deadline: .now(),
+            deadline: .distantFuture,
             repeating: 1.0 / Self.maximumPublishRate,
             leeway: .milliseconds(4)
         )
@@ -70,6 +71,7 @@ final class SpectrumAnalyzer: ObservableObject {
         self.timer = timer
         renderLock.unlock()
         timer.resume()
+        updatePublishingSchedule()
     }
 
     func stop() {
@@ -102,6 +104,7 @@ final class SpectrumAnalyzer: ObservableObject {
         renderLock.lock()
         playbackActive = active
         renderLock.unlock()
+        updatePublishingSchedule()
         if !active { publishClear() }
     }
 
@@ -109,6 +112,7 @@ final class SpectrumAnalyzer: ObservableObject {
         renderLock.lock()
         reduceMotion = reduced
         renderLock.unlock()
+        updatePublishingSchedule()
         if reduced { publishClear() }
     }
 
@@ -116,6 +120,7 @@ final class SpectrumAnalyzer: ObservableObject {
         renderLock.lock()
         self.mode = mode
         renderLock.unlock()
+        updatePublishingSchedule()
         if mode == .off { publishClear() }
     }
 
@@ -148,7 +153,10 @@ final class SpectrumAnalyzer: ObservableObject {
         let channelCount = max(1, Int(buffer.format.channelCount))
         guard frameCount > 0 else { return }
 
-        renderLock.lock()
+        // Audio must never wait for an analysis/UI worker. Dropping a visual frame
+        // is harmless; blocking the audio tap is not.
+        guard renderLock.try() else { return }
+        guard consumerActive, playbackActive, !reduceMotion, mode != .off else { renderLock.unlock(); return }
         renderSamples.withUnsafeMutableBufferPointer { destination in
             guard let address = destination.baseAddress else { return }
             vDSP_vclr(address, 1, vDSP_Length(destination.count))
@@ -167,7 +175,7 @@ final class SpectrumAnalyzer: ObservableObject {
 
     private func publishNextFrame() {
         renderLock.lock()
-        let reactive = playbackActive && !reduceMotion && mode != .off
+        let reactive = consumerActive && playbackActive && !reduceMotion && mode != .off
         let ready = hasCapturedFrame
         let sampleRate = capturedSampleRate
         let strength: Float = mode == .full ? 1 : 0.58
@@ -193,7 +201,24 @@ final class SpectrumAnalyzer: ObservableObject {
     private var isReactive: Bool {
         renderLock.lock()
         defer { renderLock.unlock() }
-        return playbackActive && !reduceMotion && mode != .off
+        return consumerActive && playbackActive && !reduceMotion && mode != .off
+    }
+
+    func setConsumerActive(_ active: Bool) {
+        renderLock.lock()
+        consumerActive = active
+        if !active { hasCapturedFrame = false }
+        renderLock.unlock()
+        updatePublishingSchedule()
+        if !active { publishClear() }
+    }
+
+    private func updatePublishingSchedule() {
+        renderLock.lock()
+        defer { renderLock.unlock() }
+        let active = consumerActive && playbackActive && !reduceMotion && mode != .off
+        timer?.schedule(deadline: active ? .now() : .distantFuture,
+                        repeating: 1.0 / Self.maximumPublishRate, leeway: .milliseconds(4))
     }
 
     private func publishClear() {

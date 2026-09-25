@@ -148,7 +148,7 @@ struct DeviceCorrectionView: View {
                 Toggle("Reference bypass", isOn: Binding(get: { settings.referenceBypass }, set: { value in edit { $0.referenceBypass = value } }))
                     .toggleStyle(AeonToggleStyle())
                     .accessibilityIdentifier("aeon.correction.reference")
-                Text("Reference bypass disables EQ, correction, ReplayGain, app gain and protection. Settings are retained. The fixed DSP delay and native route conversion remain.").font(.caption).foregroundStyle(AeonOrbit.secondary)
+                Text("Reference bypass disables EQ, correction, ReplayGain, processing trim and protection. Your listening volume stays in control. Settings, the fixed DSP delay and native route conversion remain.").font(.caption).foregroundStyle(AeonOrbit.secondary)
                 if let message { Text(message).font(.caption).foregroundStyle(.orange) }
             }.padding(.top, 10)
         }.foregroundStyle(AeonOrbit.ink).tint(AeonOrbit.ink)

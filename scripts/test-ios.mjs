@@ -4,7 +4,10 @@ import {enforceValidationBudget} from './validation-budget.mjs';
 
 enforceValidationBudget('native validation including preparation and result collection');
 
-const copy=spawnSync('npx',['--no-install','cap','copy','ios'],{stdio:'inherit'});
+const mode=process.argv.slice(2).filter(value=>value.startsWith('--mode=')).pop()?.slice(7)||'test';
+if(!['test','build-for-testing','test-without-building'].includes(mode))throw new Error(`Unsupported native mode: ${mode}`);
+
+const copy=mode==='test-without-building'?{status:0}:spawnSync('npx',['--no-install','cap','copy','ios'],{stdio:'inherit'});
 if(copy.error)throw copy.error;
 if(copy.status!==0)process.exit(copy.status??1);
 
@@ -13,7 +16,7 @@ if(copy.status!==0)process.exit(copy.status??1);
 const familyArgument=process.argv.slice(2).filter(value=>value.startsWith('--family=')).pop();
 const family=familyArgument?.slice('--family='.length)??process.env.AEON_IOS_DEVICE_FAMILY??'all';
 if(!['all','iphone','ipad'].includes(family))throw new Error(`Unsupported simulator family: ${family}`);
-const forwardedArguments=process.argv.slice(2).filter(value=>!value.startsWith('--family='));
+const forwardedArguments=process.argv.slice(2).filter(value=>!value.startsWith('--family=')&&!value.startsWith('--mode='));
 const requested=process.env.AEON_IOS_SIMULATOR_ID;
 
 const lookup=spawnSync('xcrun',['simctl','list','devices','available','-j'],{encoding:'utf8'});
@@ -66,6 +69,9 @@ if(requested){
 console.log(`Testing on ${destinations.map(device=>`${device.name} (${device.runtime})`).join(' and ')}`);
 const resultBundle=process.env.AEON_IOS_RESULT_BUNDLE_PATH;
 const derivedData=process.env.AEON_IOS_DERIVED_DATA_PATH;
+const products=derivedData?`${derivedData}/Build/Products`:undefined;
+const testRun=mode==='test-without-building'&&products?readdirSync(products).find(file=>file.endsWith('.xctestrun')):undefined;
+if(mode==='test-without-building'&&!testRun)throw new Error('Test products are missing their .xctestrun manifest');
 const hasExplicitSelection=forwardedArguments.some(value=>
   value.startsWith('-only-testing:')||value.startsWith('-skip-testing:')
 );
@@ -74,7 +80,7 @@ const uiClasses=readdirSync('ios/App/AppUITests')
   .flatMap(file=>[...readFileSync(`ios/App/AppUITests/${file}`,'utf8').matchAll(/\bclass\s+(\w+Tests)\s*:\s*XCTestCase\b/g)])
   .map(match=>match[1])
   .sort();
-const shards=hasExplicitSelection?[{name:'focused',arguments:forwardedArguments}]:[
+const shards=mode==='build-for-testing'?[{name:'build',arguments:forwardedArguments}]:hasExplicitSelection?[{name:'focused',arguments:forwardedArguments}]:[
   {name:'unit',arguments:['-only-testing:AppTests']},
   ...uiClasses.map(name=>({name:`ui-${name.toLowerCase()}`,arguments:[`-only-testing:AppUITests/${name}`]}))
 ];
@@ -100,12 +106,11 @@ for(const device of destinations){
     console.log(`Running ${shard.name} on ${device.name}`);
     const evidence=evidencePath(device,shard);
     const result=spawnSync('xcodebuild',[
-      '-workspace','ios/App/App.xcworkspace',
-      '-scheme','App',
+      ...(testRun?['-xctestrun',`${products}/${testRun}`]:['-workspace','ios/App/App.xcworkspace','-scheme','App']),
       '-destination',`platform=iOS Simulator,id=${device.udid}`,
       ...(derivedData?['-derivedDataPath',derivedData]:[]),
       ...(evidence?['-resultBundlePath',evidence]:[]),
-      'test',
+      mode,
       '-parallel-testing-enabled', 'NO',
       '-test-timeouts-enabled', 'YES',
       '-default-test-execution-time-allowance', '600',

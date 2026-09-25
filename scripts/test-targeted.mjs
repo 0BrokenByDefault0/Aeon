@@ -109,6 +109,8 @@ function plan(args){
   const areas=explicit.length?[...new Set(explicit)]:selectAreas(files);
   const tier=values('tier',args).at(-1)||'cheap';
   if(!['cheap','native'].includes(tier))throw new Error(`Unknown tier: ${tier}`);
+  const scope=values('scope',args).at(-1)||'all';
+  if(!['all','unit'].includes(scope))throw new Error(`Unsupported native scope: ${scope}`);
   const family=values('family',args).at(-1)||'iphone';
   if(!['iphone','ipad','all'].includes(family))throw new Error(`Unsupported simulator family: ${family}`);
   const configOnly=areas.length===0;
@@ -149,7 +151,8 @@ function plan(args){
       ...(configOnly?[["node","--test","tests/ios-test-runner.test.cjs","tests/targeted-tests.test.cjs"]]:areas.flatMap(area=>routes[area].cheap))
     ])
     :areas.length?[['node','scripts/test-ios.mjs',`--family=${family}`,...new Set(areas.flatMap(nativeFor).map(name=>`-only-testing:${['ImportPickerPresentationTests','PlayerNavigationTests','PlaybackFlowTests','LibraryFlowTests','SkyInteractionTests','AdaptiveChromeTests','AeonAccessibilityTests','AeonScreenMatrixTests','SettingsFlowTests'].includes(name.split('/')[0])?'AppUITests':'AppTests'}/${name}`))]]:[];
-  return{areas,files,tier,family,configOnly,commands};
+  if(tier==='native'&&scope==='unit'&&areas.length)commands.splice(0,commands.length,['node','scripts/test-ios.mjs',`--family=${family}`,'-only-testing:AppTests']);
+  return{areas,files,tier,family,scope,configOnly,commands};
 }
 
 function display(command){

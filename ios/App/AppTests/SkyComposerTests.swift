@@ -62,12 +62,12 @@ final class SkyComposerTests: XCTestCase {
         let stars = Dictionary(uniqueKeysWithValues: try SkyComposer().compose(albums: albums).stars.map { ($0.albumID, $0) })
 
         XCTAssertEqual(stars["album-1"]?.regionID, SkyRegionIdentity.variousArtists)
-        XCTAssertEqual(stars["album-2"]?.regionID, "region:house")
-        XCTAssertEqual(stars["album-3"]?.regionID, "region:house")
+        XCTAssertEqual(stars["album-2"]?.regionID, "region:electronic")
+        XCTAssertEqual(stars["album-3"]?.regionID, "region:electronic")
         XCTAssertEqual(stars["album-4"]?.regionID, "region:electronic")
         XCTAssertEqual(stars["album-5"]?.regionID, "region:electronic")
-        XCTAssertEqual(stars["album-6"]?.regionID, "region:folk")
-        XCTAssertEqual(stars["album-7"]?.regionID, "region:folk")
+        XCTAssertEqual(stars["album-6"]?.regionID, "region:folk-country")
+        XCTAssertEqual(stars["album-7"]?.regionID, "region:folk-country")
         XCTAssertEqual(stars["album-8"]?.regionID, SkyRegionIdentity.uncharted)
     }
 
@@ -91,7 +91,7 @@ final class SkyComposerTests: XCTestCase {
 
         for old in first.stars {
             XCTAssertEqual(rebuilt.stars.first { $0.albumID == old.albumID }?.coordinate, old.coordinate)
-            XCTAssertEqual(rebuilt.stars.first { $0.albumID == old.albumID }?.regionID, "region:different")
+            XCTAssertEqual(rebuilt.stars.first { $0.albumID == old.albumID }?.regionID, SkyRegionIdentity.uncharted)
         }
         let added = try XCTUnwrap(rebuilt.stars.first { $0.albumID == "album-3" })
         let anchor = try XCTUnwrap(first.stars.first { $0.albumID == "album-1" })
@@ -162,6 +162,40 @@ final class SkyComposerTests: XCTestCase {
         XCTAssertEqual(first, second)
         XCTAssertEqual(rowsBefore, rowsAfter)
         XCTAssertEqual(try sky.catalogue(), first)
+    }
+
+    func testBroadRegionsPreserveTagsAndTitleEditsKeepIdentity() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let catalog = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        var album = CatalogAlbum(id: "album", sequence: 1, title: "Original", artist: "Artist", year: "2026", genre: "Alternative R&B", artworkKey: nil, importedAt: Date(), updatedAt: Date())
+        try catalog.insertAlbum(album, tracks: [])
+        let sky = SkyRepository(catalog: catalog)
+        let before = try XCTUnwrap(sky.backfill().stars.first)
+        album.title = "Renamed"
+        try sky.refreshMetadata(updatedAlbum: album)
+        let after = try XCTUnwrap(sky.backfill().stars.first)
+        XCTAssertEqual(after.coordinate, before.coordinate)
+        XCTAssertEqual(after.placedAt, before.placedAt)
+        XCTAssertEqual(after.title, "Renamed")
+        XCTAssertEqual(try catalog.album(id: "album")?.genre, "Alternative R&B")
+        XCTAssertEqual(after.regionID, "region:r-b")
+    }
+
+    func testDuplicateSkyPayloadIdentityIsRejectedAndLocalCacheHeals() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let catalog = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        let sky = SkyRepository(catalog: catalog)
+        let inputs = [album(1, artist: "Artist", genre: "Jazz")]
+        let valid = try sky.backfill(inputs: inputs)
+        let payload = try JSONEncoder().encode(XCTUnwrap(valid.stars.first))
+        try catalog.upsertSkyRecord(SkyRecord(id: "wrong-star-id", kind: .star, sequence: 1, payload: payload, updatedAt: Date()))
+        let malformed = AeonArchiveSkyRecord(id: "wrong-star-id", kind: .star, sequence: 1, payload: payload, updatedAt: 1)
+        XCTAssertThrowsError(try SkyRepository.validateArchiveRecords([malformed], albumIDs: ["album-1"]))
+        XCTAssertEqual(try sky.catalogue().stars.count, 1)
+        XCTAssertEqual(try sky.backfill(inputs: inputs).stars, valid.stars)
+        XCTAssertTrue(try catalog.database.query("SELECT id FROM sky_records WHERE id = 'wrong-star-id'").isEmpty)
     }
 
     private func album(

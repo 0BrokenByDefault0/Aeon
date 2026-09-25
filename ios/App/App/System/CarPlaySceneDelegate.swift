@@ -56,7 +56,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func playlistsTemplate(_ services: AppServices?) -> CPListTemplate {
         let catalog = services?.catalogRepository
-        let playlists = ((try? catalog?.playlists()) ?? [])
+        let playlists = ((try? catalog?.allPlaylists()) ?? [])
         let rows = playlists.map { playlist in
             listItem(text: playlist.name, detail: nil) { [weak self] in
                 let ids = ((try? catalog?.allPlaylistItems(playlistID: playlist.id)) ?? []).map(\.trackID)
@@ -77,7 +77,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     private func playAlbum(id: String) {
         guard let catalog = AeonRuntime.services?.catalogRepository,
-              let tracks = try? catalog.tracks(albumID: id) else { return }
+              let tracks = try? catalog.allTracks(albumID: id) else { return }
         play(tracks: tracks, startingAt: 0)
     }
 

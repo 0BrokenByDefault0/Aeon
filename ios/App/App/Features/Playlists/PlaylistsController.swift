@@ -103,7 +103,7 @@ final class PlaylistsController: ObservableObject {
     func select(id: String) {
         selectedSmartRoute = nil
         do {
-            selectedPlaylist = try repository.playlists().first { $0.id == id }
+            selectedPlaylist = try repository.allPlaylists().first { $0.id == id }
             try reloadSelection()
         } catch {
             selectedPlaylist = nil
@@ -205,53 +205,79 @@ final class PlaylistsController: ObservableObject {
 
     /// Reads every .m3u/.m3u8 in Files -> ISOLATION -> Playlists. A file whose name matches
     /// an existing playlist is treated as already imported, so re-running is harmless.
+    @Published private(set) var isImporting = false
+
     @discardableResult
-    func importPlaylistFiles(at date: Date = Date()) -> Int {
-        guard let folder = playlistsFolder else { return 0 }
-        try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
-        let files = ((try? fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [])
-            .filter { PlaylistM3U.fileExtensions.contains($0.pathExtension.lowercased()) }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-        guard !files.isEmpty else {
-            message = "Place .m3u files in Files \u{2192} ISOLATION \u{2192} Playlists, then import."
+    func importPlaylistFiles(at date: Date = Date()) async -> Int {
+        guard let folder = playlistsFolder, !isImporting else { return 0 }
+        isImporting = true
+        defer { isImporting = false }
+        message = "Reading playlists…"
+        do {
+            let repository = repository
+            let fileManager = fileManager
+            let result = try await Task.detached(priority: .userInitiated) {
+                try Self.readPlaylistFiles(folder: folder, repository: repository, fileManager: fileManager, date: date)
+            }.value
+            reload()
+            if result.imported == 0 {
+                message = result.missing > 0 ? "No tracks in those playlists matched this library." : "No new playlists found. Place .m3u files in Files → ISOLATION → Playlists."
+            } else {
+                message = "\(result.imported) playlists imported."
+            }
+            if result.missing > 0 { message = (message ?? "") + " \(result.missing) tracks were not found." }
+            if result.rejected > 0 { message = (message ?? "") + " \(result.rejected) files could not be imported within the size limits." }
+            return result.imported
+        } catch {
+            message = "Playlist import could not finish. Wait for other library operations to finish, then try again."
             return 0
         }
-        var existingNames = Set(((try? repository.playlists()) ?? []).map { $0.name.lowercased() })
-        var imported = 0
-        var missing = 0
-        for file in files {
-            guard let data = try? Data(contentsOf: file),
-                  let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { continue }
-            let document = PlaylistM3U.decode(text)
-            let fallbackName = file.deletingPathExtension().lastPathComponent
-            let name = (document.name?.isEmpty == false ? document.name : nil) ?? fallbackName
-            guard !existingNames.contains(name.lowercased()) else { continue }
-            var ids: [String] = []
-            for entry in document.entries {
-                if let id = resolve(entry) { ids.append(id) } else { missing += 1 }
-            }
-            guard !ids.isEmpty else { continue }
-            if (try? repository.createPlaylist(name: name, trackIDs: ids, id: UUID().uuidString.lowercased(), at: date)) != nil {
-                existingNames.insert(name.lowercased())
-                imported += 1
-            }
-        }
-        reload()
-        if imported == 0 {
-            message = missing > 0 ? "No tracks in those playlists matched this library." : "Those playlists are already here."
-        } else {
-            let noun = imported == 1 ? "playlist" : "playlists"
-            message = missing > 0
-                ? "\(imported) \(noun) imported. \(missing) tracks were not found in this library."
-                : "\(imported) \(noun) imported."
-        }
-        return imported
     }
 
-    private func resolve(_ entry: PlaylistM3UEntry) -> String? {
-        if let id = entry.trackID, (try? repository.track(id: id)) != nil { return id }
-        if let path = entry.documentsRelativePath, let id = try? repository.trackID(documentsRelativePath: path) { return id }
-        return try? repository.trackID(title: entry.title, artist: entry.artist)
+    private nonisolated static func readPlaylistFiles(folder: URL, repository: CatalogRepository, fileManager: FileManager, date: Date) throws -> (imported: Int, missing: Int, rejected: Int) {
+        guard repository.beginFileOperation() else { throw ArchiveReaderError.operationInProgress }
+        defer { repository.endFileOperation() }
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        let files = try fileManager.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isRegularFileKey])
+            .filter { PlaylistM3U.fileExtensions.contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        var names = Set(try repository.allPlaylists().map { $0.name.lowercased() })
+        var imported = 0, missing = 0, rejected = max(0, files.count - 256)
+        var remainingBytes = 32 * 1_024 * 1_024
+        var remainingEntries = 50_000
+        for file in files.prefix(256) {
+            try Task.checkCancellation()
+            guard remainingBytes > 0, remainingEntries > 0,
+                  (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { rejected += 1; continue }
+            do {
+                let handle = try FileHandle(forReadingFrom: file)
+                defer { try? handle.close() }
+                let limit = min(4 * 1_024 * 1_024, remainingBytes)
+                let data = try handle.read(upToCount: limit + 1) ?? Data()
+                guard data.count <= limit,
+                      let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { rejected += 1; continue }
+                remainingBytes -= data.count
+                let document = PlaylistM3U.decode(text)
+                guard document.entries.count <= min(10_000, remainingEntries) else { rejected += 1; continue }
+                remainingEntries -= document.entries.count
+                let name = document.name.flatMap { $0.isEmpty ? nil : $0 } ?? file.deletingPathExtension().lastPathComponent
+                guard !names.contains(name.lowercased()) else { continue }
+                var ids: [String] = []
+                for entry in document.entries {
+                    try Task.checkCancellation()
+                    if let id = entry.trackID, try repository.track(id: id) != nil { ids.append(id) }
+                    else if let path = entry.documentsRelativePath, let id = try repository.trackID(documentsRelativePath: path) { ids.append(id) }
+                    else if let id = try repository.trackID(title: entry.title, artist: entry.artist) { ids.append(id) }
+                    else { missing += 1 }
+                }
+                guard !ids.isEmpty else { continue }
+                try repository.createPlaylist(name: name, trackIDs: ids, id: UUID().uuidString.lowercased(), at: date)
+                names.insert(name.lowercased())
+                imported += 1
+            } catch is CancellationError { throw CancellationError() }
+            catch { rejected += 1 }
+        }
+        return (imported, missing, rejected)
     }
 
     func play(startingAt position: Int = 0) {
@@ -259,19 +285,19 @@ final class PlaylistsController: ObservableObject {
             message = "This route has no tracks yet."
             return
         }
-        guard !selectedItems.contains(where: \.unavailable) else {
-            message = "A missing track kept this route from starting."
+        let available = selectedItems.enumerated().compactMap { offset, value -> (Int, CatalogTrack)? in
+            guard !value.unavailable, let track = try? repository.track(id: value.item.trackID) else { return nil }
+            return (offset, track)
+        }
+        let requested = min(max(0, position), selectedItems.count - 1)
+        guard let index = available.firstIndex(where: { $0.0 >= requested }) else {
+            message = "No available tracks remain here. Choose another track or check Library Health."
             return
         }
-        let tracks = selectedItems.compactMap { try? repository.track(id: $0.item.trackID) }
-        guard tracks.count == selectedItems.count else {
-            message = "A missing track kept this route from starting."
-            return
-        }
-        let index = min(max(0, position), tracks.count - 1)
+        let tracks = available.map { $0.1 }
         let queue = tracks.map { QueueItem(trackID: $0.id, albumID: $0.albumID, mediaRef: $0.mediaReference) }
         playback.loadAndPlay(track: tracks[index], queue: queue, index: index)
-        message = "Route loaded into the queue."
+        message = available.count < selectedItems.count ? "Route loaded. Missing tracks were skipped." : "Route loaded into the queue."
     }
 
     func remove(position: Int) {
@@ -317,9 +343,9 @@ final class PlaylistsController: ObservableObject {
 
     private func reload() {
         do {
-            let all = try repository.playlists()
+            let all = try repository.allPlaylists()
             playlists = try all.filter { $0.id != CatalogRepository.favouritesPlaylistID }.map { playlist in
-                PlaylistOverview(playlist: playlist, itemCount: try repository.allPlaylistItems(playlistID: playlist.id).count)
+                PlaylistOverview(playlist: playlist, itemCount: try repository.playlistItemCount(playlistID: playlist.id))
             }
             let hasFavourites = all.contains { $0.id == CatalogRepository.favouritesPlaylistID }
             smartRoutes = try SmartRoute.allCases.compactMap { route -> SmartRouteOverview? in
@@ -327,7 +353,7 @@ final class PlaylistsController: ObservableObject {
                 if let order = route.listeningOrder {
                     count = try repository.listeningRouteItems(order, limit: Self.smartRouteLimit).count
                 } else if hasFavourites {
-                    count = try repository.allPlaylistItems(playlistID: CatalogRepository.favouritesPlaylistID).count
+                    count = try repository.playlistItemCount(playlistID: CatalogRepository.favouritesPlaylistID)
                 }
                 return count > 0 ? SmartRouteOverview(route: route, itemCount: count) : nil
             }

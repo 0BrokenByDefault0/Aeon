@@ -29,6 +29,22 @@ final class CatalogObservation {
 
 final class CatalogRepository {
     let database: CatalogDatabase
+    private let fileOperationLock = NSLock()
+    private var fileOperationActive = false
+
+    func beginFileOperation() -> Bool {
+        fileOperationLock.lock()
+        defer { fileOperationLock.unlock() }
+        guard !fileOperationActive else { return false }
+        fileOperationActive = true
+        return true
+    }
+
+    func endFileOperation() {
+        fileOperationLock.lock()
+        fileOperationActive = false
+        fileOperationLock.unlock()
+    }
 
     private typealias Observer = (CatalogSnapshot) -> Void
     private let encoder: JSONEncoder
@@ -229,6 +245,15 @@ final class CatalogRepository {
         return try database.query("SELECT * FROM tracks WHERE id = ?", [.text(id)]).first.map(try decodeTrack)
     }
 
+    func allTracks(albumID: String) throws -> [CatalogTrack] {
+        var result: [CatalogTrack] = []
+        while true {
+            let page = try tracks(albumID: albumID, offset: result.count)
+            result += page
+            if page.count < CatalogDatabase.maximumPageSize { return result }
+        }
+    }
+
     func updateTrack(_ track: CatalogTrack) throws {
         try validate(track, expectedAlbumID: track.albumID)
         guard try recordExists(table: "albums", id: track.albumID) else {
@@ -411,6 +436,44 @@ final class CatalogRepository {
         )
         guard changed == 1 else { throw CatalogRepositoryError.missingReference(id) }
         notifyObservers()
+    }
+
+    func allPlaylists() throws -> [CatalogPlaylist] {
+        var result: [CatalogPlaylist] = []
+        while true {
+            let page = try playlists(offset: result.count)
+            result += page
+            if page.count < CatalogDatabase.maximumPageSize { return result }
+        }
+    }
+
+    func appendPlaylistItems(playlistID: String, trackIDs: [String], at date: Date = Date()) throws {
+        try validateID(playlistID)
+        try database.transaction {
+            guard try recordExists(table: "playlists", id: playlistID) else {
+                throw CatalogRepositoryError.missingReference(playlistID)
+            }
+            var position = try database.scalar(
+                "SELECT COALESCE(MAX(position), -1) + 1 AS value FROM playlist_items WHERE playlist_id = ?",
+                [.text(playlistID)]
+            )?.int64 ?? 0
+            for id in trackIDs {
+                try validateID(id)
+                try database.execute(
+                    "INSERT INTO playlist_items(playlist_id, position, track_id) VALUES(?, ?, ?)",
+                    [.text(playlistID), .integer(position), .text(id)]
+                )
+                position += 1
+            }
+            try database.execute("UPDATE playlists SET updated_at = ? WHERE id = ?",
+                                 [.real(date.timeIntervalSince1970), .text(playlistID)])
+        }
+        notifyObservers()
+    }
+
+    func playlistItemCount(playlistID: String) throws -> Int {
+        Int(try database.scalar("SELECT COUNT(*) AS value FROM playlist_items WHERE playlist_id = ?",
+                                [.text(playlistID)])?.int64 ?? 0)
     }
 
     @discardableResult
@@ -678,6 +741,13 @@ final class CatalogRepository {
             lastPosition: position,
             lastPlayedAt: row.double("last_played_at").map(Date.init(timeIntervalSince1970:))
         )
+    }
+
+    func updateListeningProgress(trackID: String, position: Double, completed: Bool) throws {
+        guard position.isFinite, position >= 0 else { throw CatalogRepositoryError.invalidRecord }
+        try database.execute("UPDATE listening SET last_position = ?, completed_count = completed_count + ? WHERE track_id = ?",
+                             [.real(position), .integer(completed ? 1 : 0), .text(trackID)])
+        if completed { notifyObservers() }
     }
 
     func listeningStates(offset: Int = 0, limit: Int = CatalogDatabase.maximumPageSize) throws -> [CatalogListeningState] {
@@ -954,6 +1024,9 @@ final class CatalogRepository {
         artworkKeys: [String: String]
     ) throws {
         guard archive.v == AeonArchiveCatalog.version else { throw CatalogRepositoryError.invalidRecord }
+        guard archive.albums.allSatisfy({ (1...1_000_000_000).contains($0.sequence) && $0.tracks.allSatisfy { (1...1_000_000_000).contains($0.sequence) } }),
+              Set(archive.albums.map(\.id)).count == archive.albums.count else { throw CatalogRepositoryError.invalidRecord }
+        try SkyRepository.validateArchiveRecords(archive.skyRecords, albumIDs: Set(archive.albums.map(\.id)))
         let existingAlbums = try database.query("SELECT id, sequence, artwork_key FROM albums ORDER BY sequence")
         let existingSequences = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, Int64)? in
             guard let id = row.string("id"), let sequence = row.int64("sequence") else { return nil }
@@ -970,7 +1043,7 @@ final class CatalogRepository {
         for album in archive.albums.sorted(by: { ($0.sequence, $0.id) < ($1.sequence, $1.id) }) {
             let sequence: Int64
             if let existing = existingSequences[album.id] { sequence = existing }
-            else if album.sequence > 0, !reserved.contains(album.sequence) { sequence = album.sequence }
+            else if album.sequence > 0, album.sequence <= 1_000_000_000, !reserved.contains(album.sequence) { sequence = album.sequence }
             else {
                 while reserved.contains(nextSequence) { nextSequence += 1 }
                 sequence = nextSequence
@@ -1352,7 +1425,7 @@ final class CatalogRepository {
 
     private func validate(_ album: CatalogAlbum) throws {
         try validateID(album.id)
-        guard album.sequence > 0,
+        guard album.sequence > 0, album.sequence <= 1_000_000_000,
               !album.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !album.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               album.importedAt.timeIntervalSince1970.isFinite,
@@ -1373,7 +1446,7 @@ final class CatalogRepository {
         try validateID(track.id)
         try validateID(track.albumID)
         guard track.albumID == expectedAlbumID,
-              track.sequence > 0,
+              track.sequence > 0, track.sequence <= 1_000_000_000,
               track.discNumber.map({ $0 > 0 }) ?? true,
               track.trackNumber.map({ $0 > 0 }) ?? true,
               !track.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,

@@ -84,7 +84,7 @@ struct AeonPlayAlbumIntent: AudioPlaybackIntent {
         guard let services = AeonRuntime.services, let playback = await AeonIntentSupport.readyPlayback() else {
             throw AeonIntentError.libraryUnavailable
         }
-        try AeonIntentSupport.play(tracks: try services.catalogRepository.tracks(albumID: album.id), playback: playback)
+        try AeonIntentSupport.play(tracks: try services.catalogRepository.allTracks(albumID: album.id), playback: playback)
         return .result()
     }
 }

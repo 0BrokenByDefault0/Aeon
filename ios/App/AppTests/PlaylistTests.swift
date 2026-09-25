@@ -44,15 +44,15 @@ final class PlaylistTests: XCTestCase {
         XCTAssertEqual(controller.selectedItems.map(\.item.trackID), ["last", "missing", "first"])
         XCTAssertEqual(controller.selectedItems.map(\.unavailable), [false, true, false])
         controller.play(startingAt: 1)
-        XCTAssertTrue(coordinator.loads.isEmpty)
-        XCTAssertEqual(controller.message, "A missing track kept this route from starting.")
+        XCTAssertEqual(coordinator.loads.first?.trackID, "first")
+        XCTAssertEqual(controller.message, "Route loaded. Missing tracks were skipped.")
 
         controller.remove(position: 1)
         controller.play(startingAt: 1)
         XCTAssertEqual(coordinator.loads.first?.trackID, "first")
         XCTAssertEqual(coordinator.loads.first?.queue.map(\.trackID), ["last", "first"])
         XCTAssertEqual(coordinator.loads.first?.index, 1)
-        XCTAssertEqual(coordinator.playCount, 1)
+        XCTAssertEqual(coordinator.playCount, 2)
 
         XCTAssertTrue(try repository.deleteAlbum(id: album.id))
         XCTAssertTrue(try repository.playlistItems(playlistID: "route").isEmpty)
@@ -137,7 +137,7 @@ final class PlaylistTests: XCTestCase {
         XCTAssertTrue(controller.playlists.isEmpty)
     }
 
-    func testM3URoundTripsAndImportResolvesByIDPathThenTitle() throws {
+    func testM3URoundTripsAndImportResolvesByIDPathThenTitle() async throws {
         let repository = CatalogRepository(database: try CatalogDatabase(rootURL: root))
         try insertGlassRoute(into: repository)
         let folder = root.appendingPathComponent("Documents/Playlists", isDirectory: true)
@@ -164,11 +164,13 @@ final class PlaylistTests: XCTestCase {
         let foreign = "\u{feff}#EXTM3U\r\n#EXTINF:61,Arden Vale - Third Light\r\nC:\\Music\\third.flac\r\n"
             + "..\\Music\\Arden Vale\\Glass Route\\02.flac\r\n#EXTINF:5,Nobody - Nothing\r\nnothing.mp3\r\n"
         try Data(foreign.utf8).write(to: folder.appendingPathComponent("Borrowed.m3u"))
-        XCTAssertEqual(controller.importPlaylistFiles(), 1)
+        let imported = await controller.importPlaylistFiles()
+        XCTAssertEqual(imported, 1)
         let borrowed = try XCTUnwrap(try repository.playlists().first { $0.name == "Borrowed" })
         XCTAssertEqual(try repository.playlistItems(playlistID: borrowed.id).map(\.trackID), ["third", "second"])
         // Re-running recognises both files by name and adds nothing.
-        XCTAssertEqual(controller.importPlaylistFiles(), 0)
+        let repeated = await controller.importPlaylistFiles()
+        XCTAssertEqual(repeated, 0)
         XCTAssertEqual(try repository.playlists().count, 2)
 
         XCTAssertNil(PlaylistM3U.documentsRelativePath(forLocation: "../../etc/passwd"))

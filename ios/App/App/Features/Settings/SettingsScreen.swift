@@ -81,6 +81,9 @@ struct SettingsScreen: View {
                         settingsNavigationRow(title: "Artwork", value: "REPAIR",
                             detail: "Re-checks covers. Interrupted work resumes where it stopped.",
                             identifier: "aeon.settings.artwork-repair", glyph: .refresh, action: { controller.repairArtwork() })
+                        settingsNavigationRow(title: "Library Health", value: "CHECK",
+                            detail: "Find missing tracks and unused copies. Your music stays untouched.",
+                            identifier: "aeon.settings.library-health", glyph: .refresh, action: { controller.inspectLibrary() })
                         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
                             Button { controller.measureStorage() } label: {
                                 labelValue("Storage", value: format(controller.storage.usedBytes))
@@ -122,7 +125,53 @@ struct SettingsScreen: View {
         }
         .fileImporter(isPresented: $restoring, allowedContentTypes: [.zip], allowsMultipleSelection: false) { result in
             guard case .success(let urls) = result, let url = urls.first else { return }
-            controller.restore(from: url)
+            controller.prepareRestore(from: url)
+        }
+        .sheet(isPresented: Binding(get: { controller.restorePreview != nil }, set: { if !$0 { controller.cancelRestorePreview() } })) {
+            if let preview = controller.restorePreview {
+                AeonSheet {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                            AeonDisplayText("Restore Your Library", size: 30, maximumLines: 2).foregroundStyle(AeonOrbit.title)
+                            labelValue("Albums", value: "\(preview.albumCount)")
+                            labelValue("Tracks", value: "\(preview.trackCount)")
+                            labelValue("Playlists", value: "\(preview.playlistCount)")
+                            labelValue("Unpacked size", value: ByteCountFormatter.string(fromByteCount: Int64(preview.expandedBytes), countStyle: .file))
+                            Text("\(preview.replacingAlbums) existing albums and \(preview.replacingPlaylists) existing playlists will be replaced by their backup versions. Other albums and playlists stay in your library.")
+                                .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.ink)
+                            note("Every file is checked before the catalogue is updated. Adopted originals stay in place. Keep this backup until you have checked the restored library.")
+                            Button("Restore Library") { controller.confirmRestore() }
+                                .buttonStyle(AeonButtonStyle()).accessibilityIdentifier("aeon.settings.restore.confirm")
+                            Button("Cancel") { controller.cancelRestorePreview() }.buttonStyle(AeonButtonStyle())
+                        }.padding(AeonTheme.Space.edge)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: Binding(get: { controller.libraryHealth != nil }, set: { if !$0 { controller.clearLibraryHealth() } })) {
+            if let health = controller.libraryHealth {
+                AeonSheet {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
+                            AeonDisplayText("Library Health", size: 30, maximumLines: 2).foregroundStyle(AeonOrbit.title)
+                            labelValue("Tracks checked", value: "\(health.trackCount)")
+                            labelValue("Missing or unavailable", value: "\(health.missingCount)")
+                            labelValue("Unused managed copies", value: "\(health.unreferencedFileCount)")
+                            labelValue("Space held by unused copies", value: ByteCountFormatter.string(fromByteCount: health.unreferencedBytes, countStyle: .file))
+                            note(health.missingCount == 0 ? "Every catalogued track is available." : "Return missing files to their original location, or restore a full backup. For cloud files, check that they have finished downloading in Files.")
+                            ForEach(health.missingTracks) { track in
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(track.title).font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.ink)
+                                    Text(track.album).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
+                                }.frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            if health.missingCount > health.missingTracks.count { note("Showing the first \(health.missingTracks.count) missing tracks.") }
+                            note("This check does not delete files. Unused copies may still be useful for recovery. Music adopted in place is never treated as an unused managed copy.")
+                            Button("Done") { controller.clearLibraryHealth() }.buttonStyle(AeonButtonStyle())
+                        }.padding(AeonTheme.Space.edge)
+                    }
+                }
+            }
         }
         .sheet(isPresented: Binding(get: { controller.exportURL != nil },
                                     set: { if !$0 { controller.clearExport() } })) {

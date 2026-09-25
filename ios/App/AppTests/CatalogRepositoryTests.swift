@@ -10,6 +10,49 @@ final class CatalogRepositoryTests: XCTestCase {
         super.tearDown()
     }
 
+    func testLargeCollectionsAndAtomicAppendPreserveEveryItem() throws {
+        let repository = try makeRepository()
+        let tracks = (1...601).map { track(id: "t-\($0)", albumID: "album", sequence: $0) }
+        try repository.insertAlbum(album(id: "album", sequence: 1), tracks: tracks)
+        XCTAssertEqual(try repository.allTracks(albumID: "album").count, 601)
+        for index in 0..<301 {
+            try repository.createPlaylist(CatalogPlaylist(id: "p-\(index)", name: "Route \(index)", createdAt: Date(), updatedAt: Date()))
+        }
+        XCTAssertEqual(try repository.allPlaylists().count, 301)
+        try repository.replacePlaylistItems(playlistID: "p-0", trackIDs: Array(tracks.prefix(300)).map(\.id))
+        try repository.appendPlaylistItems(playlistID: "p-0", trackIDs: Array(tracks.suffix(301)).map(\.id))
+        XCTAssertEqual(try repository.allPlaylistItems(playlistID: "p-0").map(\.trackID), tracks.map(\.id))
+        XCTAssertThrowsError(try repository.appendPlaylistItems(playlistID: "p-0", trackIDs: ["t-1", "absent"]))
+        XCTAssertEqual(try repository.playlistItemCount(playlistID: "p-0"), 601)
+    }
+
+    func testListeningCountsActualTimeAcrossPauseSeekAndRepeat() throws {
+        let repository = try makeRepository()
+        try repository.insertAlbum(album(id: "album", sequence: 1), tracks: [track(id: "track", albumID: "album", sequence: 1)])
+        var clock = 0.0
+        let recorder = PlaybackListeningRecorder(repository: repository, uptime: { clock })
+        func sample(_ position: Double, playing: Bool = true) throws {
+            try recorder.sample(trackID: "track", queueIndex: 0, position: position, duration: 200, playing: playing)
+        }
+        try sample(0)
+        clock = 1; try sample(100) // Seeking is not listening.
+        XCTAssertNil(try repository.listeningState(trackID: "track"))
+        clock = 15; try sample(114, playing: false)
+        clock = 100; try sample(114)
+        clock = 116; try sample(130)
+        XCTAssertEqual(try repository.listeningState(trackID: "track")?.playCount, 1)
+        try sample(190)
+        try recorder.finish(completed: true)
+        XCTAssertEqual(try repository.listeningState(trackID: "track")?.completedCount, 1)
+        try sample(0) // Repeat One is a new occurrence, even with the same queue index.
+        clock = 147; try sample(31)
+        XCTAssertEqual(try repository.listeningState(trackID: "track")?.playCount, 2)
+        try recorder.finish(completed: false)
+        try sample(0)
+        clock = 148; try recorder.finish(completed: false)
+        XCTAssertEqual(try repository.listeningState(trackID: "track")?.playCount, 2)
+    }
+
     func testPreferencesSavedBeforeNewKeysKeepTheCollectorsChoices() throws {
         let stored = Data(#"{"oneImportOneAlbum":false,"metadataLookups":true,"hud":true,"highSkyContrast":false,"reduceMotion":true}"#.utf8)
         let decoded = try JSONDecoder().decode(AeonPreferences.self, from: stored)

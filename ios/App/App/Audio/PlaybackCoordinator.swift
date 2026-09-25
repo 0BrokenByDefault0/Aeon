@@ -11,6 +11,7 @@ enum PlaybackCoordinatorEvent: String {
     case formatChanged
     case interruptionChanged
     case engineRecovered
+    case queueItemSkipped
 }
 
 protocol PlaybackCoordinatorDelegate: AnyObject {
@@ -164,6 +165,8 @@ final class PlaybackCoordinator {
     private let transportQueue: DispatchQueue
     private let callbackQueue: DispatchQueue
     private let now: () -> Date
+    private var listeningRecorder: PlaybackListeningRecorder?
+    private var listeningTimer: DispatchSourceTimer?
     private var versionClock: StateVersionClock
     private var initialized = false
     private var operationGeneration: UInt64 = 0
@@ -196,6 +199,7 @@ final class PlaybackCoordinator {
         diagnostics: DiagnosticsLog,
         mediaInfo: PlaybackMediaInfoProviding,
         recovery: PlaybackRecovering? = nil,
+        listeningRepository: CatalogRepository? = nil,
         transportQueue: DispatchQueue = DispatchQueue(label: "app.aeon.audio.transport", qos: .userInitiated),
         callbackQueue: DispatchQueue = .main,
         now: @escaping () -> Date = Date.init
@@ -233,6 +237,42 @@ final class PlaybackCoordinator {
         outputFormat = restored?.outputFormat
 
         scheduler.onEvent = { [weak self] event in self?.receive(event) }
+        if let listeningRepository {
+            listeningRecorder = PlaybackListeningRecorder(repository: listeningRepository)
+            let timer = DispatchSource.makeTimerSource(queue: transportQueue)
+            timer.schedule(deadline: .distantFuture, repeating: 5)
+            timer.setEventHandler { [weak self] in self?.captureListening() }
+            listeningTimer = timer
+            timer.resume()
+        }
+    }
+
+    deinit { listeningTimer?.cancel() }
+
+    /// Drain transport work before storage is moved or closed during an erase.
+    func shutdown() {
+        transportQueue.sync {
+            captureListening()
+            try? listeningRecorder?.finish(completed: false)
+            listeningTimer?.cancel()
+            listeningTimer = nil
+            scheduler.pause()
+            intent = .paused
+            initialized = false
+            operationGeneration &+= 1
+            try? stateStore.save(currentSnapshot())
+        }
+    }
+
+    private func captureListening() {
+        guard initialized, scheduler.currentTrackID == trackID else { return }
+        do {
+            try listeningRecorder?.sample(trackID: trackID, queueIndex: queueIndex,
+                position: scheduler.currentPosition, duration: sourceFormat?.duration,
+                playing: intent == .playing && scheduler.isPlaying)
+        } catch {
+            try? diagnostics.record(eventCode: "LISTENING_PERSIST_FAILED", trackID: trackID, recoverable: true)
+        }
     }
 
     convenience init(
@@ -723,6 +763,7 @@ final class PlaybackCoordinator {
     private func command(completion: @escaping PlaybackCommandCompletion, body: @escaping () throws -> PlaybackSnapshot) {
         transportQueue.async { [weak self] in
             guard let self else { return }
+            captureListening()
             do { succeed(try body(), completion: completion) }
             catch { fail(error, completion: completion) }
         }
@@ -733,21 +774,26 @@ final class PlaybackCoordinator {
             guard let self else { return }
             let token: ScheduleToken
             switch event {
-            case .started(_, _, let value), .handoff(_, _, _, let value), .completed(_, let value), .failed(_, _, let value):
+            case .started(_, _, let value), .handoff(_, _, _, let value), .completed(_, let value), .failed(_, _, let value), .skipped(_, let value):
                 token = value
             }
             guard token.generation == acceptedSchedulerGeneration else { return }
 
             switch event {
+            case .skipped(let skippedID, _):
+                try? diagnostics.record(eventCode: "QUEUE_ITEM_SKIPPED", trackID: skippedID, recoverable: true)
+                _ = try? publish(eventCode: "QUEUE_CONTINUED", additionalEvents: [.queueItemSkipped])
             case .started:
                 return
-            case .handoff(_, _, _, _):
+            case .handoff(let fromID, _, _, _):
+                if listeningRecorder?.trackID == fromID { try? listeningRecorder?.finish(completed: true) }
                 syncSchedulerState()
                 sourceFormat = scheduler.currentSourceFormat
                 outputFormat = graph.outputDescriptor()
                 route = outputFormat?.route
                 _ = try? publish(eventCode: "TRACK_HANDOFF")
-            case .completed:
+            case .completed(let completedID, _):
+                if listeningRecorder?.trackID == completedID { try? listeningRecorder?.finish(completed: true) }
                 syncSchedulerState()
                 do {
                     if repeatMode == .one {
@@ -859,6 +905,9 @@ final class PlaybackCoordinator {
         eventCode: String,
         additionalEvents: [PlaybackCoordinatorEvent] = []
     ) throws -> PlaybackSnapshot {
+        if eventCode == "SOURCE_OPENED" { try? listeningRecorder?.finish(completed: false) }
+        captureListening()
+        listeningTimer?.schedule(deadline: intent == .playing && scheduler.isPlaying ? .now() + 5 : .distantFuture, repeating: 5)
         guard let nextVersion = versionClock.next() else { throw CoordinatorError.versionExhausted }
         version = nextVersion
         let snapshot = currentSnapshot()
@@ -1031,5 +1080,68 @@ final class PlaybackCoordinator {
         case .versionExhausted:
             return PlaybackFailure(code: "state_version_exhausted", message: "Playback state version exhausted", recoverable: false, trackID: trackID)
         }
+    }
+}
+
+/// Counts time actually spent listening, never seek distance or UI polling events.
+/// A play qualifies at 30 seconds or half a shorter track. Pause/resume keeps the
+/// occurrence; a handoff (including Repeat One) starts a new occurrence.
+final class PlaybackListeningRecorder {
+    private let repository: CatalogRepository
+    private let uptime: () -> TimeInterval
+    private(set) var trackID: String?
+    private var queueIndex: Int?
+    private var elapsed: TimeInterval = 0
+    private var lastTick: TimeInterval?
+    private var wasPlaying = false
+    private var counted = false
+    private var position = 0.0
+    private var threshold = 30.0
+
+    init(repository: CatalogRepository, uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.repository = repository
+        self.uptime = uptime
+    }
+
+    func sample(trackID: String?, queueIndex: Int?, position: Double, duration: Double?, playing: Bool) throws {
+        if self.trackID != trackID || self.queueIndex != queueIndex {
+            try finish(completed: false)
+            self.trackID = trackID
+            self.queueIndex = queueIndex
+        }
+        accrue()
+        self.position = position.isFinite ? max(0, position) : 0
+        threshold = duration.flatMap { $0.isFinite && $0 > 0 ? min(30, $0 / 2) : nil } ?? 30
+        let stopped = wasPlaying && !playing
+        wasPlaying = playing
+        try qualify(completed: false)
+        if stopped, counted, let trackID {
+            try repository.updateListeningProgress(trackID: trackID, position: self.position, completed: false)
+        }
+    }
+
+    func finish(completed: Bool) throws {
+        accrue()
+        defer {
+            trackID = nil; queueIndex = nil; elapsed = 0; lastTick = nil
+            wasPlaying = false; counted = false; position = 0; threshold = 30
+        }
+        let previouslyCounted = counted
+        try qualify(completed: completed)
+        if previouslyCounted, let trackID {
+            try repository.updateListeningProgress(trackID: trackID, position: position, completed: completed)
+        }
+    }
+
+    private func accrue() {
+        let tick = uptime()
+        if wasPlaying, let lastTick { elapsed += max(0, tick - lastTick) }
+        lastTick = tick
+    }
+
+    private func qualify(completed: Bool) throws {
+        guard !counted, elapsed >= threshold, let trackID else { return }
+        try repository.recordPlay(trackID: trackID, completed: completed, lastPosition: position)
+        counted = true
     }
 }

@@ -16,7 +16,7 @@ await page.evaluate(async()=>{
  const tracks=[{id:'one',albumId:'a',idx:1,title:'The first track, with a long title',blob},{id:'two',albumId:'a',idx:2,title:'Second track',blob}];
  await dbPut('albums',a);for(const t of tracks)await dbPut('tracks',t);state.albums=[a];state.tracks.set('a',tracks);renderLibrary();switchTab('library');
 });
-await page.click('#listeningPlay');await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2);
+await page.click('#libGrid [data-alb]');await page.click('#albTracks [data-play="one"]');await page.waitForFunction(()=>!audio.paused&&audio.currentTime>.2);
 await page.evaluate(async()=>{audio.currentTime=12;audio.pause();await rememberPosition()});
 await page.reload();await page.waitForFunction(()=>state.queue.length===2);
 await page.click('#pbPlay');await page.waitForFunction(()=>audio.currentTime>=12&&!audio.paused);

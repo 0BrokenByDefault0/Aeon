@@ -434,7 +434,7 @@ private struct TrackPlaylistPicker: View {
                 VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                     AeonDisplayText("Add to playlist", size: 32, maximumLines: 2)
                         .foregroundStyle(AeonOrbit.title)
-                    let playlists = (try? catalog.playlists()) ?? []
+                    let playlists = (try? catalog.allPlaylists()) ?? []
                     if !playlists.isEmpty {
                         VStack(spacing: 0) {
                             ForEach(playlists) { playlist in

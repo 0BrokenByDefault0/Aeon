@@ -24,7 +24,7 @@ The native app root is `AeonApp -> AppContainer -> AeonRootView`. The normal 5.0
 2. Make the minimal implementation. Avoid cross-area cleanup.
 3. Run `npm run test:targeted -- --area=<area>`. This runs syntax plus cheap Node or focused browser contracts relevant to that area.
 4. Push the coherent commit. `Build fast unsigned IPA` repeats cheap changed-area checks, builds the device app, and packages and uploads the unsigned IPA with its validation manifest before any native tests execute. Deliver the artifact as soon as it is available; do not wait for the workflow to finish.
-5. After IPA upload, the workflow runs the focused native checks. On macOS, the equivalent is `npm run test:targeted:native -- --area=<area>`, also after IPA delivery. The default is one iPhone simulator and explicit XCTest/XCUITest selectors. Add `--family=ipad` only when the change is layout- or iPad-specific. Native failures keep CI red and produce failure evidence, but do not remove or block the uploaded IPA.
+5. After IPA upload, the fast workflow runs all `AppTests` unit tests on one iPhone simulator, under one 600-second deadline. UI validation is explicitly marked NOT RUN in the fast report. On macOS, the equivalent is `npm run test:targeted:native -- --area=<area>`, also after IPA delivery. The default is one iPhone simulator and explicit XCTest/XCUITest selectors. Add `--family=ipad` only when the change is layout- or iPad-specific. Native failures keep CI red and produce failure evidence, but do not remove or block the uploaded IPA.
 
 Use multiple areas when a change crosses boundaries:
 
@@ -52,7 +52,7 @@ The manual `skip_native` input defaults to `false` and only skips post-upload te
 
 ## Deep and release path
 
-Run the manual `Deep release validation` workflow for a release candidate. It executes the complete Node/browser regression set and every native unit/UI shard on both iPhone and iPad simulators. Its artifacts contain bounded summaries and `.xcresult` bundles. Superseded runs cancel automatically.
+Run the manual `Deep release validation` workflow for a release candidate. It executes the complete Node/browser regression set, builds simulator products once, then runs unit tests and each individual UI case on both iPhone and iPad simulators. Each native compilation or test stage has a 600-second watchdog. UI cases reuse the compiled products; the matrix cancels remaining cases on a failure or timeout and never retries automatically. Its artifacts contain bounded summaries and `.xcresult` bundles. Superseded runs cancel automatically.
 
 Before release approval, attach physical-device evidence for:
 
@@ -70,3 +70,13 @@ Simulator or unsigned-IPA success cannot close these rows.
 - Keep the current failure summary and discard repetitive build output. CI uploads full bounded artifacts when detail is needed.
 - Do not reread files that did not change. Do not load historical plans or unrelated features to solve a local failure.
 - Keep commits independently understandable: agent guidance, test routing, and CI delivery should remain separable.
+
+## Audit hardening — 2026-09-25
+
+Native SwiftUI is the supported product surface. The bundled web app is retained for existing data migration and compatibility checks; it is not a second feature-development target. Its historical small-screen player overflow remains explicitly recorded by `test:interface:ci`; the raw interface test still fails on that assertion. No migration code or browser assertions have been removed.
+
+Fast delivery validates all native unit tests (`--scope=unit`) after uploading the IPA. UI validation, deep regression, hardware audio routes, real Files-provider behavior, Metal export fidelity, VoiceOver navigation, and performance on physical devices remain separate acceptance work. A unit pass never closes those rows.
+
+Storage changes protect the catalogue commit boundary, preserve an interrupted erase journal, enforce expanded-byte quotas before ZIP writes, and serialize operations that copy, remove, or inspect managed files. Restore now previews replacement counts. Library Health is read-only and never labels collector-owned adopted files as disposable. Missing successors are reported and skipped, with at most 32 decoder attempts per boundary.
+
+Native listening counts accumulate actual playing time, qualifying at 30 seconds or half a shorter track. Pause and seeks do not create extra plays; repeat occurrences do. Broad Sky regions use a curated presentation taxonomy while original genre strings and established celestial coordinates stay intact. Sky exports share the live Metal pipelines.

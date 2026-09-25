@@ -61,66 +61,71 @@ final class MetadataProbe: MediaProbing {
     }
 
     private static func isValidOggContainer(url: URL) -> Bool {
-        guard let data = try? Data(contentsOf: url), data.count >= 28 else { return false }
-        var offset = 0
-        var packets: [Data] = []
+        guard let input = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? input.close() }
+        var headers: [Data] = []
         var currentPacket = Data()
+        var packetBytes = 0, packetCount = 0
+        var audioAfterTwoHeaders = false, audioAfterThreeHeaders = false
         var packetContinues = false
-        var firstPage = true
         var serial: UInt32?
         var expectedSequence: UInt32 = 0
         var sawEOS = false
-        while offset < data.count {
-            guard !sawEOS else { return false }
-            guard data.count - offset >= 27,
-                  data[offset ..< offset + 4].elementsEqual(Data("OggS".utf8)),
-                  data[offset + 4] == 0 else { return false }
-            let headerType = data[offset + 5]
-            let pageSerial = littleEndianUInt32(data, at: offset + 14)
-            let sequence = littleEndianUInt32(data, at: offset + 18)
-            guard sequence == expectedSequence else { return false }
-            expectedSequence &+= 1
-            if firstPage {
-                guard headerType & 0x02 != 0, headerType & 0x01 == 0, sequence == 0 else { return false }
-                serial = pageSerial
-                firstPage = false
-            } else {
-                guard headerType & 0x02 == 0, pageSerial == serial else { return false }
-            }
-            guard (headerType & 0x01 != 0) == packetContinues else { return false }
-            let segmentCount = Int(data[offset + 26])
-            let tableStart = offset + 27
-            guard data.count - tableStart >= segmentCount else { return false }
-            let payloadSize = (0 ..< segmentCount).reduce(0) { $0 + Int(data[tableStart + $1]) }
-            let next = tableStart + segmentCount + payloadSize
-            guard next <= data.count else { return false }
-            var page = Data(data[offset ..< next])
-            let expectedCRC = UInt32(page[22]) | UInt32(page[23]) << 8 | UInt32(page[24]) << 16 | UInt32(page[25]) << 24
-            page.replaceSubrange(22 ..< 26, with: repeatElement(UInt8(0), count: 4))
-            guard oggCRC(page) == expectedCRC else { return false }
-            var payloadOffset = tableStart + segmentCount
-            for index in 0 ..< segmentCount {
-                let length = Int(data[tableStart + index])
-                currentPacket.append(data[payloadOffset ..< payloadOffset + length])
-                payloadOffset += length
-                if length < 255 {
-                    packets.append(currentPacket)
-                    currentPacket.removeAll(keepingCapacity: true)
-                    packetContinues = false
+        do {
+            while let header = try input.read(upToCount: 27), !header.isEmpty {
+                try Task.checkCancellation()
+                guard !sawEOS, header.count == 27, header.prefix(4).elementsEqual(Data("OggS".utf8)), header[4] == 0 else { return false }
+                let flags = header[5]
+                let pageSerial = littleEndianUInt32(header, at: 14)
+                guard littleEndianUInt32(header, at: 18) == expectedSequence else { return false }
+                expectedSequence &+= 1
+                if let serial {
+                    guard flags & 0x02 == 0, serial == pageSerial else { return false }
                 } else {
-                    packetContinues = true
+                    guard flags & 0x02 != 0, flags & 0x01 == 0 else { return false }
+                    serial = pageSerial
                 }
+                guard (flags & 0x01 != 0) == packetContinues else { return false }
+                let count = Int(header[26])
+                let table = try input.read(upToCount: count) ?? Data()
+                guard table.count == count else { return false }
+                let size = table.reduce(0) { $0 + Int($1) }
+                let payload = try input.read(upToCount: size) ?? Data()
+                guard payload.count == size else { return false }
+                var page = header + table + payload
+                let expectedCRC = littleEndianUInt32(header, at: 22)
+                page.replaceSubrange(22..<26, with: repeatElement(UInt8(0), count: 4))
+                guard oggCRC(page) == expectedCRC else { return false }
+                var offset = 0
+                for value in table {
+                    let length = Int(value)
+                    packetBytes += length
+                    // Only identification/comment/setup packets need retention. Audio
+                    // packets are CRC-checked a page at a time and discarded immediately.
+                    if packetCount < 3 {
+                        guard packetBytes <= 1_048_576 else { return false }
+                        currentPacket.append(payload[offset..<offset + length])
+                    }
+                    offset += length
+                    packetContinues = length == 255
+                    if !packetContinues {
+                        if packetCount >= 2, packetBytes > 0 { audioAfterTwoHeaders = true }
+                        if packetCount >= 3, packetBytes > 0 { audioAfterThreeHeaders = true }
+                        if packetCount < 3 { headers.append(currentPacket) }
+                        currentPacket.removeAll(keepingCapacity: true)
+                        packetCount += 1
+                        packetBytes = 0
+                    }
+                }
+                sawEOS = flags & 0x04 != 0
             }
-            if headerType & 0x04 != 0 { sawEOS = true }
-            offset = next
+        } catch { return false }
+        guard sawEOS, !packetContinues, packetBytes == 0 else { return false }
+        if headers.first.map(validOpusIdentification) == true {
+            return headers.count >= 2 && validOpusTags(headers[1]) && audioAfterTwoHeaders
         }
-        guard sawEOS, !packetContinues, currentPacket.isEmpty else { return false }
-        if packets.first.map(validOpusIdentification) == true {
-            return packets.count >= 3 && validOpusTags(packets[1]) && packets.dropFirst(2).contains(where: { !$0.isEmpty })
-        }
-        if packets.first.map(validVorbisIdentification) == true {
-            return packets.count >= 4 && validVorbisComment(packets[1]) && validVorbisSetup(packets[2]) &&
-                packets.dropFirst(3).contains(where: { !$0.isEmpty })
+        if headers.first.map(validVorbisIdentification) == true {
+            return headers.count >= 3 && validVorbisComment(headers[1]) && validVorbisSetup(headers[2]) && audioAfterThreeHeaders
         }
         return false
     }
@@ -187,15 +192,14 @@ final class MetadataProbe: MediaProbing {
         return sampleRate > 0 && small >= 6 && large >= small && large <= 13 && packet[29] == 1
     }
 
-    private static func oggCRC(_ data: Data) -> UInt32 {
-        var crc: UInt32 = 0
-        for byte in data {
-            crc ^= UInt32(byte) << 24
-            for _ in 0 ..< 8 {
-                crc = (crc & 0x8000_0000) != 0 ? (crc << 1) ^ 0x04c1_1db7 : crc << 1
-            }
-        }
+    private static let oggCRCTable: [UInt32] = (0..<256).map { value in
+        var crc = UInt32(value) << 24
+        for _ in 0..<8 { crc = (crc & 0x8000_0000) != 0 ? (crc << 1) ^ 0x04c1_1db7 : crc << 1 }
         return crc
+    }
+
+    private static func oggCRC(_ data: Data) -> UInt32 {
+        data.reduce(UInt32(0)) { ($0 << 8) ^ oggCRCTable[Int(($0 >> 24) ^ UInt32($1))] }
     }
 
     private static func container(for url: URL) -> String? {

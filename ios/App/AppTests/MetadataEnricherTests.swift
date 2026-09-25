@@ -77,6 +77,27 @@ final class MetadataEnricherTests: XCTestCase {
         XCTAssertEqual(apple.calls.count, 1)
     }
 
+    func testTransientFailureIsNotPersistedAsNoMatchAndCanBeRetried() async throws {
+        try repository.setSetting(true, forKey: MetadataEnricher.lookupEnabledKey)
+        let failed = MetadataEnricher(repository: repository, musicBrainz: ThrowingGenreProvider(), apple: StubGenreProvider(result: nil))
+        do { _ = try await failed.automaticGenre(for: "Artist"); XCTFail("Expected provider failure") } catch {}
+        XCTAssertNil(try failed.cachedEntry(for: "Artist"))
+        let recovered = MetadataEnricher(repository: repository, musicBrainz: StubGenreProvider(result: "Jazz"), apple: StubGenreProvider(result: nil))
+        let genre = try await recovered.automaticGenre(for: "Artist")
+        XCTAssertEqual(genre, "Jazz")
+    }
+
+    func testNegativeCacheExpiresWithoutDiscardingSuccessfulAnswers() async throws {
+        try repository.setSetting(true, forKey: MetadataEnricher.lookupEnabledKey)
+        let first = MetadataEnricher(repository: repository, musicBrainz: StubGenreProvider(result: nil), apple: StubGenreProvider(result: nil), now: { Date(timeIntervalSince1970: 100) })
+        _ = try await first.automaticGenre(for: "Artist")
+        let provider = StubGenreProvider(result: "Soul")
+        let later = MetadataEnricher(repository: repository, musicBrainz: provider, apple: StubGenreProvider(result: nil), now: { Date(timeIntervalSince1970: 100 + 86_401) })
+        let genre = try await later.automaticGenre(for: "Artist")
+        XCTAssertEqual(genre, "Soul")
+        XCTAssertEqual(provider.calls.count, 1)
+    }
+
     func testManualLookupCanReplaceCacheOnlyAfterStarMoveConfirmation() async throws {
         try repository.setSetting(true, forKey: MetadataEnricher.lookupEnabledKey)
         let initial = MetadataEnricher(repository: repository, musicBrainz: StubGenreProvider(result: "Rock"), apple: StubGenreProvider(result: nil))

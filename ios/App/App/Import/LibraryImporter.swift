@@ -538,7 +538,7 @@ final class LibraryImporter: @unchecked Sendable {
 
         let timestamp = now()
         let albumID = extending?.id ?? UUID().uuidString.lowercased()
-        let sequenceOffset = extending == nil ? 0 : (try repository.tracks(albumID: albumID).map(\.sequence).max() ?? 0)
+        let sequenceOffset = extending == nil ? 0 : (try repository.allTracks(albumID: albumID).map(\.sequence).max() ?? 0)
         let sequence = (try repository.albumPage(offset: 0, limit: 1, sort: .recentlyAdded).first?.sequence ?? 0) + 1
         var storedReferences: [MediaReference] = []
         var storedArtworkKey: String?
@@ -688,7 +688,7 @@ final class LibraryImporter: @unchecked Sendable {
         }) else { return nil }
         let matches = try matchingAlbums(fields: fields, trackCount: nil, matchIndex: matchIndex)
         guard matches.count == 1, let album = matches.first else { return nil }
-        let existing = try repository.tracks(albumID: album.id)
+        let existing = try repository.allTracks(albumID: album.id)
         guard !existing.isEmpty, existing.allSatisfy({ track in
             guard case .documents(let path) = track.mediaReference else { return false }
             return (path as NSString).deletingLastPathComponent == directory && !references.contains(track.mediaReference)
@@ -711,7 +711,7 @@ final class LibraryImporter: @unchecked Sendable {
         guard matches.count == 1 else { return nil }
 
         let albumID = matches[0].id
-        let existing = try repository.tracks(albumID: albumID)
+        let existing = try repository.allTracks(albumID: albumID)
         guard existing.count == playable.count else { return nil }
         guard existing.allSatisfy({ track in
             guard case .documents(let path) = track.mediaReference,
@@ -851,7 +851,7 @@ final class LibraryImporter: @unchecked Sendable {
         while true {
             let albums = try repository.albumPage(offset: offset, limit: CatalogDatabase.maximumPageSize, sort: .recentlyAdded)
             for album in albums {
-                for track in try repository.tracks(albumID: album.id) {
+                for track in try repository.allTracks(albumID: album.id) {
                     guard case .documents(let path) = track.mediaReference,
                           path.hasPrefix("Music/"),
                           !path.hasPrefix("Music/_Imported/"),

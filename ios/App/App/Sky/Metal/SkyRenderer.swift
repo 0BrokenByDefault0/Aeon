@@ -1,4 +1,5 @@
 import MetalKit
+import UIKit
 import OSLog
 import QuartzCore
 import simd
@@ -147,11 +148,19 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
               let commandBuffer = commandQueue.makeCommandBuffer(),
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
         os_signpost(.begin, log: Self.performanceLog, name: "SkyFrame")
-        projectPlanets(viewport: view.bounds.size)
-        let screenScale = Float(view.contentScaleFactor)
+        encodeScene(encoder, viewport: view.bounds.size, pixels: view.drawableSize, screenScale: Float(view.contentScaleFactor))
+        encoder.endEncoding()
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
+        stats.renderedFrames &+= 1
+        os_signpost(.end, log: Self.performanceLog, name: "SkyFrame")
+    }
+
+    private func encodeScene(_ encoder: MTLRenderCommandEncoder, viewport: CGSize, pixels: CGSize, screenScale: Float) {
+        projectPlanets(viewport: viewport)
         var uniforms = Uniforms(
             center: SIMD2(Float(camera.centerX), Float(camera.centerY)),
-            viewport: SIMD2(Float(view.drawableSize.width), Float(view.drawableSize.height)),
+            viewport: SIMD2(Float(pixels.width), Float(pixels.height)),
             scale: Float(camera.scale) * screenScale,
             time: animateSelection ? Float(CACurrentMediaTime().truncatingRemainder(dividingBy: 10_000)) : 0,
             spectrum: SIMD4(spectrum.low, spectrum.mid, spectrum.high, screenScale)
@@ -161,11 +170,49 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         encodeInstances(encoder, pipeline: glowPipeline, buffer: glowBuffer, count: glowCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: starPipeline, buffer: starBuffer, count: starCount, uniforms: &uniforms)
         encodeInstances(encoder, pipeline: planetPipeline, buffer: planetBuffer, count: planetCount, uniforms: &uniforms)
+    }
+
+    /// Uses the same pipelines, materials, projection and draw order as the live sky.
+    /// GPU completion is asynchronous; the export never waits on the main thread.
+    static func capture(catalogue: SkyCatalogue, camera: SkyCameraState, playingStarID: String?,
+                        size: CGSize, completion: @escaping (UIImage?) -> Void) {
+        guard size.width > 0, size.height > 0, size.width <= 4_096, size.height <= 4_096 else { completion(nil); return }
+        let view = MTKView(frame: CGRect(origin: .zero, size: size), device: MTLCreateSystemDefaultDevice())
+        guard let renderer = SkyRenderer(view: view) else { completion(nil); return }
+        view.isPaused = true
+        renderer.update(catalogue: catalogue, camera: camera, playingStarID: playingStarID,
+                        animateSelection: false, usableSize: size)
+        let width = Int(size.width), height = Int(size.height)
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
+        descriptor.usage = [.renderTarget]
+        descriptor.storageMode = .shared
+        guard let texture = renderer.device.makeTexture(descriptor: descriptor),
+              let buffer = renderer.commandQueue.makeCommandBuffer() else { completion(nil); return }
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = texture
+        pass.colorAttachments[0].loadAction = .clear
+        pass.colorAttachments[0].storeAction = .store
+        pass.colorAttachments[0].clearColor = view.clearColor
+        guard let encoder = buffer.makeRenderCommandEncoder(descriptor: pass) else { completion(nil); return }
+        renderer.encodeScene(encoder, viewport: size, pixels: size, screenScale: 1)
         encoder.endEncoding()
-        commandBuffer.present(drawable)
-        commandBuffer.commit()
-        stats.renderedFrames &+= 1
-        os_signpost(.end, log: Self.performanceLog, name: "SkyFrame")
+        buffer.addCompletedHandler { command in
+            guard command.status == .completed else { completion(nil); return }
+            var bytes = [UInt8](repeating: 0, count: width * height * 4)
+            bytes.withUnsafeMutableBytes { raw in
+                if let base = raw.baseAddress {
+                    texture.getBytes(base, bytesPerRow: width * 4,
+                                     from: MTLRegionMake2D(0, 0, width, height), mipmapLevel: 0)
+                }
+            }
+            guard let provider = CGDataProvider(data: Data(bytes) as CFData),
+                  let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                    bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGBitmapInfo.byteOrder32Little.union(CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)),
+                    provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { completion(nil); return }
+            completion(UIImage(cgImage: image))
+        }
+        buffer.commit()
     }
 
     private func rebuildSelectionBuffers() {

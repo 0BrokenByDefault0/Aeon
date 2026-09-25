@@ -38,12 +38,77 @@ final class SkyRepository {
     }
 
     func catalogue() throws -> SkyCatalogue {
-        SkyCatalogue(
-            regions: try decodedRecords(kind: .region, as: SkyRegion.self),
-            constellations: try decodedRecords(kind: .constellation, as: SkyConstellation.self),
-            stars: try decodedRecords(kind: .star, as: SkyStar.self),
-            planets: try decodedRecords(kind: .planet, as: SkyPlanet.self)
-        )
+        // Derived cache corruption must not close the library. Keep every valid identity;
+        // the next backfill replaces invalid records and rebuilds relationships.
+        try Self.decodeCatalogue(allRecords(), strict: false)
+    }
+
+    static func validateArchiveRecords(_ records: [AeonArchiveSkyRecord], albumIDs: Set<String>) throws {
+        let values = records.map { SkyRecord(id: $0.id, kind: $0.kind, sequence: $0.sequence,
+                                             payload: $0.payload, updatedAt: Date(timeIntervalSince1970: $0.updatedAt)) }
+        _ = try decodeCatalogue(values, strict: true, albumIDs: albumIDs)
+    }
+
+    private static func decodeCatalogue(_ records: [SkyRecord], strict: Bool, albumIDs: Set<String>? = nil) throws -> SkyCatalogue {
+        let decoder = JSONDecoder()
+        var result = SkyCatalogue.empty
+        var identities = Set<String>()
+        func pointIsSafe(_ point: SkyPoint) -> Bool {
+            abs(Int64(point.x)) <= 10_000_000 && abs(Int64(point.y)) <= 10_000_000
+        }
+        func known(_ id: String) -> Bool { !id.isEmpty && id.utf8.count <= 512 && (albumIDs?.contains(id) ?? true) }
+        for record in records {
+            do {
+                guard record.payload.count <= 1_048_576, identities.insert(record.id).inserted else {
+                    throw SkyRepositoryError.decodeFailed(record.id)
+                }
+                switch record.kind {
+                case .star:
+                    let star = try decoder.decode(SkyStar.self, from: record.payload)
+                    guard record.id == "star:\(star.albumID)", known(star.albumID), pointIsSafe(star.coordinate),
+                          star.sequence > 0, star.sequence <= 1_000_000_000 else { throw SkyRepositoryError.decodeFailed(record.id) }
+                    result.stars.append(star)
+                case .planet:
+                    let planet = try decoder.decode(SkyPlanet.self, from: record.payload)
+                    guard planet.index > 0, planet.index <= 100_000, record.id == planet.id,
+                          pointIsSafe(planet.coordinate), planet.frontierRadius <= 20_000_000,
+                          planet.exclusionRadius <= 10_000,
+                          planet.members.count <= SkyComposer.albumsPerPlanet,
+                          planet.members.allSatisfy({ known($0.albumID) }),
+                          Set(planet.members.map(\.albumID)).count == planet.members.count,
+                          !planet.descriptor.bandColors.isEmpty, planet.descriptor.bandColors.count <= 16 else {
+                        throw SkyRepositoryError.decodeFailed(record.id)
+                    }
+                    if let material = planet.material {
+                        guard material.worldID == planet.id, material.seed == planet.seed,
+                              (3...16).contains(material.palette.count),
+                              [material.cloudCover, material.roughness, material.atmosphere, material.emission,
+                               material.axialTilt, material.rotationRate, material.phase, material.ringExtent,
+                               material.ringInclination].allSatisfy({ $0.isFinite && abs($0) <= 100 }) else {
+                            throw SkyRepositoryError.decodeFailed(record.id)
+                        }
+                    }
+                    result.planets.append(planet)
+                case .constellation:
+                    let value = try decoder.decode(SkyConstellation.self, from: record.payload)
+                    guard record.id == value.id, value.albumIDs.allSatisfy(known),
+                          Set(value.albumIDs).count == value.albumIDs.count,
+                          value.figureSegments.allSatisfy({ value.albumIDs.contains($0.fromAlbumID) && value.albumIDs.contains($0.toAlbumID) }) else {
+                        throw SkyRepositoryError.decodeFailed(record.id)
+                    }
+                    result.constellations.append(value)
+                case .region:
+                    let value = try decoder.decode(SkyRegion.self, from: record.payload)
+                    guard record.id == value.id, value.starCount >= 0 else { throw SkyRepositoryError.decodeFailed(record.id) }
+                    result.regions.append(value)
+                case .camera:
+                    _ = try decoder.decode(SkyCameraState.self, from: record.payload)
+                }
+            } catch {
+                if strict { throw SkyRepositoryError.decodeFailed(record.id) }
+            }
+        }
+        return result
     }
 
     func camera() throws -> SkyCameraState? {
@@ -86,6 +151,14 @@ final class SkyRepository {
     func rechart(updatedAlbum: CatalogAlbum) throws -> SkyCatalogue {
         try serializedRewrite { () throws -> SkyCatalogue in
             try rechartUnlocked(updatedAlbum: updatedAlbum)
+        }
+    }
+
+    func refreshMetadata(updatedAlbum: CatalogAlbum) throws {
+        try serializedRewrite {
+            let composed = try composer.compose(albums: catalogInputs(replacing: updatedAlbum), preserving: catalogue())
+            let rewrite = try rewritePlan(for: composed)
+            try catalog.updateAlbumAndSky(updatedAlbum, records: rewrite.records, deletingSkyRecordIDs: rewrite.deletingIDs)
         }
     }
 
@@ -181,7 +254,7 @@ final class SkyRepository {
                     genre: genre,
                     importedAt: $0.importedAt,
                     artworkSamples: artworkSamples(for: artworkKey),
-                    magnitude: UInt8(clamping: 40 + min(180, $0.playCount * 4))
+                    magnitude: UInt8(clamping: 40 + min(45, max(0, $0.playCount)) * 4)
                 )
             })
             guard page.count == CatalogDatabase.maximumPageSize else { break }
@@ -315,21 +388,29 @@ final class SkyRepository {
         let oldStars = Dictionary(uniqueKeysWithValues: existing.stars.map { ($0.albumID, $0) })
         let oldPlanets = Dictionary(uniqueKeysWithValues: existing.planets.map { ($0.id, $0) })
         for star in catalogue.stars {
-            if let old = oldStars[star.albumID], old != star { throw SkyRepositoryError.recordConflict(star.albumID) }
+            if let old = oldStars[star.albumID], old.coordinate != star.coordinate || old.placedAt != star.placedAt {
+                throw SkyRepositoryError.recordConflict(star.albumID)
+            }
         }
         for planet in catalogue.planets {
-            if let old = oldPlanets[planet.id], old != planet { throw SkyRepositoryError.recordConflict(planet.id) }
+            if let old = oldPlanets[planet.id], old.seed != planet.seed || old.coordinate != planet.coordinate
+                || old.formationTimestamp != planet.formationTimestamp || old.descriptor != planet.descriptor {
+                throw SkyRepositoryError.recordConflict(planet.id)
+            }
         }
 
         let records = try makeRecords(catalogue)
         let existingRecords = try allRecords()
         let existingByID = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
+        let desiredIDs = Set(records.map(\.id))
+        let deletedIDs = existingRecords.filter { $0.kind != .camera && !desiredIDs.contains($0.id) }.map(\.id)
         let changes = records.filter { record in
             guard let old = existingByID[record.id] else { return true }
             return old.kind != record.kind || old.sequence != record.sequence || old.payload != record.payload
         }
-        guard !changes.isEmpty else { return }
+        guard !changes.isEmpty || !deletedIDs.isEmpty else { return }
         try catalog.database.transaction {
+            for id in deletedIDs { try catalog.database.execute("DELETE FROM sky_records WHERE id = ?", [.text(id)]) }
             for record in changes {
                 try catalog.database.execute(
                     """

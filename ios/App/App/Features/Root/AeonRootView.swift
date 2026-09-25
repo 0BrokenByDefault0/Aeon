@@ -284,6 +284,7 @@ struct AeonRootView: View {
 }
 
 private struct AeonReadyShell: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var playerPresentation = PlayerBarPresentation()
     let container: AppContainer
     let services: AppServices
@@ -446,13 +447,24 @@ private struct AeonReadyShell: View {
         .onReceive(NotificationCenter.default.publisher(for: AeonRuntime.showAlbumNotification)) { note in
             if let albumID = note.object as? String { showAlbumFromOutside(albumID) }
         }
-        .onAppear { services.spectrumAnalyzer.setReduceMotion(effectiveReduceMotion) }
+        .onAppear {
+            services.spectrumAnalyzer.setReduceMotion(effectiveReduceMotion)
+            updateSpectrumVisibility()
+        }
+        .onDisappear { services.spectrumAnalyzer.setConsumerActive(false) }
+        .onChange(of: scenePhase) { _ in updateSpectrumVisibility() }
+        .onChange(of: destination) { _ in updateSpectrumVisibility() }
+        .onChange(of: nowPlayingVisible) { _ in updateSpectrumVisibility() }
         .onChange(of: reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion($0 || settingsController.preferences.reduceMotion || AeonTestOverrides.reduceMotion)
         }
         .onChange(of: settingsController.preferences.reduceMotion) {
             services.spectrumAnalyzer.setReduceMotion(reduceMotion || $0 || AeonTestOverrides.reduceMotion)
         }
+    }
+
+    private func updateSpectrumVisibility() {
+        services.spectrumAnalyzer.setConsumerActive(scenePhase == .active && (destination == .sky || nowPlayingVisible))
     }
 
     /// Spotlight and Shortcuts open a record the same way the Now Playing sleeve does.
