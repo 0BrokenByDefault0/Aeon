@@ -469,6 +469,43 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(graph.schedules.last?.sourceFrame, 0)
     }
 
+    func testMixedRateQueueUsesOneOutputTimelineWithoutRestartingAtHandoffs() throws {
+        let graph = RecordingGraph()
+        graph.files = [
+            "a.wav": ScheduledAudioFile(frameCount: 44_100, sampleRate: 44_100),
+            "b.wav": ScheduledAudioFile(frameCount: 96_000, sampleRate: 96_000),
+            "c.wav": ScheduledAudioFile(frameCount: 24_000, sampleRate: 48_000)
+        ]
+        let resolver = FixtureResolver()
+        let scheduler = QueueScheduler(graph: graph, resolver: resolver) { url in
+            let file = graph.files[url.lastPathComponent]!
+            return .playable(ProbedMedia(
+                url: url,
+                descriptor: SourceFormatDescriptor(
+                    codec: "pcm", container: "wav", sampleRate: file.sampleRate,
+                    channelCount: 2, bitDepth: 24,
+                    duration: Double(file.frameCount) / file.sampleRate
+                ),
+                frameCount: file.frameCount
+            ))
+        }
+        try scheduler.setQueue([a, b, c], index: 0, revision: 1)
+        try scheduler.play()
+
+        XCTAssertEqual(graph.startCount, 1)
+        XCTAssertEqual(graph.schedules.map(\.outputFrame), [0, 48_000])
+
+        graph.schedules[0].completion()
+        XCTAssertEqual(scheduler.currentTrackID, "b")
+        XCTAssertEqual(graph.startCount, 1, "A prepared mixed-rate handoff must not restart the graph")
+        XCTAssertEqual(graph.schedules.map(\.outputFrame), [0, 48_000, 96_000])
+
+        graph.schedules[1].completion()
+        XCTAssertEqual(scheduler.currentTrackID, "c")
+        XCTAssertEqual(graph.startCount, 1)
+        XCTAssertEqual(graph.schedules.map(\.outputFrame), [0, 48_000, 96_000])
+    }
+
     /// Device integration gate: run explicitly on an idle 48 kHz output route.
     /// This exercises real AVAudioPlayerNodes and captures the actual program output.
     /// The pure PCM test above remains available without audio hardware.
@@ -567,6 +604,8 @@ private final class RecordingGraph: QueueSchedulingGraph {
     }
     var schedules: [Schedule] = []
     var started = false
+    var startCount = 0
+    var files: [String: ScheduledAudioFile] = [:]
     var elapsedFrames: Int64 = 0
     var framesBySlot: [AudioSlot: Int64] = [:]
     var failingFile: String?
@@ -574,12 +613,12 @@ private final class RecordingGraph: QueueSchedulingGraph {
     func schedulingSampleRate() throws -> Double { 48000 }
     func openForScheduling(url: URL, slot: AudioSlot) throws -> ScheduledAudioFile {
         if url.lastPathComponent == failingFile { throw MediaStoreError.verificationFailed }
-        return ScheduledAudioFile(frameCount: 2400, sampleRate: 48000)
+        return files[url.lastPathComponent] ?? ScheduledAudioFile(frameCount: 2400, sampleRate: 48000)
     }
     func schedule(slot: AudioSlot, sourceFrame: Int64, outputFrame: Int64, completion: @escaping () -> Void) throws {
         schedules.append(Schedule(slot: slot, sourceFrame: sourceFrame, outputFrame: outputFrame, completion: completion))
     }
-    func startScheduledPlayback() throws { started = true }
+    func startScheduledPlayback() throws { started = true; startCount += 1 }
     func elapsedSourceFrames(slot: AudioSlot) -> Int64? { framesBySlot[slot] ?? elapsedFrames }
     func cancelScheduledPlayback() { started = false; elapsedFrames = 0; framesBySlot.removeAll() }
     func closeScheduledFile(slot: AudioSlot) {}
