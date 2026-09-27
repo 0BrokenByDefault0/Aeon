@@ -37,6 +37,43 @@ final class AudioEngineGraphTests: XCTestCase {
         }
     }
 
+    func testMixedRateSourcesKeepOneNegotiatedProcessingRate() throws {
+        let graph = makeGraph()
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("aeon-mixed-rate-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        func writeFixture(rate: Double, name: String) throws -> URL {
+            let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: rate, channels: 2))
+            let url = root.appendingPathComponent(name).appendingPathExtension("caf")
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            let frames = AVAudioFrameCount(rate / 20)
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames))
+            buffer.frameLength = frames
+            for channel in 0..<2 {
+                for frame in 0..<Int(frames) {
+                    buffer.floatChannelData![channel][frame] = Float(0.1 * sin(2 * .pi * 440 * Double(frame) / rate))
+                }
+            }
+            try file.write(from: buffer)
+            return url
+        }
+
+        let low = try writeFixture(rate: 44_100, name: "low")
+        let high = try writeFixture(rate: 96_000, name: "high")
+        let first = try graph.openForScheduling(url: low, slot: .a)
+        let second = try graph.openForScheduling(url: high, slot: .b)
+
+        XCTAssertEqual(first.sampleRate, 44_100)
+        XCTAssertEqual(second.sampleRate, 96_000)
+        XCTAssertEqual(graph.playerA.outputFormat(forBus: 0).sampleRate, 44_100)
+        XCTAssertEqual(graph.playerB.outputFormat(forBus: 0).sampleRate, 96_000)
+        XCTAssertEqual(graph.equalizer.inputFormat(forBus: 0).sampleRate, 48_000)
+        XCTAssertEqual(graph.dspNode.inputFormat(forBus: 0).sampleRate, 48_000)
+        XCTAssertEqual(graph.dspNode.outputFormat(forBus: 0).sampleRate, 48_000)
+    }
+
     func testBundledWAVPreparesAndRendersThroughProductionGraph() throws {
         let graph = makeGraph()
         let url = fixtureURL(named: "pcm-48000.wav")
