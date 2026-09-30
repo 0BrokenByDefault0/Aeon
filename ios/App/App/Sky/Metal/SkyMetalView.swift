@@ -33,7 +33,6 @@ struct SkyMetalView: UIViewRepresentable {
         context.coordinator.controller = controller
         context.coordinator.commitSelection = commitSelection
         context.coordinator.reduceMotion = effectiveReduceMotion
-        controller.updateViewport(view.bounds.size)
         view.accessibilityValue = "\(controller.catalogue.stars.count) albums, \(controller.catalogue.constellations.count) artist constellations, \(controller.catalogue.planets.count) worlds"
         context.coordinator.renderer?.update(
             catalogue: controller.catalogue,
@@ -180,8 +179,8 @@ struct SkyMetalView: UIViewRepresentable {
             ) != nil
             guard !occupied else { return }
             let camera = controller.camera.zoomedOutOneTier(anchor: point, viewport: viewport)
-            if reduceMotion { controller.setCamera(camera, persist: true) }
-            else { withAnimation(.easeOut(duration: 0.36)) { controller.setCamera(camera, persist: true) } }
+            controller.zoom(by: camera.scale / controller.camera.scale,
+                            anchor: point, viewport: viewport, persist: true)
         }
 
         @objc private func hold(_ gesture: UILongPressGestureRecognizer) {}

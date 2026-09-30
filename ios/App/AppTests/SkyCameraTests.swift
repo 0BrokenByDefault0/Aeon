@@ -1,8 +1,112 @@
 import XCTest
 import MetalKit
+import UIKit
 @testable import App
 
 final class SkyCameraTests: XCTestCase {
+    @MainActor
+    func testCollectionFitIncludesPlanetRingsAndClearsChromeAcrossViewports() throws {
+        for name in ["one", "fifteen", "world-family-4", "1000"] {
+            let sky = try SkySceneController.fixture(named: name)
+            let points = sky.stars.map(\.coordinate) + sky.planets.map(\.coordinate)
+            for (size, top, bottom) in [(CGSize(width: 320, height: 568), 88.0, 150.0),
+                                       (CGSize(width: 430, height: 932), 110.0, 180.0),
+                                       (CGSize(width: 844, height: 390), 64.0, 90.0),
+                                       (CGSize(width: 320, height: 568), 100.0, 240.0)] {
+                let viewport = SkyViewport(size: size)
+                let bounds = CGRect(x: 0, y: top, width: size.width, height: size.height - top - bottom)
+                let camera = SkyCameraState.framingCollection(points: points, planets: sky.planets,
+                    viewport: viewport, usableBounds: bounds)
+                let projected = points.map { camera.screenPoint(for: $0, viewport: viewport) }
+                XCTAssertEqual((projected.map(\.x).min()! + projected.map(\.x).max()!) / 2, bounds.midX, accuracy: 0.001)
+                XCTAssertEqual((projected.map(\.y).min()! + projected.map(\.y).max()!) / 2, bounds.midY, accuracy: 0.001)
+                for point in projected { XCTAssertTrue(bounds.insetBy(dx: 12, dy: 12).contains(point), name) }
+                for planet in sky.planets {
+                    let point = camera.screenPoint(for: planet.coordinate, viewport: viewport)
+                    let extent = planet.resolvedMaterial.ringExtent
+                    let radius = PlanetProjection.bodyRadius(scale: camera.scale, usableSize: bounds.size,
+                        ringExtent: extent) * CGFloat(max(1.08, extent))
+                    XCTAssertTrue(bounds.contains(CGRect(x: point.x - radius, y: point.y - radius,
+                        width: radius * 2, height: radius * 2)), name)
+                }
+            }
+        }
+    }
+
+    func testTextFreeZoomIsReachableWithoutChangingTheLabelHierarchy() {
+        for fit in [0.72, 0.2, 0.015, 0.000008] {
+            XCTAssertEqual(SkyDisclosure.textOpacity(scale: fit, collectionScale: fit), 1)
+            XCTAssertEqual(SkyDisclosure.textOpacity(scale: fit * 0.7, collectionScale: fit), 0.5, accuracy: 0.000001)
+            XCTAssertEqual(SkyDisclosure.textOpacity(scale: fit * 0.5, collectionScale: fit), 0)
+            let minimum = max(SkyCameraState.minimumScale, fit * 0.25)
+            XCTAssertEqual(SkyDisclosure.textOpacity(scale: minimum, collectionScale: fit), 0)
+        }
+    }
+
+    @MainActor
+    func testLaunchFitsCollectionAndTextChoicePersistsWithoutMovingExploredCamera() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let catalog = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        let repository = SkyRepository(catalog: catalog)
+        let playback = PlaybackController(coordinator: PlaybackFixtureCoordinator(snapshot: nil))
+        let inputs = (1...33).map { index in
+            SkyAlbumInput(id: "album-\(index)", sequence: Int64(index), title: "Album \(index)",
+                artist: "Artist \(index / 3)", genre: "Jazz", importedAt: Date(timeIntervalSince1970: Double(index)))
+        }
+        let controller = SkySceneController(repository: repository, catalog: catalog, playback: playback)
+        XCTAssertEqual(controller.camera, .home)
+        try repository.backfill(inputs: inputs)
+        controller.reload() // The first asynchronous import must also receive a fit.
+        controller.updateViewport(CGSize(width: 320, height: 568))
+        controller.updateFocusInsets(top: 90, bottom: 150)
+        XCTAssertEqual(controller.camera, controller.collectionCamera)
+        XCTAssertNil(controller.camera.selectedID)
+        let viewport = SkyViewport(size: CGSize(width: 320, height: 568))
+        let anchor = CGPoint(x: 80, y: 220)
+        let worldBefore = controller.camera.worldPoint(for: anchor, viewport: viewport)
+        controller.zoom(by: 0.001, anchor: anchor, viewport: viewport, persist: true)
+        XCTAssertEqual(controller.skyTextOpacity, 0)
+        let worldAfter = controller.camera.worldPoint(for: anchor, viewport: viewport)
+        XCTAssertEqual(worldBefore.x, worldAfter.x, accuracy: 0.001)
+        XCTAssertEqual(worldBefore.y, worldAfter.y, accuracy: 0.001)
+        let explored = controller.camera
+        controller.toggleText()
+        controller.updateFocusInsets(top: 90, bottom: 240)
+        controller.updateViewport(CGSize(width: 844, height: 390))
+        XCTAssertEqual(controller.camera, explored, "Text controls and layout must not reset exploration")
+        let relaunched = SkySceneController(repository: repository, catalog: catalog, playback: playback)
+        XCTAssertEqual(relaunched.camera, relaunched.collectionCamera)
+        XCTAssertNotEqual(relaunched.camera, explored, "A new launch must ignore the old pan/zoom")
+        XCTAssertTrue(relaunched.textHidden)
+        XCTAssertEqual(relaunched.skyTextOpacity, 0)
+        relaunched.toggleText()
+        XCTAssertEqual(relaunched.skyTextOpacity, 1)
+    }
+
+    @MainActor
+    func testSelectingPlanetKeepsTheRenderedCollectionIlluminated() async throws {
+        guard MTLCreateSystemDefaultDevice() != nil else { throw XCTSkip("Metal unavailable") }
+        let sky = try SkySceneController.fixture(named: "thirty-three")
+        let size = CGSize(width: 390, height: 844)
+        var camera = SkyCameraState.framingCollection(
+            points: sky.stars.map(\.coordinate) + sky.planets.map(\.coordinate), planets: sky.planets,
+            viewport: SkyViewport(size: size), usableBounds: CGRect(origin: .zero, size: size))
+        let before: UIImage? = await withCheckedContinuation { continuation in
+            SkyRenderer.capture(catalogue: sky, camera: camera, playingStarID: nil, size: size) {
+                continuation.resume(returning: $0)
+            }
+        }
+        camera.selectedID = try XCTUnwrap(sky.planets.first).id
+        let after: UIImage? = await withCheckedContinuation { continuation in
+            SkyRenderer.capture(catalogue: sky, camera: camera, playingStarID: nil, size: size) {
+                continuation.resume(returning: $0)
+            }
+        }
+        XCTAssertEqual(try XCTUnwrap(before?.pngData()), try XCTUnwrap(after?.pngData()),
+            "Selecting a world must leave other worlds, stars and constellations illuminated")
+    }
+
     func testPanAndPinchKeepTheAnchorPinnedAndClampScale() {
         let viewport = SkyViewport(size: CGSize(width: 390, height: 844))
         let camera = SkyCameraState(centerX: 120, centerY: -40, scale: 1.25, selectedID: nil)
@@ -17,7 +121,7 @@ final class SkyCameraTests: XCTestCase {
         XCTAssertEqual(worldBefore.x, worldAfter.x, accuracy: 0.0001)
         XCTAssertEqual(worldBefore.y, worldAfter.y, accuracy: 0.0001)
         XCTAssertEqual(camera.zoomed(by: 100, anchor: anchor, viewport: viewport).scale, SkyCameraState.maximumScale)
-        XCTAssertEqual(camera.zoomed(by: 0.0001, anchor: anchor, viewport: viewport).scale, SkyCameraState.minimumScale)
+        XCTAssertEqual(camera.zoomed(by: 0.00000001, anchor: anchor, viewport: viewport).scale, SkyCameraState.minimumScale)
     }
 
     func testContentFramingAndWorldCoordinatesDoNotDependOnSafeAreas() {

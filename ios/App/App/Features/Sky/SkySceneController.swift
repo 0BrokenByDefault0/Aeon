@@ -16,6 +16,10 @@ final class SkySceneController: ObservableObject {
     @Published private(set) var captureInProgress = false
     @Published private(set) var cameraCrossfade = false
     @Published private(set) var spectrumLevels = SpectrumLevels.zero
+    @Published private(set) var textHidden: Bool
+    private(set) var collectionCamera = SkyCameraState.home
+    private var followsCollection = true
+    private static let textHiddenKey = "sky.text.hidden.v1"
 
     private let repository: SkyRepository
     private let catalog: CatalogRepository
@@ -34,29 +38,32 @@ final class SkySceneController: ObservableObject {
     ) {
         self.repository = repository
         self.catalog = catalog
+        textHidden = (try? catalog.setting(Bool.self, forKey: Self.textHiddenKey)) ?? false
         if let fixture = Self.fixtureName(), let generated = try? Self.fixture(named: fixture) {
             catalogue = generated
-            camera = SkyCameraState.framing(
-                points: generated.stars.map(\.coordinate) + generated.planets.map(\.coordinate),
-                viewport: SkyViewport(size: CGSize(width: 390, height: 844))
-            )
         } else {
             catalogue = (try? repository.catalogue()) ?? .empty
-            camera = (try? repository.camera()) ?? .home
         }
+        camera = .home
+        updateNavigationBounds()
         if Self.fixtureName() == "planet-medium", let planet = catalogue.planets.first {
+            followsCollection = false
             camera = SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y), scale: 1.8, selectedID: planet.id)
         } else if Self.fixtureName() == "planet-selected", let planet = catalogue.planets.first {
+            followsCollection = false
             camera = SkyCameraState.planetFocus(planet, viewport: SkyViewport(size: viewportSize))
         } else if let fixture = Self.fixtureName(), fixture.hasPrefix("world-family-"),
                   let index = Int(fixture.replacingOccurrences(of: "world-family-", with: "")),
                   catalogue.planets.indices.contains(index) {
+            followsCollection = false
             let planet = catalogue.planets[index]
             camera = SkyCameraState(centerX: Double(planet.coordinate.x), centerY: Double(planet.coordinate.y),
                                     scale: 3, selectedID: nil)
         } else if ["album-selected", "one-focused"].contains(Self.fixtureName() ?? ""), let star = catalogue.stars.first {
+            followsCollection = false
             camera = SkyCameraState.albumFocus(star.coordinate, id: star.albumID)
         } else if Self.fixtureName() == "artist-focused", let artist = catalogue.constellations.first {
+            followsCollection = false
             camera = SkyCameraState.focusFraming(
                 points: catalogue.stars.filter { artist.albumIDs.contains($0.albumID) }.map(\.coordinate),
                 viewport: SkyViewport(size: viewportSize)
@@ -66,7 +73,6 @@ final class SkySceneController: ObservableObject {
             playingStarID = star.albumID
             nowPlayingText = "now burning · Signal 1 · Artist 0"
         }
-        updateNavigationBounds()
         playbackObservation = playback.$snapshot.sink { [weak self] snapshot in
             self?.acceptPlayback(trackID: snapshot?.trackID)
         }
@@ -162,6 +168,7 @@ final class SkySceneController: ObservableObject {
     }
 
     func setCamera(_ value: SkyCameraState, persist: Bool = false) {
+        followsCollection = false
         cameraTask?.cancel()
         cameraCrossfade = false
         camera = constrained(value)
@@ -169,26 +176,52 @@ final class SkySceneController: ObservableObject {
     }
 
     func interruptFlight() {
+        followsCollection = false
         cameraTask?.cancel()
         cameraCrossfade = false
     }
 
     func zoom(by factor: Double, anchor: CGPoint, viewport: SkyViewport, persist: Bool) {
-        let collection = SkyCameraState.framing(points: navigationBounds, viewport: viewport)
-        let minimum = max(SkyCameraState.minimumScale, collection.scale * 0.4)
+        guard factor.isFinite, factor > 0 else { return }
+        let minimum = max(SkyCameraState.minimumScale, collectionCamera.scale * 0.25)
         let next = max(minimum, min(SkyCameraState.maximumScale, camera.scale * factor))
         setCamera(camera.zoomed(by: next / camera.scale, anchor: anchor, viewport: viewport), persist: persist)
     }
 
     private func updateNavigationBounds() {
         let points = catalogue.stars.map(\.coordinate) + catalogue.planets.map(\.coordinate)
-        guard let first = points.first else { navigationBounds = []; return }
+        guard let first = points.first else {
+            navigationBounds = []
+            updateCollectionFraming()
+            return
+        }
         var low = first, high = first
         for point in points.dropFirst() {
             low.x = min(low.x, point.x); low.y = min(low.y, point.y)
             high.x = max(high.x, point.x); high.y = max(high.y, point.y)
         }
         navigationBounds = [low, high]
+        updateCollectionFraming()
+    }
+
+    private func updateCollectionFraming() {
+        collectionCamera = SkyCameraState.framingCollection(points: navigationBounds, planets: catalogue.planets,
+            viewport: SkyViewport(size: viewportSize), usableBounds: usableSkyBounds)
+        if followsCollection {
+            cameraTask?.cancel()
+            cameraCrossfade = false
+            camera = collectionCamera
+        }
+    }
+
+    var skyTextOpacity: Double {
+        textHidden ? 0 : SkyDisclosure.textOpacity(scale: camera.scale, collectionScale: collectionCamera.scale)
+    }
+
+    func toggleText() {
+        textHidden.toggle()
+        AeonFeedback.selectionChanged()
+        try? catalog.setSetting(textHidden, forKey: Self.textHiddenKey)
     }
 
     private var focusTopInset: CGFloat = 0
@@ -209,11 +242,13 @@ final class SkySceneController: ObservableObject {
         objectWillChange.send()
         focusTopInset = max(0, top)
         focusBottomInset = max(0, bottom)
+        updateCollectionFraming()
     }
 
     func updateViewport(_ size: CGSize) {
-        guard size.width > 0, size.height > 0 else { return }
+        guard size.width > 0, size.height > 0, size != viewportSize else { return }
         viewportSize = size
+        updateCollectionFraming()
     }
 
     func select(_ target: SkyHitTarget?) {
@@ -245,16 +280,12 @@ final class SkySceneController: ObservableObject {
     }
 
     func showGalaxy(reduceMotion: Bool) {
-        var target = SkyCameraState.framing(
-            points: catalogue.stars.map(\.coordinate) + catalogue.planets.map(\.coordinate),
-            viewport: SkyViewport(size: viewportSize),
-            padding: 72
-        )
-        target.selectedID = nil
-        animateCamera(to: target, kind: reduceMotion ? .crossFade : .flight)
+        animateCamera(to: collectionCamera, kind: reduceMotion ? .crossFade : .flight)
+        followsCollection = true
     }
 
     private func animateCamera(to rawTarget: SkyCameraState, kind: SkyCameraTransitionKind) {
+        followsCollection = false
         cameraTask?.cancel()
         let target = constrained(rawTarget)
         let origin = camera
@@ -304,6 +335,7 @@ final class SkySceneController: ObservableObject {
 
     func reload() {
         guard let updated = try? repository.catalogue() else { return }
+        if catalogue.stars.isEmpty { followsCollection = true }
         let newConstellations = updated.constellations.count - catalogue.constellations.count
         let newPlanets = updated.planets.count - catalogue.planets.count
         catalogue = updated
@@ -321,6 +353,7 @@ final class SkySceneController: ObservableObject {
         plateCamera.scale *= Double(framingScale) * (wide ? 0.62 : 1)
         let title = selectedTitle() ?? "AEON / SKY"
         let starCount = catalogue.stars.count
+        let textOpacity = skyTextOpacity
         SkyRenderer.capture(catalogue: catalogue, camera: plateCamera, playingStarID: playingStarID, size: outputSize) { [weak self] sky in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -333,12 +366,12 @@ final class SkySceneController: ObservableObject {
                     sky.draw(in: CGRect(origin: .zero, size: outputSize))
                     title.uppercased().draw(at: CGPoint(x: 64, y: 72), withAttributes: [
                         .font: UIFont.systemFont(ofSize: 28, weight: .medium),
-                        .foregroundColor: UIColor(white: 0.92, alpha: 1), .kern: 3
+                        .foregroundColor: UIColor(white: 0.92, alpha: textOpacity), .kern: 3
                     ])
                     let credit = "AEON · \(starCount) STARS"
                     credit.draw(at: CGPoint(x: 64, y: outputSize.height - 96), withAttributes: [
                         .font: UIFont.monospacedSystemFont(ofSize: 18, weight: .regular),
-                        .foregroundColor: UIColor(white: 0.68, alpha: 1), .kern: 2
+                        .foregroundColor: UIColor(white: 0.68, alpha: textOpacity), .kern: 2
                     ])
                 }
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent("aeon-sky-\(UUID().uuidString).png")

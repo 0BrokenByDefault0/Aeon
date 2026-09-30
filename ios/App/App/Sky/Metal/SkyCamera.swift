@@ -27,7 +27,7 @@ enum PlanetProjection {
 }
 
 struct SkyCameraState: Codable, Equatable, Sendable {
-    static let minimumScale = 0.015
+    static let minimumScale = 0.000001
     static let maximumScale = 14.0
     static let home = SkyCameraState(centerX: 0, centerY: 0, scale: 0.72, selectedID: nil)
 
@@ -86,7 +86,7 @@ struct SkyCameraState: Codable, Equatable, Sendable {
     func zoomedOutOneTier(anchor: CGPoint, viewport: SkyViewport) -> SkyCameraState {
         let target: Double
         switch tier {
-        case .collection: target = Self.minimumScale
+        case .collection: target = max(Self.minimumScale, scale * 0.4)
         case .system: target = 0.52
         case .album: target = 1.35
         case .focus: target = 2.4
@@ -138,6 +138,24 @@ struct SkyCameraState: Codable, Equatable, Sendable {
             scale: min(0.72, max(Self.minimumScale, min(widthScale, heightScale))),
             selectedID: nil
         )
+    }
+
+    static func framingCollection(points: [SkyPoint], planets: [SkyPlanet],
+                                  viewport: SkyViewport, usableBounds: CGRect) -> SkyCameraState {
+        guard !points.isEmpty else { return .home }
+        let usableViewport = SkyViewport(size: usableBounds.size)
+        let provisional = framing(points: points, viewport: usableViewport, padding: 24)
+        // Bodies and rings keep a screen-space size even at wide zoom. Reserve their
+        // full envelope; the final, wider fit can only make that envelope smaller.
+        let envelope = planets.map { planet in
+            let extent = planet.resolvedMaterial.ringExtent
+            return PlanetProjection.bodyRadius(scale: provisional.scale,
+                usableSize: usableBounds.size, ringExtent: extent) * CGFloat(max(1.08, extent))
+        }.max() ?? 0
+        var target = framing(points: points, viewport: usableViewport, padding: max(24, envelope + 12))
+        target.centerX += Double(viewport.center.x - usableBounds.midX) / target.scale
+        target.centerY += Double(viewport.center.y - usableBounds.midY) / target.scale
+        return target
     }
 
     /// Only real artist members are framed as geometry. An album has no extent;

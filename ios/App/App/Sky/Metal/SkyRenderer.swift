@@ -222,7 +222,6 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             let selected = star.albumID == selectedID
             let related = members.contains(star.albumID)
             let playing = star.albumID == playingStarID
-            let alpha: Float = selectedID == nil || selected || related ? 1 : (playing ? 0.82 : 0.40)
             let temperatures: [SIMD3<Float>] = [
                 SIMD3(0.67, 0.80, 1), SIMD3(0.86, 0.92, 1), SIMD3(1, 0.91, 0.73)
             ]
@@ -232,7 +231,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
                 let artwork = SIMD3(Float(sample.red), Float(sample.green), Float(sample.blue)) / 255
                 rgb = rgb * 0.72 + artwork * 0.28
             }
-            let color = SIMD4(rgb.x, rgb.y, rgb.z, alpha)
+            let color = SIMD4(rgb.x, rgb.y, rgb.z, Float(1))
             return GPUInstance(
                 position: SIMD2(Float(star.coordinate.x), Float(star.coordinate.y)),
                 color0: color, color1: color, color2: color, size: related ? 3.4 : 2.7,
@@ -252,7 +251,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         }
         glowBuffer = makeBuffer(glows)
         glowCount = glows.count
-        planetInstances = planets.map { planetInstance($0, selected: $0.id == selectedID) }
+        planetInstances = planets.map { planetInstance($0) }
         projectedCamera = nil
     }
 
@@ -261,7 +260,7 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         var lines: [GPULine] = []
         for constellation in constellations {
             let selected = constellation.id == selectedID
-            let alpha: Float = selected ? 0.48 : (selectedID == nil ? 0.18 : 0.035)
+            let alpha: Float = selected ? 0.48 : 0.18
             for segment in constellation.figureSegments {
                 guard let from = starByID[segment.fromAlbumID], let to = starByID[segment.toAlbumID] else { continue }
                 let dx = Double(from.coordinate.x) - Double(to.coordinate.x)
@@ -281,13 +280,13 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
         lineBuffer = makeBuffer(lines)
     }
 
-    private func planetInstance(_ planet: SkyPlanet, selected: Bool) -> GPUInstance {
+    private func planetInstance(_ planet: SkyPlanet) -> GPUInstance {
         let material = planet.resolvedMaterial
         let colors = material.palette
         func vector(_ index: Int) -> SIMD4<Float> {
             let color = colors.isEmpty ? SkyColor(red: 120, green: 132, blue: 150) : colors[index % colors.count]
             return SIMD4(Float(color.red) / 255, Float(color.green) / 255, Float(color.blue) / 255,
-                         selectedID == nil || selected ? 1 : 0.38)
+                         1)
         }
         // The analytic sphere uses the persisted descriptor at every LOD. No bitmap
         // upscale, texture swap, or CPU texture generation in a camera transaction.

@@ -33,6 +33,7 @@ struct SkyScreen: View {
                 Group {
                     if isForeground {
                         SkyLabelOverlay(controller: controller, viewport: geometry.size, highContrast: highContrast)
+                            .opacity(controller.skyTextOpacity)
                             .allowsHitTesting(false).accessibilityHidden(true)
                         // The only VoiceOver route into the sky. Without it every star,
                         // constellation and region is invisible to assistive technology.
@@ -60,9 +61,13 @@ struct SkyScreen: View {
                             .padding(.horizontal, AeonTheme.Space.large).padding(.vertical, AeonTheme.Space.regular)
                             .background(AeonTheme.ColorToken.void.opacity(0.92))
                             .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+                            .opacity(controller.skyTextOpacity)
                             .transition(.opacity).allowsHitTesting(false).accessibilityAddTraits(.updatesFrequently)
                         }
                         selectionFocus(viewport: geometry.size)
+                            .opacity(controller.skyTextOpacity)
+                            .allowsHitTesting(controller.skyTextOpacity > 0)
+                            .accessibilityHidden(controller.skyTextOpacity == 0)
                     }
                 }
                 .transaction { $0.animation = nil }
@@ -195,6 +200,7 @@ private struct SkyLabelOverlay: View {
         .animation(.easeOut(duration: 0.18), value: labels.map(\.id))
     }
     private var labels: [SkyLabelLayout.Placed] {
+        guard controller.skyTextOpacity > 0 else { return [] }
         let camera = controller.camera
         let resolvedViewport = SkyViewport(size: viewport)
         let starByID = Dictionary(uniqueKeysWithValues: controller.catalogue.stars.map { ($0.albumID, $0) })
@@ -256,6 +262,13 @@ struct SkyDisclosure {
     let region: Double
     let artist: Double
     let album: Double
+    static func textOpacity(scale: Double, collectionScale: Double) -> Double {
+        // Relative to the actual collection fit, so even a very large library has
+        // a readable overview and a reachable, completely text-free panorama.
+        let ratio = scale / max(SkyCameraState.minimumScale, collectionScale)
+        let t = min(1, max(0, (ratio - 0.5) / 0.4))
+        return t * t * (3 - 2 * t)
+    }
     init(scale: Double) {
         func fade(_ low: Double, _ high: Double) -> Double {
             let t = min(1, max(0, (scale - low) / (high - low)))

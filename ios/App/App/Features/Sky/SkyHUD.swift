@@ -13,7 +13,9 @@ struct SkyHUD: View {
         VStack(spacing: 0) {
             topControls
             Spacer()
-            if (showCensus && !controller.catalogue.stars.isEmpty) || importProgress != nil { censusStrip }
+            if (showCensus && !controller.catalogue.stars.isEmpty) || importProgress != nil {
+                censusStrip.opacity(controller.skyTextOpacity)
+            }
         }
         .onAppear { announcedTier = controller.camera.tier }
         .onChange(of: controller.camera.tier) { tier in
@@ -30,8 +32,17 @@ struct SkyHUD: View {
                 .foregroundStyle(AeonOrbit.ink.opacity(0.78))
                 .accessibilityLabel("Sky, \(controller.viewModeLabel)")
                 .accessibilityIdentifier("aeon.sky.altitude")
+                .opacity(controller.skyTextOpacity)
             Spacer(minLength: 0)
             if !controller.catalogue.stars.isEmpty {
+                Button { controller.toggleText() } label: {
+                    hudAction(glyph: controller.textHidden ? .textHidden : .text)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(controller.textHidden ? "Show sky text" : "Hide sky text")
+                .accessibilityValue(controller.textHidden ? "Hidden" : "Automatic")
+                .accessibilityHint("Remembers your choice. Automatic text also fades away when you zoom out.")
+                .accessibilityIdentifier("aeon.sky.text")
                 Group {
                     Button {
                         controller.showGalaxy(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)

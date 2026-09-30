@@ -98,6 +98,7 @@ enum AeonGlyphKind {
     case disclosure, picker, export, add, refresh
     case play, pause, next, previous, search, close, more, erase, shuffle, repeatTrack
     case volumeLow, volumeHigh, grip, check, overview, locate
+    case text, textHidden
 }
 
 /// Always decorative. An interactive parent owns the accessibility element, its label
@@ -133,6 +134,10 @@ private struct AeonGlyphPath: Shape {
                                       width: r*2*rect.width/24, height: r*2*rect.height/24))
         }
         switch kind {
+        case .text, .textHidden:
+            line([(5,7),(5,4),(19,4),(19,7)])
+            line([(12,4),(12,20)]); line([(8,20),(16,20)])
+            if kind == .textHidden { line([(3,21),(21,3)]) }
         case .overview:
             circle(12,12,8); circle(12,12,2)
             line([(2,12),(5,12)]); line([(19,12),(22,12)])
