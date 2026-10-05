@@ -111,6 +111,71 @@ final class PlaybackControllerTests: XCTestCase {
         XCTAssertEqual(coordinator.playCount, 1)
     }
 
+    func testPauseDuringLoadDoesNotAutoplayWhenLoadFinishes() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: nil)
+        coordinator.deferLoadCompletion = true
+        let controller = PlaybackController(coordinator: coordinator)
+
+        controller.loadAndPlay(track: deferredTrack())
+        controller.pause()
+        coordinator.completeDeferredLoad(with: snapshot(version: 2, trackID: "deferred"))
+
+        XCTAssertEqual(coordinator.playCount, 0)
+    }
+
+    func testOlderLoadCannotAutoplayAfterANewerSnapshot() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: nil)
+        coordinator.deferLoadCompletion = true
+        let controller = PlaybackController(coordinator: coordinator)
+
+        controller.loadAndPlay(track: deferredTrack())
+        controller.accept(snapshot: snapshot(version: 4, trackID: "newer"))
+        coordinator.completeDeferredLoad(with: snapshot(version: 2, trackID: "deferred"))
+
+        XCTAssertEqual(controller.snapshot?.trackID, "newer")
+        XCTAssertEqual(coordinator.playCount, 0)
+    }
+
+    func testNextDuringLoadCancelsPendingAutoplay() {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 1, trackID: nil)
+        coordinator.deferLoadCompletion = true
+        let controller = PlaybackController(coordinator: coordinator)
+
+        controller.loadAndPlay(track: deferredTrack())
+        controller.next()
+        coordinator.completeDeferredLoad(with: snapshot(version: 2, trackID: "deferred"))
+
+        XCTAssertEqual(coordinator.nextCount, 1)
+        XCTAssertEqual(coordinator.playCount, 0)
+    }
+
+    func testBackgroundSnapshotDoesNotRestartPositionPolling() async throws {
+        let coordinator = ControllerCoordinator()
+        coordinator.state = snapshot(version: 2, trackID: "track", intent: .playing)
+        let controller = PlaybackController(coordinator: coordinator)
+        defer { controller.stopRefreshing() }
+
+        controller.applicationDidEnterBackground()
+        controller.accept(snapshot: coordinator.state!)
+        try await Task.sleep(nanoseconds: 700_000_000)
+        XCTAssertEqual(coordinator.stateRequestCount, 0)
+
+        controller.applicationDidEnterForeground()
+        XCTAssertEqual(coordinator.stateRequestCount, 1)
+        try await Task.sleep(nanoseconds: 700_000_000)
+        XCTAssertGreaterThan(coordinator.stateRequestCount, 1)
+    }
+
+    private func deferredTrack() -> CatalogTrack {
+        CatalogTrack(id: "deferred", albumID: "album", sequence: 1, discNumber: 1,
+                     trackNumber: 1, title: "Deferred", artist: "Artist", duration: 120,
+                     byteCount: 32, mediaReference: .documents(relativePath: "Music/deferred.m4a"),
+                     importedAt: Date(timeIntervalSince1970: 1))
+    }
+
     func testLockScreenCommandsRouteToThePlaybackController() throws {
         let coordinator = ControllerCoordinator()
         coordinator.state = snapshot(version: 1, trackID: "track")

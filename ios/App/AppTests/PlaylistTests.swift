@@ -1,3 +1,4 @@
+import Combine
 import XCTest
 @testable import App
 
@@ -179,6 +180,126 @@ final class PlaylistTests: XCTestCase {
         XCTAssertEqual(PlaylistM3U.fileName(for: "..hidden"), "hidden.m3u8")
     }
 
+    func testExportsPreserveExistingFilesAndDistinctSanitizedNames() throws {
+        let repository = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        try insertGlassRoute(into: repository)
+        let folder = root.appendingPathComponent("Documents/Playlists", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let original = folder.appendingPathComponent("Glass-Route.m3u8")
+        let originalData = Data("collector-owned playlist".utf8)
+        try originalData.write(to: original)
+        let originalDate = Date(timeIntervalSince1970: 10)
+        try FileManager.default.setAttributes([.modificationDate: originalDate], ofItemAtPath: original.path)
+        let occupiedDirectory = folder.appendingPathComponent("Glass-Route (2).m3u8")
+        try FileManager.default.createDirectory(at: occupiedDirectory, withIntermediateDirectories: false)
+        let playback = PlaybackController(coordinator: PlaylistRecordingCoordinator(), playlistStore: repository)
+        let controller = PlaylistsController(repository: repository, playback: playback, playlistsFolder: folder)
+
+        XCTAssertTrue(controller.create(name: "Glass/Route", id: "first-route"))
+        try repository.replacePlaylistItems(playlistID: "first-route", trackIDs: ["second", "first"])
+        controller.select(id: "first-route")
+        let first = try XCTUnwrap(controller.exportSelected())
+        XCTAssertEqual(first.lastPathComponent, "Glass-Route (3).m3u8")
+        let firstData = try Data(contentsOf: first)
+        XCTAssertTrue(controller.create(name: "Glass-Route", id: "second-route"))
+        try repository.replacePlaylistItems(playlistID: "second-route", trackIDs: ["third"])
+        controller.select(id: "second-route")
+        let second = try XCTUnwrap(controller.exportSelected())
+        XCTAssertEqual(second.lastPathComponent, "Glass-Route (4).m3u8")
+        XCTAssertEqual(PlaylistM3U.decode(try String(contentsOf: second, encoding: .utf8)).entries.map(\.trackID), ["third"])
+        controller.select(id: "first-route")
+        let repeated = try XCTUnwrap(controller.exportSelected())
+        XCTAssertEqual(repeated.lastPathComponent, "Glass-Route (5).m3u8")
+        XCTAssertEqual(try Data(contentsOf: repeated), firstData)
+        XCTAssertEqual(try Data(contentsOf: first), firstData)
+        XCTAssertEqual(try Data(contentsOf: original), originalData)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: original.path)[.modificationDate] as? Date, originalDate)
+        XCTAssertTrue(try occupiedDirectory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.path).count, 5)
+        let decoded = PlaylistM3U.decode(try String(contentsOf: first, encoding: .utf8))
+        XCTAssertEqual(decoded.name, "Glass/Route")
+        XCTAssertEqual(decoded.entries.map(\.trackID), ["second", "first"])
+        XCTAssertEqual(decoded.entries.first?.title, "Second Light")
+        XCTAssertEqual(decoded.entries.first?.artist, "Arden Vale")
+        XCTAssertEqual(decoded.entries.first?.duration, 60)
+        XCTAssertEqual(decoded.entries.first?.documentsRelativePath, "Music/Arden Vale/Glass Route/02.flac")
+    }
+
+    func testExportCollisionAtPublishTimeDoesNotReplaceTheOtherFile() throws {
+        let repository = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        try insertGlassRoute(into: repository)
+        let folder = root.appendingPathComponent("Documents/Playlists", isDirectory: true)
+        let fileManager = PlaylistCollisionFileManager()
+        let playback = PlaybackController(coordinator: PlaylistRecordingCoordinator(), playlistStore: repository)
+        let controller = PlaylistsController(repository: repository, playback: playback, playlistsFolder: folder, fileManager: fileManager)
+        XCTAssertTrue(controller.create(name: "Night", id: "route"))
+        try repository.replacePlaylistItems(playlistID: "route", trackIDs: ["first"])
+        controller.select(id: "route")
+
+        let exported = try XCTUnwrap(controller.exportSelected())
+        XCTAssertEqual(exported.lastPathComponent, "Night (2).m3u8")
+        XCTAssertEqual(try String(contentsOf: folder.appendingPathComponent("Night.m3u8"), encoding: .utf8), "Concurrent file")
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: folder.path).count, 2)
+    }
+
+    func testExportWaitsForOtherFileOperations() throws {
+        let repository = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        try insertGlassRoute(into: repository)
+        let folder = root.appendingPathComponent("Documents/Playlists", isDirectory: true)
+        let playback = PlaybackController(coordinator: PlaylistRecordingCoordinator(), playlistStore: repository)
+        let controller = PlaylistsController(repository: repository, playback: playback, playlistsFolder: folder)
+        XCTAssertTrue(controller.create(name: "Night", id: "route"))
+        try repository.replacePlaylistItems(playlistID: "route", trackIDs: ["first"])
+        controller.select(id: "route")
+
+        XCTAssertTrue(repository.beginFileOperation())
+        XCTAssertNil(controller.exportSelected())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertEqual(controller.message, "Wait for other library operations to finish, then export again.")
+        repository.endFileOperation()
+        XCTAssertNotNil(controller.exportSelected())
+    }
+
+    func testSelectionRefreshesAfterExternalRenameAndDeletion() async throws {
+        let repository = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        try insertGlassRoute(into: repository)
+        let playback = PlaybackController(coordinator: PlaylistRecordingCoordinator(), playlistStore: repository)
+        let controller = PlaylistsController(repository: repository, playback: playback)
+        XCTAssertTrue(controller.create(name: "Night", id: "route"))
+        try repository.replacePlaylistItems(playlistID: "route", trackIDs: ["first"])
+        controller.select(id: "route")
+        let renamed = expectation(description: "Open playlist reflects catalogue rename")
+        let renameSubscription = controller.$selectedPlaylist.filter { $0?.name == "Dawn" }.first().sink { _ in renamed.fulfill() }
+        defer { renameSubscription.cancel() }
+        try repository.renamePlaylist(id: "route", name: "Dawn")
+        await fulfillment(of: [renamed], timeout: 2)
+        XCTAssertEqual(controller.selectionTitle, "Dawn")
+        XCTAssertEqual(controller.selectedItems.map(\.item.trackID), ["first"])
+
+        let deleted = expectation(description: "Deleted playlist clears selection")
+        let deletionSubscription = controller.$selectedPlaylist.filter { $0 == nil }.first().sink { _ in deleted.fulfill() }
+        defer { deletionSubscription.cancel() }
+        XCTAssertTrue(try repository.deletePlaylist(id: "route"))
+        await fulfillment(of: [deleted], timeout: 2)
+        XCTAssertNil(controller.selectedPlaylist)
+        XCTAssertTrue(controller.selectedItems.isEmpty)
+        XCTAssertFalse(controller.selectionIsEditable)
+    }
+
+    func testSelectingUnknownPlaylistClearsPreviousItems() throws {
+        let repository = CatalogRepository(database: try CatalogDatabase(rootURL: root))
+        try insertGlassRoute(into: repository)
+        let playback = PlaybackController(coordinator: PlaylistRecordingCoordinator(), playlistStore: repository)
+        let controller = PlaylistsController(repository: repository, playback: playback)
+        XCTAssertTrue(controller.create(name: "Night", id: "route"))
+        try repository.replacePlaylistItems(playlistID: "route", trackIDs: ["first"])
+        controller.select(id: "route")
+        XCTAssertFalse(controller.selectedItems.isEmpty)
+        controller.select(id: "does-not-exist")
+        XCTAssertNil(controller.selectedPlaylist)
+        XCTAssertTrue(controller.selectedItems.isEmpty)
+    }
+
     private func insertGlassRoute(into repository: CatalogRepository) throws {
         let album = CatalogAlbum(
             id: "album", sequence: 1, title: "Glass Route", artist: "Arden Vale", year: "2026",
@@ -208,6 +329,18 @@ final class PlaylistTests: XCTestCase {
             masterVolume: 0.9, eqEnabled: false, eqBands: [], route: nil,
             sourceFormat: nil, outputFormat: nil, timestamp: Date(timeIntervalSince1970: 1)
         )
+    }
+}
+
+private final class PlaylistCollisionFileManager: FileManager, @unchecked Sendable {
+    private var insertedCollision = false
+
+    override func moveItem(at srcURL: URL, to dstURL: URL) throws {
+        if !insertedCollision {
+            insertedCollision = true
+            try Data("Concurrent file".utf8).write(to: dstURL, options: .withoutOverwriting)
+        }
+        try super.moveItem(at: srcURL, to: dstURL)
     }
 }
 

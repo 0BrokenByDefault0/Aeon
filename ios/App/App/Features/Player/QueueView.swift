@@ -9,6 +9,7 @@ struct QueueView: View {
     var showArtist: (String) -> Void = { _ in }
     @State private var naming = false
     @State private var playlistName = ""
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         AeonSheet {
@@ -53,16 +54,22 @@ struct QueueView: View {
     }
 
     private var actions: some View {
-        HStack(spacing: AeonTheme.Space.medium) {
-            Button("SAVE AS PLAYLIST") { naming.toggle() }
-                .buttonStyle(AeonButtonStyle(tier: .hairline))
-                .disabled(playback.snapshot?.queue.isEmpty != false)
-                .accessibilityIdentifier("aeon.player.queue.save")
-            Button("CLEAR UPCOMING", action: playback.clearUpcoming)
-                .buttonStyle(AeonButtonStyle(tier: .bare))
-                .disabled(upcomingItems.isEmpty)
-                .accessibilityIdentifier("aeon.player.queue.clear")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AeonTheme.Space.medium) { actionButtons }
+            VStack(alignment: .leading, spacing: AeonTheme.Space.small) { actionButtons }
         }
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        Button("SAVE AS PLAYLIST") { naming.toggle() }
+            .buttonStyle(AeonButtonStyle(tier: .hairline))
+            .disabled(playback.snapshot?.queue.isEmpty != false)
+            .accessibilityIdentifier("aeon.player.queue.save")
+        Button("CLEAR UPCOMING", action: playback.clearUpcoming)
+            .buttonStyle(AeonButtonStyle(tier: .bare))
+            .disabled(upcomingItems.isEmpty)
+            .accessibilityIdentifier("aeon.player.queue.clear")
     }
 
     private var namingForm: some View {
@@ -71,6 +78,10 @@ struct QueueView: View {
             HStack(spacing: AeonTheme.Space.small) {
                 TextField("Name this queue", text: $playlistName)
                     .textInputAutocapitalization(.words)
+                    .submitLabel(.done)
+                    .focused($nameFocused)
+                    .onSubmit(savePlaylist)
+                    .onAppear { nameFocused = true }
                     .foregroundStyle(AeonTheme.ColorToken.bone)
                     .padding(.horizontal, AeonTheme.Space.regular)
                     .frame(minHeight: 48)
@@ -83,13 +94,9 @@ struct QueueView: View {
                             .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
                     )
                     .accessibilityIdentifier("aeon.player.queue.name")
-                Button("SAVE") {
-                    if playback.saveQueueAsPlaylist(name: playlistName) {
-                        playlistName = ""
-                        naming = false
-                    }
-                }
+                Button("SAVE", action: savePlaylist)
                 .buttonStyle(AeonButtonStyle(tier: .filled))
+                .disabled(playlistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("aeon.player.queue.commit-save")
             }
         }
@@ -100,11 +107,21 @@ struct QueueView: View {
         )
     }
 
+    private func savePlaylist() {
+        guard !playlistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if playback.saveQueueAsPlaylist(name: playlistName) {
+            nameFocused = false
+            playlistName = ""
+            naming = false
+            AeonFeedback.succeeded()
+        }
+    }
+
     private func status(_ message: String) -> some View {
         HStack(spacing: AeonTheme.Space.small) {
-            AeonGlyph(kind: .check)
             Text(message)
                 .font(AeonTheme.FontToken.ui(.caption))
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
         .accessibilityAddTraits(.updatesFrequently)

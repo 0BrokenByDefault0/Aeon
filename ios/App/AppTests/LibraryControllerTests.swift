@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import App
 
 final class LibraryControllerTests: XCTestCase {
@@ -139,6 +140,174 @@ final class LibraryControllerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: restored.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: restored.deletingLastPathComponent().path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: lookalike.path))
+    }
+
+    @MainActor
+    func testSortAndDensityPersistAndUnknownChoicesUseDefaults() throws {
+        let repository = try makeRepository()
+        let original = try makeController(repository: repository)
+        original.setSort(.artist)
+        original.setDensity(.list)
+        let restored = try makeController(repository: repository)
+        XCTAssertEqual(restored.sort, .artist)
+        XCTAssertEqual(restored.density, .list)
+
+        try repository.setSetting("unknown", forKey: "library.sort.v1")
+        try repository.setSetting("unknown", forKey: "library.density.v1")
+        let fallback = try makeController(repository: repository)
+        XCTAssertEqual(fallback.sort, .recent)
+        XCTAssertEqual(fallback.density, .grid)
+    }
+
+    @MainActor
+    func testMissingAndCorruptArtworkCanBeRetriedAfterRepair() async throws {
+        let repository = try makeRepository()
+        let controller = try makeController(repository: repository)
+        let imageData = artworkData(color: .red)
+        for key in ["missing.jpg", "corrupt.jpg"] {
+            if key == "corrupt.jpg" {
+                try Data("invalid image".utf8).write(to: controller.artworkStore.url(forKey: key))
+            }
+            controller.requestArtwork(key: key)
+            try await waitForThumbnails(controller)
+            XCTAssertNil(controller.thumbnails[key])
+
+            try imageData.write(to: controller.artworkStore.url(forKey: key), options: .atomic)
+            controller.requestArtwork(key: key)
+            try await waitForThumbnails(controller)
+            XCTAssertNotNil(controller.thumbnails[key], "A failed request must release its pending entry")
+        }
+    }
+
+    @MainActor
+    func testThumbnailRetentionIsBoundedAndEvictedArtworkLoadsAgain() async throws {
+        let controller = try makeController(repository: makeRepository())
+        let imageData = artworkData(color: .blue)
+        for batch in 0..<4 {
+            for index in 0..<LibraryController.pageSize {
+                let key = "cover-\(batch * LibraryController.pageSize + index).jpg"
+                try imageData.write(to: controller.artworkStore.url(forKey: key))
+                controller.requestArtwork(key: key)
+            }
+            try await waitForThumbnails(controller)
+            XCTAssertLessThanOrEqual(controller.thumbnails.count, LibraryController.thumbnailLimit)
+        }
+        XCTAssertEqual(controller.thumbnails.count, LibraryController.thumbnailLimit)
+        XCTAssertNil(controller.thumbnails["cover-0.jpg"])
+        controller.requestArtwork(key: "cover-0.jpg")
+        try await waitForThumbnails(controller)
+        XCTAssertNotNil(controller.thumbnails["cover-0.jpg"])
+        XCTAssertEqual(controller.thumbnails.count, LibraryController.thumbnailLimit)
+    }
+
+    @MainActor
+    func testMountedArtworkSurvivesPrefetchAndDuplicateVisibilityReferences() async throws {
+        let controller = try makeController(repository: makeRepository())
+        let imageData = artworkData(color: .red)
+        try imageData.write(to: controller.artworkStore.url(forKey: "visible.jpg"))
+        controller.retainVisibleArtwork(key: "visible.jpg")
+        controller.retainVisibleArtwork(key: "visible.jpg")
+        try await waitForThumbnails(controller)
+        controller.releaseVisibleArtwork(key: "visible.jpg")
+        for batch in 0..<4 {
+            for index in 0..<LibraryController.pageSize {
+                let key = "prefetch-\(batch * LibraryController.pageSize + index).jpg"
+                try imageData.write(to: controller.artworkStore.url(forKey: key))
+                controller.requestArtwork(key: key)
+            }
+            try await waitForThumbnails(controller)
+            XCTAssertNotNil(controller.thumbnails["visible.jpg"], "Prefetch must preserve mounted shelf covers")
+            XCTAssertLessThanOrEqual(controller.thumbnails.count, LibraryController.thumbnailLimit)
+        }
+        controller.releaseVisibleArtwork(key: "visible.jpg")
+        try imageData.write(to: controller.artworkStore.url(forKey: "replacement.jpg"))
+        controller.requestArtwork(key: "replacement.jpg")
+        try await waitForThumbnails(controller)
+        XCTAssertNil(controller.thumbnails["visible.jpg"], "The last disappearance must release the cover")
+    }
+
+    @MainActor
+    func testQueuedThumbnailWorkDoesNotRetainTheController() throws {
+        let repository = try makeRepository()
+        var controller: LibraryController? = try makeController(repository: repository)
+        weak var released = controller
+        for index in 0..<500 { controller?.requestArtwork(key: "missing-\(index).jpg") }
+        XCTAssertLessThanOrEqual(try XCTUnwrap(controller).pendingThumbnailCount, LibraryController.thumbnailLimit + 4)
+        controller = nil
+        XCTAssertNil(released, "Background decoding must not own the screen controller")
+    }
+
+    @MainActor
+    func testSelectedLatePageArtworkRefreshesTheSameKeyAndSurvivesCacheChurn() async throws {
+        let repository = try makeRepository()
+        var original = album("one", sequence: 1)
+        original.artworkKey = "album-one.jpg"
+        try repository.insertAlbum(original, tracks: [track("track", albumID: "one")])
+        try repository.insertAlbums((2...61).map { index in
+            let id = "recent-\(index)"
+            return (album(id, sequence: Int64(index)), [track("track-\(index)", albumID: id)])
+        })
+        let controller = try makeController(repository: repository)
+        XCTAssertFalse(controller.albums.contains { $0.id == "one" })
+        try artworkData(color: .red).write(to: controller.artworkStore.url(forKey: "album-one.jpg"))
+        controller.selectAlbum(id: "one")
+        try await waitForThumbnails(controller)
+        let before = try XCTUnwrap(controller.thumbnails["album-one.jpg"]?.pngData())
+
+        XCTAssertTrue(controller.saveAlbum(original, artworkData: artworkData(color: .blue)))
+        try await waitForThumbnails(controller)
+        let after = try XCTUnwrap(controller.thumbnails["album-one.jpg"]?.pngData())
+        XCTAssertNotEqual(after, before, "Replacing an image can reuse its key without reusing its pixels")
+        XCTAssertEqual(try repository.album(id: "one")?.artworkKey, "album-one.jpg")
+        XCTAssertEqual(controller.selectedAlbum?.id, "one")
+        XCTAssertFalse(controller.albums.contains { $0.id == "one" })
+
+        let imageData = artworkData(color: .green)
+        for batch in 0..<4 {
+            for index in 0..<LibraryController.pageSize {
+                let key = "churn-\(batch * LibraryController.pageSize + index).jpg"
+                try imageData.write(to: controller.artworkStore.url(forKey: key))
+                controller.requestArtwork(key: key)
+            }
+            try await waitForThumbnails(controller)
+            XCTAssertNotNil(controller.thumbnails["album-one.jpg"], "The open album's hero must remain available")
+            XCTAssertLessThanOrEqual(controller.thumbnails.count, LibraryController.thumbnailLimit)
+        }
+    }
+
+    @MainActor
+    private func makeController(repository: CatalogRepository) throws -> LibraryController {
+        let root = temporaryRoot(named: "Controller")
+        let playback = PlaybackController(coordinator: PlaybackFixtureCoordinator(snapshot: nil))
+        let sky = SkyRepository(catalog: repository)
+        _ = try sky.backfill()
+        return LibraryController(
+            repository: repository,
+            artworkStore: try ArtworkStore(rootURL: root.appendingPathComponent("Artwork")),
+            mediaStore: try MediaStore(baseURL: root),
+            playback: playback,
+            skyRepository: sky,
+            skyController: SkySceneController(repository: sky, catalog: repository, playback: playback),
+            metadataEnricher: MetadataEnricher(repository: repository,
+                musicBrainz: MusicBrainzGenreProvider(), apple: AppleGenreProvider())
+        )
+    }
+
+    @MainActor
+    private func artworkData(color: UIColor) -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16)).jpegData(withCompressionQuality: 1) { context in
+            color.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
+        }
+    }
+
+    @MainActor
+    private func waitForThumbnails(_ controller: LibraryController) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while controller.pendingThumbnailCount > 0, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(controller.pendingThumbnailCount, 0, "Thumbnail requests did not drain")
     }
 
     private func makeRepository() throws -> CatalogRepository {

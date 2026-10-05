@@ -34,6 +34,7 @@ struct SearchResultsView: View {
                                     image: album.artworkKey.flatMap { thumbnails[$0] }.map(Image.init(uiImage:)),
                                     size: 62
                                 )
+                                .modifier(LibraryArtworkVisibility(controller: controller, key: album.artworkKey))
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(album.title)
                                         .font(AeonTheme.FontToken.ui(.body, weight: .medium))

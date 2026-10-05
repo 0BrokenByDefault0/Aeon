@@ -69,6 +69,7 @@ struct NowPlayingView: View {
                                     action: close
                                 )
                                 .accessibilityIdentifier("aeon.player.empty")
+                                playbackFailure
                             }
                             .padding(.horizontal, AeonTheme.Space.edge)
                             .padding(.vertical, AeonTheme.Space.section)
@@ -101,6 +102,7 @@ struct NowPlayingView: View {
             )
         }
         .onAppear { spectrum.setReduceMotion(effectiveReduceMotion) }
+        .onChange(of: playback.snapshot?.trackID) { _ in seekPreview = nil }
         .onChange(of: reduceMotion) { spectrum.setReduceMotion($0 || reduceMotionOverride || AeonTestOverrides.reduceMotion) }
     }
 
@@ -172,17 +174,23 @@ struct NowPlayingView: View {
                 .font(AeonTheme.FontToken.secondary)
                 .foregroundStyle(AeonTheme.ColorToken.boneTertiary)
                 .multilineTextAlignment(.center)
-            if let failure = playback.failure, failure.recoverable {
-                Button { playback.dismissFailure() } label: {
-                    Text(failure.message)
-                        .font(AeonTheme.FontToken.ui(.caption))
-                        .foregroundStyle(AeonTheme.ColorToken.danger)
-                        .multilineTextAlignment(.center)
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("Dismiss")
-                .accessibilityIdentifier("aeon.player.failure")
+            playbackFailure
+        }
+    }
+
+    @ViewBuilder
+    private var playbackFailure: some View {
+        if let failure = playback.failure {
+            Button { playback.dismissFailure() } label: {
+                Text(failure.message)
+                    .font(AeonTheme.FontToken.ui(.caption))
+                    .foregroundStyle(AeonTheme.ColorToken.danger)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Dismiss")
+            .accessibilityIdentifier("aeon.player.failure")
         }
     }
 
@@ -201,6 +209,7 @@ struct NowPlayingView: View {
                     playback.seek(to: $0) { seekPreview = nil }
                 }
             )
+            .disabled(presentation.duration <= 0)
             HStack {
                 Text(time(value))
                 Spacer()
@@ -231,9 +240,19 @@ struct NowPlayingView: View {
     }
 
     private func queueControls(snapshot: PlaybackSnapshot) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: AeonTheme.Space.small) { queueControlContent(snapshot: snapshot) }
-            VStack(spacing: AeonTheme.Space.xSmall) { queueControlContent(snapshot: snapshot) }
+        VStack(spacing: AeonTheme.Space.small) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: AeonTheme.Space.small) { queueControlContent(snapshot: snapshot) }
+                VStack(spacing: AeonTheme.Space.xSmall) { queueControlContent(snapshot: snapshot) }
+            }
+            if let message = playback.queueMessage {
+                Text(message)
+                    .font(AeonTheme.FontToken.ui(.caption))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("aeon.player.queue-feedback")
+            }
         }
     }
 
@@ -244,6 +263,7 @@ struct NowPlayingView: View {
             accessibilityLabel: "Shuffle Up Next",
             identifier: "aeon.player.shuffle", action: playback.shuffleUpcoming
         )
+        .disabled(snapshot.queue.count - (snapshot.queueIndex ?? -1) - 1 < 2)
         secondaryTransportButton(
             glyph: .repeatTrack,
             title: snapshot.repeatMode == .one ? "1" : "",

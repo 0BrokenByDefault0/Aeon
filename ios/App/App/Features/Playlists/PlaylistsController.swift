@@ -178,6 +178,11 @@ final class PlaylistsController: ObservableObject {
             message = "This route has no tracks to export."
             return nil
         }
+        guard repository.beginFileOperation() else {
+            message = "Wait for other library operations to finish, then export again."
+            return nil
+        }
+        defer { repository.endFileOperation() }
         let entries: [PlaylistM3UEntry] = selectedItems.map { route in
             let track = try? repository.track(id: route.item.trackID)
             var path: String?
@@ -193,13 +198,34 @@ final class PlaylistsController: ObservableObject {
         let name = selectionTitle
         do {
             try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
-            let url = folder.appendingPathComponent(PlaylistM3U.fileName(for: name), isDirectory: false)
-            try Data(PlaylistM3U.encode(PlaylistM3UDocument(name: name, entries: entries)).utf8).write(to: url, options: .atomic)
+            let data = Data(PlaylistM3U.encode(PlaylistM3UDocument(name: name, entries: entries)).utf8)
+            let url = try writeExport(data, name: name, folder: folder)
             message = "Exported to Files \u{2192} ISOLATION \u{2192} Playlists."
             return url
         } catch {
             message = "The playlist could not be exported."
             return nil
+        }
+    }
+
+    private func writeExport(_ data: Data, name: String, folder: URL) throws -> URL {
+        let staging = folder.appendingPathComponent(".\(UUID().uuidString).tmp")
+        try data.write(to: staging, options: .withoutOverwriting)
+        defer { try? fileManager.removeItem(at: staging) }
+        let base = folder.appendingPathComponent(PlaylistM3U.fileName(for: name))
+        var number = 1
+        while true {
+            let destination = number == 1 ? base : folder.appendingPathComponent(
+                "\(base.deletingPathExtension().lastPathComponent) (\(number)).m3u8"
+            )
+            do {
+                // A move publishes the complete file and refuses to replace existing files.
+                try fileManager.moveItem(at: staging, to: destination)
+                return destination
+            } catch let error as NSError where error.domain == NSCocoaErrorDomain
+                && error.code == CocoaError.fileWriteFileExists.rawValue {
+                number += 1
+            }
         }
     }
 
@@ -357,6 +383,10 @@ final class PlaylistsController: ObservableObject {
                 }
                 return count > 0 ? SmartRouteOverview(route: route, itemCount: count) : nil
             }
+            if let selectedPlaylist {
+                self.selectedPlaylist = all.first { $0.id == selectedPlaylist.id }
+                if self.selectedPlaylist == nil { selectedItems = [] }
+            }
             if selectedPlaylist != nil || selectedSmartRoute != nil { try reloadSelection() }
         } catch {
             playlists = []
@@ -373,7 +403,7 @@ final class PlaylistsController: ObservableObject {
         case let route?:
             items = try repository.listeningRouteItems(route.listeningOrder ?? .recentlyPlayed, limit: Self.smartRouteLimit)
         case nil:
-            guard let playlist = selectedPlaylist else { return }
+            guard let playlist = selectedPlaylist else { selectedItems = []; return }
             items = try repository.allPlaylistItems(playlistID: playlist.id)
         }
         selectedItems = try items.map { item in

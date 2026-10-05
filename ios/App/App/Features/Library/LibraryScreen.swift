@@ -279,8 +279,38 @@ struct LibraryScreen: View {
     private func artwork(_ album: CatalogAlbumSummary, size: CGFloat) -> some View {
         let image = album.artworkKey.flatMap { controller.thumbnails[$0] }.map(Image.init(uiImage:))
         return AeonArtwork(image: image, size: size)
+            .modifier(LibraryArtworkVisibility(controller: controller, key: album.artworkKey))
     }
     private func detailLine(_ album: CatalogAlbumSummary) -> String {
         [album.artist, album.year.isEmpty ? nil : album.year, "\(album.trackCount) TRACKS"].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+@MainActor
+struct LibraryArtworkVisibility: ViewModifier {
+    let controller: LibraryController
+    let key: String?
+    @State private var isVisible = false
+    @State private var retainedKey: String?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                isVisible = true
+                updateRetention()
+            }
+            .onDisappear {
+                isVisible = false
+                controller.releaseVisibleArtwork(key: retainedKey)
+                retainedKey = nil
+            }
+            .onChange(of: key) { _ in updateRetention() }
+    }
+
+    private func updateRetention() {
+        guard isVisible, retainedKey != key else { return }
+        controller.releaseVisibleArtwork(key: retainedKey)
+        retainedKey = key
+        controller.retainVisibleArtwork(key: key)
     }
 }

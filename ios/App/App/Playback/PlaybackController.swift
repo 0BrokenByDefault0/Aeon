@@ -62,6 +62,8 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     private weak var playlistStore: QueuePlaylistPersisting?
     private var latestVersion: UInt64 = 0
     private var positionTimer: Timer?
+    private var isForeground = true
+    private var loadRequestID = UUID()
 
     init(
         coordinator: PlaybackCoordinating,
@@ -84,12 +86,17 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     }
 
     func applicationDidEnterForeground() {
+        isForeground = true
         coordinator.getState { [weak self] snapshot in self?.accept(snapshot: snapshot) }
     }
 
-    func applicationDidEnterBackground() { stopPositionRefresh() }
+    func applicationDidEnterBackground() {
+        isForeground = false
+        stopPositionRefresh()
+    }
 
     func load(track: CatalogTrack, queue: [QueueItem]? = nil, index: Int? = nil) {
+        loadRequestID = UUID()
         coordinator.load(
             trackID: track.id,
             mediaRef: track.mediaReference,
@@ -102,17 +109,20 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     /// asynchronous media inspection, so issuing play() immediately after load() races the load
     /// and can fail with track_not_loaded before the source is prepared.
     func loadAndPlay(track: CatalogTrack, queue: [QueueItem]? = nil, index: Int? = nil) {
+        let requestID = UUID()
+        loadRequestID = requestID
         coordinator.load(
             trackID: track.id,
             mediaRef: track.mediaReference,
             queue: queue,
             index: index
         ) { [weak self] result in
-            guard let self else { return }
+            guard let self, self.loadRequestID == requestID else { return }
             switch result {
             case .failure:
                 self.accept(result)
             case .success(let loaded):
+                guard loaded.version >= self.latestVersion else { return }
                 self.accept(snapshot: loaded)
                 self.coordinator.play { [weak self] playResult in self?.accept(playResult, clearsFailure: true) }
             }
@@ -120,16 +130,28 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     }
 
     func play() { coordinator.play { [weak self] result in self?.accept(result, clearsFailure: true) } }
-    func pause() { coordinator.pause { [weak self] result in self?.accept(result) } }
-    func toggle() { coordinator.toggle { [weak self] result in self?.accept(result, clearsFailure: true) } }
+    func pause() {
+        loadRequestID = UUID()
+        coordinator.pause { [weak self] result in self?.accept(result) }
+    }
+    func toggle() {
+        loadRequestID = UUID()
+        coordinator.toggle { [weak self] result in self?.accept(result, clearsFailure: true) }
+    }
     func seek(to seconds: Double, completion: (() -> Void)? = nil) {
         coordinator.seek(seconds: seconds) { [weak self] result in
             self?.accept(result, clearsFailure: true)
             completion?()
         }
     }
-    func next() { coordinator.next { [weak self] result in self?.accept(result) } }
-    func previous() { coordinator.previous { [weak self] result in self?.accept(result) } }
+    func next() {
+        loadRequestID = UUID()
+        coordinator.next { [weak self] result in self?.accept(result) }
+    }
+    func previous() {
+        loadRequestID = UUID()
+        coordinator.previous { [weak self] result in self?.accept(result) }
+    }
     func setQueue(_ items: [QueueItem], index: Int, revision: UInt64) {
         coordinator.setQueue(items: items, index: index, revision: revision) { [weak self] result in self?.accept(result) }
     }
@@ -318,7 +340,7 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     }
 
     private func updatePositionRefresh(for intent: PlaybackIntent) {
-        guard intent == .playing else {
+        guard isForeground, intent == .playing else {
             stopPositionRefresh()
             return
         }
@@ -336,6 +358,7 @@ final class PlaybackController: ObservableObject, PlaybackCoordinatorDelegate {
     }
 
     private func refreshPosition() {
+        guard isForeground else { return }
         coordinator.getState { [weak self] snapshot in self?.accept(snapshot: snapshot) }
     }
 }

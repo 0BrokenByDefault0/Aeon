@@ -40,6 +40,10 @@ final class LibraryController: ObservableObject {
     }
 
     static let pageSize = 48
+    static let thumbnailLimit = pageSize * 3
+    private static let thumbnailConcurrency = 4
+    private static let sortKey = "library.sort.v1"
+    private static let densityKey = "library.density.v1"
 
     @Published private(set) var albums: [CatalogAlbumSummary] = []
     @Published private(set) var totalCount = 0
@@ -69,6 +73,10 @@ final class LibraryController: ObservableObject {
     private var observation: CatalogObservation?
     private var playbackObservation: AnyCancellable?
     private var thumbnailTasks: [String: Task<Void, Never>] = [:]
+    private var thumbnailRequests: [String: UUID] = [:]
+    private var pendingThumbnailKeys: [String] = []
+    private var thumbnailRecency: [String] = []
+    private var visibleArtworkReferences: [String: Int] = [:]
     private var refreshTask: Task<Void, Never>?
     private var playbackMarker = PlaybackMarker(trackID: nil, isPlaying: false)
     private var playingAlbumID: String?
@@ -89,6 +97,8 @@ final class LibraryController: ObservableObject {
         self.skyRepository = skyRepository
         self.skyController = skyController
         self.metadataEnricher = metadataEnricher
+        sort = (try? repository.setting(String.self, forKey: Self.sortKey)).flatMap(Sort.init(rawValue:)) ?? .recent
+        density = (try? repository.setting(String.self, forKey: Self.densityKey)).flatMap(Density.init(rawValue:)) ?? .grid
         seedFixtureIfNeeded()
         observation = repository.observeLibrary { [weak self] _ in self?.scheduleRefresh() }
         // The position timer publishes twice a second while music plays. The Library only
@@ -109,6 +119,7 @@ final class LibraryController: ObservableObject {
 
     var hasMore: Bool { albums.count < totalCount }
     var isSearching: Bool { !CatalogRepository.normalize(query).isEmpty }
+    var pendingThumbnailCount: Int { thumbnailTasks.count + pendingThumbnailKeys.count }
 
     var continueAlbum: CatalogAlbumSummary? {
         guard let albumID = playingAlbumID else { return nil }
@@ -119,10 +130,15 @@ final class LibraryController: ObservableObject {
     func setSort(_ value: Sort) {
         guard sort != value else { return }
         sort = value
+        try? repository.setSetting(value.rawValue, forKey: Self.sortKey)
         reload(reset: true)
     }
 
-    func setDensity(_ value: Density) { density = value }
+    func setDensity(_ value: Density) {
+        guard density != value else { return }
+        density = value
+        try? repository.setSetting(value.rawValue, forKey: Self.densityKey)
+    }
 
     func setQuery(_ value: String) {
         query = value
@@ -155,6 +171,7 @@ final class LibraryController: ObservableObject {
         do {
             selectedAlbum = try repository.album(id: id)
             selectedTracks = try repository.allTracks(albumID: id)
+            requestArtwork(key: selectedAlbum?.artworkKey)
         } catch {
             selectedAlbum = nil
             selectedTracks = []
@@ -236,6 +253,10 @@ final class LibraryController: ObservableObject {
                 throw error
             }
             if let old = original.artworkKey, old != updated.artworkKey { try? artworkStore.remove(key: old) }
+            if newArtworkKey != nil {
+                invalidateArtwork(key: original.artworkKey)
+                invalidateArtwork(key: updated.artworkKey)
+            }
             skyController.reload()
             selectAlbum(id: updated.id)
             reload(reset: true)
@@ -263,6 +284,7 @@ final class LibraryController: ObservableObject {
             if let key = album.artworkKey {
                 do { try artworkStore.remove(key: key) }
                 catch { cleanupFailed = true }
+                invalidateArtwork(key: key)
             }
             scrubQueue(removingAlbumID: album.id)
             dismissAlbum()
@@ -368,7 +390,9 @@ final class LibraryController: ObservableObject {
             totalCount = try repository.albumCount()
             albums = refreshed
             loadState = .ready
-            prefetchArtwork(for: refreshed)
+            // Visible cells request their own covers. A catalogue refresh must not decode
+            // every page the collector has visited during this session.
+            prefetchArtwork(for: Array(refreshed.prefix(Self.pageSize)))
             if isSearching { performSearch() }
             if let id = selectedAlbum?.id { selectAlbum(id: id) }
         } catch {
@@ -392,23 +416,101 @@ final class LibraryController: ObservableObject {
 
     private func prefetchArtwork(for summaries: [CatalogAlbumSummary]) {
         for summary in summaries {
-            guard let key = summary.artworkKey, thumbnails[key] == nil, thumbnailTasks[key] == nil else { continue }
+            requestArtwork(key: summary.artworkKey)
+        }
+    }
+
+    func requestArtwork(key: String?) {
+        guard let key else { return }
+        if thumbnails[key] != nil {
+            thumbnailRecency.removeAll { $0 == key }
+            thumbnailRecency.append(key)
+            return
+        }
+        guard thumbnailTasks[key] == nil, !pendingThumbnailKeys.contains(key) else { return }
+        pendingThumbnailKeys.append(key)
+        if pendingThumbnailKeys.count > Self.thumbnailLimit,
+           let oldest = pendingThumbnailKeys.firstIndex(where: {
+               $0 != selectedAlbum?.artworkKey && visibleArtworkReferences[$0] == nil
+           }) {
+            pendingThumbnailKeys.remove(at: oldest)
+        }
+        startThumbnailRequests()
+    }
+
+    func retainVisibleArtwork(key: String?) {
+        guard let key else { return }
+        visibleArtworkReferences[key, default: 0] += 1
+        requestArtwork(key: key)
+    }
+
+    func releaseVisibleArtwork(key: String?) {
+        guard let key, let count = visibleArtworkReferences[key] else { return }
+        visibleArtworkReferences[key] = count > 1 ? count - 1 : nil
+        trimThumbnails()
+    }
+
+    private func trimThumbnails() {
+        var retained = thumbnails
+        while thumbnailRecency.count > Self.thumbnailLimit {
+            guard let oldest = thumbnailRecency.firstIndex(where: {
+                $0 != selectedAlbum?.artworkKey && visibleArtworkReferences[$0] == nil
+            }) else { break }
+            retained[thumbnailRecency.remove(at: oldest)] = nil
+        }
+        if retained.count != thumbnails.count { thumbnails = retained }
+    }
+
+    private func startThumbnailRequests() {
+        while thumbnailTasks.count < Self.thumbnailConcurrency, !pendingThumbnailKeys.isEmpty {
+            let key = pendingThumbnailKeys.removeFirst()
+            let requestID = UUID()
+            thumbnailRequests[key] = requestID
             let store = artworkStore
-            thumbnailTasks[key] = Task.detached(priority: .utility) {
-                guard let url = try? store.url(forKey: key),
-                      let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-                      let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                        kCGImageSourceCreateThumbnailFromImageAlways: true,
-                        kCGImageSourceCreateThumbnailWithTransform: true,
-                        kCGImageSourceThumbnailMaxPixelSize: 360,
-                        kCGImageSourceShouldCacheImmediately: true
-                      ] as CFDictionary) else { return }
-                let rendered = UIImage(cgImage: image)
+            thumbnailTasks[key] = Task.detached(priority: .utility) { [weak self] in
+                guard !Task.isCancelled else { return }
+                let rendered = Self.decodeThumbnail(store: store, key: key)
+                guard !Task.isCancelled else { return }
                 await MainActor.run { [weak self] in
-                    self?.thumbnails[key] = rendered
-                    self?.thumbnailTasks[key] = nil
+                    self?.finishThumbnail(key: key, requestID: requestID, image: rendered)
                 }
             }
+        }
+    }
+
+    private func finishThumbnail(key: String, requestID: UUID, image: UIImage?) {
+        guard thumbnailRequests[key] == requestID else { return }
+        thumbnailTasks[key] = nil
+        thumbnailRequests[key] = nil
+        if let image {
+            thumbnailRecency.removeAll { $0 == key }
+            thumbnailRecency.append(key)
+            thumbnails[key] = image
+            trimThumbnails()
+        }
+        startThumbnailRequests()
+    }
+
+    private func invalidateArtwork(key: String?) {
+        guard let key else { return }
+        thumbnailTasks.removeValue(forKey: key)?.cancel()
+        thumbnailRequests[key] = nil
+        pendingThumbnailKeys.removeAll { $0 == key }
+        thumbnailRecency.removeAll { $0 == key }
+        thumbnails[key] = nil
+    }
+
+    private nonisolated static func decodeThumbnail(store: ArtworkStore, key: String) -> UIImage? {
+        autoreleasepool {
+            guard let url = try? store.url(forKey: key),
+                  let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 360,
+                    kCGImageSourceShouldCacheImmediately: true
+                  ] as CFDictionary) else { return nil }
+            return UIImage(cgImage: image)
         }
     }
 
