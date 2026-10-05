@@ -254,7 +254,7 @@ final class LibraryControllerTests: XCTestCase {
         try await waitForThumbnails(controller)
         let before = try XCTUnwrap(controller.thumbnails["album-one.jpg"]?.pngData())
 
-        XCTAssertTrue(controller.saveAlbum(original, artworkData: artworkData(color: .blue)))
+        XCTAssertTrue(controller.saveAlbum(original, artworkData: artworkData(color: .blue, jpeg: true)))
         try await waitForThumbnails(controller)
         let after = try XCTUnwrap(controller.thumbnails["album-one.jpg"]?.pngData())
         XCTAssertNotEqual(after, before, "Replacing an image can reuse its key without reusing its pixels")
@@ -294,11 +294,13 @@ final class LibraryControllerTests: XCTestCase {
     }
 
     @MainActor
-    private func artworkData(color: UIColor) -> Data {
-        UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16)).jpegData(withCompressionQuality: 1) { context in
+    private func artworkData(color: UIColor, jpeg: Bool = false) -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 16, height: 16))
+        let draw: (UIGraphicsImageRendererContext) -> Void = { context in
             color.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 16, height: 16))
         }
+        return jpeg ? renderer.jpegData(withCompressionQuality: 1, actions: draw) : renderer.pngData(actions: draw)
     }
 
     @MainActor
