@@ -313,6 +313,22 @@ final class QueueSchedulerTests: XCTestCase {
         XCTAssertEqual(graph.schedules.last?.outputFrame, 1400)
     }
 
+    func testPauseAfterTheEngineStopsKeepsTheLastReportedPosition() throws {
+        let (scheduler, graph, _) = try makeScheduler([a, b])
+        try scheduler.play()
+        graph.elapsedFrames = 1000
+        XCTAssertEqual(scheduler.currentPosition, 1000.0 / 48000, accuracy: 1e-9)
+
+        // An interruption or route loss stops the engine before the coordinator pauses.
+        graph.reportsElapsed = false
+        scheduler.pause()
+        XCTAssertEqual(scheduler.currentPosition, 1000.0 / 48000, accuracy: 1e-9)
+
+        graph.reportsElapsed = true
+        try scheduler.play()
+        XCTAssertEqual(graph.schedules.suffix(2).map { $0.sourceFrame }, [1000, 0])
+    }
+
     func testInvalidationStopsPreparedPlayersAndRejectsCallbacks() throws {
         let (scheduler, graph, _) = try makeScheduler([a, b])
         try scheduler.play()
@@ -572,7 +588,12 @@ private final class RecordingGraph: QueueSchedulingGraph {
         schedules.append(Schedule(slot: slot, sourceFrame: sourceFrame, outputFrame: outputFrame, completion: completion))
     }
     func startScheduledPlayback() throws { started = true }
-    func elapsedSourceFrames(slot: AudioSlot) -> Int64? { framesBySlot[slot] ?? elapsedFrames }
+    /// False models a stopped engine, which reports no render time.
+    var reportsElapsed = true
+    func elapsedSourceFrames(slot: AudioSlot) -> Int64? {
+        guard reportsElapsed else { return nil }
+        return framesBySlot[slot] ?? elapsedFrames
+    }
     func cancelScheduledPlayback() { started = false; elapsedFrames = 0; framesBySlot.removeAll() }
     func closeScheduledFile(slot: AudioSlot) {}
     func setReplayGain(_ scalar: Float, slot: AudioSlot) { replayGain[slot] = scalar }

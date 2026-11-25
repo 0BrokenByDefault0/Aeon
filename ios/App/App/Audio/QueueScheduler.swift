@@ -114,7 +114,7 @@ final class QueueScheduler {
         confined {
             guard let current else { return position }
             guard playing else { return position }
-            let elapsed = max(0, graph.elapsedSourceFrames(slot: current.slot) ?? 0)
+            let elapsed = elapsedFrames(for: current)
             let remaining = max(0, current.file.frameCount - current.sourceFrame)
             let frame = current.sourceFrame + min(elapsed, remaining)
             return Double(frame) / current.file.sampleRate
@@ -515,7 +515,7 @@ final class QueueScheduler {
 
     private func capturePosition() {
         while let current {
-            let elapsed = playing ? max(0, graph.elapsedSourceFrames(slot: current.slot) ?? 0) : 0
+            let elapsed = playing ? elapsedFrames(for: current) : 0
             let remaining = current.file.frameCount - current.sourceFrame
             if playing && elapsed >= remaining {
                 // Reconcile the native timeline before retaining a resumable frame.
@@ -529,6 +529,32 @@ final class QueueScheduler {
             retainedSourceFrame = frame
             return
         }
+    }
+
+    private struct ElapsedKey: Equatable {
+        let generation: UInt64
+        let slot: AudioSlot
+        let index: Int
+        let endOutputFrame: Int64
+    }
+
+    /// The last elapsed count the engine reported for one exact scheduling.
+    private var lastElapsed: (key: ElapsedKey, frames: Int64)?
+
+    /// The engine reports no render time once it has stopped (interruption, route loss,
+    /// media services), and reading that as zero rewound a resume to the start of the
+    /// schedule. Fall back to the last value reported for this same scheduling only; the
+    /// key changes on every invalidation, handoff and reschedule, so a stale count from
+    /// an earlier pass can never be mistaken for progress.
+    private func elapsedFrames(for item: Prepared) -> Int64 {
+        let key = ElapsedKey(generation: generation, slot: item.slot, index: item.index, endOutputFrame: item.endOutputFrame)
+        if let reported = graph.elapsedSourceFrames(slot: item.slot) {
+            let frames = max(0, reported)
+            lastElapsed = (key, frames)
+            return frames
+        }
+        if let lastElapsed, lastElapsed.key == key { return lastElapsed.frames }
+        return 0
     }
 
     private func invalidate() {
