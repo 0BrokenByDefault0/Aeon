@@ -146,6 +146,31 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.scheduler.playCallCount, 2)
     }
 
+    func testExplicitPlayRecoversFromAnInterruptionThatNeverEnds() throws {
+        let harness = try CoordinatorHarness()
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.a).get()
+        _ = try harness.command(harness.coordinator.play).get()
+        harness.coordinator.beginInterruption()
+        XCTAssertEqual(try harness.state().intent, .playing)
+        XCTAssertFalse(harness.scheduler.isPlaying)
+
+        // While the system still refuses to start, the request waits for the end notification.
+        harness.scheduler.playError = .operation(trackID: "A", reason: "session interrupted")
+        XCTAssertEqual(try harness.command(harness.coordinator.play).get().intent, .playing)
+        XCTAssertFalse(harness.scheduler.isPlaying)
+
+        // No end notification ever arrives; the next explicit play starts the audio.
+        harness.scheduler.playError = nil
+        XCTAssertEqual(try harness.command(harness.coordinator.play).get().intent, .playing)
+        XCTAssertTrue(harness.scheduler.isPlaying)
+
+        // A late end notification for the finished interruption is ignored rather than replayed.
+        harness.coordinator.endInterruption(systemAllowsResume: true)
+        _ = try harness.state()
+        XCTAssertEqual(harness.scheduler.playCallCount, 2)
+    }
+
     func testVisibleMutationsIncrementAndPersistStateVersion() throws {
         let harness = try CoordinatorHarness()
         var versions: [UInt64] = []

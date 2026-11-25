@@ -391,7 +391,7 @@ final class PlaybackCoordinator {
             if intent == .playing, scheduler.isPlaying {
                 return currentSnapshot()
             }
-            if !interruptionActive { try scheduler.play() }
+            try startForExplicitPlay()
             intent = .playing
             acceptedSchedulerGeneration = scheduler.currentGeneration
             return try publish(eventCode: "PLAYBACK_STARTED")
@@ -422,10 +422,27 @@ final class PlaybackCoordinator {
                 return try publish(eventCode: "PLAYBACK_PAUSED")
             }
             guard trackID != nil else { throw CoordinatorError.noTrackLoaded }
-            if !interruptionActive { try scheduler.play() }
+            try startForExplicitPlay()
             intent = .playing
             acceptedSchedulerGeneration = scheduler.currentGeneration
             return try publish(eventCode: "PLAYBACK_STARTED")
+        }
+    }
+
+    /// iOS does not promise an interruption-ended notification (Siri, another app's audio,
+    /// suspension), and waiting for one left Play showing Pause over silence until relaunch.
+    /// An explicit play therefore tries to start; only if the system still refuses does the
+    /// request keep waiting for the end notification, which then resumes it as before.
+    private func startForExplicitPlay() throws {
+        guard interruptionActive else {
+            try scheduler.play()
+            return
+        }
+        do {
+            try scheduler.play()
+            interruptionActive = false
+        } catch {
+            // Still interrupted: keep the playing intent for the end notification to honor.
         }
     }
 
