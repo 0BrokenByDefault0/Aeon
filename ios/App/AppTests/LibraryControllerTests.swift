@@ -312,6 +312,26 @@ final class LibraryControllerTests: XCTestCase {
         XCTAssertEqual(controller.pendingThumbnailCount, 0, "Thumbnail requests did not drain")
     }
 
+    func testManagedFoldersAreNeverAdoptedInPlaceByAnotherImport() throws {
+        let root = temporaryRoot(named: "Adoption")
+        let documents = root.appendingPathComponent("Documents", isDirectory: true)
+        let store = try MediaStore(baseURL: root, documentsRoot: documents)
+        let music = documents.appendingPathComponent("Music", isDirectory: true)
+        for path in ["Owned/Album/track.flac", "loose.flac", "_Imported/album/track.flac", "_Migrated/track.flac", "_Restored/op/track.flac"] {
+            let url = music.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("audio".utf8).write(to: url)
+        }
+
+        XCTAssertEqual(store.adoptedDocumentReference(for: music.appendingPathComponent("Owned/Album/track.flac")),
+                       .documents(relativePath: "Music/Owned/Album/track.flac"))
+        XCTAssertEqual(store.adoptedDocumentReference(for: music.appendingPathComponent("loose.flac")),
+                       .documents(relativePath: "Music/loose.flac"))
+        for path in ["_Imported/album/track.flac", "_Migrated/track.flac", "_Restored/op/track.flac"] {
+            XCTAssertNil(store.adoptedDocumentReference(for: music.appendingPathComponent(path)), path)
+        }
+    }
+
     private func makeRepository() throws -> CatalogRepository {
         CatalogRepository(database: try CatalogDatabase(rootURL: temporaryRoot(named: "Catalog")))
     }

@@ -254,6 +254,13 @@ final class MediaStore: MediaResolving {
         return migrationIncomingRoot.appendingPathComponent("\(artifactKey).partial", isDirectory: false)
     }
 
+    /// Folders under Documents/Music that Aeon owns. Their files belong to exactly one
+    /// catalogued album, so they are never adopted in place by another import.
+    static let managedMusicFolderNames: Set<String> = ["_Imported", "_Migrated", "_Restored"]
+
+    /// A collector-owned file under Documents/Music, referenced where it lies. Files in
+    /// Aeon's managed folders return nil: sharing one would let the second album's rollback
+    /// or deletion remove audio that the first album still plays.
     func adoptedDocumentReference(for sourceURL: URL) -> MediaReference? {
         let source = sourceURL.standardizedFileURL.resolvingSymlinksInPath()
         let documents = documentsRoot.standardizedFileURL.resolvingSymlinksInPath()
@@ -261,6 +268,8 @@ final class MediaStore: MediaResolving {
         let musicPrefix = music.path.hasSuffix("/") ? music.path : music.path + "/"
         let incomingPrefix = documentsIncomingRoot.standardizedFileURL.resolvingSymlinksInPath().path + "/"
         guard source.path.hasPrefix(musicPrefix), !source.path.hasPrefix(incomingPrefix) else { return nil }
+        let topFolder = source.path.dropFirst(musicPrefix.count).split(separator: "/").first.map(String.init)
+        guard let topFolder, !Self.managedMusicFolderNames.contains(topFolder) else { return nil }
         let documentsPrefix = documents.path.hasSuffix("/") ? documents.path : documents.path + "/"
         guard source.path.hasPrefix(documentsPrefix) else { return nil }
         return .documents(relativePath: String(source.path.dropFirst(documentsPrefix.count)))
