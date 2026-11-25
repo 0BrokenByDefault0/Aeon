@@ -118,6 +118,10 @@ struct AlbumEditorView: View {
                 Text("Changes update Aeon’s catalogue without altering the source file tags.")
                     .font(AeonTheme.FontToken.ui(.callout))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                Text("Find Art and Look Up Genre send this album’s title and artist to Apple and MusicBrainz. Nothing else leaves the device.")
+                    .font(AeonTheme.FontToken.ui(.callout))
+                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                    .accessibilityIdentifier("aeon.album.editor.lookup-disclosure")
             }
             Spacer()
             Button(action: { dismiss() }) {

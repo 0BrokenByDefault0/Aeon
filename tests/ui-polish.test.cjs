@@ -105,3 +105,11 @@ test('original navigation tests and foreground gating survive the polish', () =>
   assert.match(sky, /\.transaction \{ \$0.animation = nil \}/);
   assert.match(native, /assertNoInactiveSky\(in: app, importButtons: 0\)/);
 });
+
+test('manual metadata lookups disclose what they send', () => {
+  const editor = readFileSync(join(__dirname, '..', 'ios/App/App/Features/Library/AlbumEditorView.swift'), 'utf8');
+  const settingsSource = readFileSync(join(__dirname, '..', 'ios/App/App/Features/Settings/SettingsScreen.swift'), 'utf8');
+  assert.match(editor, /Find Art and Look Up Genre send this album’s title and artist to Apple and MusicBrainz\. Nothing else leaves the device\./);
+  assert.match(editor, /aeon\.album\.editor\.lookup-disclosure/);
+  assert.match(settingsSource, /Find Art and Look Up Genre in the album editor send the same words when you tap them\./);
+});

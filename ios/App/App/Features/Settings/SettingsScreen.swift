@@ -71,7 +71,7 @@ struct SettingsScreen: View {
                             isOn: Binding(get: { controller.preferences.oneImportOneAlbum }, set: controller.setOneImportOneAlbum),
                             identifier: "aeon.settings.import-grouping")
                         orbitalToggle(title: "Automatic metadata lookups",
-                            detail: "Off by default. When enabled, missing album titles and artist names are sent to Apple and MusicBrainz after an import to find tags and artwork. Only those words are sent, never your files.",
+                            detail: "Off by default. When enabled, missing album titles and artist names are sent to Apple and MusicBrainz after an import to find tags and artwork. Only those words are sent, never your files. Find Art and Look Up Genre in the album editor send the same words when you tap them.",
                             isOn: Binding(get: { controller.preferences.metadataLookups }, set: controller.setMetadataLookups),
                             identifier: "aeon.settings.metadata-lookups")
                         orbitalToggle(title: "Show albums in Spotlight",
