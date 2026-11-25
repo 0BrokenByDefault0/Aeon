@@ -67,14 +67,18 @@ protocol PlaybackGraphControlling: AnyObject {
     func setEQ(enabled: Bool, bands: [EQBand]) throws
     func outputDescriptor() -> OutputFormatDescriptor
     func rebuild() throws
+    var isEngineRunning: Bool { get }
 }
 
 extension PlaybackGraphControlling {
     func setDSP(_ settings: DSPSettings) throws {}
     func rebuild() throws {}
+    var isEngineRunning: Bool { true }
 }
 
-extension AudioEngineGraph: PlaybackGraphControlling {}
+extension AudioEngineGraph: PlaybackGraphControlling {
+    var isEngineRunning: Bool { engine.isRunning }
+}
 
 protocol PlaybackStatePersisting: AnyObject {
     func save(_ snapshot: PlaybackSnapshot) throws
@@ -682,6 +686,14 @@ final class PlaybackCoordinator {
         case .mediaServicesReset:
             transportQueue.async { [weak self] in
                 self?.recover(from: .session, eventCode: "MEDIA_SERVICES_RESET")
+            }
+        case .engineConfigurationChanged:
+            // The engine has already stopped; without a rebuild the scheduler would keep
+            // reporting playback and the next handoff would start a node on a stopped engine.
+            // A notification that arrives after recovery restarted the engine is ignored.
+            transportQueue.async { [weak self] in
+                guard let self, initialized, !graph.isEngineRunning else { return }
+                recover(from: .engine, eventCode: "ENGINE_CONFIGURATION_RECOVERY")
             }
         case .secondaryAudioSilenced(let silenced):
             transportQueue.async { [weak self] in

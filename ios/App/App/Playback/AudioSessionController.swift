@@ -13,8 +13,12 @@ enum AudioSessionEvent: Equatable {
     case mediaServicesLost
     case mediaServicesReset
     case secondaryAudioSilenced(Bool)
+    /// The engine stopped itself because the output hardware's format changed.
+    case engineConfigurationChanged
 }
 
+/// Losing any private output pauses rather than falling back to the speaker. CarPlay and
+/// HDMI arrive as `.unknown`, so only the speaker itself (never "unavailable") is exempt.
 func routeLossAction(
     old: RouteDescriptor?,
     new: RouteDescriptor?,
@@ -22,7 +26,7 @@ func routeLossAction(
 ) -> RouteLossAction {
     guard reason == .oldDeviceUnavailable,
           let old,
-          [.wired, .usb, .bluetooth].contains(old.kind),
+          old.kind != .speaker,
           old.kind != new?.kind else { return .none }
     return .pauseAndRebuild
 }
@@ -115,6 +119,11 @@ final class AudioSessionController: AudioSessionActivating {
         }
         observe(AVAudioSession.mediaServicesWereLostNotification) { [weak self] _ in self?.emit(.mediaServicesLost) }
         observe(AVAudioSession.mediaServicesWereResetNotification) { [weak self] _ in self?.emit(.mediaServicesReset) }
+        // Posted by the engine, not the session, and the graph replaces its engine during
+        // recovery, so observe every engine rather than one instance.
+        observers.append(center.addObserver(forName: .AVAudioEngineConfigurationChange, object: nil, queue: nil) { [weak self] _ in
+            self?.emit(.engineConfigurationChanged)
+        })
         observe(AVAudioSession.silenceSecondaryAudioHintNotification) { [weak self] notification in
             let raw = notification.userInfo?[AVAudioSessionSilenceSecondaryAudioHintTypeKey] as? UInt ?? 0
             self?.emit(.secondaryAudioSilenced(AVAudioSession.SilenceSecondaryAudioHintType(rawValue: raw) == .begin))

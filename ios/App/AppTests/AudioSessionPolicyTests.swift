@@ -5,7 +5,8 @@ import XCTest
 final class AudioSessionPolicyTests: XCTestCase {
     func testRemovedPrivateOutputPausesBeforeSpeakerFallback() {
         let speaker = route(.speaker, "iPhone")
-        for kind in [AudioRouteKind.wired, .usb, .bluetooth] {
+        // `.unknown` covers CarPlay and HDMI, which have no dedicated route kind.
+        for kind in [AudioRouteKind.wired, .usb, .bluetooth, .airPlay, .unknown] {
             XCTAssertEqual(
                 routeLossAction(old: route(kind, "Private output"), new: speaker, reason: .oldDeviceUnavailable),
                 .pauseAndRebuild

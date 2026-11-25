@@ -329,6 +329,25 @@ final class PlaybackCoordinatorTests: XCTestCase {
         XCTAssertEqual(state.intent, .paused)
     }
 
+    func testEngineConfigurationChangeRebuildsOnlyAStoppedEngine() throws {
+        let recovery = CoordinatorRecovery(result: .success(RecoveryResult(level: .engine, resumed: true)))
+        let harness = try CoordinatorHarness(recovery: recovery)
+        _ = try harness.initialize().get()
+        _ = try harness.load(harness.a).get()
+        _ = try harness.command(harness.coordinator.play).get()
+
+        harness.coordinator.handleAudioSessionEvent(.engineConfigurationChanged)
+        _ = try harness.state()
+        XCTAssertTrue(recovery.levels.isEmpty, "a running engine needs no rebuild")
+
+        harness.graph.isEngineRunning = false
+        harness.coordinator.handleAudioSessionEvent(.engineConfigurationChanged)
+        let state = try harness.state()
+        XCTAssertEqual(recovery.levels, [.engine])
+        XCTAssertEqual(recovery.checkpoints.first?.userIntent, .playing)
+        XCTAssertEqual(state.intent, .playing)
+    }
+
     func testExhaustedRecoveryStopsAndPublishesStructuredFailure() throws {
         let recovery = CoordinatorRecovery(result: .failure(RecoveryError.exhausted(attempts: 3)))
         let harness = try CoordinatorHarness(recovery: recovery)
@@ -549,6 +568,7 @@ private final class CoordinatorGraph: PlaybackGraphControlling {
     private(set) var replayGain: [AudioSlot: Float] = [:]
     private(set) var eqEnabled = false
     private(set) var eqBands: [EQBand] = []
+    var isEngineRunning = true
 
     func setMasterVolume(_ linear: Float) { masterVolume = linear }
     func setReplayGain(_ scalar: Float, slot: AudioSlot) { replayGain[slot] = scalar }
