@@ -469,7 +469,12 @@ final class ArchiveRestorer {
             try fileManager.createDirectory(at: finalMediaRoot, withIntermediateDirectories: true)
             for album in catalog.albums {
                 for track in album.tracks {
-                    if let path = track.audioPath, let stagedURL = extracted[path] {
+                    if let adopted = liveAdoptedReference(trackID: track.id) {
+                        // The collector's own file is still where it was adopted. Copying the
+                        // backup's audio into _Restored would duplicate it permanently, since
+                        // re-links never move tracks out of the managed folders.
+                        media[track.id] = adopted
+                    } else if let path = track.audioPath, let stagedURL = extracted[path] {
                         let ext = stagedURL.pathExtension.lowercased()
                         guard !ext.isEmpty, ext.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) }) else {
                             throw ArchiveReaderError.unsafePath(path)
@@ -482,6 +487,10 @@ final class ArchiveRestorer {
                         media[track.id] = .unavailable(trackID: track.id)
                     }
                 }
+            }
+
+            if (try? fileManager.contentsOfDirectory(atPath: finalMediaRoot.path))?.isEmpty == true {
+                try? fileManager.removeItem(at: finalMediaRoot)
             }
 
             var artwork: [String: String] = [:]
@@ -519,6 +528,18 @@ final class ArchiveRestorer {
             for key in createdArtwork { try? artworkStore.remove(key: key) }
             throw error
         }
+    }
+
+    /// The catalogue's current reference for a track when it is a collector-owned file under
+    /// Documents/Music (outside Aeon's managed folders) that still exists on this device.
+    private func liveAdoptedReference(trackID: String) -> MediaReference? {
+        guard let existing = (try? repository.track(id: trackID)) ?? nil,
+              case .documents(let path) = existing.mediaReference,
+              path.hasPrefix("Music/"),
+              !MediaStore.managedMusicFolderNames.contains(where: { path.hasPrefix("Music/\($0)/") }),
+              let url = try? mediaStore.resolve(existing.mediaReference),
+              fileManager.fileExists(atPath: url.path) else { return nil }
+        return existing.mediaReference
     }
 
     private func decodeCatalog(_ data: Data, entryPaths: Set<String>) throws -> AeonArchiveCatalog {

@@ -145,6 +145,32 @@ final class ArchiveCompatibilityTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: target.media.documentsMusicRoot.appendingPathComponent("_Restored").path))
     }
 
+    func testRestoreKeepsAStillPresentAdoptedFileInsteadOfCopyingIt() throws {
+        let source = try makeContext("adopted-source")
+        let mediaURL = source.media.mediaURL(stableID: "track", fileExtension: "wav")
+        try Data("native-audio-payload".utf8).write(to: mediaURL)
+        try source.repository.insertAlbum(makeAlbum(id: "album", sequence: 1, title: "Owned"), tracks: [
+            makeTrack(id: "track", albumID: "album", sequence: 1, media: .native(relativePath: mediaURL.lastPathComponent))
+        ])
+        let backupURL = source.roots.temporaryURL.appendingPathComponent("backup.zip")
+        try source.writer.writeFullBackup(to: backupURL, playbackSnapshot: nil)
+
+        let target = try makeContext("adopted-target")
+        let owned = target.media.documentsMusicRoot.appendingPathComponent("Owned/track.wav")
+        try FileManager.default.createDirectory(at: owned.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("collector-audio".utf8).write(to: owned)
+        try target.repository.insertAlbum(makeAlbum(id: "album", sequence: 1, title: "Owned"), tracks: [
+            makeTrack(id: "track", albumID: "album", sequence: 1, media: .documents(relativePath: "Music/Owned/track.wav"))
+        ])
+
+        _ = try target.restorer.restore(from: backupURL)
+        XCTAssertEqual(try target.repository.track(id: "track")?.mediaReference, .documents(relativePath: "Music/Owned/track.wav"))
+        XCTAssertEqual(try Data(contentsOf: owned), Data("collector-audio".utf8))
+        let restored = target.media.documentsMusicRoot.appendingPathComponent("_Restored", isDirectory: true)
+        XCTAssertTrue((try? FileManager.default.contentsOfDirectory(atPath: restored.path))?.isEmpty ?? true,
+                      "the backup's copy of an adopted file must not be kept")
+    }
+
     func testTinyZIP64DirectoryIsRejectedWithoutTrapping() throws {
         let url = temporaryRoot("tiny-zip64").appendingPathComponent("tiny.zip")
         var bytes = Data([0x50, 0x4b, 0x06, 0x07])                      // ZIP64 locator signature
