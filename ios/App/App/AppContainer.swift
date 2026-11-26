@@ -726,6 +726,10 @@ final class AppContainer: ObservableObject {
             }
             services = try servicesFactory(roots)
             try mark("committed")
+            // The 4.x web storage is deliberately kept (deleting it cannot be undone), but an
+            // erase promises a clean catalogue: without this marker the next launch migrated
+            // the old library straight back in.
+            try? Data("{}".utf8).write(to: Self.legacyMigrationDeclinedURL(roots: roots), options: .atomic)
             launchState = .ready
             return true
         } catch {
@@ -794,8 +798,12 @@ final class AppContainer: ObservableObject {
                 services = resolvedServices
                 completePendingEraseIfNeeded(roots: resolvedRoots)
             }
-            if inspectLegacyLibrary { beginLegacyInspection() }
-            else { launchState = .ready }
+            if inspectLegacyLibrary, let roots,
+               !cleanupFileManager.fileExists(atPath: Self.legacyMigrationDeclinedURL(roots: roots).path) {
+                beginLegacyInspection()
+            } else {
+                launchState = .ready
+            }
         } catch CatalogDatabaseError.recoveryRequired(let recovery) {
             services = nil
             launchState = .recovery(AppRecoveryState(
@@ -824,6 +832,14 @@ final class AppContainer: ObservableObject {
         }
         try rollbackErase(roots: roots, quarantine: base.appendingPathComponent(directory))
         try cleanupFileManager.removeItem(at: base)
+    }
+
+    /// Written by Erase Everything, outside every folder an erase moves, so a kept 4.x
+    /// library is not migrated back in on the next launch.
+    static func legacyMigrationDeclinedURL(roots: AppStorageRoots) -> URL {
+        roots.applicationSupportURL
+            .appendingPathComponent("Aeon", isDirectory: true)
+            .appendingPathComponent("legacy-migration-declined.json", isDirectory: false)
     }
 
     private func completePendingEraseIfNeeded(roots: AppStorageRoots) {

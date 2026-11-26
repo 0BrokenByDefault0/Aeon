@@ -182,7 +182,7 @@ struct SettingsScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
                         AeonDisplayText("Erase Everything?", size: 30, maximumLines: 2).foregroundStyle(AeonOrbit.title)
-                        Text("This removes Aeon’s catalogue, artwork, playlists, listening history, and copied audio from this device. Files Aeon adopted in place are not deleted.")
+                        Text("This removes Aeon’s catalogue, artwork, playlists, listening history, and copied audio from this device. Files Aeon adopted in place are not deleted. A library left by Aeon 4 stays on this device but is not brought back in.")
                             .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.secondary)
                         TextField("Type ERASE", text: $eraseText)
                             .textInputAutocapitalization(.characters).autocorrectionDisabled()

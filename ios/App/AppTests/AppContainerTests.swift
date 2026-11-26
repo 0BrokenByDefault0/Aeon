@@ -204,6 +204,18 @@ final class AppContainerTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: quarantine.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: adopted.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: indexedDB.path))
+
+        // The kept 4.x storage must not be migrated back into the erased catalogue.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: AppContainer.legacyMigrationDeclinedURL(roots: roots).path))
+        relaunched.services?.catalogDatabase.close()
+        let inspecting = AppContainer(
+            rootsProvider: { roots },
+            servicesFactory: { try AppServices.production(roots: $0) },
+            inspectLegacyLibrary: true
+        )
+        XCTAssertEqual(inspecting.launchState, .ready)
+        XCTAssertFalse(inspecting.legacyBridgeRequired)
+        inspecting.services?.catalogDatabase.close()
     }
 }
 
