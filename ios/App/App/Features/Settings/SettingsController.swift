@@ -243,6 +243,17 @@ final class SettingsController: ObservableObject {
         }
     }
 
+    /// Opens a stored cover off the main actor. Repair checks every album's artwork, and
+    /// decoding each one on the main thread stalled Settings for large libraries.
+    nonisolated private static func coverDecodes(at url: URL?) async -> Bool {
+        await Task.detached(priority: .utility) {
+            guard let url,
+                  let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+            else { return false }
+            return CGImageSourceCreateImageAtIndex(source, 0, nil) != nil
+        }.value
+    }
+
     func repairArtwork() {
         guard operationProgress == nil else { return }
         guard repository.beginFileOperation() else { operationMessage = "Another library operation is running."; return }
@@ -260,9 +271,7 @@ final class SettingsController: ObservableObject {
                     let page = try repository.albumPage(offset: offset, limit: CatalogDatabase.maximumPageSize, sort: .recentlyAdded)
                     for summary in page {
                         if let key = summary.artworkKey {
-                            let valid = (try? artworkStore.url(forKey: key)).flatMap {
-                                CGImageSourceCreateWithURL($0 as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
-                            }.flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) } != nil
+                            let valid = await Self.coverDecodes(at: try? artworkStore.url(forKey: key))
                             if !valid, var album = try repository.album(id: summary.id) {
                                 album.artworkKey = nil
                                 album.updatedAt = Date()
