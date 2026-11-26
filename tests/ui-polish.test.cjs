@@ -122,3 +122,14 @@ test('launch, migration and recovery actions use the shared orbital button style
   assert.match(root, /Button\("Retry"\) \{ container\.retryStartup\(\) \}\s*\n\s*\.buttonStyle\(AeonButtonStyle\(tier: \.filled\)\)/);
   assert.match(root, /Button\("Continue with Available Files"\)[^\n]*\n\s*\.buttonStyle\(AeonButtonStyle\(tier: \.filled\)\)/);
 });
+
+test('the first-run Sky import is the filled primary action and launch never flashes white', () => {
+  const skySource = read('ios/App/App/Features/Sky/SkyScreen.swift');
+  const empty = skySource.split('private var emptyState: some View {')[1].split('if let importError')[0];
+  assert.match(empty, /Button\("IMPORT MUSIC"\) \{ importSheetPresented = true \}\s*\n\s*\.buttonStyle\(AeonButtonStyle\(tier: \.filled\)\)/);
+  assert.doesNotMatch(empty, /\.buttonStyle\(\.plain\)/);
+  assert.match(empty, /nocturnePostScriptName/);
+  const launch = read('ios/App/App/Base.lproj/LaunchScreen.storyboard');
+  assert.doesNotMatch(launch, /systemBackgroundColor/);
+  assert.match(launch, /appearance="dark"/);
+});

@@ -92,20 +92,21 @@ struct SkyScreen: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: AeonTheme.Space.small) {
+        VStack(spacing: AeonTheme.Space.regular) {
+            // The first screen a new collector sees: the same display title and filled
+            // primary action as the Library empty state, because Sky owns the first import.
             Text("Your sky is empty")
-                .font(AeonTheme.FontToken.ui(.callout, weight: .medium))
+                .font(.custom(AeonTheme.FontToken.nocturnePostScriptName, size: 30, relativeTo: .title))
                 .foregroundStyle(AeonOrbit.title)
+                .multilineTextAlignment(.center)
             Text("Add music to begin charting it.")
-                .font(AeonTheme.FontToken.ui(.caption))
+                .font(AeonOrbit.supportingFont)
                 .foregroundStyle(AeonOrbit.secondary)
+                .multilineTextAlignment(.center)
             Button("IMPORT MUSIC") { importSheetPresented = true }
-                .font(AeonTheme.FontToken.metric(.caption, weight: .semibold))
-                .tracking(1.4)
-                .frame(minHeight: 44)
-                .buttonStyle(.plain)
-                .foregroundStyle(AeonOrbit.ink)
-                .fixedSize()
+                .buttonStyle(AeonButtonStyle(tier: .filled))
+                .frame(maxWidth: 300)
+                .padding(.top, AeonTheme.Space.small)
                 .accessibilityIdentifier("aeon.library.import")
             if let importError, !importError.isEmpty {
                 HStack(alignment: .top, spacing: AeonTheme.Space.small) {

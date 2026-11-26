@@ -132,7 +132,7 @@ struct AeonRootView: View {
                 Text("Your library is intact.")
                     .font(.system(size: 30, weight: .regular, design: .serif))
                     .foregroundStyle(AeonTheme.ColorToken.primary)
-                Text("\(summary.recordCount) records and \(summary.artifactCount) embedded files are ready for the native migration pipeline.")
+                Text("\(summary.recordCount) records and \(summary.artifactCount) files from your earlier library are ready to move into ISOLATION.")
                     .font(.system(size: 15))
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.7))
                     .multilineTextAlignment(.center)
