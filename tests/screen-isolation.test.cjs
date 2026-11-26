@@ -98,3 +98,16 @@ test('migration charts the Sky at publication and completion only', () => {
   assert.match(migration, /progress\.catalogueReady, !skyCharted \|\| progress\.sourceComplete/);
   assert.match(migration, /skyRepository\.backfill\(\)\s*\n\s*services\.skySceneController\.reload\(\)/);
 });
+
+test('feature code never writes back a single capped playlist or album page', () => {
+  const {readdirSync, statSync} = require('node:fs');
+  const walk = dir => readdirSync(join(base, dir)).flatMap(name => {
+    const path = `${dir}/${name}`;
+    return statSync(join(base, path)).isDirectory() ? walk(path) : path.endsWith('.swift') ? [path] : [];
+  });
+  for (const file of walk('ios/App/App/Features')) {
+    const source = read(file);
+    assert.doesNotMatch(source, /\.playlistItems\(playlistID: [^)]*\)(?!\s*\.count)/, `${file} reads one playlist page`);
+    assert.doesNotMatch(source, /\.tracks\(albumID: [^,)]*\)/, `${file} reads one album page`);
+  }
+});

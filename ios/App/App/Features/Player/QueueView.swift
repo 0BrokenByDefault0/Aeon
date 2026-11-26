@@ -492,7 +492,7 @@ private struct TrackPlaylistPicker: View {
 
     private func add(to playlistID: String) {
         do {
-            let ids = try catalog.playlistItems(playlistID: playlistID).map(\.trackID) + [track.id]
+            let ids = try catalog.allPlaylistItems(playlistID: playlistID).map(\.trackID) + [track.id]
             try catalog.replacePlaylistItems(playlistID: playlistID, trackIDs: ids)
             AeonFeedback.succeeded()
             dismiss()
