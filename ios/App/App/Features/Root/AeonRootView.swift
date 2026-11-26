@@ -120,20 +120,20 @@ struct AeonRootView: View {
     private var content: some View {
         switch container.launchState {
         case .launching:
-            launchMessage("OPENING AEON").padding(32)
+            launchMessage("OPENING ISOLATION").padding(32)
         case .checkingLegacyLibrary:
             launchMessage("CHECKING LIBRARY").padding(32)
         case .migrationRequired(let summary):
             VStack(spacing: 14) {
                 Text("LIBRARY MIGRATION")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
                     .tracking(2.2)
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))
                 Text("Your library is intact.")
-                    .font(.system(size: 30, weight: .regular, design: .serif))
+                    .font(.custom(AeonTheme.FontToken.nocturnePostScriptName, size: 30, relativeTo: .title))
                     .foregroundStyle(AeonTheme.ColorToken.primary)
                 Text("\(summary.recordCount) records and \(summary.artifactCount) files from your earlier library are ready to move into ISOLATION.")
-                    .font(.system(size: 15))
+                    .font(AeonTheme.FontToken.ui(.subheadline))
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.7))
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 460)
@@ -144,17 +144,17 @@ struct AeonRootView: View {
         case .migrating(let progress):
             VStack(spacing: 16) {
                 Text(progress.catalogueReady ? "LIBRARY READY" : "PRESERVING LIBRARY")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
                     .tracking(2.2)
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))
                 Text(progress.message)
-                    .font(.system(size: 28, weight: .regular, design: .serif))
+                    .font(.custom(AeonTheme.FontToken.nocturnePostScriptName, size: 28, relativeTo: .title))
                     .foregroundStyle(AeonTheme.ColorToken.primary)
                 ProgressView(value: progress.fraction)
                     .tint(AeonTheme.ColorToken.primary)
                     .frame(maxWidth: 360)
                 Text("\(progress.completedArtifacts) of \(progress.totalArtifacts) embedded files verified")
-                    .font(.system(size: 13, design: .monospaced))
+                    .font(AeonTheme.FontToken.metric(.footnote))
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.62))
                 HStack(spacing: 12) {
                     if progress.catalogueReady {
@@ -186,12 +186,12 @@ struct AeonRootView: View {
             }
         case .recovery(let issue):
             VStack(spacing: 18) {
-                Text("AEON COULD NOT OPEN")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                Text("ISOLATION COULD NOT OPEN")
+                    .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
                     .tracking(2)
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))
                 Text(issue.message)
-                    .font(.system(size: 17))
+                    .font(AeonTheme.FontToken.ui(.body))
                     .foregroundStyle(AeonTheme.ColorToken.primary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 480)
@@ -225,7 +225,7 @@ struct AeonRootView: View {
         VStack(spacing: 18) {
             ProgressView().tint(AeonTheme.ColorToken.primary)
             Text(value)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
                 .tracking(2.4)
                 .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.62))
         }
@@ -239,7 +239,7 @@ struct AeonRootView: View {
                 .tint(AeonTheme.ColorToken.primary)
                 .frame(maxWidth: 340)
             Text(importProgressLabel(progress))
-                .font(.system(size: 12, design: .monospaced))
+                .font(AeonTheme.FontToken.metric(.caption))
                 .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.66))
             Button("Pause Import") { container.cancelLibraryImport() }
                 .buttonStyle(AeonButtonStyle(tier: .hairline))

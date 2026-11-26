@@ -155,3 +155,10 @@ test('equalizer and device-correction panels use Aeon tokens, tiers and the shar
   assert.match(component, /struct AeonFieldStyle: TextFieldStyle/);
   assert.match(read('ios/App/App/Features/Player/ParametricControls.swift'), /DisclosureGroup\("Supported profile files"\)/);
 });
+
+test('launch, migration and recovery screens use type tokens and the app name', () => {
+  const rootSource = read('ios/App/App/Features/Root/AeonRootView.swift');
+  assert.doesNotMatch(rootSource, /\.font\(\.system\(/);
+  assert.match(rootSource, /launchMessage\("OPENING ISOLATION"\)/);
+  assert.match(rootSource, /Text\("ISOLATION COULD NOT OPEN"\)/);
+});
