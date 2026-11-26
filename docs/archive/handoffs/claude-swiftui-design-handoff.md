@@ -692,7 +692,7 @@ Build these first; every screen composes from them.
 | `AeonArthemys` | **missing** | referenced 5× in the web build, no file anywhere |
 | App icons | `app/icon-180.png`, `app/icon-512.png`, `ios/App/App/Assets.xcassets/AppIcon.appiconset` | |
 | Splash | `ios/App/App/Assets.xcassets/Splash.imageset` | |
-| World reference renders | `world-1.png`, `world-2.png` (repo root) | planet look development |
+| World reference renders | `docs/archive/images/world-1.png`, `world-2.png` | planet look development |
 | Icon set | inline SVG in `app/index.html` (`ICO` map) | sky, note, planet and others — convert to SF Symbols or bundled vectors. **No emoji, ever.** |
 | Behavioural reference | `app/index.html`, `app/interface.css` | what the app currently does |
 | Native audio | `ios/App/App/Audio` | **untouched by this handoff** |

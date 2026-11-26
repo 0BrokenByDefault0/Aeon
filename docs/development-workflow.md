@@ -5,8 +5,6 @@
 | Area | Production source | First tests to inspect | Stable UI identifiers / entry points |
 |---|---|---|---|
 | Import | `ios/App/App/Import/`, `app/legacy-migration.*` | `LibraryImporterTests`, `AudioTagReaderTests`, `ImportPickerTests`, `ImportPickerPresentationTests` | `aeon.import.sheet`, `ImportPicker` |
-
-For large libraries, the supported native path is **Adopt Library** from the app-owned Files directory `On My iPhone/ISOLATION/Music`. Files placed there stay in place and are referenced through `MediaStore`; the external security-scoped folder picker is not part of release acceptance.
 | Playback / player | `ios/App/App/Audio/`, `ios/App/App/Playback/`, `ios/App/App/Features/Player/` | `PlaybackCoordinatorTests`, `PlaybackControllerTests`, `PlaybackFlowTests`, `PlayerNavigationTests` | `PlaybackController`, `NowPlayingView`, `PlayerBar` |
 | Library | `ios/App/App/Features/Library/`, `ios/App/App/Persistence/`, `ios/App/App/Domain/` | `LibraryControllerTests`, `CatalogRepositoryTests`, `LibraryFlowTests` | `LibraryScreen`, `LibraryController` |
 | Sky / Metal | `ios/App/App/Features/Sky/`, `ios/App/App/Sky/` | `SkyComposerTests`, `SkyCameraTests`, `SkyHitTestingTests`, `SkyInteractionTests` | `SkyScreen`, `SkySceneController`, `SkyRenderer` |
@@ -15,6 +13,8 @@ For large libraries, the supported native path is **Adopt Library** from the app
 | Settings | `ios/App/App/Features/Settings/` | `SettingsFlowTests`, `DesignTokenTests` | `SettingsScreen`, `SettingsController` |
 | Web compatibility / migration | `app/`, `test/`, `tests/` | matching Node or Playwright file, then `LegacyMigrationTests` | `LegacyMigrationViewController` |
 | Build and delivery | `scripts/`, `.github/workflows/`, `ios/App/Podfile.lock` | `ios-test-runner.test.cjs`, `targeted-tests.test.cjs`, `ipa-delivery-workflow.test.cjs` | package scripts and workflow summaries |
+
+For large libraries, the supported native path is **Adopt Library** from the app-owned Files directory `On My iPhone/ISOLATION/Music`. Files placed there stay in place and are referenced through `MediaStore`; the external security-scoped folder picker is not part of release acceptance.
 
 The native app root is `AeonApp -> AppContainer -> AeonRootView`. The normal 5.0 UI is SwiftUI. The `app/` web surface remains a compatibility and migration oracle; do not treat it as the native UI implementation.
 
