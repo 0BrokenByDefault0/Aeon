@@ -68,6 +68,10 @@ struct SkyScreen: View {
                             .opacity(controller.skyTextOpacity)
                             .allowsHitTesting(controller.skyTextOpacity > 0)
                             .accessibilityHidden(controller.skyTextOpacity == 0)
+                        // Selection state for assistive technology. Not gated on sky text:
+                        // hiding labels is a visual preference, not a reason to stop saying
+                        // what is selected.
+                        selectionReadout
                     }
                 }
                 .transaction { $0.animation = nil }
@@ -131,6 +135,30 @@ struct SkyScreen: View {
         if let planet = controller.selectedPlanet {
             planetMarker(planet, viewport: viewport)
         }
+    }
+
+    /// A selected album or constellation draws no title card (zoom owns the labels), but
+    /// it still has to be announced: this is the only element that reports which star or
+    /// artist the camera is focused on. Planets carry their own visible readout.
+    @ViewBuilder private var selectionReadout: some View {
+        if controller.selectedPlanet == nil {
+            if let readout = controller.selectedAlbumReadout {
+                selectionAnnouncement(readout, identifier: "aeon.sky.star-selection")
+            } else if let readout = controller.selectedConstellationReadout {
+                selectionAnnouncement(readout, identifier: "aeon.sky.constellation-selection")
+            }
+        }
+    }
+
+    private func selectionAnnouncement(_ readout: (title: String, subtitle: String), identifier: String) -> some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: 1, height: 1)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Selected, \(readout.title), \(readout.subtitle)")
+            .accessibilityAddTraits(.isStaticText)
+            .accessibilityIdentifier(identifier)
     }
 
     private func planetMarker(_ planet: SkyPlanet, viewport: CGSize) -> some View {

@@ -34,6 +34,20 @@ test('Sky stays mounted but inactive copy, actions and accessibility overlays do
   assert.match(sky, /effectiveReduceMotion \|\| !isForeground/);
 });
 
+test('a selected album or constellation is announced without a pinned title card', () => {
+  const foreground = sky.split('if isForeground {')[1].split('.transaction')[0];
+  assert.ok(foreground.includes('selectionReadout'));
+  const readout = sky.split('@ViewBuilder private var selectionReadout')[1].split('private func planetMarker')[0];
+  assert.match(readout, /"aeon\.sky\.star-selection"/);
+  assert.match(readout, /"aeon\.sky\.constellation-selection"/);
+  assert.match(readout, /\.accessibilityLabel\(/);
+  assert.doesNotMatch(readout, /AeonDisplayText|Text\(/);
+  // UI tests that locate an album in the Sky depend on this identifier.
+  for (const file of ['AeonScreenMatrixTests', 'LibraryFlowTests', 'PlaybackFlowTests']) {
+    assert.match(read(`ios/App/AppUITests/${file}.swift`), /aeon\.sky\.star-selection/, file);
+  }
+});
+
 test('utility navigation does not crossfade two screens on top of each other', () => {
   assert.match(root, /\.zIndex\(AeonTheme\.Layer\.content\)[\s\S]*?\.transition\(\.identity\)/);
   assert.doesNotMatch(root, /\.animation\([^\n]*value: destination\)/);
