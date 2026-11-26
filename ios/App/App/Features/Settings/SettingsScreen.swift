@@ -89,7 +89,7 @@ struct SettingsScreen: View {
                                 labelValue("Storage", value: format(controller.storage.usedBytes))
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AeonPlainButtonStyle())
                             .accessibilityLabel("Measure storage")
                             AeonProgressBar(value: max(0.015, controller.storage.fraction))
                             Text(storageText)
@@ -277,7 +277,7 @@ struct SettingsScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).padding(.vertical, AeonTheme.Space.small)
+        .buttonStyle(AeonPlainButtonStyle()).padding(.vertical, AeonTheme.Space.small)
         .rowDivider(showsDivider).accessibilityIdentifier(identifier)
     }
 
@@ -300,7 +300,7 @@ struct SettingsScreen: View {
             .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain).foregroundStyle(AeonTheme.ColorToken.danger)
+        .buttonStyle(AeonPlainButtonStyle()).foregroundStyle(AeonTheme.ColorToken.danger)
         .accessibilityLabel("Erase everything").accessibilityIdentifier("aeon.settings.erase")
     }
 

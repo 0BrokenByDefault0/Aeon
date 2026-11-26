@@ -280,6 +280,23 @@ struct AeonBreadcrumb: View {
 
 enum AeonButtonTier { case filled, hairline, bare }
 
+/// For controls that draw their own label (icon buttons, rows, cards, text links).
+/// It renders the label as `.plain` would, dims it while pressed, and gives the touch
+/// feedback AGENTS.md requires, which `.plain` never does.
+struct AeonPlainButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.62 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.press), value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { pressed in
+                guard pressed, isEnabled else { return }
+                AeonFeedback.activated()
+            }
+    }
+}
+
 /// The one text-field treatment: a square hairline field, matching Library search.
 struct AeonFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
@@ -623,7 +640,7 @@ struct AeonImportSheet: View {
                                 AeonGlyph(kind: .close).frame(width: 44, height: 44)
                                     .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain).foregroundStyle(AeonOrbit.secondary)
+                            .buttonStyle(AeonPlainButtonStyle()).foregroundStyle(AeonOrbit.secondary)
                             .accessibilityLabel("Close import").accessibilityIdentifier("aeon.import.close")
                         }
                         Text("Import files, or adopt everything in Files → ISOLATION → Music.")
@@ -686,7 +703,7 @@ struct AeonImportSheet: View {
             .overlay(RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
                 .stroke(AeonOrbit.ink.opacity(0.34), style: AeonOrbit.line))
         }
-        .buttonStyle(.plain).accessibilityIdentifier(identifier)
+        .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier(identifier)
     }
 }
 

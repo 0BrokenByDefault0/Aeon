@@ -146,12 +146,12 @@ struct SkyScreen: View {
                 HStack(spacing: AeonTheme.Space.medium) {
                     Button("CLOSE") { controller.select(nil) }
                         .frame(minHeight: 44)
-                        .buttonStyle(.plain)
+                        .buttonStyle(AeonPlainButtonStyle())
                         .accessibilityLabel("Close planet details")
                         .accessibilityIdentifier("aeon.sky.planet.close")
                     Button("COLLECTION") { controller.showGalaxy(reduceMotion: effectiveReduceMotion) }
                         .frame(minHeight: 44)
-                        .buttonStyle(.plain)
+                        .buttonStyle(AeonPlainButtonStyle())
                         .accessibilityIdentifier("aeon.sky.planet.galaxy")
                 }
                 .font(AeonTheme.FontToken.metric(.caption2, weight: .semibold))

@@ -162,3 +162,10 @@ test('launch, migration and recovery screens use type tokens and the app name', 
   assert.match(rootSource, /launchMessage\("OPENING ISOLATION"\)/);
   assert.match(rootSource, /Text\("ISOLATION COULD NOT OPEN"\)/);
 });
+
+test('plain-label controls route touch feedback through AeonFeedback', () => {
+  assert.match(component, /struct AeonPlainButtonStyle: ButtonStyle[\s\S]*?AeonFeedback\.activated\(\)/);
+  for (const file of ['Features/Sky/SkyScreen.swift', 'Features/Sky/SkyHUD.swift', 'Features/Playlists/PlaylistsScreen.swift', 'Features/Settings/SettingsScreen.swift']) {
+    assert.doesNotMatch(read(`ios/App/App/${file}`), /\.buttonStyle\(\.plain\)/, file);
+  }
+});

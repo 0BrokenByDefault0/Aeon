@@ -75,7 +75,7 @@ struct LibraryScreen: View {
                         }
                         .foregroundStyle(AeonOrbit.ink).frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Import music").accessibilityIdentifier("aeon.library.import")
+                    .buttonStyle(AeonPlainButtonStyle()).accessibilityLabel("Import music").accessibilityIdentifier("aeon.library.import")
                 }
             }
         }
@@ -92,7 +92,7 @@ struct LibraryScreen: View {
                     Button { controller.setQuery("") } label: {
                         AeonGlyph(kind: .close).frame(width: 44, height: 44).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain).accessibilityLabel("Clear search")
+                    .buttonStyle(AeonPlainButtonStyle()).accessibilityLabel("Clear search")
                 }
             }
             .padding(.leading, AeonTheme.Space.regular).frame(minHeight: 48)
@@ -211,7 +211,7 @@ struct LibraryScreen: View {
                     .padding(.vertical, AeonTheme.Space.small).contentShape(Rectangle())
                     .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
                 }
-                .buttonStyle(.plain).accessibilityIdentifier("aeon.library.album.\(album.id)")
+                .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier("aeon.library.album.\(album.id)")
                 .onAppear { if album.id == controller.albums.last?.id { controller.loadNextPage() } }
             }
         }
@@ -227,7 +227,7 @@ struct LibraryScreen: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).accessibilityIdentifier("aeon.library.album.\(album.id)")
+        .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier("aeon.library.album.\(album.id)")
     }
     private func continueListening(_ album: CatalogAlbumSummary) -> some View {
         Button { controller.selectAlbum(id: album.id) } label: {
@@ -244,7 +244,7 @@ struct LibraryScreen: View {
             .padding(.vertical, AeonTheme.Space.regular).contentShape(Rectangle())
             .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
         }
-        .buttonStyle(.plain).accessibilityIdentifier("aeon.library.continue")
+        .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier("aeon.library.continue")
     }
     private func importStatus(_ progress: LibraryImportProgress) -> some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.small) {

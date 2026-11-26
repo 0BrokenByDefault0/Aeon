@@ -38,7 +38,7 @@ struct SkyHUD: View {
                 Button { controller.toggleText() } label: {
                     hudAction(glyph: controller.textHidden ? .textHidden : .text)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AeonPlainButtonStyle())
                 .accessibilityLabel(controller.textHidden ? "Show sky text" : "Hide sky text")
                 .accessibilityValue(controller.textHidden ? "Hidden" : "Automatic")
                 .accessibilityHint("Remembers your choice. Automatic text also fades away when you zoom out.")
@@ -47,7 +47,7 @@ struct SkyHUD: View {
                     Button {
                         controller.showGalaxy(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
                     } label: { hudAction(glyph: .overview) }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AeonPlainButtonStyle())
                     .accessibilityLabel("Return to collection")
                     .accessibilityIdentifier("aeon.sky.galaxy")
                 }
@@ -55,7 +55,7 @@ struct SkyHUD: View {
                     Button {
                         controller.locatePlaying(reduceMotion: reduceMotion || reduceMotionOverride || AeonTestOverrides.reduceMotion)
                     } label: { hudAction(glyph: .locate) }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AeonPlainButtonStyle())
                     .accessibilityLabel("Locate playing album")
                     .accessibilityIdentifier("aeon.sky.locate-playing")
                     .disabled(controller.playingStarID == nil)

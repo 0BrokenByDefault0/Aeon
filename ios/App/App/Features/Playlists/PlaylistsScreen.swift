@@ -95,7 +95,7 @@ struct PlaylistsScreen: View {
                     HStack { Text("IMPORT").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .picker) }
                         .frame(minHeight: 44).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)
+                .buttonStyle(AeonPlainButtonStyle()).foregroundStyle(AeonOrbit.ink)
                 .disabled(controller.isImporting)
                 .accessibilityLabel(controller.isImporting ? "Importing Playlists" : "Import Playlists from Files").accessibilityIdentifier("aeon.playlists.import")
             }
@@ -104,7 +104,7 @@ struct PlaylistsScreen: View {
                     HStack { Text("NEW").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .add) }
                         .frame(minHeight: 44).contentShape(Rectangle())
                 }
-                .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)
+                .buttonStyle(AeonPlainButtonStyle()).foregroundStyle(AeonOrbit.ink)
                 .accessibilityLabel("Create Playlist").accessibilityIdentifier("aeon.playlists.create")
             }
         }
@@ -125,7 +125,7 @@ struct PlaylistsScreen: View {
             .padding(.vertical, AeonTheme.Space.medium).contentShape(Rectangle())
             .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
         }
-        .buttonStyle(.plain).accessibilityIdentifier("aeon.playlists.row.\(overview.id)")
+        .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier("aeon.playlists.row.\(overview.id)")
     }
     private func smartRow(_ overview: SmartRouteOverview) -> some View {
         Button { controller.select(smart: overview.route); detailPresented = controller.selectedSmartRoute != nil } label: {
@@ -144,7 +144,7 @@ struct PlaylistsScreen: View {
             .padding(.vertical, AeonTheme.Space.medium).contentShape(Rectangle())
             .overlay(alignment: .bottom) { Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline) }
         }
-        .buttonStyle(.plain).accessibilityIdentifier("aeon.playlists.smart.\(overview.route.rawValue)")
+        .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier("aeon.playlists.smart.\(overview.route.rawValue)")
     }
     private var createForm: some View {
         VStack(alignment: .leading, spacing: AeonTheme.Space.medium) {
@@ -216,7 +216,7 @@ private struct PlaylistDetailView: View {
                 } label: { AeonGlyph(kind: .more).frame(width: 44, height: 44) }
                 .accessibilityLabel("Playlist Actions").accessibilityIdentifier("aeon.playlists.detail.actions")
                 Button(action: close) { AeonGlyph(kind: .close).frame(width: 44, height: 44) }
-                    .buttonStyle(.plain).accessibilityLabel("Close Playlist").accessibilityIdentifier("aeon.playlists.detail.close")
+                    .buttonStyle(AeonPlainButtonStyle()).accessibilityLabel("Close Playlist").accessibilityIdentifier("aeon.playlists.detail.close")
             }
             HStack(spacing: AeonTheme.Space.medium) {
                 Button("PLAY") { controller.play() }.buttonStyle(AeonButtonStyle(tier: .filled))
