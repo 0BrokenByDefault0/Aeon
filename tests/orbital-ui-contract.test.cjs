@@ -75,7 +75,7 @@ test('first-pass surfaces retire stock capsules and preserve identifiers', () =>
   for (const text of [components, chrome, settings, sky, library, playlists]) assert.doesNotMatch(text, /\bCapsule\(/);
   for (const id of ['aeon.library.import.files', 'aeon.library.import.adopt', 'aeon.import.sheet']) assert.ok(components.includes(id));
   assert.match(components, /accessibilityElement\(children: \.contain\)\.accessibilityIdentifier\("aeon.import.sheet"\)/);
-  assert.match(components, /Import files, or scan the Music folder Aeon owns in Files\./);
+  assert.match(components, /Import files, or adopt everything in Files → ISOLATION → Music\./);
   assert.doesNotMatch(components, /without pretending/);
 });
 

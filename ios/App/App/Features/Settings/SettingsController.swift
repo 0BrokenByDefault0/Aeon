@@ -362,7 +362,7 @@ final class SettingsController: ObservableObject {
                 let result = try await Task.detached(priority: .userInitiated) {
                     try archiveRestorer.restore(from: url) { progress in
                         Task { @MainActor [weak self] in
-                            self?.operationMessage = "Restoring \(progress.currentPath)…"
+                            self?.operationMessage = "Restoring backup… \(progress.completedEntries) files"
                         }
                     }
                 }.value
@@ -437,7 +437,7 @@ final class SettingsController: ObservableObject {
                     case .fullBackup:
                         try archiveWriter.writeFullBackup(to: output, playbackSnapshot: playbackSnapshot) { progress in
                             Task { @MainActor [weak self] in
-                                self?.operationMessage = "Packing \(progress.currentPath)…"
+                                self?.operationMessage = "Packing backup… \(progress.completedEntries) files"
                             }
                         }
                     case .activity:

@@ -239,7 +239,7 @@ private struct SkyLabelOverlay: View {
         }
         if disclosure.album > 0 {
             for star in controller.catalogue.stars {
-                candidates.append(.init(id: "album-" + star.id, text: star.title ?? star.albumID,
+                candidates.append(.init(id: "album-" + star.id, text: star.title ?? (star.artistName.isEmpty ? "Untitled" : star.artistName),
                     anchor: camera.screenPoint(for: star.coordinate, viewport: resolvedViewport), isRegion: false, opacity: disclosure.album))
             }
         }

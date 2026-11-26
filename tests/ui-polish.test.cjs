@@ -81,7 +81,7 @@ test('sheet fits measured content without replacing its identity or handlers', (
   assert.match(sheet, /\.height\(contentHeight \+ AeonTheme.Space.medium \* 2 \+ AeonOrbit.stroke\)/);
   assert.match(sheet, /isAccessibilitySize/);
   assert.doesNotMatch(sheet, /\.id\(/);
-  assert.match(sheet, /Import files, or scan the Music folder Aeon owns in Files\./);
+  assert.match(sheet, /Import files, or adopt everything in Files → ISOLATION → Music\./);
 });
 test('disclosure, selection, creation and export no longer share the swash arrow', () => {
   assert.match(library, /AeonGlyph\(kind: \.disclosure\)/);
@@ -132,4 +132,15 @@ test('the first-run Sky import is the filled primary action and launch never fla
   const launch = read('ios/App/App/Base.lproj/LaunchScreen.storyboard');
   assert.doesNotMatch(launch, /systemBackgroundColor/);
   assert.match(launch, /appearance="dark"/);
+});
+
+test('user-facing copy never exposes internal identifiers or file paths', () => {
+  const hud = read('ios/App/App/Features/Sky/SkyHUD.swift');
+  assert.doesNotMatch(hud, /tier\.rawValue/);
+  assert.match(hud, /Sky altitude, \\\(tier\.spokenName\)/);
+  const skySource = read('ios/App/App/Features/Sky/SkyScreen.swift');
+  assert.doesNotMatch(skySource, /star\.title \?\? star\.albumID/);
+  const settingsController = read('ios/App/App/Features/Settings/SettingsController.swift');
+  assert.doesNotMatch(settingsController, /operationMessage = "[^"]*progress\.currentPath/);
+  assert.doesNotMatch(playlists, /Text\("M3U"\)/);
 });

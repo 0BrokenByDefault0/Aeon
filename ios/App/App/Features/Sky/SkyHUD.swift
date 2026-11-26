@@ -21,7 +21,7 @@ struct SkyHUD: View {
         .onChange(of: controller.camera.tier) { tier in
             guard announcedTier != tier else { return }
             announcedTier = tier
-            UIAccessibility.post(notification: .announcement, argument: "Sky altitude, \(tier.rawValue)")
+            UIAccessibility.post(notification: .announcement, argument: "Sky altitude, \(tier.spokenName)")
         }
     }
     private var topControls: some View {
@@ -114,6 +114,18 @@ struct SkyHUD: View {
         case .grouping: return "finding albums"
         case .committing: return "placing \(progress.completedGroups) of \(progress.totalGroups)"
         case .complete: return "the sky is current"
+        }
+    }
+}
+
+private extension SkyZoomTier {
+    /// VoiceOver phrasing for altitude changes; the raw values are internal identifiers.
+    var spokenName: String {
+        switch self {
+        case .collection: return "whole collection"
+        case .system: return "planet systems"
+        case .album: return "albums"
+        case .focus: return "close focus"
         }
     }
 }

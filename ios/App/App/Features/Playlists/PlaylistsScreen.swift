@@ -92,7 +92,7 @@ struct PlaylistsScreen: View {
             Spacer()
             if controller.playlistsFolder != nil {
                 Button { Task { await controller.importPlaylistFiles() } } label: {
-                    HStack { Text("M3U").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .picker) }
+                    HStack { Text("IMPORT").font(AeonTheme.FontToken.metric(.caption2)); AeonGlyph(kind: .picker) }
                         .frame(minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).foregroundStyle(AeonOrbit.ink)

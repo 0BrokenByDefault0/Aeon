@@ -614,7 +614,7 @@ struct AeonImportSheet: View {
                             .buttonStyle(.plain).foregroundStyle(AeonOrbit.secondary)
                             .accessibilityLabel("Close import").accessibilityIdentifier("aeon.import.close")
                         }
-                        Text("Import files, or scan the Music folder Aeon owns in Files.")
+                        Text("Import files, or adopt everything in Files → ISOLATION → Music.")
                             .font(AeonOrbit.supportingFont).foregroundStyle(AeonOrbit.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
