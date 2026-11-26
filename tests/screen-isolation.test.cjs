@@ -71,3 +71,11 @@ test('native checks cover pixels, inactive actions, AX5 and returning to Sky', (
   assert.equal((ui.match(/assertNoInactiveSky\(in: app, importButtons: 0\)/g) || []).length, 3);
   assert.match(ui, /orbital-sky-return-after-tabs/);
 });
+
+test('paused and failed imports still chart their committed albums off the main thread', () => {
+  const container = read('ios/App/App/AppContainer.swift');
+  const exit = container.split('if !charted {')[1].split('self?.libraryImportToken = nil')[0];
+  assert.match(exit, /Task\.detached\(priority: \.utility\) \{ _ = try\? sky\.backfill\(\) \}\.value/);
+  assert.match(exit, /skySceneController\.reload\(\)/);
+  assert.match(container, /skySceneController\.reload\(\)\s*\n\s*charted = true/);
+});

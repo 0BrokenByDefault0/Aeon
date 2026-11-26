@@ -585,6 +585,7 @@ final class AppContainer: ObservableObject {
         }
         libraryImportTask = Task { [weak self] in
             defer { resolvedServices.catalogRepository.endFileOperation() }
+            var charted = false
             do {
                 let result = try await Task.detached(priority: .userInitiated) { () async throws -> LibraryImportResult in
                     let result: LibraryImportResult
@@ -612,6 +613,7 @@ final class AppContainer: ObservableObject {
                     return result
                 }.value
                 self?.services?.skySceneController.reload()
+                charted = true
                 self?.libraryImportResult = result
                 if source == .adoptedMusicRoot {
                     try? self?.services?.diagnosticsLog.record(eventCode: "library.adopt.completed")
@@ -634,6 +636,13 @@ final class AppContainer: ObservableObject {
                 self?.libraryImportError = source == .adoptedMusicRoot
                     ? "The library scan stopped before the next album could be catalogued. Your music files were not changed."
                     : "Import stopped before the next album could be committed. Select the same source to resume."
+            }
+            if !charted {
+                // The importer commits album by album, so paused and failed runs still leave
+                // catalogued albums behind. Chart them too, off the main thread like success.
+                let sky = resolvedServices.skyRepository
+                await Task.detached(priority: .utility) { _ = try? sky.backfill() }.value
+                self?.services?.skySceneController.reload()
             }
             self?.libraryImportToken = nil
             self?.libraryImportProgress = nil
