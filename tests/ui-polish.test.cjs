@@ -113,3 +113,10 @@ test('manual metadata lookups disclose what they send', () => {
   assert.match(editor, /aeon\.album\.editor\.lookup-disclosure/);
   assert.match(settingsSource, /Find Art and Look Up Genre in the album editor send the same words when you tap them\./);
 });
+
+test('launch, migration and recovery actions use the shared orbital button style', () => {
+  const root = read('ios/App/App/Features/Root/AeonRootView.swift');
+  assert.doesNotMatch(root, /\.buttonStyle\(\.(borderedProminent|bordered)\)/);
+  assert.match(root, /Button\("Retry"\) \{ container\.retryStartup\(\) \}\s*\n\s*\.buttonStyle\(AeonButtonStyle\(tier: \.filled\)\)/);
+  assert.match(root, /Button\("Continue with Available Files"\)[^\n]*\n\s*\.buttonStyle\(AeonButtonStyle\(tier: \.filled\)\)/);
+});

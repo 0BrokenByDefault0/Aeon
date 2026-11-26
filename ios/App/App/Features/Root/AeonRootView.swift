@@ -159,14 +159,11 @@ struct AeonRootView: View {
                 HStack(spacing: 12) {
                     if progress.catalogueReady {
                         Button("Continue with Available Files") { container.continueAfterMigration() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AeonTheme.ColorToken.primary)
-                            .foregroundStyle(.black)
+                            .buttonStyle(AeonButtonStyle(tier: .filled))
                     }
                     if let diagnosticsURL = container.migrationDiagnosticsURL {
                         ShareLink(item: diagnosticsURL) { Text("Export Diagnostics") }
-                            .buttonStyle(.bordered)
-                            .tint(AeonTheme.ColorToken.primary)
+                            .buttonStyle(AeonButtonStyle(tier: .hairline))
                     }
                 }
             }
@@ -201,26 +198,20 @@ struct AeonRootView: View {
                 if issue.catalogRecovery != nil {
                     HStack(spacing: 12) {
                         Button("Restore Catalogue") { picker = .catalogArchive }
-                            .buttonStyle(.bordered)
-                            .tint(AeonTheme.ColorToken.primary)
+                            .buttonStyle(AeonButtonStyle(tier: .hairline))
                             .accessibilityIdentifier("aeon.launch.restore")
                         Button("Start Clean") { container.retryStartup() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AeonTheme.ColorToken.primary)
-                            .foregroundStyle(.black)
+                            .buttonStyle(AeonButtonStyle(tier: .filled))
                             .accessibilityIdentifier("aeon.launch.retry")
                     }
                 } else {
                     HStack(spacing: 12) {
                         Button("Retry") { container.retryStartup() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AeonTheme.ColorToken.primary)
-                            .foregroundStyle(.black)
+                            .buttonStyle(AeonButtonStyle(tier: .filled))
                             .accessibilityIdentifier("aeon.launch.retry")
                         if let diagnosticsURL = container.migrationDiagnosticsURL {
                             ShareLink(item: diagnosticsURL) { Text("Export Diagnostics") }
-                                .buttonStyle(.bordered)
-                                .tint(AeonTheme.ColorToken.primary)
+                                .buttonStyle(AeonButtonStyle(tier: .hairline))
                         }
                     }
                 }
@@ -251,8 +242,7 @@ struct AeonRootView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.66))
             Button("Pause Import") { container.cancelLibraryImport() }
-                .buttonStyle(.bordered)
-                .tint(AeonTheme.ColorToken.primary)
+                .buttonStyle(AeonButtonStyle(tier: .hairline))
                 .accessibilityIdentifier("aeon.library.import.cancel")
         }
         .accessibilityIdentifier("aeon.library.import.progress")
