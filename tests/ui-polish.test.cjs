@@ -86,6 +86,8 @@ test('sheet fits measured content without replacing its identity or handlers', (
 test('disclosure, selection, creation and export no longer share the swash arrow', () => {
   assert.match(library, /AeonGlyph\(kind: \.disclosure\)/);
   assert.match(playlists, /AeonGlyph\(kind: \.add\)/);
+  assert.match(library, /Text\("IMPORT"\)[\s\S]{0,200}AeonGlyph\(kind: \.picker\)/);
+  assert.doesNotMatch(library, /AeonGlyph\(kind: \.add\)/);
   assert.match(settings, /glyph: AeonGlyphKind = \.disclosure/);
   assert.match(settings, /glyph: \.export/);
   assert.match(settings, /glyph: \.picker/);

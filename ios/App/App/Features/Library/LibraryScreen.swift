@@ -70,7 +70,8 @@ struct LibraryScreen: View {
                     Button { importSheetPresented = true } label: {
                         HStack(spacing: 6) {
                             Text("IMPORT").font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
-                            AeonGlyph(kind: .add)
+                            // Downward tray means choose input; plus is reserved for creating.
+                            AeonGlyph(kind: .picker)
                         }
                         .foregroundStyle(AeonOrbit.ink).frame(minWidth: 44, minHeight: 44).contentShape(Rectangle())
                     }
