@@ -76,29 +76,48 @@ final class RemoteCommandCoordinator {
         return .success
     }
 
+    /// Track metadata and artwork for the current track. Snapshots arrive with every position
+    /// poll (twice a second while playing); rebuilding this each time re-read the catalogue
+    /// and decoded the full-size cover from disk on the main thread.
+    private var trackInfo: (trackID: String, info: [String: Any])?
+
     private func publish(_ snapshot: PlaybackSnapshot) {
-        guard let trackID = snapshot.trackID,
-              let track = try? catalog.track(id: trackID) else {
+        guard let trackID = snapshot.trackID else {
+            trackInfo = nil
             infoCenter.nowPlayingInfo = nil
             return
         }
-        let album = try? catalog.album(id: track.albumID)
-        var info: [String: Any] = [
-            MPMediaItemPropertyTitle: track.title,
-            MPMediaItemPropertyArtist: track.artist.isEmpty ? (album?.artist ?? "") : track.artist,
-            MPMediaItemPropertyAlbumTitle: album?.title ?? "",
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: snapshot.position,
-            MPNowPlayingInfoPropertyPlaybackRate: snapshot.intent == .playing ? 1.0 : 0.0,
-            MPNowPlayingInfoPropertyPlaybackQueueIndex: snapshot.queueIndex ?? 0,
-            MPNowPlayingInfoPropertyPlaybackQueueCount: snapshot.queue.count,
-            "AeonPlaybackRoute": snapshot.route?.name ?? "Unknown output"
-        ]
-        if let duration = track.duration ?? snapshot.sourceFormat?.duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
-        if let key = album?.artworkKey,
-           let url = try? artworkStore.url(forKey: key),
-           let image = UIImage(contentsOfFile: url.path) {
-            info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        var info: [String: Any]
+        if let trackInfo, trackInfo.trackID == trackID {
+            info = trackInfo.info
+        } else {
+            guard let track = try? catalog.track(id: trackID) else {
+                trackInfo = nil
+                infoCenter.nowPlayingInfo = nil
+                return
+            }
+            let album = try? catalog.album(id: track.albumID)
+            info = [
+                MPMediaItemPropertyTitle: track.title,
+                MPMediaItemPropertyArtist: track.artist.isEmpty ? (album?.artist ?? "") : track.artist,
+                MPMediaItemPropertyAlbumTitle: album?.title ?? ""
+            ]
+            if let duration = track.duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
+            if let key = album?.artworkKey,
+               let url = try? artworkStore.url(forKey: key),
+               let image = UIImage(contentsOfFile: url.path) {
+                info[MPMediaItemPropertyArtwork] = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            }
+            trackInfo = (trackID, info)
         }
+        if info[MPMediaItemPropertyPlaybackDuration] == nil, let duration = snapshot.sourceFormat?.duration {
+            info[MPMediaItemPropertyPlaybackDuration] = duration
+        }
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = snapshot.position
+        info[MPNowPlayingInfoPropertyPlaybackRate] = snapshot.intent == .playing ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyPlaybackQueueIndex] = snapshot.queueIndex ?? 0
+        info[MPNowPlayingInfoPropertyPlaybackQueueCount] = snapshot.queue.count
+        info["AeonPlaybackRoute"] = snapshot.route?.name ?? "Unknown output"
         infoCenter.nowPlayingInfo = info
         infoCenter.playbackState = snapshot.intent == .playing ? .playing : .paused
     }
