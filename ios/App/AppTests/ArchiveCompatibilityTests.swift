@@ -145,6 +145,46 @@ final class ArchiveCompatibilityTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: target.media.documentsMusicRoot.appendingPathComponent("_Restored").path))
     }
 
+    func testTinyZIP64DirectoryIsRejectedWithoutTrapping() throws {
+        let url = temporaryRoot("tiny-zip64").appendingPathComponent("tiny.zip")
+        var bytes = Data([0x50, 0x4b, 0x06, 0x07])                      // ZIP64 locator signature
+        bytes.append(contentsOf: [UInt8](repeating: 0, count: 16))      // disk, end64 offset 0, disk count
+        bytes.append(contentsOf: [0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0])  // end of central directory
+        bytes.append(contentsOf: [0xff, 0xff, 0xff, 0xff])              // ZIP64 entry-count markers
+        bytes.append(contentsOf: [UInt8](repeating: 0, count: 10))      // size, offset, comment length
+        XCTAssertEqual(bytes.count, 42)
+        try bytes.write(to: url)
+        XCTAssertThrowsError(try ArchiveReader(url: url)) { XCTAssertEqual($0 as? ArchiveReaderError, .corruptDirectory) }
+    }
+
+    func testDeflateEntryStopsAtItsDeclaredSize() throws {
+        let root = temporaryRoot("deflate-bomb")
+        let url = root.appendingPathComponent("bomb.zip")
+        let inflated = Data(count: 16 * 1_024 * 1_024)
+        let deflated = try (inflated as NSData).compressed(using: .zlib) as Data
+        let declaredSize: UInt32 = 10
+        let name = Data("bomb.bin".utf8)
+        var data = Data()
+        data.appendLE(UInt32(0x04034b50)); data.appendLE(UInt16(20)); data.appendLE(UInt16(0)); data.appendLE(UInt16(8))
+        data.appendLE(UInt16(0)); data.appendLE(UInt16(0)); data.appendLE(UInt32(0)); data.appendLE(UInt32(deflated.count)); data.appendLE(declaredSize)
+        data.appendLE(UInt16(name.count)); data.appendLE(UInt16(0)); data.append(name); data.append(deflated)
+        let centralOffset = UInt32(data.count)
+        data.appendLE(UInt32(0x02014b50)); data.appendLE(UInt16(20)); data.appendLE(UInt16(20)); data.appendLE(UInt16(0)); data.appendLE(UInt16(8))
+        data.appendLE(UInt16(0)); data.appendLE(UInt16(0)); data.appendLE(UInt32(0)); data.appendLE(UInt32(deflated.count)); data.appendLE(declaredSize)
+        data.appendLE(UInt16(name.count)); data.appendLE(UInt16(0)); data.appendLE(UInt16(0)); data.appendLE(UInt16(0)); data.appendLE(UInt16(0))
+        data.appendLE(UInt32(0)); data.appendLE(UInt32(0)); data.append(name)
+        let centralSize = UInt32(data.count) - centralOffset
+        data.appendLE(UInt32(0x06054b50)); data.appendLE(UInt16(0)); data.appendLE(UInt16(0)); data.appendLE(UInt16(1)); data.appendLE(UInt16(1))
+        data.appendLE(centralSize); data.appendLE(centralOffset); data.appendLE(UInt16(0))
+        try data.write(to: url)
+
+        var largestReport: UInt64 = 0
+        XCTAssertThrowsError(try ArchiveReader(url: url).extractAll(to: root.appendingPathComponent("out", isDirectory: true)) {
+            largestReport = max(largestReport, $0.completedBytes)
+        }) { XCTAssertEqual($0 as? ArchiveReaderError, .limitExceeded("bomb.bin")) }
+        XCTAssertLessThanOrEqual(largestReport, UInt64(declaredSize))
+    }
+
     func testReaderHandlesDeflateAndRejectsTraversalDuplicatesLimitsAndBadCRCWithoutPartials() throws {
         let root = temporaryRoot("reader")
         let deflatedURL = root.appendingPathComponent("deflated.zip")

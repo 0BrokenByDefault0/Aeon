@@ -225,7 +225,7 @@ final class ArchiveReader {
             guard let locator = try handle.read(upToCount: 20), locator.count == 20,
                   locator.le32(0) == 0x07064b50 else { throw ArchiveReaderError.corruptDirectory }
             let end64Offset = locator.le64(8)
-            guard end64Offset <= size - 56 else { throw ArchiveReaderError.corruptDirectory }
+            guard size >= 56, end64Offset <= size - 56 else { throw ArchiveReaderError.corruptDirectory }
             try handle.seek(toOffset: end64Offset)
             guard let end64 = try handle.read(upToCount: 56), end64.count == 56,
                   end64.le32(0) == 0x06064b50 else { throw ArchiveReaderError.corruptDirectory }
