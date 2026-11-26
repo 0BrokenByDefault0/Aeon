@@ -21,6 +21,9 @@ struct NowPlayingView: View {
     @State private var queuePresented = false
     @State private var seekPreview: Double?
     @State private var requestedSection: NowPlayingSection?
+    /// When the last volume command was sent during a drag. Every slider tick used to send
+    /// one, and each rewrote the playback state file and the diagnostics log.
+    @State private var lastVolumeSend = Date.distantPast
 
     var body: some View {
         GeometryReader { viewport in
@@ -287,8 +290,16 @@ struct NowPlayingView: View {
                 range: 0...1,
                 label: "Volume",
                 valueLabel: "\(Int(snapshot.masterVolume * 100)) percent",
-                onChanged: { playback.setVolume(Float($0)) },
-                onEnded: { _ in }
+                onChanged: { value in
+                    let now = Date()
+                    guard now.timeIntervalSince(lastVolumeSend) >= 0.1 else { return }
+                    lastVolumeSend = now
+                    playback.setVolume(Float(value))
+                },
+                onEnded: { value in
+                    lastVolumeSend = .distantPast
+                    playback.setVolume(Float(value))
+                }
             )
             AeonGlyph(kind: .volumeHigh).accessibilityHidden(true)
         }
