@@ -871,9 +871,17 @@ final class AppContainer: ObservableObject {
                 mediaStore: services.mediaStore,
                 metadataProbe: services.metadataProbe
             )
+            var skyCharted = false
             coordinator.onProgress = { [weak self] progress in
                 guard let self else { return }
-                if progress.phase == .failed {
+                if progress.phase == .failed, progress.catalogueReady {
+                    // The catalogue is already published and usable. A late audio failure
+                    // (one file failing verification) must not lock the collector out of it
+                    // on every launch: open the library and say what is missing.
+                    self.legacyBridgeRequired = false
+                    self.launchState = .ready
+                    self.libraryImportError = "Some 4.x audio could not be moved into Aeon. Your library is open; those tracks stay unavailable until you import their files again."
+                } else if progress.phase == .failed {
                     self.launchState = .recovery(AppRecoveryState(code: "legacy_migration_failed", message: progress.message))
                 } else {
                     if case .ready = self.launchState, progress.catalogueReady {
@@ -883,8 +891,14 @@ final class AppContainer: ObservableObject {
                     }
                     if progress.sourceComplete { self.legacyBridgeRequired = false }
                 }
-                if progress.catalogueReady {
+                // Chart once when the catalogue is published and once when the source
+                // completes (artwork may arrive with the audio). Rebuilding the whole sky
+                // after every migrated file stalled the main thread on large upgrades,
+                // and without a reload the published albums never reached the scene.
+                if progress.catalogueReady, !skyCharted || progress.sourceComplete {
+                    skyCharted = true
                     _ = try? services.skyRepository.backfill()
+                    services.skySceneController.reload()
                 }
             }
             migrationCoordinator = coordinator

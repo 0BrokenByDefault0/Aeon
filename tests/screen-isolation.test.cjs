@@ -79,3 +79,22 @@ test('paused and failed imports still chart their committed albums off the main 
   assert.match(exit, /skySceneController\.reload\(\)/);
   assert.match(container, /skySceneController\.reload\(\)\s*\n\s*charted = true/);
 });
+
+test('a migration failure after publication opens the library instead of recovery', () => {
+  const container = read('ios/App/App/AppContainer.swift');
+  const migration = container.split('coordinator.onProgress =')[1].split('migrationCoordinator = coordinator')[0];
+  const published = migration.split('if progress.phase == .failed, progress.catalogueReady {')[1].split('} else if progress.phase == .failed {')[0];
+  assert.match(published, /self\.launchState = \.ready/);
+  assert.match(published, /self\.legacyBridgeRequired = false/);
+  assert.match(published, /self\.libraryImportError = "Some 4\.x audio could not be moved into Aeon\./);
+  assert.doesNotMatch(published, /\.recovery\(/);
+  const unpublished = migration.split('} else if progress.phase == .failed {')[1].split('} else {')[0];
+  assert.match(unpublished, /\.recovery\(AppRecoveryState\(code: "legacy_migration_failed"/);
+});
+
+test('migration charts the Sky at publication and completion only', () => {
+  const container = read('ios/App/App/AppContainer.swift');
+  const migration = container.split('coordinator.onProgress =')[1].split('migrationCoordinator = coordinator')[0];
+  assert.match(migration, /progress\.catalogueReady, !skyCharted \|\| progress\.sourceComplete/);
+  assert.match(migration, /skyRepository\.backfill\(\)\s*\n\s*services\.skySceneController\.reload\(\)/);
+});
