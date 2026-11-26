@@ -2,276 +2,129 @@
 
 *A music library that composes itself as a night sky.*
 
-Every album you own becomes a star. **An artist is a constellation** —
-their second album draws the first line between them. **A genre is a
-region** — every artist working in it clusters in the same quarter of the
-sky. Every twenty albums wakes a planet, which presides over the twenty
-that raised it. Each install mints its own sky seed, so two people with
-identical libraries still live under different skies.
+ISOLATION is a native iPhone and iPad player for music you own. Every album
+becomes a star, coloured by its own artwork. **An artist is a
+constellation**: their second album draws the first line between them.
+**A genre is a region**: every artist working in it clusters in the same
+quarter of the sky. Every fifteen albums wakes a planet. Each install mints
+its own sky seed, so two people with identical libraries still live under
+different skies.
 
-Everything — audio, artwork, playlists, listening history — lives **on
-the device only**. Library content is never uploaded, tracked, or shared.
-The only application-data network calls are manual metadata lookups,
-automatic metadata lookups that the collector explicitly enables in
-Settings (off by default). Metadata requests send the album title and
-artist to Apple and MusicBrainz as data-only HTTP requests; third-party
-scripts never run inside the app. Recommendations need no network at all —
-they read your own library for artists you own exactly one record by — and
-link out to Bandcamp, so discovery ends in *owning* the music, not renting
-it.
+Everything lives **on the device**: audio, artwork, playlists and listening
+history are never uploaded, tracked or shared.
 
-**Bring the whole collection at once.** No file picker survives a library
-of tens of thousands of files. The Import sheet still copies a handful of
-files in from Files, but a real collection arrives another way: copy your
-master folder into **Files → On My iPhone → ISOLATION →
-Music** — artist folders, album folders, nested as deep as you like —
-and tap **ADOPT LIBRARY**. Every folder holding audio becomes one album,
-tagged from the files themselves and named from the folder when the tags
-are silent. Folders are told apart by their whole path, so the several
-`Live` and `Disc 1` folders every big library contains never fuse into
-one impossible record.
+> The app is ISOLATION. *Aeon* is the project's codename, used in the code,
+> the repository and build artefacts.
 
-Adoption reads the files **where they lie**: nothing is copied, so a
-500 GB collection occupies 500 GB rather than a terabyte, and it takes
-as long as reading the tags, not as long as duplicating the audio.
-Running it again later reads only the files that are new or changed
-since the last scan; moved files are re-linked and everything else is
-recognised by where it lies and left alone. Because those files are yours and not the app's,
-removing an album later takes it out of the sky and leaves the file on
-disk untouched.
+## Features
 
-**One genre, however it was spelled.** A region of the sky is far too
-big a thing to hang on punctuation, so tags are folded before they are
-compared: case, accents, spacing, plurals, `&` against `and`, a leading
-`the`, ID3v1's numeric codes and the second half of a multi-value tag
-all go, and then a short table of genuine synonyms is applied. `Hip-Hop`,
-`hip hop`, `HipHop`, `Hip-Hop/Rap` and `Rap` are one place; `Drum & Bass`
-and `DnB` are another. The label keeps whichever spelling the collector
-uses most — nothing they wrote is ever rewritten.
+**Bring the whole collection at once.** No file picker survives a library of
+tens of thousands of files. Copy your master folder into **Files → On My
+iPhone → ISOLATION → Music** (artist folders, album folders, nested as deep
+as you like) and tap **Adopt Library**. Adoption reads the files where they
+lie: nothing is copied, so a 500 GB collection occupies 500 GB, and the scan
+takes as long as reading the tags. Later scans read only new or changed
+files, re-link moved folders and add new files to the albums they belong to.
+Removing an album takes it out of the sky and leaves your file untouched.
+For a handful of files, **Import** copies them in from Files instead.
 
-Albums that carry **no genre at all** are filled in rather than left as
-UNCHARTED: first from the artist's own records elsewhere in the library,
-then from a built-in table of artists whose work is not in dispute. A tag
-in the file always wins, a filled-in genre is marked as inferred, and an
-artist nothing is known about stays honestly unknown.
+**Tags you can trust.** Albums are named from their tags, and from the folder
+when the tags are silent. Folders are told apart by their whole path, so the
+many `Live` and `Disc 1` folders a big library contains never fuse into one
+impossible record. Genres are folded before they are compared (case,
+accents, `&` against `and`, plurals, ID3v1 codes, genuine synonyms), so
+`Hip-Hop`, `hip hop` and `Rap` are one region, while the label keeps the
+spelling you use. Albums with no genre are filled in from the artist's other
+records, then from a small built-in table, and are marked as inferred. Edits
+you make in the app never rewrite your files' tags.
 
-**No storage cap.** In the native app the audio is written to the device's
-own filesystem rather than into browser storage, streamed from disk at
-playback, and never held in memory. The ceiling is the space on the phone,
-not a quota. Because the folder is Documents, the whole collection appears
-in **Files → ISOLATION → Music** and can be copied in or out wholesale —
-the only workable way to move a library measured in hundreds of gigabytes.
+**Playback built for collectors.**
+- Gapless playback on AVAudioEngine, with lock-screen and Control Center
+  controls, a Control Center play/pause control and Shortcuts actions.
+- ReplayGain, a ten-band parametric equaliser and saved curves.
+- Device correction: choose your headphone model from an offline catalogue
+  of published measurements, or import an AutoEq / Equalizer APO profile.
+- Embedded lyrics, a reorderable queue, shuffle and repeat.
+- MP3, AAC / M4A, ALAC, FLAC, WAV, AIFF and CAF.
 
-## How it looks
+**Around the library.**
+- Playlists, Favourites and M3U playlist import.
+- Album detail and metadata editing, with optional artwork and genre lookup.
+- One-file backup and transactional restore of the whole catalogue.
+- A shareable picture of your sky. Only the picture leaves the device.
+- Optional Spotlight indexing of album names, off by default.
+- Adaptive iPhone and iPad layouts, Dynamic Type up to the largest
+  accessibility sizes, VoiceOver navigation of the sky, and Reduce Motion.
 
-One colour and one material. The interface is black and a single warm
-bone; the only saturated colour anywhere arrives with the record that is
-playing, which tints the seek line, the glow beneath the sleeve and the
-star of the album in the grid. Names are set in a tight grotesk, anything
-countable in monospace with tabular figures. Boxes were retired in favour
-of hairlines and space.
+## Privacy
 
-The sky is a place rather than a diagram. Regions are marked by a breath
-of their own light instead of a drawn boundary; genre names read from
-orbit and artist names on approach, never both at once. **No
-constellation is a polygon.** Each artist's figure is *grown* from their
-name rather than laid out on a circle: a spine that wanders, limbs that
-branch off it once the artist runs deep enough, no two arms the same
-length, and nothing closing back on itself. Because it grows in
-sequence, buying their next record extends the figure instead of
-rearranging the shape you already recognise.
+The app makes network requests only for metadata lookups: when you tap
+**Find Art** or **Look Up Genre**, or after an import if you turn on
+automatic lookups in Settings (off by default). Those requests send an
+album's title and artist to Apple and MusicBrainz, and nothing else. There is
+no analytics, no advertising and no account. The app ships a privacy
+manifest declaring no tracking and no collected data.
 
-Worlds are not painted, they are drawn — at the same hairline weight as
-everything else, and their mass shows in what they hide rather than in
-what they put on screen: a world is a place the stars are not. One line
-closes it, bright where the sun strikes and gone by the terminator, with
-a graticule engraved across it like a globe on an atlas plate. They
-stand in the dark between the genre clusters — never over a region,
-never under its name.
+## Requirements
 
-Each one is drawn in **its own ink**: twelve pigments spaced evenly
-around the wheel and kept soft, so the first twelve worlds a collector
-wakes are twelve different colours. The colour arrives the way it would
-on an engraving — carried by the light along the limb, the ruled lines
-and the ring, never smeared across the body — so a world stays dark,
-still occludes, and none of them shouts. No two worlds share both a
-colour and an engraving.
+- iPhone or iPad running iOS / iPadOS 26.
+- To build: a Mac with Xcode 26, Node.js (LTS) and CocoaPods.
 
-The camera is a critically damped spring, so it settles
-without ever ringing, and on launch the collection assembles outward from
-the centre. There is no film grain; instead the transmission stutters
-every so often, a couple of hairline bands for a tenth of a second.
+## Build and run
 
-Sheets are objects, and the handle at the top of one is not decoration:
-pull down and the sheet tracks your finger while the dark behind it
-thins, let go past a quarter of its height — or throw it — and it
-leaves. Pull *up* on the player bar and the full player arrives; pull up
-on the sleeve inside it and the rest of the queue does.
+```sh
+npm ci                       # JavaScript tooling and Capacitor
+npx cap sync ios             # prepares the native project and runs pod install
+open ios/App/App.xcworkspace # always the workspace, not the project
+```
 
-The handle is a band across the whole top of the sheet rather than the
-hairline you can see, and it is the one surface a scroller can never
-take, so pulling it works even on a sheet that is mid-scroll. Away from
-the handle the gesture defers: it engages only when the sheet is already
-at its top and the movement is clearly vertical, and stands down
-entirely if the browser has already committed the touch to scrolling.
-The player itself never scrolls — on a short phone the sleeve gives up
-height rather than pushing the transport off the bottom.
+In Xcode, select the **App** target, open **Signing & Capabilities**, tick
+*Automatically manage signing* and choose your team (a free Apple ID works).
+If the bundle identifier `app.isolation.sky` is taken, add a suffix of your
+own. Pick your device as the run destination and use **Product → Run**
+(Cmd-R). On first launch, trust your developer certificate on the device
+under **Settings → General → VPN & Device Management**.
 
-## What it costs to run
+Apps signed with a free Apple ID stop opening after seven days; run again
+from Xcode to renew. Your library is not affected. CarPlay additionally
+requires Apple's CarPlay audio entitlement for your team.
 
-*These measurements come from the 4.x web build. The 5.0 app is native
-SwiftUI with a Metal sky and has not yet been measured the same way.*
+### Without a Mac
 
-The sky is not drawn for anyone who is not looking at it — standing on
-the Library tab used to cost a full render sixty times a second — and
-nothing off the edge of the screen is drawn at all. The grid is built a
-page at a time as it is scrolled rather than as one enormous string of
-every record at once, and the whole grid answers to one handler instead
-of one per card. Search settles what it can from an album's own fields
-before it will read a tracklist.
+Pushes to the repository build an unsigned iteration IPA on a hosted Mac:
+**Actions → Build fast unsigned IPA → the newest run → Artifacts**. Sign and
+install it with a sideloading tool such as [AltStore](https://altstore.io),
+SideStore or [Sideloadly](https://sideloadly.io). Each IPA embeds a
+validation manifest; it is an iteration build, not a release.
 
-Measured on a simulated 2,000-album library at a sixth of normal CPU
-speed, against the version before these changes:
-
-| | before | after |
-|---|---|---|
-| Library first paint | 8320 ms | 1264 ms |
-| Frame rate on the sky | 7.6 fps | 17.0 fps |
-| Frame rate on other tabs | 8.0 fps | 59.8 fps |
-
-Rendered frames were compared pixel by pixel against the previous build
-to confirm none of it changed the picture: the differences fall inside
-the same range the suite produces running the *same* build twice.
-
-## What's in here
+## Development
 
 ```
-ios/App/App/          the 5.0 native app: SwiftUI screens, Metal sky, AVAudioEngine
-                      playback, SQLite catalogue, importer and legacy migration
+ios/App/App/          the native app: SwiftUI screens, Metal sky, AVAudioEngine
+                      playback, SQLite catalogue, importer and 4.x migration
+ios/App/AeonWidgets/  Control Center and widget extension
 ios/App/AppTests/     XCTest unit and integration tests
 ios/App/AppUITests/   XCUITest flows and screen matrices
-app/                  the 4.x web app, kept to migrate existing libraries and as a
-                      compatibility reference; it is not the native interface
-tests/                Node source contracts and core checks (npm test)
-test/                 browser regression suite over the web app (npm run test:browser)
+app/                  the 4.x web app, kept only to migrate existing libraries
+tests/                Node source contracts and core checks
+test/                 browser regression suite over the 4.x web app
 scripts/              syntax check, targeted test routing and packaging
-docs/                 development workflow, validation matrices and release notes
-.github/workflows/    quick verification, fast IPA, and deep release validation
+docs/                 development workflow, validation matrices, release notes
 ```
+
+```sh
+npm test                                         # Node contracts and core checks
+npm run check                                    # syntax check
+npm run test:targeted -- --area=playback         # cheap checks for one area
+npm run test:targeted:native -- --area=playback  # focused XCTest (macOS)
+npm run test:ios                                 # full iPhone and iPad simulator suites (macOS)
+```
+
+Areas are `import`, `playback`, `library`, `sky`, `chrome`, `playlists` and
+`settings`. The working loop, validation labels and the release checklist are
+in [`docs/development-workflow.md`](docs/development-workflow.md); release
+notes are in [`docs/releases/`](docs/releases/). Contributors and coding
+agents should read [`AGENTS.md`](AGENTS.md) first.
 
 Capacitor remains a dependency for one job: the hidden web view that reads a
 4.x library out of browser storage during the first 5.0 launch.
-
-## The unsigned .ipa
-
-Apple only permits iOS binaries to be produced on macOS, so the build runs
-on a hosted Mac in CI. Relevant pushes build `Aeon-5.0-unsigned.ipa` and
-attach it to the run: **GitHub → Actions → "Build fast unsigned IPA" →
-the newest run → Artifacts**. The artifact includes a validation manifest;
-it is an iteration build, not release approval. Full simulator regression and
-physical-device acceptance are kept in the separate release path described in
-[`docs/development-workflow.md`](docs/development-workflow.md).
-
-It is deliberately unsigned, which is what sideloading tools expect —
-[AltStore](https://altstore.io), SideStore or
-[Sideloadly](https://sideloadly.io) sign it with your own Apple ID on your
-own machine. That signature is the one part no build server can produce
-for you, because it is yours. With a Mac to hand, the Xcode route below is
-faster and gives a properly signed build.
-
-## Tests
-
-```sh
-npm test                 # unit tests over the deterministic core
-npm run test:browser     # drives the real app in a browser
-npm run check            # syntax check
-npm run test:targeted -- --area=playback # cheap area-specific checks
-python3 test/fixtures.py # regenerate the audio fixtures
-```
-
-## Get it on your iPhone
-
-### A) The real native app (needs a Mac, once)
-
-Everything in `ios/` is a complete Xcode project — background audio, the
-app icon, permission strings and the file-export bridge are already
-configured. You never open Xcode's settings except to pick your name in
-the signing dropdown.
-
-**One-time setup on the Mac**
-
-1. Install **Xcode** from the Mac App Store (free, large — start this
-   first, it is the slowest step). Open it once and accept the licence so
-   it finishes installing components.
-2. Install **Node** (<https://nodejs.org>, LTS) if you don't have it.
-3. Install **CocoaPods**: `brew install cocoapods` — or, without Homebrew,
-   `sudo gem install cocoapods`.
-
-**Build and install**
-
-```sh
-cd Aeon           # the project folder
-npm install       # fetches Capacitor
-npx cap sync ios  # copies app/ into the shell and runs pod install
-npx cap open ios  # opens App.xcworkspace in Xcode
-```
-
-Then, in Xcode:
-
-4. **Xcode → Settings → Accounts → +** and sign in with your Apple ID
-   (a free one is enough — no paid developer account needed).
-5. In the left sidebar click the blue **App** project → the **App**
-   target → **Signing & Capabilities** tab. Tick *Automatically manage
-   signing* and choose your name under **Team**. If it complains the
-   bundle identifier is taken, change `app.isolation.sky` to something
-   like `app.isolation.sky.yourname`.
-6. Plug the iPhone in with a cable, unlock it, and tap **Trust** if asked.
-7. At the top of the Xcode window, set the run destination (next to the
-   ▶ button) to your iPhone.
-8. Press **▶** (or ⌘R). The app builds and installs.
-9. The first launch is blocked by iOS: on the phone go to **Settings →
-   General → VPN & Device Management**, tap your Apple ID, and
-   **Trust**. Then open ISOLATION from the home screen.
-
-**Worth knowing:** an app signed with a *free* Apple ID stops opening
-after 7 days — plug in and press ▶ again to renew it, which does not
-touch your library. A paid developer account ($99/yr) extends this to a
-year and lets you export a shareable `.ipa` via *Product → Archive*.
-
-No Mac of your own? A rented cloud Mac works with exactly the same steps.
-
-### B) No Mac — the unsigned IPA, or the legacy web app
-
-Without a Mac, sideload the unsigned IPA described above. The `app/`
-folder can still be installed as a PWA, but it is the 4.x web app rather
-than the native 5.0 app: offline-capable, with its own icon and no browser
-chrome, and without the native player, importer or Metal sky.
-
-1. Drag the contents of `app/` onto <https://app.netlify.com/drop>.
-2. Open the URL it gives you in **Safari** on the iPhone.
-3. **Share → Add to Home Screen**.
-
-The only thing the PWA gives up is audio surviving a swipe-away from the
-app switcher; locking the screen and backgrounding are fine.
-
-## Collecting features
-
-- **Zip import** — Bandcamp purchases arrive as `.zip`; import them
-  exactly as downloaded. Stored *and* deflated entries are handled
-  natively, folder art (`cover.jpg` etc.) is picked up automatically.
-- **Protected storage** — persistent storage is requested the moment the
-  first real album arrives; Settings shows whether the OS granted it.
-- **Full backup / restore** — one tap writes every album, artwork,
-  playlist, play count, and the log into a single zip. Restoring is just
-  importing that zip again. Catalog-only JSON export included.
-- **A unique sky** — per-install seed twists star placement,
-  constellation names, planet types, and the dustfields.
-- **Early ceremonies** — the sky answers at 1, 3, 5, and 10 albums, so a
-  new collector feels progress long before the 20-star constellation.
-- **The on-ramp** — a built-in collector's guide (where to buy DRM-free
-  music, how to rip CDs, how backups work) plus recommendations that link
-  to Bandcamp search for artists near your taste.
-- **Share your sky** — renders the live sky into an image card for the
-  share sheet. Only the picture leaves the device.
-- **Player** — gapless-queue playback, 10-band EQ, shuffle, repeat
-  off/all/one, lock-screen and Control Center controls.
