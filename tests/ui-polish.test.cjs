@@ -144,3 +144,14 @@ test('user-facing copy never exposes internal identifiers or file paths', () => 
   assert.doesNotMatch(settingsController, /operationMessage = "[^"]*progress\.currentPath/);
   assert.doesNotMatch(playlists, /Text\("M3U"\)/);
 });
+
+test('equalizer and device-correction panels use Aeon tokens, tiers and the shared field', () => {
+  for (const file of ['ios/App/App/Features/Player/ParametricControls.swift', 'ios/App/App/Features/Player/EQView.swift']) {
+    const source = read(file);
+    assert.doesNotMatch(source, /textFieldStyle\(\.roundedBorder\)/, file);
+    assert.doesNotMatch(source, /foregroundStyle\(\.orange\)/, file);
+    assert.doesNotMatch(source, /\.font\(\.(caption|headline)\)/, file);
+  }
+  assert.match(component, /struct AeonFieldStyle: TextFieldStyle/);
+  assert.match(read('ios/App/App/Features/Player/ParametricControls.swift'), /DisclosureGroup\("Supported profile files"\)/);
+});

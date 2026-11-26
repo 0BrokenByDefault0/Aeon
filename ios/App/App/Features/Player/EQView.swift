@@ -164,6 +164,7 @@ struct EQView: View {
             }
             HStack {
                 Button(showInspector ? "CLOSE BAND EDITOR" : "EDIT BAND \(inspectedBand + 1)") { showInspector.toggle() }
+                    .buttonStyle(AeonButtonStyle(tier: .hairline))
                 Spacer()
                 Menu("BAND \(inspectedBand + 1)") {
                     ForEach(0..<10, id: \.self) { index in
@@ -206,7 +207,7 @@ struct EQView: View {
                 pathRow("Output protection", state?.dsp.referenceBypass == true ? "Bypassed" : "On · −1 dBFS sample peak")
                 pathRow("DSP latency", String(format: "%.2f ms", (output?.dspLatency ?? 0) * 1000))
                 pathRow("Overload samples", "\(output?.overloadCount ?? 0)")
-                if let count = output?.unavailableFilters, count > 0 { Text("\(count) requested filters exceed this route’s Nyquist limit and are temporarily bypassed.").foregroundStyle(.orange) }
+                if let count = output?.unavailableFilters, count > 0 { Text("\(count) requested filters exceed this route’s Nyquist limit and are temporarily bypassed.").foregroundStyle(AeonTheme.ColorToken.danger) }
                 Text("Sample-peak protection is not true-peak protection. Route conversion can change reconstructed peaks. Reference bypass keeps the 128-frame DSP delay. DAC resolution and Bluetooth codec are not exposed.")
                     .font(AeonTheme.FontToken.ui(.caption))
                     .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
@@ -261,7 +262,7 @@ struct EQView: View {
                 Menu("CHOOSE SAVED CURVE") {
                     ForEach(playback.snapshot?.dsp.savedPresets ?? []) { preset in Button(preset.name) { select(preset) } }
                 }
-                TextField("Curve name", text: $presetName).textFieldStyle(.roundedBorder)
+                TextField("Curve name", text: $presetName).textFieldStyle(AeonFieldStyle())
                 HStack {
                     Button("SAVE COPY") {
                         var settings = playback.snapshot?.dsp ?? .init()
@@ -276,7 +277,7 @@ struct EQView: View {
                         }
                     }.disabled(presetName.trimmingCharacters(in: .whitespaces).isEmpty)
                     Button("RESET") { select(Self.presets[0]) }
-                }.font(AeonTheme.FontToken.metric(.caption2))
+                }.buttonStyle(AeonButtonStyle(tier: .hairline))
             }.padding(.top, 8)
         }.tint(AeonOrbit.ink).foregroundStyle(AeonOrbit.ink)
     }

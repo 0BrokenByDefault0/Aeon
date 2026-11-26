@@ -280,6 +280,18 @@ struct AeonBreadcrumb: View {
 
 enum AeonButtonTier { case filled, hairline, bare }
 
+/// The one text-field treatment: a square hairline field, matching Library search.
+struct AeonFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .font(AeonTheme.FontToken.ui(.body))
+            .foregroundStyle(AeonOrbit.ink)
+            .padding(.horizontal, AeonTheme.Space.regular)
+            .frame(minHeight: AeonTheme.Space.minimumTarget)
+            .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
+    }
+}
+
 struct AeonButtonStyle: ButtonStyle {
     let tier: AeonButtonTier
     var destructive = false

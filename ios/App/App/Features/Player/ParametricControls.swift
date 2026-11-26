@@ -20,7 +20,7 @@ struct EQBandInspector: View {
                 field("Q", text: $q)
             }
             Toggle("Band enabled", isOn: $enabled).toggleStyle(AeonToggleStyle())
-            if band.version == 1 { Text("Saved legacy width retained. APPLY converts this band to the displayed digital Q.").font(.caption) }
+            if band.version == 1 { Text("Saved legacy width retained. APPLY converts this band to the displayed digital Q.").font(AeonTheme.FontToken.ui(.caption)) }
             HStack {
                 Button("APPLY") {
                     var edited = band
@@ -31,14 +31,14 @@ struct EQBandInspector: View {
                 }
                 Spacer()
                 Button("RESET BAND") { var edited = band; edited.gainDB = 0; edited.q = 0.707; edited.enabled = true; edited.type = .bell; edited.version = 2; apply(edited); load(edited) }
-            }.font(AeonTheme.FontToken.metric(.caption))
-            if let error { Text(error).font(.caption).foregroundStyle(.orange) }
+            }.buttonStyle(AeonButtonStyle(tier: .hairline))
+            if let error { Text(error).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonTheme.ColorToken.danger) }
             Text("Q controls bell width, cut resonance or shelf resonance. Cut filters are second-order, 12 dB/octave.")
                 .font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
         }.foregroundStyle(AeonOrbit.ink).onAppear { load(band) }.onChange(of: band) { load($0) }
     }
     private func field(_ title: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading) { Text(title).font(.caption); TextField(title, text: text).keyboardType(.numbersAndPunctuation).textFieldStyle(.roundedBorder) }
+        VStack(alignment: .leading) { Text(title).font(AeonTheme.FontToken.ui(.caption)); TextField(title, text: text).keyboardType(.numbersAndPunctuation).textFieldStyle(AeonFieldStyle()) }
     }
     private func load(_ band: EQBand) {
         frequency = String(format: "%.1f", band.frequency); gain = String(format: "%.2f", band.gainDB); q = String(format: "%.3f", band.q)
@@ -85,12 +85,13 @@ struct DeviceCorrectionView: View {
                     .accessibilityIdentifier("aeon.correction.enabled")
                 Text(settings.correction?.name ?? "No profile selected").font(AeonTheme.FontToken.ui(.callout))
                 if settings.referenceBypass {
-                    Text("Reference bypass is on. Turn it off below to hear device correction.").font(.caption)
+                    Text("Reference bypass is on. Turn it off below to hear device correction.").font(AeonTheme.FontToken.ui(.caption))
                 } else if settings.correction == nil {
                     Text("Choose your exact headphone model or import a profile before enabling correction.")
-                        .font(.caption).accessibilityIdentifier("aeon.correction.choose-first")
+                        .font(AeonTheme.FontToken.ui(.caption)).accessibilityIdentifier("aeon.correction.choose-first")
                 }
                 Button("CHOOSE PROFILE") { choosingProfile = true }
+                    .buttonStyle(AeonButtonStyle(tier: .hairline))
                     .accessibilityIdentifier("aeon.correction.choose")
                 Picker("Import purpose", selection: $kind) {
                     Text("Headphones").tag(CorrectionProfile.Kind.headphones)
@@ -98,16 +99,22 @@ struct DeviceCorrectionView: View {
                     Text("Speaker tonal").tag(CorrectionProfile.Kind.speakerTonal)
                 }
                 Button("IMPORT PARAMETRIC PROFILE") { importing = true }
-                Text("AutoEq / Equalizer APO text: Preamp, ON/OFF PK, LS, HS, HP or LP, Fc in Hz, Gain in dB and Q. Up to ten filters, 64 KiB. Unmatched routes have no correction. Wired/USB devices require manual choice; Bluetooth/AirPlay endpoints can be explicitly bound.")
-                    .font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
+                    .buttonStyle(AeonButtonStyle(tier: .hairline))
+                // The format specification is reference material, not a first read.
+                DisclosureGroup("Supported profile files") {
+                    Text("AutoEq / Equalizer APO text: Preamp, ON/OFF PK, LS, HS, HP or LP, Fc in Hz, Gain in dB and Q. Up to ten filters, 64 KiB. Unmatched routes have no correction. Wired/USB devices require manual choice; Bluetooth/AirPlay endpoints can be explicitly bound.")
+                        .font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(AeonTheme.FontToken.ui(.caption))
                 if let profile = pending {
-                    Text(profile.name).font(.headline)
-                    Text(profile.provenance).font(.caption)
+                    Text(profile.name).font(AeonTheme.FontToken.ui(.headline, weight: .medium))
+                    Text(profile.provenance).font(AeonTheme.FontToken.ui(.caption))
                     EQResponseView(bands: profile.bands, rate: rate).frame(height: 80)
                     Text("\(profile.bands.count) filters · recommended \(profile.preampDB, specifier: "%.1f") dB · combined preamp \(previewPreamp(profile), specifier: "%.1f") dB")
-                        .font(.caption)
+                        .font(AeonTheme.FontToken.metric(.caption))
                     if profile.bands.contains(where: { $0.enabled && $0.frequency >= rate*0.499 }) {
-                        Text("This route cannot represent every requested filter. Choose a higher-rate route before applying this profile.").font(.caption).foregroundStyle(.orange)
+                        Text("This route cannot represent every requested filter. Choose a higher-rate route before applying this profile.").font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonTheme.ColorToken.danger)
                     } else {
                         Button("APPLY TO CURRENT ROUTE") {
                             edit { state in
@@ -115,9 +122,10 @@ struct DeviceCorrectionView: View {
                                 state.correctionID = profile.id; state.correctionEnabled = true
                             }; pending = nil
                         }
+                        .buttonStyle(AeonButtonStyle(tier: .filled))
                         .accessibilityIdentifier("aeon.correction.apply")
                     }
-                    Button("CANCEL PREVIEW") { pending = nil }
+                    Button("CANCEL PREVIEW") { pending = nil }.buttonStyle(AeonButtonStyle(tier: .hairline))
                 }
                 if let route = playback.snapshot?.outputFormat?.route,
                    [.bluetooth, .airPlay].contains(route.kind), let routeID = route.persistentID, !routeID.isEmpty {
@@ -126,30 +134,30 @@ struct DeviceCorrectionView: View {
                         set: { enabled in edit { if enabled { $0.routeBindings[routeID] = $0.correctionID } else { $0.routeBindings.removeValue(forKey: routeID) } } }))
                         .toggleStyle(AeonToggleStyle())
                 }
-                TextField("New tonal profile name", text: $profileName).textFieldStyle(.roundedBorder)
+                TextField("New tonal profile name", text: $profileName).textFieldStyle(AeonFieldStyle())
                 Button("SAVE USER CURVE AS TONAL PROFILE") {
                     let bands = (playback.snapshot?.eqBands ?? TonalPreset.flat)
                     guard bands.allSatisfy({ $0.version == 2 }) else { message = "Reset or explicitly edit legacy bands before saving a new device profile."; return }
                     pending = CorrectionProfile(name: profileName, kind: kind == .headphones ? .headphones : .speakerTonal,
                         preampDB: 0, bands: bands, provenance: "Owner-created tonal profile. Not a measured correction.")
-                }.disabled(profileName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }.buttonStyle(AeonButtonStyle(tier: .hairline)).disabled(profileName.trimmingCharacters(in: .whitespaces).isEmpty)
                 if let profile = settings.correction {
                     if let entry = CorrectionCatalog.profiles.first(where: { $0.id == profile.id }) {
                         correctionCredit(entry)
                     }
                     DisclosureGroup("Correction filters") {
                         ForEach(Array(profile.bands.enumerated()), id: \.element.id) { index, band in
-                            Text("\(index+1) · \(band.enabled ? "On" : "Off") · \(band.type.title) · \(band.frequency, specifier: "%.1f") Hz · \(band.gainDB, specifier: "%.1f") dB · Q \(band.q, specifier: "%.2f")").font(.caption)
+                            Text("\(index+1) · \(band.enabled ? "On" : "Off") · \(band.type.title) · \(band.frequency, specifier: "%.1f") Hz · \(band.gainDB, specifier: "%.1f") dB · Q \(band.q, specifier: "%.2f")").font(AeonTheme.FontToken.metric(.caption))
                         }
                     }
                 }
-                Text("Final trim \(settings.trimDB, specifier: "%.1f") dB").font(.caption)
+                Text("Final trim \(settings.trimDB, specifier: "%.1f") dB").font(AeonTheme.FontToken.metric(.caption))
                 Slider(value: Binding(get: { settings.trimDB }, set: { value in edit { $0.trimDB = value } }), in: -24...0, step: 0.5)
                 Toggle("Reference bypass", isOn: Binding(get: { settings.referenceBypass }, set: { value in edit { $0.referenceBypass = value } }))
                     .toggleStyle(AeonToggleStyle())
                     .accessibilityIdentifier("aeon.correction.reference")
-                Text("Reference bypass disables EQ, correction, ReplayGain, processing trim and protection. Your listening volume stays in control. Settings, the fixed DSP delay and native route conversion remain.").font(.caption).foregroundStyle(AeonOrbit.secondary)
-                if let message { Text(message).font(.caption).foregroundStyle(.orange) }
+                Text("Reference bypass disables EQ, correction, ReplayGain, processing trim and protection. Your listening volume stays in control. Settings, the fixed DSP delay and native route conversion remain.").font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary)
+                if let message { Text(message).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonTheme.ColorToken.danger) }
             }.padding(.top, 10)
         }.foregroundStyle(AeonOrbit.ink).tint(AeonOrbit.ink)
         .sheet(isPresented: $choosingProfile) {
@@ -190,13 +198,13 @@ struct DeviceCorrectionView: View {
 
 private func correctionCredit(_ entry: BundledCorrection) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-        Text("\(entry.creator) · \(entry.target)").font(.caption).bold()
-        Text("Mode: \(entry.operatingMode). OPRA snapshot \(entry.snapshotDate), not the measurement date.").font(.caption)
+        Text("\(entry.creator) · \(entry.target)").font(AeonTheme.FontToken.ui(.caption, weight: .semibold))
+        Text("Mode: \(entry.operatingMode). OPRA snapshot \(entry.snapshotDate), not the measurement date.").font(AeonTheme.FontToken.ui(.caption))
         HStack {
             if let url = URL(string: entry.sourceURL) { Link("OPRA record", destination: url) }
             if let url = URL(string: entry.originalURL) { Link("Measurement", destination: url) }
-        }.font(.caption)
-        Text("Profile data: \(entry.license)").font(.caption)
+        }.font(AeonTheme.FontToken.ui(.caption))
+        Text("Profile data: \(entry.license)").font(AeonTheme.FontToken.ui(.caption))
     }
 }
 
@@ -215,19 +223,19 @@ private struct CorrectionCatalogPicker: View {
                     Button("DONE") { dismiss() }
                 }
                 TextField("Search exact model or saved room", text: $query)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(AeonFieldStyle())
                     .accessibilityIdentifier("aeon.correction.search")
                 ScrollView {
                     VStack(alignment: .leading, spacing: AeonTheme.Space.large) {
-                        Text("Choose the exact model and variant. These measurements are tonal starting points, not individual fit or hearing calibration. Previewing does not change playback.").font(.caption)
-                        if case .failure(let error) = CorrectionCatalog.loaded { Text(error.localizedDescription).font(.caption) }
+                        Text("Choose the exact model and variant. These measurements are tonal starting points, not individual fit or hearing calibration. Previewing does not change playback.").font(AeonTheme.FontToken.ui(.caption))
+                        if case .failure(let error) = CorrectionCatalog.loaded { Text(error.localizedDescription).font(AeonTheme.FontToken.ui(.caption)) }
                         ForEach(CorrectionCatalog.profiles.filter { $0.matches(query) }) { entry in
                             VStack(alignment: .leading, spacing: 6) {
                                 Button { select(entry.profile) } label: {
                                     HStack {
-                                        Text(entry.profile.name).font(.headline)
+                                        Text(entry.profile.name).font(AeonTheme.FontToken.ui(.headline, weight: .medium))
                                         Spacer()
-                                        Text("PREVIEW").font(.caption)
+                                        Text("PREVIEW").font(AeonTheme.FontToken.ui(.caption))
                                     }.frame(minHeight: 44).contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
@@ -249,7 +257,7 @@ private struct CorrectionCatalogPicker: View {
                            let logo = UIImage(contentsOfFile: path) {
                             Image(uiImage: logo).resizable().scaledToFit().frame(width: 140).accessibilityLabel("OPRA")
                         }
-                        Text("OPRA is an open repository of product information, measurements and EQ presets. This offline subset preserves the published filters and preamps; Aeon converts their storage format.").font(.caption)
+                        Text("OPRA is an open repository of product information, measurements and EQ presets. This offline subset preserves the published filters and preamps; Aeon converts their storage format.").font(AeonTheme.FontToken.ui(.caption))
                         Link("OPRA project and creators", destination: URL(string: "https://github.com/opra-project/OPRA")!)
                         Link("Data license: Creative Commons BY-SA 4.0", destination: URL(string: "https://creativecommons.org/licenses/by-sa/4.0/")!)
                         if let url = Bundle.main.url(forResource: "profiles", withExtension: "json", subdirectory: "CorrectionCatalog"),
