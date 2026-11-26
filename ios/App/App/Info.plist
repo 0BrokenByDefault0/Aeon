@@ -79,11 +79,13 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -106,7 +108,5 @@
 	<string>Pick an image from your library to use as album artwork. Photos are never uploaded — the image is stored inside ISOLATION on this device.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save a picture of your sky to your photo library.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Take a photo to use as album artwork. Photos are never uploaded — the image is stored inside ISOLATION on this device.</string>
 </dict>
 </plist>
