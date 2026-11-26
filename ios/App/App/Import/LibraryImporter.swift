@@ -539,7 +539,6 @@ final class LibraryImporter: @unchecked Sendable {
         let timestamp = now()
         let albumID = extending?.id ?? UUID().uuidString.lowercased()
         let sequenceOffset = extending == nil ? 0 : (try repository.allTracks(albumID: albumID).map(\.sequence).max() ?? 0)
-        let sequence = (try repository.albumPage(offset: 0, limit: 1, sort: .recentlyAdded).first?.sequence ?? 0) + 1
         var storedReferences: [MediaReference] = []
         var storedArtworkKey: String?
         var committed = false
@@ -590,6 +589,9 @@ final class LibraryImporter: @unchecked Sendable {
         }
         let artworkKey = await artwork(for: playable.map(\.candidate), originalURLs: originalURLs, albumID: albumID)
         storedArtworkKey = artworkKey
+        // Allocate after the slow copy and artwork work, immediately before the insert, so a
+        // concurrent restore cannot claim the same sequence in between.
+        let sequence = try repository.maximumAlbumSequence() + 1
         let album = CatalogAlbum(
             id: albumID,
             sequence: sequence,

@@ -224,6 +224,12 @@ final class CatalogRepository {
         Int(try database.scalar("SELECT COUNT(*) AS value FROM albums")?.int64 ?? 0)
     }
 
+    /// The highest album sequence, or 0 for an empty catalogue. Unlike a one-row
+    /// `albumPage`, this does not aggregate every album's tracks and listening history.
+    func maximumAlbumSequence() throws -> Int64 {
+        try database.scalar("SELECT MAX(sequence) AS value FROM albums")?.int64 ?? 0
+    }
+
     func tracks(albumID: String, offset: Int = 0, limit: Int = CatalogDatabase.maximumPageSize) throws -> [CatalogTrack] {
         try validateID(albumID)
         try validatePage(offset: offset, limit: limit)
@@ -1027,31 +1033,6 @@ final class CatalogRepository {
         guard archive.albums.allSatisfy({ (1...1_000_000_000).contains($0.sequence) && $0.tracks.allSatisfy { (1...1_000_000_000).contains($0.sequence) } }),
               Set(archive.albums.map(\.id)).count == archive.albums.count else { throw CatalogRepositoryError.invalidRecord }
         try SkyRepository.validateArchiveRecords(archive.skyRecords, albumIDs: Set(archive.albums.map(\.id)))
-        let existingAlbums = try database.query("SELECT id, sequence, artwork_key FROM albums ORDER BY sequence")
-        let existingSequences = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, Int64)? in
-            guard let id = row.string("id"), let sequence = row.int64("sequence") else { return nil }
-            return (id, sequence)
-        })
-        let replacingIDs = Set(archive.albums.map(\.id))
-        let existingArtwork = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, String)? in
-            guard let id = row.string("id"), let key = row.string("artwork_key") else { return nil }
-            return (id, key)
-        })
-        var reserved = Set(existingSequences.compactMap { replacingIDs.contains($0.key) ? nil : $0.value })
-        var nextSequence = max(existingSequences.values.max() ?? 0, archive.albums.map(\.sequence).max() ?? 0) + 1
-        var resolvedSequences: [String: Int64] = [:]
-        for album in archive.albums.sorted(by: { ($0.sequence, $0.id) < ($1.sequence, $1.id) }) {
-            let sequence: Int64
-            if let existing = existingSequences[album.id] { sequence = existing }
-            else if album.sequence > 0, album.sequence <= 1_000_000_000, !reserved.contains(album.sequence) { sequence = album.sequence }
-            else {
-                while reserved.contains(nextSequence) { nextSequence += 1 }
-                sequence = nextSequence
-                nextSequence += 1
-            }
-            reserved.insert(sequence)
-            resolvedSequences[album.id] = sequence
-        }
 
         for album in archive.albums {
             try validateID(album.id)
@@ -1068,6 +1049,33 @@ final class CatalogRepository {
         }
 
         try database.transaction {
+            // Plan sequences inside the write transaction: planned outside it, an import
+            // committing in between could take the same sequence and abort the restore.
+            let existingAlbums = try database.query("SELECT id, sequence, artwork_key FROM albums ORDER BY sequence")
+            let existingSequences = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, Int64)? in
+                guard let id = row.string("id"), let sequence = row.int64("sequence") else { return nil }
+                return (id, sequence)
+            })
+            let replacingIDs = Set(archive.albums.map(\.id))
+            let existingArtwork = Dictionary(uniqueKeysWithValues: existingAlbums.compactMap { row -> (String, String)? in
+                guard let id = row.string("id"), let key = row.string("artwork_key") else { return nil }
+                return (id, key)
+            })
+            var reserved = Set(existingSequences.compactMap { replacingIDs.contains($0.key) ? nil : $0.value })
+            var nextSequence = max(existingSequences.values.max() ?? 0, archive.albums.map(\.sequence).max() ?? 0) + 1
+            var resolvedSequences: [String: Int64] = [:]
+            for album in archive.albums.sorted(by: { ($0.sequence, $0.id) < ($1.sequence, $1.id) }) {
+                let sequence: Int64
+                if let existing = existingSequences[album.id] { sequence = existing }
+                else if album.sequence > 0, album.sequence <= 1_000_000_000, !reserved.contains(album.sequence) { sequence = album.sequence }
+                else {
+                    while reserved.contains(nextSequence) { nextSequence += 1 }
+                    sequence = nextSequence
+                    nextSequence += 1
+                }
+                reserved.insert(sequence)
+                resolvedSequences[album.id] = sequence
+            }
             for value in archive.albums {
                 let album = CatalogAlbum(
                     id: value.id,
