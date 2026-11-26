@@ -185,17 +185,7 @@ struct AlbumEditorView: View {
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
-                .foregroundStyle(AeonTheme.ColorToken.bone)
-                .padding(.horizontal, AeonTheme.Space.regular)
-                .frame(minHeight: 48)
-                .background(
-                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
-                        .fill(AeonTheme.ColorToken.surfaceSelected.opacity(0.54))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: AeonTheme.Radius.control, style: .continuous)
-                        .stroke(AeonTheme.ColorToken.rule, lineWidth: AeonTheme.Stroke.hairline)
-                )
+                .textFieldStyle(AeonFieldStyle())
                 .accessibilityLabel(label.capitalized)
                 .accessibilityIdentifier(identifier)
         }

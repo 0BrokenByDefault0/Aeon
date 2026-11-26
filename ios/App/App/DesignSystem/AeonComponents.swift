@@ -304,7 +304,7 @@ struct AeonFieldStyle: TextFieldStyle {
             .font(AeonTheme.FontToken.ui(.body))
             .foregroundStyle(AeonOrbit.ink)
             .padding(.horizontal, AeonTheme.Space.regular)
-            .frame(minHeight: AeonTheme.Space.minimumTarget)
+            .frame(minHeight: 48)
             .overlay(Rectangle().stroke(AeonTheme.ColorToken.rule, style: AeonOrbit.line))
     }
 }
