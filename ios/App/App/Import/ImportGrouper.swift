@@ -148,17 +148,32 @@ enum ImportGrouper {
             }
         }
 
+        // Index groups by the folders their members come from, so each untagged file costs a
+        // lookup instead of a scan of every grouped file (quadratic on large untagged imports).
+        // The rules are unchanged: one matching group wins, otherwise the first group led by
+        // that folder, otherwise a new group.
+        var groupsByFolder: [String: Set<Int>] = [:]
+        var firstGroupLedByFolder: [String: Int] = [:]
+        for (index, group) in groups.enumerated() {
+            for member in group { groupsByFolder[member.folderKey, default: []].insert(index) }
+            if let lead = group.first?.folderKey, firstGroupLedByFolder[lead] == nil { firstGroupLedByFolder[lead] = index }
+        }
         for item in directoryOnly {
-            let matching = groups.indices.filter { index in
-                groups[index].contains { $0.folderKey == item.folderKey }
-            }
-            if matching.count == 1 { groups[matching[0]].append(item) }
-            else if let folderIndex = groups.firstIndex(where: { $0.first?.folderKey == item.folderKey }) {
-                groups[folderIndex].append(item)
+            let matching = groupsByFolder[item.folderKey] ?? []
+            let target: Int
+            if matching.count == 1, let only = matching.first {
+                target = only
+                groups[target].append(item)
+            } else if let folderIndex = firstGroupLedByFolder[item.folderKey] {
+                target = folderIndex
+                groups[target].append(item)
             } else {
                 keys.append(("", ""))
                 groups.append([item])
+                target = groups.count - 1
+                firstGroupLedByFolder[item.folderKey] = target
             }
+            groupsByFolder[item.folderKey, default: []].insert(target)
         }
         return groups
     }
