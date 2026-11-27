@@ -448,7 +448,9 @@ final class AeonScreenMatrixTests: XCTestCase {
     ) {
         let window = app.windows.firstMatch.frame
         let scrollView = app.scrollViews.firstMatch
-        for _ in 0..<30 where !element.exists || !element.isHittable {
+        for _ in 0..<30 {
+            settle(element, in: scrollView)
+            if element.exists && element.isHittable { break }
             if scrollView.exists {
                 scrollView.swipeUp()
             } else {
@@ -468,6 +470,38 @@ final class AeonScreenMatrixTests: XCTestCase {
                 """,
                 file: file,
                 line: line
+            )
+        }
+    }
+
+    /// Brings a target that a swipe left clipped by the scroll view's edge wholly into view.
+    /// Reachability is then judged on a visible control, not on where a fling happened to
+    /// stop: a button cut off by two points made XCUITest fail to compute any hit point.
+    private func settle(_ element: XCUIElement, in scrollView: XCUIElement) {
+        let margin: CGFloat = 24
+        for _ in 0..<2 {
+            guard scrollView.exists, element.exists else { return }
+            let viewport = scrollView.frame
+            let frame = element.frame
+            guard frame.intersects(viewport),
+                  frame.height + margin * 2 <= viewport.height,
+                  frame.minX >= viewport.minX - 0.5,
+                  frame.maxX <= viewport.maxX + 0.5 else { return }
+            let distance: CGFloat
+            if frame.minY < viewport.minY {
+                distance = viewport.minY + margin - frame.minY
+            } else if frame.maxY > viewport.maxY {
+                distance = viewport.maxY - margin - frame.maxY
+            } else {
+                return
+            }
+            // A slow drag that holds at its end moves the content without a fling.
+            let start = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            start.press(
+                forDuration: 0.05,
+                thenDragTo: start.withOffset(CGVector(dx: 0, dy: distance)),
+                withVelocity: .slow,
+                thenHoldForDuration: 0.3
             )
         }
     }
