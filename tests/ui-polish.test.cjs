@@ -116,6 +116,11 @@ test('manual metadata lookups disclose what they send', () => {
   assert.match(settingsSource, /Find Art and Look Up Genre in the album editor send the same words when you tap them\./);
 });
 
+test('the album editor opens as a page sheet so every field is visible on iPad', () => {
+  const detail = read('ios/App/App/Features/Library/AlbumDetailView.swift');
+  assert.match(detail, /\.sheet\(isPresented: \$editing\) \{\s*AlbumEditorView\([^\n]*\)[\s\S]{0,260}\.presentationSizing\(\.page\)/);
+});
+
 test('launch, migration and recovery actions use the shared orbital button style', () => {
   const root = read('ios/App/App/Features/Root/AeonRootView.swift');
   assert.doesNotMatch(root, /\.buttonStyle\(\.(borderedProminent|bordered)\)/);

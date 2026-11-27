@@ -30,6 +30,9 @@ struct AlbumDetailView: View {
         .background(AeonTheme.ColorToken.void.ignoresSafeArea())
         .sheet(isPresented: $editing) {
             AlbumEditorView(controller: controller, album: controller.selectedAlbum ?? album)
+                // iPad's default form sheet is 620 points tall, which left the Title field
+                // under the Save bar. A page sheet shows artwork and every field at once.
+                .presentationSizing(.page)
         }
         .alert("Delete Album?", isPresented: $confirmingDelete) {
             Button("Cancel", role: .cancel) {}
