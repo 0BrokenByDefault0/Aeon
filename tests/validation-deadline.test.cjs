@@ -28,3 +28,27 @@ test('watchdog preserves failure and kills a TERM-resistant owned descendant at 
   assert.equal(inherited.status, 124);
   assert(!inherited.stdout.startsWith('MUST NOT START'));
 });
+
+test('no stage may ask for more than the simulator budget', () => {
+  const refused = spawnSync('python3', [runner, '--stage', 'oversized budget', '--seconds', '901', '--',
+    'python3', '-c', 'print("MUST NOT START")'], {encoding: 'utf8', timeout: 5000});
+  assert.equal(refused.status, 2);
+  assert(!refused.stdout.includes('MUST NOT START'));
+  const allowed = spawnSync('python3', [runner, '--stage', 'simulator budget', '--seconds', '900', '--',
+    'python3', '-c', 'pass'], {encoding: 'utf8', timeout: 5000});
+  assert.equal(allowed.status, 0, allowed.stderr);
+  assert.equal(JSON.parse(allowed.stdout.trim().split('\n').pop()).budget_seconds, 900);
+});
+
+test('deep validation reports every case under one deadline each and never retries', () => {
+  const release = readFileSync(join(__dirname, '../.github/workflows/ios-release.yml'), 'utf8');
+  const matrix = release.split('  native-regression:')[1].split('  release-summary:')[0];
+  assert.match(matrix, /fail-fast: false/);
+  assert.match(matrix, /max-parallel: 2/);
+  assert.match(matrix, /--stage "\$FAMILY \$SELECTOR" --seconds 900 /);
+  assert.match(matrix, /timeout-minutes: 16/);
+  assert.doesNotMatch(release, /continue-on-error|retry|rerun/i);
+  // The build stage and the web matrix keep the 600-second default.
+  assert.equal((release.match(/--seconds/g) || []).length, 1);
+  assert.match(release, /needs\.native-regression\.result/);
+});

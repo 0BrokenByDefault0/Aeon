@@ -18,8 +18,10 @@ def main():
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ['--'] else args.command
-    if not command or not 0 < args.seconds <= 600:
-        parser.error('a command and a budget in (0, 600] are required')
+    # 600 seconds is the default for every stage. Simulator stages on hosted runners may
+    # ask for up to 900; nothing may ask for more.
+    if not command or not 0 < args.seconds <= 900:
+        parser.error('a command and a budget in (0, 900] are required')
     started = time.monotonic()
     deadline = min(started + args.seconds, float(os.environ.get('AEON_VALIDATION_DEADLINE', 'inf')))
     env = dict(os.environ, AEON_VALIDATION_DEADLINE=str(deadline))

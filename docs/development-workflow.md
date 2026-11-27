@@ -24,7 +24,7 @@ The native app root is `AeonApp -> AppContainer -> AeonRootView`. The normal 5.0
 2. Make the minimal implementation. Avoid cross-area cleanup.
 3. Run `npm run test:targeted -- --area=<area>`. This runs syntax plus cheap Node or focused browser contracts relevant to that area.
 4. Push the coherent commit. `Build fast unsigned IPA` repeats cheap changed-area checks, builds the device app, and packages and uploads the unsigned IPA with its validation manifest before any native tests execute. Deliver the artifact as soon as it is available; do not wait for the workflow to finish.
-5. After IPA upload, the fast workflow runs all `AppTests` unit tests on one iPhone simulator, under one 600-second deadline. UI validation is explicitly marked NOT RUN in the fast report. On macOS, the equivalent is `npm run test:targeted:native -- --area=<area>`, also after IPA delivery. The default is one iPhone simulator and explicit XCTest/XCUITest selectors. Add `--family=ipad` only when the change is layout- or iPad-specific. Native failures keep CI red and produce failure evidence, but do not remove or block the uploaded IPA.
+5. After IPA upload, the fast workflow runs all `AppTests` unit tests on one iPhone simulator, under one 900-second deadline. UI validation is explicitly marked NOT RUN in the fast report. On macOS, the equivalent is `npm run test:targeted:native -- --area=<area>`, also after IPA delivery. The default is one iPhone simulator and explicit XCTest/XCUITest selectors. Add `--family=ipad` only when the change is layout- or iPad-specific. Native failures keep CI red and produce failure evidence, but do not remove or block the uploaded IPA.
 
 Use multiple areas when a change crosses boundaries:
 
@@ -52,7 +52,7 @@ The manual `skip_native` input defaults to `false` and only skips post-upload te
 
 ## Deep and release path
 
-Run the manual `Deep release validation` workflow for a release candidate. It executes the complete Node/browser regression set, builds simulator products once, then runs unit tests and each individual UI case on both iPhone and iPad simulators. Each native compilation or test stage has a 600-second watchdog. UI cases reuse the compiled products; the matrix cancels remaining cases on a failure or timeout and never retries automatically. Its artifacts contain bounded summaries and `.xcresult` bundles. Superseded runs cancel automatically.
+Run the manual `Deep release validation` workflow for a release candidate. It executes the complete Node/browser regression set, builds simulator products once, then runs unit tests and each individual UI case on both iPhone and iPad simulators. Native compilation has a 600-second watchdog and each simulator test case a 900-second one. UI cases reuse the compiled products; the matrix runs every case even after a failure or timeout, so one run reports the whole suite, and never retries automatically. Its artifacts contain bounded summaries and `.xcresult` bundles. Superseded runs cancel automatically.
 
 Before release approval, attach physical-device evidence for:
 

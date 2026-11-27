@@ -124,10 +124,11 @@ test('native evidence shares one bounded post-IPA stage with no later review ret
   assert.ok(positions.every(p => p >= 0));
   assert.deepEqual(positions, [...positions].sort((a, b) => a - b));
   assert.match(workflow, /validation-deadline.py --stage "post-IPA native validation"/);
-  assert.match(workflow, /timeout-minutes: 11/);
+  assert.match(workflow, /--stage "post-IPA native validation" --seconds 900 /);
+  assert.match(workflow, /timeout-minutes: 16/);
   assert.doesNotMatch(workflow, /Capture compact album review|Capture orbital UI review|continue-on-error/);
   assert.match(workflow, /deadline.json/);
-  assert.match(workflow, /TIMEOUT at 600 seconds; work stopped/);
+  assert.match(workflow, /TIMEOUT at 900 seconds; work stopped/);
 });
 
 

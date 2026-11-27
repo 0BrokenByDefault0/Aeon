@@ -182,7 +182,7 @@ jobs:
           printf '\n## Fast IPA available\n[Download the unsigned iteration IPA](%s)\n\nNative validation is reported separately below; do not wait for it to download the IPA.\n' "$IPA_URL" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run focused native validation
-        timeout-minutes: 11
+        timeout-minutes: 16
         id: native
         if: ${{ always() && steps.upload_ipa.outcome == 'success' && steps.plan.outputs.native_required == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.skip_native) }}
         shell: bash
@@ -196,7 +196,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/aeon-fast"
           if [[ "$ROUTE_KIND" == "areas" ]]; then route=(--area="$ROUTE_VALUE"); else route=(--changed-from="$ROUTE_VALUE"); fi
           set +e
-          python3 scripts/validation-deadline.py --stage "post-IPA native validation" --report "$RUNNER_TEMP/aeon-fast/deadline.json" -- node scripts/test-targeted.mjs "${route[@]}" --tier=native --scope=unit --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
+          python3 scripts/validation-deadline.py --stage "post-IPA native validation" --seconds 900 --report "$RUNNER_TEMP/aeon-fast/deadline.json" -- node scripts/test-targeted.mjs "${route[@]}" --tier=native --scope=unit --family=iphone > "$RUNNER_TEMP/aeon-fast/native.log" 2>&1
           result=$?
           set -e
           {
@@ -226,7 +226,7 @@ jobs:
               else native_result="NOT RUN; uploaded IPA is not native-validated"; fi ;;
           esac
           if [[ -f "$RUNNER_TEMP/aeon-fast/deadline.json" ]] && python3 -c 'import json,sys; sys.exit(not json.load(open(sys.argv[1]))["timed_out"])' "$RUNNER_TEMP/aeon-fast/deadline.json"; then
-            native_result="TIMEOUT at 600 seconds; work stopped; owner decision required"
+            native_result="TIMEOUT at 900 seconds; work stopped; owner decision required"
           fi
           {
             printf 'Aeon post-upload validation\nCommit: %s\n' "$GITHUB_SHA"

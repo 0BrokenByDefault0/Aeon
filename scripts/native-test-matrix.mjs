@@ -1,6 +1,6 @@
 import {readFileSync, readdirSync} from 'node:fs';
 
-// A UI case owns a fresh simulator invocation and its own 600-second deadline.
+// A UI case owns a fresh simulator invocation and its own 900-second deadline.
 // Build once; do not spend every case's budget recompiling the app.
 const selectors = ['AppTests'];
 for (const file of readdirSync('ios/App/AppUITests').filter(name => name.endsWith('.swift')).sort()) {

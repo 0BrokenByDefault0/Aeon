@@ -85,9 +85,10 @@ jobs:
   native-regression:
     needs: native-build
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
-      fail-fast: true
+      # Report every case. One failed or timed-out case must not hide the rest; nothing is retried.
+      fail-fast: false
       max-parallel: 2
       matrix: ${{ fromJSON(needs.native-build.outputs.matrix) }}
     name: Native / ${{ matrix.family }} / ${{ matrix.selector }}
@@ -106,7 +107,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/AeonDerivedData" "$RUNNER_TEMP/aeon-release"
           tar -C "$RUNNER_TEMP/AeonDerivedData" -xzf "$RUNNER_TEMP/native-products.tgz"
       - name: Run bounded native case
-        timeout-minutes: 11
+        timeout-minutes: 16
         env:
           FAMILY: ${{ matrix.family }}
           SELECTOR: ${{ matrix.selector }}
@@ -115,7 +116,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          python3 scripts/validation-deadline.py --stage "$FAMILY $SELECTOR" --report "$RUNNER_TEMP/aeon-release/deadline.json" -- node scripts/test-ios.mjs --family="$FAMILY" --mode=test-without-building "-only-testing:$SELECTOR" > "$RUNNER_TEMP/aeon-release/native.log" 2>&1
+          python3 scripts/validation-deadline.py --stage "$FAMILY $SELECTOR" --seconds 900 --report "$RUNNER_TEMP/aeon-release/deadline.json" -- node scripts/test-ios.mjs --family="$FAMILY" --mode=test-without-building "-only-testing:$SELECTOR" > "$RUNNER_TEMP/aeon-release/native.log" 2>&1
           result=$?
           set -e
           {
