@@ -47,6 +47,7 @@ final class AeonScreenMatrixTests: XCTestCase {
             app.terminate()
         }
         var app = launch(["-AeonLibraryFixture", "populated"])
+        openNavigationIfNeeded(in: app)
         app.buttons["aeon.navigation.library"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["aeon.library.screen"].waitForExistence(timeout: 8))
         capture(app, name: "definitive-library")
@@ -165,6 +166,7 @@ final class AeonScreenMatrixTests: XCTestCase {
             ("long-title", ["-AeonAX5Testing"], "long-title-accessibility")
         ] {
             let app = launch(["-AeonLibraryFixture", fixture] + options)
+            openNavigationIfNeeded(in: app)
             app.buttons["aeon.navigation.library"].tap()
             let album = app.buttons["aeon.library.album.library-fixture-album-12"]
             scroll(in: app, until: album); album.tap()
@@ -448,9 +450,22 @@ final class AeonScreenMatrixTests: XCTestCase {
     ) {
         let window = app.windows.firstMatch.frame
         let scrollView = app.scrollViews.firstMatch
+        var lastTop = CGFloat.infinity
+        var stalls = 0
         for _ in 0..<30 {
             settle(element, in: scrollView)
             if element.exists && element.isHittable { break }
+            if element.exists {
+                // Two flings that move nothing mean the content has ended. Stop and fail
+                // with the screenshot below instead of spending the stage's whole deadline.
+                let top = element.frame.minY
+                stalls = abs(top - lastTop) < 0.5 ? stalls + 1 : 0
+                lastTop = top
+                if stalls >= 2 { break }
+                // A target above the viewport was carried past it. `settle` is dragging it
+                // back, and another upward fling would only throw it out again.
+                if scrollView.exists && top < scrollView.frame.minY { continue }
+            }
             if scrollView.exists {
                 scrollView.swipeUp()
             } else {
@@ -474,29 +489,36 @@ final class AeonScreenMatrixTests: XCTestCase {
         }
     }
 
-    /// Brings a target that a swipe left clipped by the scroll view's edge wholly into view.
-    /// Reachability is then judged on a visible control, not on where a fling happened to
-    /// stop: a button cut off by two points made XCUITest fail to compute any hit point.
+    /// Brings a target that a swipe left clipped by the scroll view's edge, or carried past
+    /// its top, wholly into view. Reachability is then judged on a visible control, not on
+    /// where a fling happened to stop: a button cut off by two points made XCUITest fail to
+    /// compute any hit point, and one fling on an iPad in landscape skipped a whole row.
     private func settle(_ element: XCUIElement, in scrollView: XCUIElement) {
         let margin: CGFloat = 24
         for _ in 0..<2 {
             guard scrollView.exists, element.exists else { return }
             let viewport = scrollView.frame
             let frame = element.frame
-            guard frame.intersects(viewport),
+            // A target still below the viewport is left to the caller's fling.
+            guard frame.minY < viewport.maxY,
                   frame.height + margin * 2 <= viewport.height,
                   frame.minX >= viewport.minX - 0.5,
                   frame.maxX <= viewport.maxX + 0.5 else { return }
-            let distance: CGFloat
+            let wanted: CGFloat
             if frame.minY < viewport.minY {
-                distance = viewport.minY + margin - frame.minY
+                wanted = viewport.minY + margin - frame.minY
             } else if frame.maxY > viewport.maxY {
-                distance = viewport.maxY - margin - frame.maxY
+                wanted = viewport.maxY - margin - frame.maxY
             } else {
                 return
             }
+            // One drag moves the content by at most 60% of the viewport; the loop repeats.
+            let reach = viewport.height * 0.6
+            let distance = max(-reach, min(reach, wanted))
+            let far = abs(distance) > viewport.height * 0.3
+            let startY: CGFloat = far ? (distance > 0 ? 0.2 : 0.8) : 0.5
             // A slow drag that holds at its end moves the content without a fling.
-            let start = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            let start = scrollView.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
             start.press(
                 forDuration: 0.05,
                 thenDragTo: start.withOffset(CGVector(dx: 0, dy: distance)),
@@ -511,11 +533,18 @@ final class AeonScreenMatrixTests: XCTestCase {
         var navigationButtons: [XCUIElement] = []
         if name.hasPrefix("definitive-") || name.hasPrefix("corrective-sky-") {
             if app.images["aeon.sky.canvas"].exists && !app.buttons["aeon.player.close"].exists {
-                for destination in ["sky", "library", "playlists", "settings"] {
-                    let button = app.buttons["aeon.navigation.\(destination)"]
-                    XCTAssertTrue(button.waitForExistence(timeout: 5))
-                    XCTAssertTrue(button.isHittable, "Sky navigation must remain available: \(destination)")
-                    navigationButtons.append(button)
+                let menu = app.buttons["aeon.navigation.menu"]
+                if menu.exists && menu.label == "Open navigation" {
+                    // iPad in portrait keeps the four destinations behind this one control.
+                    XCTAssertTrue(menu.isHittable, "Sky navigation must remain available: menu")
+                    navigationButtons.append(menu)
+                } else {
+                    for destination in ["sky", "library", "playlists", "settings"] {
+                        let button = app.buttons["aeon.navigation.\(destination)"]
+                        XCTAssertTrue(button.waitForExistence(timeout: 5))
+                        XCTAssertTrue(button.isHittable, "Sky navigation must remain available: \(destination)")
+                        navigationButtons.append(button)
+                    }
                 }
             }
         }

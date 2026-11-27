@@ -44,6 +44,7 @@ final class PlaybackFlowTests: XCTestCase {
         app.buttons["aeon.player.close"].tap()
         assertSingleReachableMiniPlayer(in: app)
         for destination in ["playlists", "settings", "library", "sky"] {
+            openNavigationIfNeeded(in: app)
             app.buttons["aeon.navigation.\(destination)"].tap()
             let mini = assertSingleReachableMiniPlayer(in: app)
             XCTAssertTrue(mini.label.contains("A Signal Carried Across the Quiet"))
