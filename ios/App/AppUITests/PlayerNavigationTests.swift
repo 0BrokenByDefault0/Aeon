@@ -48,6 +48,13 @@ final class PlayerNavigationTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launch()
+        // A launch without a fixture runs the 4.x library check before the first screen.
+        // That check starts WebKit, which can take most of a minute on a hosted simulator,
+        // so wait for the shell here instead of charging the delay to the first step.
+        XCTAssertTrue(
+            app.images["aeon.sky.canvas"].waitForExistence(timeout: 60),
+            "Aeon did not finish opening"
+        )
         return app
     }
 
