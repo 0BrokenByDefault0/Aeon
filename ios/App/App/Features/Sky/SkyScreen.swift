@@ -371,6 +371,12 @@ enum SkyLabelLayout {
                 let vertical = members.height / 2 + size.height / 2 + 20
                 offsets += [CGPoint(x: 0, y: -vertical), CGPoint(x: 0, y: vertical),
                             CGPoint(x: horizontal, y: 0), CGPoint(x: -horizontal, y: 0)]
+                // Last resorts, so a wide or crowded group is not left unnamed: the corners of
+                // its envelope, then one row further out.
+                let far = size.height + 10
+                offsets += [CGPoint(x: horizontal, y: -vertical), CGPoint(x: -horizontal, y: -vertical),
+                            CGPoint(x: horizontal, y: vertical), CGPoint(x: -horizontal, y: vertical),
+                            CGPoint(x: 0, y: -vertical - far), CGPoint(x: 0, y: vertical + far)]
             }
             guard let frame = offsets.lazy.map({ offset in
                 var frame = CGRect(
