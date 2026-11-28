@@ -120,7 +120,7 @@ struct AeonRootView: View {
     private var content: some View {
         switch container.launchState {
         case .launching:
-            launchMessage("OPENING ISOLATION").padding(32)
+            launchMessage("OPENING AEON").padding(32)
         case .checkingLegacyLibrary:
             launchMessage("CHECKING LIBRARY").padding(32)
         case .migrationRequired(let summary):
@@ -132,7 +132,7 @@ struct AeonRootView: View {
                 Text("Your library is intact.")
                     .font(.custom(AeonTheme.FontToken.nocturnePostScriptName, size: 30, relativeTo: .title))
                     .foregroundStyle(AeonTheme.ColorToken.primary)
-                Text("\(summary.recordCount) records and \(summary.artifactCount) files from your earlier library are ready to move into ISOLATION.")
+                Text("\(summary.recordCount) records and \(summary.artifactCount) files from your earlier library are ready to move into Aeon.")
                     .font(AeonTheme.FontToken.ui(.subheadline))
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.7))
                     .multilineTextAlignment(.center)
@@ -186,7 +186,7 @@ struct AeonRootView: View {
             }
         case .recovery(let issue):
             VStack(spacing: 18) {
-                Text("ISOLATION COULD NOT OPEN")
+                Text("AEON COULD NOT OPEN")
                     .font(AeonTheme.FontToken.metric(.caption, weight: .medium))
                     .tracking(2)
                     .foregroundStyle(AeonTheme.ColorToken.secondary.opacity(0.58))

@@ -164,8 +164,11 @@ test('equalizer and device-correction panels use Aeon tokens, tiers and the shar
 test('launch, migration and recovery screens use type tokens and the app name', () => {
   const rootSource = read('ios/App/App/Features/Root/AeonRootView.swift');
   assert.doesNotMatch(rootSource, /\.font\(\.system\(/);
-  assert.match(rootSource, /launchMessage\("OPENING ISOLATION"\)/);
-  assert.match(rootSource, /Text\("ISOLATION COULD NOT OPEN"\)/);
+  // Inside the app the name is Aeon. ISOLATION is the home-screen name, and so the name
+  // of the app's folder in Files; only copy that points at that folder may use it.
+  assert.match(rootSource, /launchMessage\("OPENING AEON"\)/);
+  assert.match(rootSource, /Text\("AEON COULD NOT OPEN"\)/);
+  assert.doesNotMatch(rootSource, /ISOLATION/);
 });
 
 test('plain-label controls route touch feedback through AeonFeedback', () => {
