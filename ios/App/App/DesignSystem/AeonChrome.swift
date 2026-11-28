@@ -128,7 +128,10 @@ struct AeonChrome<PlayerBar: View>: View {
     private var sidebar: some View {
         AeonGlass {
             VStack(alignment: .leading, spacing: 0) {
+                // At the largest text sizes the wordmark is wider than the sidebar; shrink it
+                // to fit rather than letting it run off the leading edge.
                 AeonDisplayText("AEON", size: 28, maximumLines: 1).tracking(2).foregroundStyle(AeonOrbit.title)
+                    .minimumScaleFactor(0.6)
                     .padding(.horizontal, AeonTheme.Space.edge).padding(.top, 72).padding(.bottom, AeonTheme.Space.section)
                 ForEach(AeonDestination.allCases) { navigationButton($0, compact: false) }
                 Spacer(minLength: 0)
