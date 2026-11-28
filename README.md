@@ -13,8 +13,9 @@ different skies.
 Everything lives **on the device**: audio, artwork, playlists and listening
 history are never uploaded, tracked or shared.
 
-> The app is ISOLATION. *Aeon* is the project's codename, used in the code,
-> the repository and build artefacts.
+> On the home screen and in Files the app is ISOLATION. Inside, it calls itself
+> *Aeon*, which is also the name used in the code, the repository and build
+> artefacts.
 
 ## Features
 
