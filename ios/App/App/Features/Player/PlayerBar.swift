@@ -44,6 +44,7 @@ struct PlayerBar: View {
     let open: () -> Void
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.aeonPlayerBarNarrow) private var narrow
 
     var body: some View {
         if visibility.isActive(layerID), let presentation = PlayerPresentation.resolve(
@@ -51,74 +52,102 @@ struct PlayerBar: View {
             catalog: catalog,
             artworkStore: artworkStore
         ), let snapshot = playback.snapshot {
-            HStack(spacing: AeonTheme.Space.small) {
-                Button(action: open) {
-                    HStack(spacing: 10) {
-                        miniArtwork(presentation.artwork)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(presentation.track.title)
-                                .font(AeonTheme.FontToken.ui(.subheadline, weight: .semibold))
-                                .foregroundStyle(AeonTheme.ColorToken.bone)
-                                .lineLimit(1)
-                            Text(presentation.artist)
-                                .font(AeonTheme.FontToken.ui(.caption))
-                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if narrow {
+                // The iPad sidebar is narrower than three transport buttons beside a title.
+                // Laid out in one row there, the bar ran off the leading screen edge and
+                // dragged the wordmark and tabs with it. Two rows fit; the sidebar is
+                // already a surface, so this variant draws no capsule of its own.
+                VStack(alignment: .leading, spacing: AeonTheme.Space.xSmall) {
+                    openButton(presentation)
+                    HStack(spacing: 0) {
+                        previousButton.frame(maxWidth: .infinity)
+                        toggleButton(snapshot).frame(maxWidth: .infinity)
+                        nextButton.frame(maxWidth: .infinity)
                     }
-                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open Now Playing for \(presentation.track.title)")
-                .accessibilityIdentifier("aeon.player.open")
-
-                transportButton(
-                    .previous,
-                    label: "Previous track",
-                    identifier: "aeon.player.previous",
-                    action: playback.previous
-                )
-                transportButton(
-                    snapshot.intent == .playing ? .pause : .play,
-                    label: snapshot.intent == .playing ? "Pause" : "Play",
-                    identifier: "aeon.player.toggle",
-                    action: playback.toggle
-                )
-                transportButton(
-                    .next,
-                    label: "Next track",
-                    identifier: "aeon.player.next",
-                    action: playback.next
-                )
-            }
-            .padding(.horizontal, AeonTheme.Space.medium)
-            .frame(minHeight: 56)
-            .modifier(PlayerBarSurface(opaque: reduceTransparency || AeonTestOverrides.reduceTransparency
-                || contrast == .increased || AeonTestOverrides.increasedContrast))
-            .overlay(alignment: .bottomLeading) {
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(AeonTheme.ColorToken.ivorySecondary)
-                        .frame(
-                            width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
-                            height: 1.5
-                        )
+                .padding(.horizontal, AeonTheme.Space.medium)
+                .padding(.vertical, AeonTheme.Space.small)
+                .overlay(alignment: .bottomLeading) { progressRule(presentation, snapshot, inset: AeonTheme.Space.medium, lift: 0) }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("aeon.player.bar")
+            } else {
+                HStack(spacing: AeonTheme.Space.small) {
+                    openButton(presentation)
+                    previousButton
+                    toggleButton(snapshot)
+                    nextButton
                 }
-                .frame(height: 1.5)
-                .padding(.horizontal, 22)
-                .padding(.bottom, 4)
-                .accessibilityHidden(true)
+                .padding(.horizontal, AeonTheme.Space.medium)
+                .frame(minHeight: 56)
+                .modifier(PlayerBarSurface(opaque: reduceTransparency || AeonTestOverrides.reduceTransparency
+                    || contrast == .increased || AeonTestOverrides.increasedContrast))
+                .overlay(alignment: .bottomLeading) { progressRule(presentation, snapshot, inset: 22, lift: 4) }
+                .padding(.horizontal, AeonTheme.Space.medium)
+                .padding(.vertical, 6)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("aeon.player.bar")
             }
-            .padding(.horizontal, AeonTheme.Space.medium)
-            .padding(.vertical, 6)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("aeon.player.bar")
         } else if playback.snapshot?.trackID != nil {
             // Preserve viewport geometry without retaining covered controls in UIKit's
             // accessibility tree (opacity alone leaves duplicate sheet/root buttons).
             Color.clear.frame(height: 68).accessibilityHidden(true)
         }
+    }
+
+    private func openButton(_ presentation: PlayerPresentation) -> some View {
+        Button(action: open) {
+            HStack(spacing: 10) {
+                miniArtwork(presentation.artwork)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(presentation.track.title)
+                        .font(AeonTheme.FontToken.ui(.subheadline, weight: .semibold))
+                        .foregroundStyle(AeonTheme.ColorToken.bone)
+                        .lineLimit(1)
+                    Text(presentation.artist)
+                        .font(AeonTheme.FontToken.ui(.caption))
+                        .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open Now Playing for \(presentation.track.title)")
+        .accessibilityIdentifier("aeon.player.open")
+    }
+
+    private var previousButton: some View {
+        transportButton(.previous, label: "Previous track", identifier: "aeon.player.previous", action: playback.previous)
+    }
+
+    private func toggleButton(_ snapshot: PlaybackSnapshot) -> some View {
+        transportButton(
+            snapshot.intent == .playing ? .pause : .play,
+            label: snapshot.intent == .playing ? "Pause" : "Play",
+            identifier: "aeon.player.toggle",
+            action: playback.toggle
+        )
+    }
+
+    private var nextButton: some View {
+        transportButton(.next, label: "Next track", identifier: "aeon.player.next", action: playback.next)
+    }
+
+    private func progressRule(_ presentation: PlayerPresentation, _ snapshot: PlaybackSnapshot,
+                              inset: CGFloat, lift: CGFloat) -> some View {
+        GeometryReader { geometry in
+            Rectangle()
+                .fill(AeonTheme.ColorToken.ivorySecondary)
+                .frame(
+                    width: geometry.size.width * progress(snapshot: snapshot, duration: presentation.duration),
+                    height: 1.5
+                )
+        }
+        .frame(height: 1.5)
+        .padding(.horizontal, inset)
+        .padding(.bottom, lift)
+        .accessibilityHidden(true)
     }
 
     // Square, hairline-bordered, exactly like every other cover in the app. The rounded
@@ -177,6 +206,18 @@ struct PlayerBarContext {
 
 private struct PlayerBarContextKey: EnvironmentKey {
     static let defaultValue: PlayerBarContext? = nil
+}
+
+private struct PlayerBarNarrowKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Set by the iPad sidebar, which is too narrow for the one-row bar.
+    var aeonPlayerBarNarrow: Bool {
+        get { self[PlayerBarNarrowKey.self] }
+        set { self[PlayerBarNarrowKey.self] = newValue }
+    }
 }
 
 extension EnvironmentValues {

@@ -128,8 +128,8 @@ struct AeonChrome<PlayerBar: View>: View {
     private var sidebar: some View {
         AeonGlass {
             VStack(alignment: .leading, spacing: 0) {
-                // At the largest text sizes the wordmark is wider than the sidebar; shrink it
-                // to fit rather than letting it run off the leading edge.
+                // Kept as a guard for the largest text sizes. The overflow it was added for
+                // came from the mini player below, which now has a two-row sidebar layout.
                 AeonDisplayText("AEON", size: 28, maximumLines: 1).tracking(2).foregroundStyle(AeonOrbit.title)
                     .minimumScaleFactor(0.6)
                     .padding(.horizontal, AeonTheme.Space.edge).padding(.top, 72).padding(.bottom, AeonTheme.Space.section)
@@ -138,6 +138,7 @@ struct AeonChrome<PlayerBar: View>: View {
                 if playerLoaded {
                     Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
                     playerBar.frame(minHeight: AeonTheme.Space.playerBar)
+                        .environment(\.aeonPlayerBarNarrow, true)
                 }
             }
         }

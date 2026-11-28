@@ -210,3 +210,17 @@ test('phone review fixes: rules, wrapping, placeholder years and storage figures
   assert.match(component, /struct AeonDisclosureStyle: DisclosureGroupStyle/);
   assert.match(read('ios/App/App/Features/Player/EQView.swift'), /\.disclosureGroupStyle\(AeonDisclosureStyle\(\)\)/);
 });
+
+test('the iPad sidebar carries a mini player that fits inside it', () => {
+  const bar = read('ios/App/App/Features/Player/PlayerBar.swift');
+  const chrome = read('ios/App/App/DesignSystem/AeonChrome.swift');
+  // One row of artwork, title and three 44-point buttons needs about 254 points; the
+  // sidebar is 196. The overflow pushed the whole sidebar off the leading screen edge.
+  const sidebar = chrome.split('private var sidebar: some View')[1].split('private func navigationButton')[0];
+  assert.match(sidebar, /playerBar\.frame\(minHeight: AeonTheme\.Space\.playerBar\)\s*\.environment\(\\\.aeonPlayerBarNarrow, true\)/);
+  assert.equal((chrome.match(/aeonPlayerBarNarrow/g) || []).length, 1);
+  const narrow = bar.split('if narrow {')[1].split('} else {')[0];
+  for (const control of ['openButton(presentation)', 'previousButton', 'toggleButton(snapshot)', 'nextButton']) assert.ok(narrow.includes(control), control);
+  assert.match(narrow, /VStack\(alignment: \.leading/);
+  assert.doesNotMatch(narrow, /PlayerBarSurface/);
+});
