@@ -38,7 +38,7 @@ final class SkyCameraTests: XCTestCase {
             XCTAssertEqual(SkyDisclosure.textOpacity(scale: fit, collectionScale: fit), 1)
             XCTAssertEqual(SkyDisclosure.textOpacity(scale: fit * 0.7, collectionScale: fit), 0.5, accuracy: 0.000001)
             XCTAssertEqual(SkyDisclosure.textOpacity(scale: fit * 0.5, collectionScale: fit), 0)
-            let minimum = max(SkyCameraState.minimumScale, fit * 0.25)
+            let minimum = max(SkyCameraState.minimumScale, fit * 0.5)
             XCTAssertEqual(SkyDisclosure.textOpacity(scale: minimum, collectionScale: fit), 0)
         }
     }

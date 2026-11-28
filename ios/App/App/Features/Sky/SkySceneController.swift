@@ -183,7 +183,10 @@ final class SkySceneController: ObservableObject {
 
     func zoom(by factor: Double, anchor: CGPoint, viewport: SkyViewport, persist: Bool) {
         guard factor.isFinite, factor > 0 else { return }
-        let minimum = max(SkyCameraState.minimumScale, collectionCamera.scale * 0.25)
+        // Half the collection fit is where the labels have fully faded, so the text-free
+        // panorama is still reachable. Any further out and the album stars, which keep a
+        // fixed point size, merge into one blob beside planets that no longer shrink.
+        let minimum = max(SkyCameraState.minimumScale, collectionCamera.scale * 0.5)
         let next = max(minimum, min(SkyCameraState.maximumScale, camera.scale * factor))
         setCamera(camera.zoomed(by: next / camera.scale, anchor: anchor, viewport: viewport), persist: persist)
     }
