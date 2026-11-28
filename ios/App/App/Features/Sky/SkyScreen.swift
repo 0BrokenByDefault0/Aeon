@@ -14,6 +14,7 @@ struct SkyScreen: View {
     var isForeground = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var importSheetPresented = false
 
     var body: some View {
@@ -68,9 +69,12 @@ struct SkyScreen: View {
                             .opacity(controller.skyTextOpacity)
                             .allowsHitTesting(controller.skyTextOpacity > 0)
                             .accessibilityHidden(controller.skyTextOpacity == 0)
-                        // Selection state for assistive technology. Not gated on sky text:
-                        // hiding labels is a visual preference, not a reason to stop saying
-                        // what is selected.
+                    }
+                    // Selection state for assistive technology. Not gated on sky text:
+                    // hiding labels is a visual preference, not a reason to stop saying
+                    // what is selected. At regular width the sky stays visible beside the
+                    // open panel, so Find in Sky from the Library must still report its star.
+                    if isForeground || horizontalSizeClass == .regular {
                         selectionReadout
                     }
                 }

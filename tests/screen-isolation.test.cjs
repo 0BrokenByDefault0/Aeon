@@ -35,8 +35,10 @@ test('Sky stays mounted but inactive copy, actions and accessibility overlays do
 });
 
 test('a selected album or constellation is announced without a pinned title card', () => {
-  const foreground = sky.split('if isForeground {')[1].split('.transaction')[0];
-  assert.ok(foreground.includes('selectionReadout'));
+  // Mounted with the foreground Sky, and at regular width where the sky stays visible
+  // beside an open panel. Never behind an opaque compact panel.
+  assert.match(sky, /if isForeground \|\| horizontalSizeClass == \.regular \{\s*selectionReadout\s*\}/);
+  assert.equal((sky.match(/\bselectionReadout\b/g) || []).length, 2);
   const readout = sky.split('@ViewBuilder private var selectionReadout')[1].split('private func planetMarker')[0];
   assert.match(readout, /"aeon\.sky\.star-selection"/);
   assert.match(readout, /"aeon\.sky\.constellation-selection"/);
