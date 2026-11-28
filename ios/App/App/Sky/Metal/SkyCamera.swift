@@ -20,7 +20,8 @@ enum PlanetProjection {
     static func bodyRadius(scale: Double, usableSize: CGSize, ringExtent: Float) -> CGFloat {
         let width = max(1, usableSize.width), height = max(1, usableSize.height)
         let approach = 1 - exp(-max(0, scale) / 2.5)
-        let desired = width * (0.065 + 0.165 * approach)
+        // Small in the overview so worlds do not outweigh the collection; the close-up size is unchanged.
+        let desired = width * (0.045 + 0.185 * approach)
         let envelopeCap = min(width * 0.275, height * 0.225)
         return min(desired, envelopeCap / CGFloat(max(1.08, ringExtent)))
     }
