@@ -53,7 +53,9 @@ struct NowPlayingView: View {
                                     queueControls(snapshot: snapshot)
                                 }
                                 .frame(minHeight: max(0, viewport.size.height - 92))
-                                volume(snapshot: snapshot)
+                                // The first page is the stage alone. One section of extra air
+                                // keeps the slider's knob from showing at the very bottom edge.
+                                volume(snapshot: snapshot).padding(.top, AeonTheme.Space.section)
                                 secondary(presentation: presentation, snapshot: snapshot)
                                 EQView(playback: playback).id(NowPlayingSection.equalizer)
                                 spectrumSection.id(NowPlayingSection.spectrum)

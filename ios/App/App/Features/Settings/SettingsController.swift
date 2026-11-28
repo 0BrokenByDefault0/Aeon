@@ -224,11 +224,19 @@ final class SettingsController: ObservableObject {
         }
     }
 
+    private var measuringStorage = false
+
     func measureStorage() {
+        // Walking a large library takes a while; never run two walks at once.
+        guard !measuringStorage else { return }
+        measuringStorage = true
         let roots = roots
         Task { [weak self, fileManager] in
             let measurement = await Task.detached(priority: .utility) {
+                // Music lives in Files (adopted, imported and migrated folders) and, for
+                // older copies, in the app's own media folder. Count both.
                 let library = Self.directoryBytes(roots.documentsURL.appendingPathComponent("Music", isDirectory: true), fileManager: fileManager)
+                    + Self.directoryBytes(roots.applicationSupportURL.appendingPathComponent("Aeon/Media", isDirectory: true), fileManager: fileManager)
                 let artwork = Self.directoryBytes(roots.applicationSupportURL.appendingPathComponent("Aeon/Artwork", isDirectory: true), fileManager: fileManager)
                 let catalogue = Self.directoryBytes(roots.applicationSupportURL.appendingPathComponent("Aeon/Catalog", isDirectory: true), fileManager: fileManager)
                 let available = (try? roots.documentsURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage) ?? 0
@@ -240,6 +248,7 @@ final class SettingsController: ObservableObject {
                 )
             }.value
             self?.storage = measurement
+            self?.measuringStorage = false
         }
     }
 

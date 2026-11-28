@@ -80,7 +80,7 @@ final class SpotlightIndexer {
                 let attributes = CSSearchableItemAttributeSet(contentType: .audio)
                 attributes.title = album.title
                 attributes.displayName = album.title
-                attributes.contentDescription = [album.artist, album.year, album.genre]
+                attributes.contentDescription = [album.artist, AeonAlbumYear.display(album.year) ?? "", album.genre]
                     .filter { !$0.isEmpty }.joined(separator: " \u{00b7} ")
                 attributes.keywords = [album.artist, album.genre].filter { !$0.isEmpty }
                 return CSSearchableItem(

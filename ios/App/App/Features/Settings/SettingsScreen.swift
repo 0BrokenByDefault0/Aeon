@@ -98,6 +98,9 @@ struct SettingsScreen: View {
                                 .lineLimit(nil).fixedSize(horizontal: false, vertical: true)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .accessibilityIdentifier("aeon.settings.storage-value")
+                                // Measured at launch otherwise, which reported an empty
+                                // library for the whole session after a first import.
+                                .onAppear { controller.measureStorage() }
                         }
                         .padding(.vertical, AeonTheme.Space.regular)
                     }
@@ -136,7 +139,7 @@ struct SettingsScreen: View {
                             labelValue("Albums", value: "\(preview.albumCount)")
                             labelValue("Tracks", value: "\(preview.trackCount)")
                             labelValue("Playlists", value: "\(preview.playlistCount)")
-                            labelValue("Unpacked size", value: ByteCountFormatter.string(fromByteCount: Int64(preview.expandedBytes), countStyle: .file))
+                            labelValue("Unpacked size", value: format(Int64(preview.expandedBytes)))
                             Text("\(preview.replacingAlbums) existing albums and \(preview.replacingPlaylists) existing playlists will be replaced by their backup versions. Other albums and playlists stay in your library.")
                                 .font(AeonTheme.FontToken.ui(.callout)).foregroundStyle(AeonOrbit.ink)
                             note("Every file is checked before the catalogue is updated. Adopted originals stay in place. Keep this backup until you have checked the restored library.")
@@ -157,7 +160,7 @@ struct SettingsScreen: View {
                             labelValue("Tracks checked", value: "\(health.trackCount)")
                             labelValue("Missing or unavailable", value: "\(health.missingCount)")
                             labelValue("Unused managed copies", value: "\(health.unreferencedFileCount)")
-                            labelValue("Space held by unused copies", value: ByteCountFormatter.string(fromByteCount: health.unreferencedBytes, countStyle: .file))
+                            labelValue("Space held by unused copies", value: format(health.unreferencedBytes))
                             note(health.missingCount == 0 ? "Every catalogued track is available." : "Return missing files to their original location, or restore a full backup. For cloud files, check that they have finished downloading in Files.")
                             ForEach(health.missingTracks) { track in
                                 VStack(alignment: .leading, spacing: 4) {
@@ -340,9 +343,17 @@ struct SettingsScreen: View {
     }
 
     private var storageText: String {
-        "\(format(controller.storage.usedBytes)) used · \(format(controller.storage.libraryBytes)) music · \(format(controller.storage.availableBytes)) available"
+        ["\(format(controller.storage.usedBytes))\u{00A0}used",
+         "\(format(controller.storage.libraryBytes))\u{00A0}music",
+         "\(format(controller.storage.availableBytes))\u{00A0}available"].joined(separator: " · ")
     }
-    private func format(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
+    /// Digits always ("0 KB", never "Zero KB"), and a number never wraps away from its unit.
+    private func format(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter.string(fromByteCount: bytes).replacingOccurrences(of: " ", with: "\u{00A0}")
+    }
 }
 
 private extension View {

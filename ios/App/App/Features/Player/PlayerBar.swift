@@ -204,6 +204,10 @@ private struct ModalPlayerBar: ViewModifier {
                 PlayerBar(playback: scoped.playback, visibility: scoped.presentation,
                     layerID: layerID, catalog: scoped.catalog,
                     artworkStore: scoped.artworkStore, open: scoped.open)
+                    // Sheets that size themselves to their content add this to their detent.
+                    .background(GeometryReader { geometry in
+                        Color.clear.preference(key: AeonModalPlayerBarHeight.self, value: geometry.size.height)
+                    })
             }
             // The sheet owns its whole background, including the home-indicator area.
             // Only the capsule supplies glass; a clear sheet exposes the system gray floor.
@@ -219,6 +223,12 @@ private struct ModalPlayerBar: ViewModifier {
 
 extension View {
     func aeonMiniPlayerInset() -> some View { modifier(ModalPlayerBar()) }
+}
+
+/// Height of the mini player a sheet is carrying; zero while nothing is loaded.
+struct AeonModalPlayerBarHeight: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 

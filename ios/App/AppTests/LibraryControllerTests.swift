@@ -11,6 +11,16 @@ final class LibraryControllerTests: XCTestCase {
         super.tearDown()
     }
 
+    func testPlaceholderYearsAreNotDisplayedAndRealOnesAreUnchanged() {
+        XCTAssertNil(AeonAlbumYear.display(""))
+        XCTAssertNil(AeonAlbumYear.display("  "))
+        XCTAssertNil(AeonAlbumYear.display("0000"))
+        XCTAssertNil(AeonAlbumYear.display("0000-00-00"))
+        XCTAssertEqual(AeonAlbumYear.display(" 2014 "), "2014")
+        XCTAssertEqual(AeonAlbumYear.display("2000"), "2000")
+        XCTAssertEqual(AeonAlbumYear.display("Unknown"), "Unknown")
+    }
+
     func testAllSortsAreStableAndMissingYearAndPlayedSortLast() throws {
         let repository = try makeRepository()
         try repository.insertAlbums([

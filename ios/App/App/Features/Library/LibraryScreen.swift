@@ -182,7 +182,7 @@ struct LibraryScreen: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(alignment: .top, spacing: AeonTheme.Space.large) {
                             ForEach(shelf.albums) { album in
-                                albumGridCell(album).frame(width: width >= 700 ? 174 : 146)
+                                albumGridCell(album, side: width >= 700 ? 174 : 146)
                                     .onAppear { if album.id == controller.albums.last?.id { controller.loadNextPage() } }
                             }
                         }.padding(.vertical, 2)
@@ -205,7 +205,9 @@ struct LibraryScreen: View {
                             Text(detailLine(album)).font(AeonTheme.FontToken.metric(.caption2)).foregroundStyle(AeonOrbit.secondary)
                             if let status = controller.status(for: album.id) { AeonLabel(text: status) }
                         }
-                        Spacer()
+                        // The text column takes the row. A default spacer here cost 24 points
+                        // and pushed "655 TRACKS" onto a second line.
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         AeonGlyph(kind: .disclosure).foregroundStyle(AeonOrbit.secondary)
                     }
                     .padding(.vertical, AeonTheme.Space.small).contentShape(Rectangle())
@@ -216,16 +218,28 @@ struct LibraryScreen: View {
             }
         }
     }
-    private func albumGridCell(_ album: CatalogAlbumSummary) -> some View {
+    private func albumGridCell(_ album: CatalogAlbumSummary, side: CGFloat) -> some View {
         Button { controller.selectAlbum(id: album.id) } label: {
             VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
-                GeometryReader { proxy in artwork(album, size: proxy.size.width) }.aspectRatio(1, contentMode: .fit)
-                Text(album.title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
-                    .foregroundStyle(AeonTheme.ColorToken.textPrimary).lineLimit(2)
-                Text(album.artist).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary).lineLimit(1)
-                if let status = controller.status(for: album.id) { AeonLabel(text: status) }
+                // A fixed side. Sized from the row, a cover shrank whenever its own title
+                // ran to two lines, so one shelf showed covers of different sizes.
+                artwork(album, size: side)
+                ZStack(alignment: .topLeading) {
+                    // Two title lines are reserved so every cell on a shelf is the same height.
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        Text("A\nA").font(AeonTheme.FontToken.ui(.callout, weight: .regular)).lineLimit(2)
+                        Text("A").font(AeonTheme.FontToken.ui(.caption)).lineLimit(1)
+                    }
+                    .hidden().accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: AeonTheme.Space.small) {
+                        Text(album.title).font(AeonTheme.FontToken.ui(.callout, weight: .regular))
+                            .foregroundStyle(AeonTheme.ColorToken.textPrimary).lineLimit(2)
+                        Text(album.artist).font(AeonTheme.FontToken.ui(.caption)).foregroundStyle(AeonOrbit.secondary).lineLimit(1)
+                        if let status = controller.status(for: album.id) { AeonLabel(text: status) }
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            .frame(width: side, alignment: .leading).contentShape(Rectangle())
         }
         .buttonStyle(AeonPlainButtonStyle()).accessibilityIdentifier("aeon.library.album.\(album.id)")
     }
@@ -283,7 +297,9 @@ struct LibraryScreen: View {
             .modifier(LibraryArtworkVisibility(controller: controller, key: album.artworkKey))
     }
     private func detailLine(_ album: CatalogAlbumSummary) -> String {
-        [album.artist, album.year.isEmpty ? nil : album.year, "\(album.trackCount) TRACKS"].compactMap { $0 }.joined(separator: " · ")
+        // The count and its unit stay together if the line has to wrap.
+        [album.artist, AeonAlbumYear.display(album.year), "\(album.trackCount)\u{00A0}TRACKS"]
+            .compactMap { $0 }.joined(separator: " · ")
     }
 }
 

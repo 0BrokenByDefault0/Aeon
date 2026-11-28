@@ -40,6 +40,18 @@ struct CatalogAlbumSummary: Codable, Equatable, Identifiable {
     let importedAt: Date
 }
 
+/// Display only. The stored tag is never rewritten; a year whose digits are all zero
+/// ("0000" is a common placeholder in tagged files) is simply not shown.
+enum AeonAlbumYear {
+    static func display(_ raw: String) -> String? {
+        let year = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !year.isEmpty else { return nil }
+        let digits = year.filter(\.isNumber)
+        if !digits.isEmpty, digits.allSatisfy({ $0 == "0" }) { return nil }
+        return year
+    }
+}
+
 struct CatalogPlaylist: Codable, Equatable, Identifiable {
     let id: String
     var name: String

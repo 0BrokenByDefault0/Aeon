@@ -159,14 +159,17 @@ struct AlbumDetailView: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
             : AnyLayout(HStackLayout(alignment: .top, spacing: AeonTheme.Space.section))
         return layout {
-            if !album.year.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                metadataValue("YEAR", album.year)
+            if let year = AeonAlbumYear.display(album.year) {
+                metadataValue("YEAR", year)
             }
             if !album.genre.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 metadataValue("GENRE", album.genre)
             }
             metadataValue("TRACKS", "\(controller.selectedTracks.count)")
         }
+        // Span the column so the two rules match the track rules below, instead of
+        // stopping where the last value happens to end.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 14)
         .overlay(alignment: .top) {
             Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)
@@ -195,12 +198,18 @@ struct AlbumDetailView: View {
                                     .font(AeonTheme.FontToken.ui(.body, weight: .medium))
                                     .foregroundStyle(AeonTheme.ColorToken.bone)
                                     .multilineTextAlignment(.leading)
-                                HStack(spacing: AeonTheme.Space.small) {
-                                    if !track.artist.isEmpty { Text(track.artist) }
-                                    if let unavailable = controller.availabilityText(for: track) { Text(unavailable) }
+                                // The album artist is already under the title. Repeating it on
+                                // every row is noise; a guest or compilation artist still shows.
+                                let guest = trackArtist(track)
+                                let unavailable = controller.availabilityText(for: track)
+                                if guest != nil || unavailable != nil {
+                                    HStack(spacing: AeonTheme.Space.small) {
+                                        if let guest { Text(guest) }
+                                        if let unavailable { Text(unavailable) }
+                                    }
+                                    .font(AeonTheme.FontToken.ui(.caption))
+                                    .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                                 }
-                                .font(AeonTheme.FontToken.metric(.caption2))
-                                .foregroundStyle(AeonTheme.ColorToken.boneSecondary)
                             }
                             Spacer(minLength: 0)
                             Text(duration(track.duration))
@@ -248,6 +257,14 @@ struct AlbumDetailView: View {
                 .font(AeonTheme.FontToken.ui(.callout, weight: .medium))
                 .foregroundStyle(AeonTheme.ColorToken.bone)
         }
+    }
+
+    private func trackArtist(_ track: CatalogTrack) -> String? {
+        let name = track.artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty,
+              name.caseInsensitiveCompare(album.artist.trimmingCharacters(in: .whitespacesAndNewlines)) != .orderedSame
+        else { return nil }
+        return name
     }
 
     private func trackNumber(_ track: CatalogTrack, fallback: Int) -> String {

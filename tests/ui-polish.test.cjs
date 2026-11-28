@@ -78,7 +78,11 @@ test('import rows have rounded outlines and top-aligned icon/title stacks', () =
 test('sheet fits measured content without replacing its identity or handlers', () => {
   const sheet = component.split('struct AeonImportSheet')[1].split('struct AeonToast')[0];
   assert.match(sheet, /onPreferenceChange\(AeonImportContentHeight.self\)/);
-  assert.match(sheet, /\.height\(contentHeight \+ AeonTheme.Space.medium \* 2 \+ AeonOrbit.stroke\)/);
+  // The sheet also carries a mini player while something is loaded; its height is part
+  // of the detent, or the last paragraph is cut off behind it.
+  assert.match(sheet, /\.height\(contentHeight \+ AeonTheme.Space.medium \* 2 \+ AeonOrbit.stroke \+ playerBarHeight\)/);
+  assert.match(sheet, /onPreferenceChange\(AeonModalPlayerBarHeight.self\)/);
+  assert.match(read('ios/App/App/Features/Player/PlayerBar.swift'), /preference\(key: AeonModalPlayerBarHeight\.self, value: geometry\.size\.height\)/);
   assert.match(sheet, /isAccessibilitySize/);
   assert.doesNotMatch(sheet, /\.id\(/);
   assert.match(sheet, /Import files, or adopt everything in Files → ISOLATION → Music\./);
@@ -176,4 +180,33 @@ test('plain-label controls route touch feedback through AeonFeedback', () => {
   for (const file of ['Features/Sky/SkyScreen.swift', 'Features/Sky/SkyHUD.swift', 'Features/Playlists/PlaylistsScreen.swift', 'Features/Settings/SettingsScreen.swift']) {
     assert.doesNotMatch(read(`ios/App/App/${file}`), /\.buttonStyle\(\.plain\)/, file);
   }
+});
+
+test('phone review fixes: rules, wrapping, placeholder years and storage figures', () => {
+  const detail = read('ios/App/App/Features/Library/AlbumDetailView.swift');
+  // Album facts are ruled across the whole column, like the track rows beneath them.
+  assert.match(detail, /metadataValue\("TRACKS"[^\n]*\n\s*\}\n(\s*\/\/[^\n]*\n)*\s*\.frame\(maxWidth: \.infinity, alignment: \.leading\)\n\s*\.padding\(\.vertical, 14\)/);
+  // A year of all zeros is a tag placeholder, not a year. Display only; the tag is kept.
+  assert.match(read('ios/App/App/Domain/CatalogModels.swift'), /enum AeonAlbumYear/);
+  assert.match(detail, /AeonAlbumYear\.display\(album\.year\)/);
+  assert.match(library, /AeonAlbumYear\.display\(album\.year\)/);
+  assert.doesNotMatch(library, /album\.year\.isEmpty/);
+  // The album artist is not repeated on every track row.
+  assert.match(detail, /private func trackArtist\(_ track: CatalogTrack\) -> String\?/);
+  // Shelf covers have a fixed side; they are not sized from the row.
+  assert.match(library, /albumGridCell\(album, side: width >= 700 \? 174 : 146\)/);
+  assert.doesNotMatch(library, /GeometryReader \{ proxy in artwork/);
+  // A breadcrumb label takes its width before the rule does.
+  const crumb = component.split('struct AeonBreadcrumb: View')[1].split('enum AeonButtonTier')[0];
+  assert.match(crumb, /Text\(text\.uppercased\(\)\)[^\n]*\.layoutPriority\(1\)/);
+  // Storage is measured when it is looked at, counts both music roots, and never says "Zero KB".
+  assert.match(settings, /storage-value"\)\n(\s*\/\/[^\n]*\n)*\s*\.onAppear \{ controller\.measureStorage\(\) \}/);
+  assert.match(settings, /allowsNonnumericFormatting = false/);
+  assert.doesNotMatch(settings, /ByteCountFormatter\.string\(/);
+  const controller = read('ios/App/App/Features/Settings/SettingsController.swift');
+  assert.match(controller, /"Aeon\/Media"/);
+  assert.match(controller, /guard !measuringStorage else \{ return \}/);
+  // Disclosure rows use the shared chevron.
+  assert.match(component, /struct AeonDisclosureStyle: DisclosureGroupStyle/);
+  assert.match(read('ios/App/App/Features/Player/EQView.swift'), /\.disclosureGroupStyle\(AeonDisclosureStyle\(\)\)/);
 });

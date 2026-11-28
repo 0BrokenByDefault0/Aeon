@@ -30,6 +30,7 @@ struct EQView: View {
             DeviceCorrectionView(playback: playback)
             audioPath
         }
+        .disclosureGroupStyle(AeonDisclosureStyle())
         .padding(.top, AeonTheme.Space.large)
         .overlay(alignment: .top) {
             Rectangle().fill(AeonTheme.ColorToken.rule).frame(height: AeonTheme.Stroke.hairline)

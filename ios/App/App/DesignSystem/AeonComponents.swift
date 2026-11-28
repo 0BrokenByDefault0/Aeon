@@ -269,7 +269,9 @@ struct AeonBreadcrumb: View {
     let text: String
     var body: some View {
         HStack(spacing: AeonTheme.Space.medium) {
-            Text(text.uppercased()).fixedSize(horizontal: false, vertical: true)
+            // The label takes its width first. With equal priority the rule claimed half the
+            // row and "NOW PLAYING" broke onto two lines beside an empty stretch of rule.
+            Text(text.uppercased()).fixedSize(horizontal: false, vertical: true).layoutPriority(1)
             Rectangle().frame(height: AeonOrbit.stroke).opacity(0.35).accessibilityHidden(true)
         }
         .font(AeonTheme.FontToken.metric(.caption2, weight: .medium))
@@ -294,6 +296,39 @@ struct AeonPlainButtonStyle: ButtonStyle {
                 guard pressed, isEnabled else { return }
                 AeonFeedback.activated()
             }
+    }
+}
+
+/// Disclosure rows drawn with the shared chevron instead of the system's heavier one,
+/// so "Saved curves" matches every other row that opens.
+struct AeonDisclosureStyle: DisclosureGroupStyle {
+    func makeBody(configuration: Configuration) -> some View { AeonDisclosureRow(configuration: configuration) }
+}
+
+private struct AeonDisclosureRow: View {
+    let configuration: DisclosureGroupStyleConfiguration
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(reduceMotion || AeonTestOverrides.reduceMotion ? nil : .easeOut(duration: AeonTheme.Duration.chrome)) {
+                    configuration.isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: AeonTheme.Space.medium) {
+                    configuration.label
+                    Spacer(minLength: 0)
+                    AeonGlyph(kind: .disclosure)
+                        .rotationEffect(.degrees(configuration.isExpanded ? 90 : 0))
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: AeonTheme.Space.minimumTarget, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(AeonPlainButtonStyle())
+            .accessibilityValue(configuration.isExpanded ? "Expanded" : "Collapsed")
+            if configuration.isExpanded { configuration.content }
+        }
     }
 }
 
@@ -627,6 +662,9 @@ struct AeonImportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var contentHeight: CGFloat = 340
+    /// The sheet carries its own mini player while something is loaded. Without counting
+    /// it, the measured detent was short by the bar's height and the last paragraph was cut.
+    @State private var playerBarHeight: CGFloat = 0
     var body: some View {
         AeonSheet {
             ScrollView {
@@ -675,9 +713,12 @@ struct AeonImportSheet: View {
         .onPreferenceChange(AeonImportContentHeight.self) { measured in
             if measured > 0, abs(contentHeight - measured) > 1 { contentHeight = measured }
         }
+        .onPreferenceChange(AeonModalPlayerBarHeight.self) { measured in
+            if abs(playerBarHeight - measured) > 1 { playerBarHeight = measured }
+        }
         .presentationDetents(dynamicTypeSize.isAccessibilitySize || AeonTestOverrides.accessibilityText
             ? [.large]
-            : [.height(contentHeight + AeonTheme.Space.medium * 2 + AeonOrbit.stroke), .large])
+            : [.height(contentHeight + AeonTheme.Space.medium * 2 + AeonOrbit.stroke + playerBarHeight), .large])
         .accessibilityElement(children: .contain).accessibilityIdentifier("aeon.import.sheet")
     }
     private func importOption(title: String, detail: String, glyph: AeonGlyphKind,
