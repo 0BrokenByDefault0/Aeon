@@ -79,7 +79,8 @@ vertex SkyVertexOut skyInstanceVertex(
     // Catalogue cores have a point-space semantic minimum, independent of world zoom.
     // 0x8000 is an album core/halo; backdrop particles never inherit this treatment.
     bool album = (instance.flags & 0x8000) != 0;
-    float radius = album ? mix(3.6, 5.4, near) : instance.size;
+    // The overview minimum is large enough for an album to read as a star, not a speck.
+    float radius = album ? mix(4.2, 5.4, near) : instance.size;
     if ((instance.flags & 0x200) != 0) radius *= 1.12;
     if (selected) radius = mix(3.3, 9.0, focus);
     if (glow) radius = selected ? mix(12.0, 56.0, focus) : mix(9.0, 17.0, near);
@@ -120,7 +121,8 @@ vertex SkyVertexOut skyLineVertex(
     out.color0 = lines[vertexID].color;
     float cameraScale = uniforms.scale / max(1.0, uniforms.spectrum.w);
     float lengthInPoints = lines[vertexID].positionPadding.x * cameraScale;
-    float reveal = lines[vertexID].positionPadding.y > 0 ? 1.0 : smoothstep(0.35, 1.7, cameraScale);
+    // A faint floor keeps an artist's figure legible in the overview; it still sharpens on approach.
+    float reveal = lines[vertexID].positionPadding.y > 0 ? 1.0 : mix(0.4, 1.0, smoothstep(0.35, 1.7, cameraScale));
     float local = 1.0 - smoothstep(0.6, 1.1, lengthInPoints / (min(uniforms.viewport.x, uniforms.viewport.y) / max(1.0, uniforms.spectrum.w)));
     out.color0.a *= reveal * local;
     out.color1 = lines[vertexID].color;

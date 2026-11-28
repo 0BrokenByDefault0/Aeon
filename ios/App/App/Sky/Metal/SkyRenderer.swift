@@ -227,9 +227,12 @@ final class SkyRenderer: NSObject, MTKViewDelegate {
             ]
             var rgb = temperatures[Int(SkyStableHash.value(star.albumID) % 3)]
             if let sample = star.spectralColor {
-                // A spectral influence, not literal saturated artwork colour.
+                // Half starlight, half the artwork's hue at full brightness. A dark cover still
+                // makes a bright star, and near-black artwork keeps its plain temperature.
                 let artwork = SIMD3(Float(sample.red), Float(sample.green), Float(sample.blue)) / 255
-                rgb = rgb * 0.72 + artwork * 0.28
+                let peak = max(artwork.x, max(artwork.y, artwork.z))
+                let hue = peak > 0.12 ? artwork / peak : rgb
+                rgb = rgb * 0.5 + hue * 0.5
             }
             let color = SIMD4(rgb.x, rgb.y, rgb.z, Float(1))
             return GPUInstance(
